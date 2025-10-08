@@ -3,77 +3,69 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
-import QRCode from 'qrcode.react';
-import { BRAND_LOGO } from '@/lib/constants';
 
-type Submission = {
+interface Submission {
   id: string;
-  photo_url: string;
-  message: string | null;
-  nickname: string | null;
-  created_at: string;
-};
-
-type Event = {
-  id: string;
-  title: string;
+  event_id: string;
+  user_id: string;
+  nickname: string;
+  message: string;
+  photo_url: string | null;
   status: string;
-  theme_colors: string | null;
-  background_url: string | null;
-  countdown: string | null;
-  transition: string | null;
-};
+  created_at: string;
+}
 
-export default function LiveWall() {
-  const params = useParams();
-  const eventId = params.eventId as string;
-
-  const [event, setEvent] = useState<Event | null>(null);
+export default function FanWallPage() {
+  const { eventId } = useParams();
   const [posts, setPosts] = useState<Submission[]>([]);
-  const [index, setIndex] = useState(0);
+  const [event, setEvent] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
   // ✅ Load event + posts
   useEffect(() => {
-    async function fetchEventAndPosts() {
-      const { data: ev } = await supabase
+    if (!eventId) return;
+
+    async function fetchData() {
+      // Get event info
+      const { data: eventData } = await supabase
         .from('events')
         .select('*')
         .eq('id', eventId)
         .single();
 
-      if (!ev) return;
-      setEvent(ev);
+      setEvent(eventData);
 
-      const { data: subs } = await supabase
+      // Get approved posts
+      const { data: submissions } = await supabase
         .from('submissions')
         .select('*')
         .eq('event_id', eventId)
         .eq('status', 'approved')
         .order('created_at', { ascending: false });
 
-      setPosts(subs || []);
+      setPosts(submissions || []);
       setLoading(false);
     }
 
-    fetchEventAndPosts();
+    fetchData();
 
-    // Realtime listener for new approved posts
+    // ✅ Live updates: new approved submissions
     const channel = supabase
-      .channel('wall-updates')
+      .channel('realtime:submissions')
       .on(
         'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'submissions' },
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'submissions',
+        },
         (payload) => {
-          if (
-  (payload.new as any)?.status === 'approved' &&
-  (payload.new as any)?.event_id === eventId
-) {
-  const newPost = payload.new as Submission;
-  setPosts((prev): Submission[] => [newPost, ...prev]);
-  }
- }
-)
+          const newPost = payload.new as Submission;
+          if (newPost.event_id === eventId && newPost.status === 'approved') {
+            setPosts((prev): Submission[] => [newPost, ...prev]);
+          }
+        }
+      )
       .subscribe();
 
     return () => {
@@ -81,150 +73,81 @@ export default function LiveWall() {
     };
   }, [eventId]);
 
-  // ✅ Rotation logic
-  useEffect(() => {
-    if (posts.length === 0) return;
-    const speedMap: any = { fast: 10000, medium: 15000, slow: 30000 };
-    const delay = speedMap[event?.transition || 'medium'];
-
-    const timer = setInterval(() => {
-      setIndex((prev) => (prev + 1) % posts.length);
-    }, delay);
-
-    return () => clearInterval(timer);
-  }, [posts, event]);
-
-  if (loading)
-    return <div style={loadingStyle}>Loading Fan Zone Wall...</div>;
-
-  if (!event)
-    return <div style={loadingStyle}>No event found.</div>;
-
-  // 🧮 Compute theme + layout
-  const bg = event.background_url
-    ? `url(${event.background_url}) center/cover no-repeat`
-    : event.theme_colors
-    ? `linear-gradient(135deg, ${event.theme_colors}, #000)`
-    : '#000';
-
-  const post = posts[index];
+  if (loading) return <p style={{ color: '#fff', textAlign: 'center' }}>Loading Fan Wall...</p>;
+  if (!event) return <p style={{ color: '#fff', textAlign: 'center' }}>Event not found.</p>;
 
   return (
-    <div style={{ ...wallStyle, background: bg }}>
-      {/* Header */}
-      <header style={headerStyle}>
-        <img src={BRAND_LOGO} alt="FanInteract Logo" style={{ height: 60 }} />
-        <h1 style={{ marginLeft: 10 }}>{event.title}</h1>
-      </header>
-
-      {/* Inactive or Live View */}
-      {event.status !== 'live' ? (
-        <div style={inactiveStyle}>
-          <h2>Fan Zone Wall Going Live Shortly</h2>
-          {event.countdown && <h3>{event.countdown}</h3>}
-          <QRCode
-            value={`${window.location.origin}/submit?event_id=${eventId}`}
-            size={150}
-            bgColor="transparent"
-            fgColor="#fff"
-            style={{ marginTop: 30 }}
-          />
+    <div
+      style={{
+        ...pageStyle,
+        background: event.background_url
+          ? `url(${event.background_url}) center/cover no-repeat`
+          : 'linear-gradient(180deg, #000, #111)',
+      }}
+    >
+      <div style={overlayStyle}>
+        <h1 style={titleStyle}>{event.title}</h1>
+        <div style={gridStyle}>
+          {posts.length === 0 && <p>No posts yet. Be the first to join in!</p>}
+          {posts.map((post) => (
+            <div key={post.id} style={cardStyle}>
+              {post.photo_url && (
+                <img
+                  src={post.photo_url}
+                  alt={post.nickname}
+                  style={{ width: '100%', borderRadius: '10px', marginBottom: '8px' }}
+                />
+              )}
+              <p style={{ fontWeight: 600 }}>{post.nickname}</p>
+              <p>{post.message}</p>
+            </div>
+          ))}
         </div>
-      ) : posts.length === 0 ? (
-        <div style={inactiveStyle}>
-          <h2>No posts yet — scan and join!</h2>
-          <QRCode
-            value={`${window.location.origin}/submit?event_id=${eventId}`}
-            size={150}
-            bgColor="transparent"
-            fgColor="#fff"
-            style={{ marginTop: 30 }}
-          />
-        </div>
-      ) : (
-        <div style={postContainer}>
-          <img
-            src={post.photo_url}
-            alt="Fan Submission"
-            style={{
-              width: 'auto',
-              height: '65vh',
-              borderRadius: 20,
-              boxShadow: '0 0 20px rgba(0,0,0,0.6)',
-            }}
-          />
-          <p style={commentText}>
-            <strong>{post.nickname || 'Anonymous'}:</strong> {post.message}
-          </p>
-
-          {/* QR Bottom Left */}
-          <div style={qrContainer}>
-            <QRCode
-              value={`${window.location.origin}/submit?event_id=${eventId}`}
-              size={100}
-              bgColor="transparent"
-              fgColor="#fff"
-            />
-          </div>
-        </div>
-      )}
+      </div>
     </div>
   );
 }
 
 // ---------------- STYLES ----------------
-const wallStyle: React.CSSProperties = {
-  width: '100vw',
-  height: '100vh',
+const pageStyle: React.CSSProperties = {
+  minHeight: '100vh',
+  display: 'flex',
+  justifyContent: 'center',
+  alignItems: 'center',
+  color: 'white',
   overflow: 'hidden',
-  color: '#fff',
+};
+
+const overlayStyle: React.CSSProperties = {
+  width: '100%',
+  height: '100%',
+  background: 'rgba(0, 0, 0, 0.6)',
+  padding: '40px 20px',
   display: 'flex',
   flexDirection: 'column',
   alignItems: 'center',
-  justifyContent: 'center',
+};
+
+const titleStyle: React.CSSProperties = {
+  fontSize: '2.5rem',
+  marginBottom: '20px',
   textAlign: 'center',
+  color: '#1e90ff',
 };
 
-const loadingStyle: React.CSSProperties = {
-  ...wallStyle,
-  background: '#000',
-  justifyContent: 'center',
-  alignItems: 'center',
-  fontSize: 24,
+const gridStyle: React.CSSProperties = {
+  display: 'grid',
+  gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
+  gap: '20px',
+  width: '100%',
+  maxWidth: '1200px',
 };
 
-const inactiveStyle: React.CSSProperties = {
+const cardStyle: React.CSSProperties = {
+  background: 'rgba(255, 255, 255, 0.1)',
+  borderRadius: '10px',
+  padding: '10px',
   textAlign: 'center',
-  color: '#fff',
-};
-
-const postContainer: React.CSSProperties = {
-  position: 'relative',
-  display: 'flex',
-  flexDirection: 'column',
-  alignItems: 'center',
-  gap: 20,
-};
-
-const commentText: React.CSSProperties = {
-  fontSize: 24,
-  background: 'rgba(0,0,0,0.5)',
-  padding: '10px 20px',
-  borderRadius: 10,
-  marginTop: 10,
-};
-
-const qrContainer: React.CSSProperties = {
-  position: 'absolute',
-  bottom: 20,
-  left: 20,
-};
-
-const headerStyle: React.CSSProperties = {
-  position: 'absolute',
-  top: 20,
-  left: 20,
-  display: 'flex',
-  alignItems: 'center',
-  gap: 10,
+  transition: 'all 0.3s ease',
+  backdropFilter: 'blur(6px)',
 };
