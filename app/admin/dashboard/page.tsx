@@ -63,6 +63,11 @@ export default function DashboardPage() {
   return (
     <div style={pageStyle}>
       <h1 style={{ marginBottom: 20 }}>🎛 Host Dashboard</h1>
+      <img
+  src="/faninteractlogo.png"
+  alt="FanInteract Logo"
+  style={{ width: 120, marginBottom: 10 }}
+/>
       <button onClick={handleCreate} style={buttonStyle}>➕ New Fan Zone Wall</button>
 
       <div style={{ marginTop: 20, display: 'flex', flexWrap: 'wrap', gap: '20px', justifyContent: 'center' }}>
