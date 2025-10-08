@@ -31,9 +31,9 @@ export default function Dashboard() {
   )
 }
 
-const pageStyle = {
+const pageStyle: React.CSSProperties = {
   display: 'flex',
-  flexDirection: 'column',
+  flexDirection: 'column' as const,
   alignItems: 'center',
   justifyContent: 'center',
   minHeight: '100vh',
@@ -41,7 +41,7 @@ const pageStyle = {
   color: 'white',
 }
 
-const buttonStyle = {
+const buttonStyle: React.CSSProperties = {
   padding: '10px 20px',
   borderRadius: '8px',
   border: 'none',
