@@ -1,82 +1,75 @@
-'use client'
+'use client';
 
-import { useState } from 'react'
-import { supabase } from '@/lib/supabaseClient'
-import { useRouter } from 'next/navigation'
+import { useState } from 'react';
+import { supabase } from '@/lib/supabaseClient';
+import { BRAND_LOGO, BRAND_NAME } from '@/lib/constants';
 
 export default function LoginPage() {
-  const router = useRouter()
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [error, setError] = useState<string | null>(null)
+  const [email, setEmail] = useState('');
 
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setError(null)
-    const { error } = await supabase.auth.signInWithPassword({ email, password })
-    if (error) return setError(error.message)
-    router.push('/admin/dashboard')
+  async function handleLogin(e: React.FormEvent) {
+    e.preventDefault();
+    if (!email) return alert('Please enter your email.');
+
+    const { error } = await supabase.auth.signInWithOtp({ email });
+    if (error) return alert('Error: ' + error.message);
+    alert('Check your email for a login link!');
   }
+
+  const pageStyle: React.CSSProperties = {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: '100vh',
+    background: 'linear-gradient(180deg, #0d0d0d, #1a1a1a)',
+    color: '#fff',
+    fontFamily: 'system-ui, sans-serif',
+  };
+
+  const formStyle: React.CSSProperties = {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '10px',
+    width: '300px',
+  };
+
+  const inputStyle: React.CSSProperties = {
+    padding: '10px',
+    borderRadius: 6,
+    border: '1px solid #333',
+    background: '#111',
+    color: '#fff',
+  };
+
+  const buttonStyle: React.CSSProperties = {
+    padding: '10px',
+    borderRadius: 6,
+    border: 'none',
+    background: '#1e90ff',
+    color: '#fff',
+    fontWeight: 600,
+    cursor: 'pointer',
+  };
 
   return (
     <div style={pageStyle}>
-      <h1>Host Login</h1>
+      <img
+        src={BRAND_LOGO}
+        alt={`${BRAND_NAME} logo`}
+        style={{ width: 160, marginBottom: 20 }}
+      />
+      <h1 style={{ marginBottom: 10 }}>{BRAND_NAME} Host Login</h1>
       <form onSubmit={handleLogin} style={formStyle}>
         <input
           type="email"
-          placeholder="Email"
+          placeholder="Enter your email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           style={inputStyle}
-          required
         />
-        <input
-          type="password"
-          placeholder="Password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          style={inputStyle}
-          required
-        />
-        <button style={buttonStyle}>Log In</button>
-        {error && <p style={{ color: 'red' }}>{error}</p>}
+        <button type="submit" style={buttonStyle}>Send Magic Link</button>
       </form>
-      <p>Don’t have an account? <a href="/signup">Sign up</a></p>
     </div>
-  )
-}
-
-const pageStyle: React.CSSProperties = {
-  display: 'flex',
-  flexDirection: 'column' as const,
-  alignItems: 'center',
-  justifyContent: 'center',
-  minHeight: '100vh',
-  background: '#0d0d0d',
-  color: 'white',
-}
-
-const formStyle: React.CSSProperties = {
-  display: 'flex',
-  flexDirection: 'column' as const,
-  gap: '10px',
-  width: '300px',
-}
-
-const inputStyle: React.CSSProperties = {
-  padding: '10px',
-  borderRadius: '8px',
-  border: '1px solid #333',
-  backgroundColor: '#1a1a1a',
-  color: 'white',
-}
-
-const buttonStyle: React.CSSProperties = {
-  padding: '10px',
-  borderRadius: '8px',
-  border: 'none',
-  backgroundColor: '#1e90ff',
-  color: 'white',
-  fontWeight: 600,
-  cursor: 'pointer',
+  );
 }
