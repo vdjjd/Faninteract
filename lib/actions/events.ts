@@ -1,90 +1,91 @@
-'use server';
+import { supabase } from '@/lib/supabaseClient'
 
-import { supabase } from '@/lib/supabaseClient';
-
-// ✅ Create a new Fan Zone Wall (event)
-export async function createEvent(hostId: string, data: {
-  title: string;
-  team?: string;
-  theme_colors?: string;
-  background_url?: string;
-  countdown?: string | null;
-  transition?: string;
-  auto_delete_minutes?: number;
-}) {
-  const { error } = await supabase
+// ✅ Create new event
+export async function createEvent(host_id: string, { title }: { title: string }) {
+  const { data, error } = await supabase
     .from('events')
-    .insert([{
-      host_id: hostId,
-      title: data.title,
-      type: 'fan_wall',
-      team: data.team || null,
-      status: 'inactive',
-      theme_colors: data.theme_colors || '#1e90ff,#111',
-      background_url: data.background_url || null,
-      countdown: data.countdown || null,
-      transition: data.transition || 'fade',
-      auto_delete_minutes: data.auto_delete_minutes || 0,
-      deleted: false,
-    }]);
+    .insert([
+      {
+        host_id,
+        title,
+        status: 'inactive',
+        type: 'fan_wall',
+        team: null,
+        theme_colors: null,
+        background_url: null,
+        countdown: null,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        deleted: false,
+      },
+    ])
+    .select()
+    .single()
 
-  if (error) throw new Error(`Error creating event: ${error.message}`);
-  return true;
+  if (error) {
+    console.error('❌ Error creating event:', error.message)
+    throw error
+  }
+
+  console.log('✅ Event created:', data)
+  return data
 }
 
-// ✅ Get all events for a specific host
-export async function getEventsByHost(hostId: string) {
+// ✅ Get all events for a host
+export async function getEventsByHost(host_id: string) {
   const { data, error } = await supabase
     .from('events')
     .select('*')
-    .eq('host_id', hostId)
+    .eq('host_id', host_id)
     .eq('deleted', false)
-    .order('created_at', { ascending: false });
+    .order('created_at', { ascending: false })
 
-  if (error) throw new Error(`Error fetching events: ${error.message}`);
-  return data || [];
+  if (error) {
+    console.error('❌ Error fetching events:', error.message)
+    return []
+  }
+
+  return data
 }
 
-// ✅ Update an existing event (title, theme, etc.)
-export async function updateEvent(eventId: string, updates: Record<string, any>) {
-  const { error } = await supabase
-    .from('events')
-    .update(updates)
-    .eq('id', eventId);
-
-  if (error) throw new Error(`Error updating event: ${error.message}`);
-  return true;
-}
-
-// ✅ Delete event permanently (hard delete, after confirmation)
-export async function deleteEvent(eventId: string) {
+// ✅ Delete event
+export async function deleteEvent(id: string) {
   const { error } = await supabase
     .from('events')
     .delete()
-    .eq('id', eventId);
+    .eq('id', id)
 
-  if (error) throw new Error(`Error deleting event: ${error.message}`);
-  return true;
+  if (error) {
+    console.error('❌ Error deleting event:', error.message)
+    throw error
+  }
 }
 
-// ✅ Clear all posts (submissions) for a specific event — keeps event
-export async function clearEventPosts(eventId: string) {
+// ✅ Clear all posts from a wall
+export async function clearEventPosts(event_id: string) {
   const { error } = await supabase
     .from('submissions')
     .delete()
-    .eq('event_id', eventId);
+    .eq('event_id', event_id)
 
-  if (error) throw new Error(`Error clearing posts: ${error.message}`);
-  return true;
+  if (error) {
+    console.error('❌ Error clearing posts:', error.message)
+    throw error
+  }
 }
 
-// ✅ Toggle event status between 'live' and 'inactive'
-export async function toggleEventStatus(eventId: string, isLive: boolean) {
+// ✅ Toggle live/inactive
+export async function toggleEventStatus(id: string, makeLive: boolean) {
   const { error } = await supabase
     .from('events')
-    .update({ status: isLive ? 'live' : 'inactive' })
-    .eq('id', eventId);
+    .update({
+      status: makeLive ? 'live' : 'inactive',
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', id)
 
-  if (error) throw new Error(`Error updating status: ${error.message}`);
-  return true;
+  if (error) {
+    console.error('❌ Error updating status:', error.message)
+    throw error
+  }
 }
