@@ -9,8 +9,8 @@
   },
   "dependencies": {
     "next": "15.5.4",
-    "react": "19.1.0",
-    "react-dom": "19.1.0",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
     "@supabase/supabase-js": "^2.42.0",
     "react-easy-crop": "^5.0.6",
     "qrcode.react": "^3.2.0"
@@ -18,8 +18,8 @@
   "devDependencies": {
     "typescript": "^5",
     "@types/node": "^20",
-    "@types/react": "^19",
-    "@types/react-dom": "^19",
+    "@types/react": "^18",
+    "@types/react-dom": "^18",
     "@tailwindcss/postcss": "^4",
     "tailwindcss": "^4"
   }
