@@ -65,8 +65,13 @@ export default function LiveWall() {
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'submissions' },
         (payload) => {
-          if (payload.new.status === 'approved' && payload.new.event_id === eventId) {
-            setPosts((prev) => [payload.new, ...prev]);
+          if (
+  (payload.new as any)?.status === 'approved' &&
+  (payload.new as any)?.event_id === eventId
+) {
+  const newPost = payload.new as Submission;
+  setPosts((prev): Submission[] => [newPost, ...prev]);
+}
           }
         }
       )
