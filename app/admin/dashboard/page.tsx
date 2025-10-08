@@ -58,16 +58,22 @@ export default function DashboardPage() {
     setEvents(updated);
   }
 
+  // ✅ Go Live + Launch Wall
+  async function handleLaunch(id: string) {
+    await toggleEventStatus(id, true); // set live = true
+    window.open(`/wall/${id}`, '_blank');
+  }
+
   if (loading) return <p style={{ color: '#fff', textAlign: 'center' }}>Loading...</p>;
 
   return (
     <div style={pageStyle}>
       <h1 style={{ marginBottom: 20 }}>🎛 Host Dashboard</h1>
       <img
-  src="/faninteractlogo.png"
-  alt="FanInteract Logo"
-  style={{ width: 120, marginBottom: 10 }}
-/>
+        src="/faninteractlogo.png"
+        alt="FanInteract Logo"
+        style={{ width: 120, marginBottom: 10 }}
+      />
       <button onClick={handleCreate} style={buttonStyle}>➕ New Fan Zone Wall</button>
 
       <div style={{ marginTop: 20, display: 'flex', flexWrap: 'wrap', gap: '20px', justifyContent: 'center' }}>
@@ -76,7 +82,8 @@ export default function DashboardPage() {
           <div key={event.id} style={cardStyle}>
             <h3>{event.title}</h3>
             <p>Status: <strong style={{ color: event.status === 'live' ? 'lime' : 'orange' }}>{event.status}</strong></p>
-            <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', justifyContent: 'center' }}>
+              <button onClick={() => handleLaunch(event.id)} style={launchBtn}>🚀 Launch Wall</button>
               <button onClick={() => handleToggle(event.id, event.status !== 'live')} style={smallBtn}>
                 {event.status === 'live' ? '🟥 Stop Wall' : '🟢 Go Live'}
               </button>
@@ -135,4 +142,10 @@ const smallBtn: React.CSSProperties = {
 const deleteBtn: React.CSSProperties = {
   ...smallBtn,
   backgroundColor: '#a33',
+};
+
+const launchBtn: React.CSSProperties = {
+  ...smallBtn,
+  backgroundColor: '#16a34a',
+  fontWeight: 600,
 };
