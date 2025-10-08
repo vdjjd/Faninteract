@@ -71,10 +71,9 @@ export default function LiveWall() {
 ) {
   const newPost = payload.new as Submission;
   setPosts((prev): Submission[] => [newPost, ...prev]);
-}
-          }
-        }
-      )
+  }
+ }
+)
       .subscribe();
 
     return () => {
