@@ -46,9 +46,9 @@ export default function LoginPage() {
   )
 }
 
-const pageStyle = {
+const pageStyle: React.CSSProperties = {
   display: 'flex',
-  flexDirection: 'column',
+  flexDirection: 'column' as const,
   alignItems: 'center',
   justifyContent: 'center',
   minHeight: '100vh',
@@ -56,9 +56,14 @@ const pageStyle = {
   color: 'white',
 }
 
-const formStyle = { display: 'flex', flexDirection: 'column', gap: '10px', width: '300px' }
+const formStyle: React.CSSProperties = {
+  display: 'flex',
+  flexDirection: 'column' as const,
+  gap: '10px',
+  width: '300px',
+}
 
-const inputStyle = {
+const inputStyle: React.CSSProperties = {
   padding: '10px',
   borderRadius: '8px',
   border: '1px solid #333',
@@ -66,7 +71,7 @@ const inputStyle = {
   color: 'white',
 }
 
-const buttonStyle = {
+const buttonStyle: React.CSSProperties = {
   padding: '10px',
   borderRadius: '8px',
   border: 'none',
