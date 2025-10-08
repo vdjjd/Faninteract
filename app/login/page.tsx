@@ -11,9 +11,16 @@ export default function LoginPage() {
     e.preventDefault();
     if (!email) return alert('Please enter your email.');
 
-    const { error } = await supabase.auth.signInWithOtp({ email });
+    // ✅ Send magic link with redirect directly to Host Dashboard
+    const { error } = await supabase.auth.signInWithOtp({
+      email,
+      options: {
+        emailRedirectTo: 'https://faninteract.vercel.app/admin/dashboard',
+      },
+    });
+
     if (error) return alert('Error: ' + error.message);
-    alert('Check your email for a login link!');
+    alert('✅ Check your email for a login link!\n\nOnce you click it, you’ll be redirected to your Host Dashboard.');
   }
 
   const pageStyle: React.CSSProperties = {
