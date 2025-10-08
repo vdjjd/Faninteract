@@ -15,10 +15,20 @@ export default function SignUpPage() {
     e.preventDefault()
     setError(null)
     setLoading(true)
-    const { error } = await supabase.auth.signUp({ email, password })
+
+    // ✅ Send redirect with signUp so user lands in dashboard after confirmation
+    const { error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        emailRedirectTo: 'https://faninteract.vercel.app/admin/dashboard',
+      },
+    })
+
     setLoading(false)
     if (error) return setError(error.message)
-    alert('✅ Account created! Check your email to confirm.')
+
+    alert('✅ Account created! Check your email to confirm your login link.\n\nOnce confirmed, you’ll be redirected to your Host Dashboard.')
     router.push('/login')
   }
 
