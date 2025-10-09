@@ -42,7 +42,6 @@ export default function FanWallPage() {
       if (!ev) return setLoading(false);
       setEvent(ev);
 
-      // load posts if live
       if (ev.status === 'live') {
         const { data: subs } = await supabase
           .from('submissions')
@@ -53,7 +52,6 @@ export default function FanWallPage() {
         setPosts(subs || []);
       }
 
-      // handle countdown if set
       if (ev.countdown) {
         const diff = new Date(ev.countdown).getTime() - Date.now();
         setCountdownTime(diff > 0 ? diff : 0);
@@ -63,10 +61,11 @@ export default function FanWallPage() {
     load();
   }, [eventId]);
 
-  // ---------------- REALTIME UPDATES ----------------
+  // ---------------- FIXED REALTIME UPDATES ----------------
   useEffect(() => {
     if (!eventId) return;
-    const ch = supabase
+
+    const channel = supabase
       .channel('realtime:submissions')
       .on(
         'postgres_changes',
@@ -77,9 +76,14 @@ export default function FanWallPage() {
             setPosts((prev) => [newPost, ...prev]);
           }
         }
-      )
-      .subscribe();
-    return () => supabase.removeChannel(ch);
+      );
+
+    channel.subscribe().catch((err) => console.error('Realtime subscribe error:', err));
+
+    // ✅ Proper synchronous cleanup
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [eventId]);
 
   // ---------------- COUNTDOWN TIMER ----------------
@@ -115,7 +119,6 @@ export default function FanWallPage() {
   if (loading) return <p className="text-white text-center mt-20">Loading Wall...</p>;
   if (!event) return <p className="text-white text-center mt-20">Event not found.</p>;
 
-  // ---------------- DISPLAY LOGIC ----------------
   const now = Date.now();
   const countdownActive =
     event.countdown && new Date(event.countdown).getTime() > now && event.status !== 'live';
