@@ -148,7 +148,13 @@ export default function FanWallPage() {
 
       {/* ---------- LIVE WALL ---------- */}
       {event.status === 'live' && !countdownActive && (
-        <div className="relative z-10 w-full flex flex-col">
+        <div
+          className="relative z-10 w-full flex flex-col"
+          style={{
+            padding: '80px 100px 60px 100px', // <-- margins all around
+            boxSizing: 'border-box',
+          }}
+        >
           <header className="flex justify-between items-center px-6 py-4 relative">
             <img
               src={logo}
@@ -158,27 +164,39 @@ export default function FanWallPage() {
                 height: '300px',
                 objectFit: 'contain',
                 position: 'absolute',
-                top: 20,
-                left: 20,
+                top: 0,
+                left: 0,
                 opacity: 0.9,
                 pointerEvents: 'none',
               }}
             />
             <h1
               className="text-2xl md:text-4xl font-extrabold tracking-wide text-center w-full drop-shadow-lg"
-              style={{ marginTop: '60px' }}
+              style={{ marginTop: '40px' }}
             >
               {event.title || 'Post Your Best Photos To The Wall!'}
             </h1>
           </header>
 
-          <main className="flex-1 flex flex-col items-center justify-start px-4 pb-24 w-full max-w-6xl mx-auto">
+          <main
+            className="flex-1 flex flex-col items-center justify-start px-4 pb-24 w-full max-w-6xl mx-auto"
+            style={{
+              marginTop: '50px', // push posts further down
+              paddingBottom: '80px',
+            }}
+          >
             {posts.length === 0 ? (
               <p className="text-center text-white/80 mt-32">
                 No posts yet — be the first to join in!
               </p>
             ) : (
-              <div className="grid gap-6 sm:grid-cols-2 md:grid-cols-3 w-full">
+              <div
+                className="grid gap-8 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 w-full"
+                style={{
+                  maxWidth: '1600px',
+                  margin: '0 auto',
+                }}
+              >
                 {posts.map((post, idx) => (
                   <div
                     key={post.id}
@@ -190,7 +208,7 @@ export default function FanWallPage() {
                       <img
                         src={post.photo_url}
                         alt={post.nickname}
-                        className="rounded-lg w-full h-48 object-cover mb-3 border border-white/10"
+                        className="rounded-lg w-full h-52 object-cover mb-3 border border-white/10"
                       />
                     )}
                     <p className="font-semibold text-lg">{post.nickname}</p>
