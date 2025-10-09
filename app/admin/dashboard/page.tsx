@@ -66,12 +66,19 @@ export default function DashboardPage() {
     setEvents(updated);
   }
 
-  // ✅ Delete event
+  // ✅ Delete event (instant UI update)
   async function handleDelete(id: string) {
-    if (!confirm('Are you sure? This will permanently delete this wall.')) return;
-    await deleteEvent(id);
-    const updated = await getEventsByHost(host.id);
-    setEvents(updated);
+    const confirmDelete = confirm('Are you sure? This will permanently delete this wall.');
+    if (!confirmDelete) return;
+
+    try {
+      await deleteEvent(id);
+      setEvents((prev) => prev.filter((e) => e.id !== id)); // instant removal
+      console.log('🗑️ Event deleted:', id);
+    } catch (err) {
+      console.error('❌ Error deleting event:', err);
+      alert('Error deleting event. Check console for details.');
+    }
   }
 
   // ✅ Clear posts
@@ -95,7 +102,10 @@ export default function DashboardPage() {
     if (ev?.countdown && new Date(ev.countdown).getTime() > Date.now()) {
       alert('⏳ Countdown active — wall will go live automatically.');
     } else {
-      await supabase.from('events').update({ status: 'live', updated_at: new Date().toISOString() }).eq('id', id);
+      await supabase
+        .from('events')
+        .update({ status: 'live', updated_at: new Date().toISOString() })
+        .eq('id', id);
     }
   }
 
