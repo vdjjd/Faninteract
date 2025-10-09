@@ -30,6 +30,33 @@ export default function DashboardPage() {
     fetchData();
   }, []);
 
+  // ✅ Realtime updates for pending posts
+  useEffect(() => {
+    if (!host) return;
+
+    const channel = supabase
+      .channel('realtime:events')
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'events' },
+        (payload) => {
+          const updatedEvent = payload.new;
+          setEvents((prev) =>
+            prev.map((ev) =>
+              ev.id === updatedEvent.id
+                ? { ...ev, pending_posts: updatedEvent.pending_posts }
+                : ev
+            )
+          );
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [host]);
+
   // ✅ Create new event
   async function handleCreate() {
     const title = prompt('Enter a title for your new Fan Zone Wall:');
