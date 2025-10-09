@@ -66,12 +66,21 @@ export default function DashboardPage() {
     setEvents(updated);
   }
 
-  // ✅ Launch or Go Live (with countdown detection)
+  // ✅ Launch or Go Live (with countdown detection + popup window)
   async function handleLaunch(id: string) {
-    // Fetch the event first
+    // Open popup immediately to avoid browser blocking
+    const wallUrl = `${window.location.origin}/wall/${id}`;
+    const popup = window.open(
+      wallUrl,
+      '_blank',
+      'width=1200,height=800,left=100,top=100,menubar=no,toolbar=no,location=no,status=no,resizable=yes,scrollbars=yes'
+    );
+
+    // Fetch the event
     const { data: ev, error } = await supabase.from('events').select('*').eq('id', id).single();
     if (error || !ev) {
       alert('Error fetching event details.');
+      popup?.close();
       return;
     }
 
@@ -91,12 +100,13 @@ export default function DashboardPage() {
       if (updateError) {
         console.error('❌ Error updating event status:', updateError.message);
         alert('Error updating event status.');
+        popup?.close();
         return;
       }
     }
 
-    // Open wall in new tab
-    window.open(`/wall/${id}`, '_blank');
+    // Bring popup to front
+    popup?.focus();
   }
 
   if (loading) return <p style={{ color: '#fff', textAlign: 'center' }}>Loading...</p>;
