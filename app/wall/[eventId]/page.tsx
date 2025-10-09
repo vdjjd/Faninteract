@@ -110,6 +110,15 @@ export default function FanWallPage() {
     return 'linear-gradient(to bottom right, #4dc6ff, #001f4d)';
   };
 
+  const bgStyle: React.CSSProperties = {
+    background: getBackground(),
+    backgroundSize: 'cover',
+    backgroundRepeat: 'no-repeat',
+    backgroundAttachment: 'fixed',
+    minHeight: '100vh',
+    width: '100%',
+  };
+
   // ---------------- TIMER FORMAT ----------------
   const formatCountdown = (ms: number) => {
     const total = Math.max(0, Math.floor(ms / 1000));
@@ -126,11 +135,6 @@ export default function FanWallPage() {
   const countdownActive =
     event.countdown && new Date(event.countdown).getTime() > now && event.status !== 'live';
 
-  const bgStyle =
-    event.background_type === 'image'
-      ? { background: getBackground() }
-      : { backgroundImage: getBackground() };
-
   const logo = event.logo_url || '/faninteractlogo.png';
   const qr = event.qr_url;
 
@@ -139,7 +143,8 @@ export default function FanWallPage() {
       className="min-h-screen flex flex-col items-center justify-center text-white relative overflow-hidden"
       style={bgStyle}
     >
-      <div className="absolute inset-0 bg-black/50" />
+      {/* translucent overlay so text stays legible */}
+      <div className="absolute inset-0 bg-black/40" />
 
       {/* ---------- LIVE WALL ---------- */}
       {event.status === 'live' && !countdownActive && (
