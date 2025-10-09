@@ -6,9 +6,9 @@ import {
   getEventsByHost,
   deleteEvent,
   clearEventPosts,
+  updateEventSettings,
 } from '@/lib/actions/events';
 import { supabase } from '@/lib/supabaseClient';
-import { updateEventSettings } from '@/lib/actions/events';
 
 export default function DashboardPage() {
   const [host, setHost] = useState<any>(null);
@@ -271,14 +271,14 @@ const smallBtn: React.CSSProperties = {
   fontSize: 14,
 };
 
-const launchBtn = { ...smallBtn, backgroundColor: '#007bff', fontWeight: 600 };
-const playBtn = { ...smallBtn, backgroundColor: '#16a34a', fontWeight: 600 };
-const stopBtn = { ...smallBtn, backgroundColor: '#d12f2f', fontWeight: 600 };
-const deleteBtn = { ...smallBtn, backgroundColor: '#a33' };
-const optionsBtn = { ...smallBtn, backgroundColor: '#1e90ff' };
-const pendingBtn = { ...smallBtn, backgroundColor: '#ffaa00', fontWeight: 600 };
+const launchBtn: React.CSSProperties = { ...smallBtn, backgroundColor: '#007bff', fontWeight: 600 };
+const playBtn: React.CSSProperties = { ...smallBtn, backgroundColor: '#16a34a', fontWeight: 600 };
+const stopBtn: React.CSSProperties = { ...smallBtn, backgroundColor: '#d12f2f', fontWeight: 600 };
+const deleteBtn: React.CSSProperties = { ...smallBtn, backgroundColor: '#a33' };
+const optionsBtn: React.CSSProperties = { ...smallBtn, backgroundColor: '#1e90ff' };
+const pendingBtn: React.CSSProperties = { ...smallBtn, backgroundColor: '#ffaa00', fontWeight: 600 };
 
-const modalBackdrop = {
+const modalBackdrop: React.CSSProperties = {
   position: 'fixed',
   inset: 0,
   background: 'rgba(0,0,0,0.6)',
@@ -288,7 +288,7 @@ const modalBackdrop = {
   zIndex: 100,
 };
 
-const modalBox = {
+const modalBox: React.CSSProperties = {
   background: '#222',
   padding: 20,
   borderRadius: 10,
@@ -298,7 +298,7 @@ const modalBox = {
   gap: 10,
 };
 
-const inputStyle = {
+const inputStyle: React.CSSProperties = {
   width: '100%',
   padding: 8,
   borderRadius: 6,
@@ -308,5 +308,5 @@ const inputStyle = {
   color: '#fff',
 };
 
-const saveBtn = { ...smallBtn, backgroundColor: '#16a34a', fontWeight: 600 };
-const cancelBtn = { ...smallBtn, backgroundColor: '#a33' };
+const saveBtn: React.CSSProperties = { ...smallBtn, backgroundColor: '#16a34a', fontWeight: 600 };
+const cancelBtn: React.CSSProperties = { ...smallBtn, backgroundColor: '#a33' };
