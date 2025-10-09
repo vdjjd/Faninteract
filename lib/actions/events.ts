@@ -1,4 +1,4 @@
-import { supabase } from '@/lib/supabaseClient'
+import { supabase } from '@/lib/supabaseClient';
 
 // ✅ Create new event
 export async function createEvent(host_id: string, { title }: { title: string }) {
@@ -20,15 +20,15 @@ export async function createEvent(host_id: string, { title }: { title: string })
       },
     ])
     .select()
-    .single()
+    .single();
 
   if (error) {
-    console.error('❌ Error creating event:', error.message)
-    throw error
+    console.error('❌ Error creating event:', error.message);
+    throw error;
   }
 
-  console.log('✅ Event created:', data)
-  return data
+  console.log('✅ Event created:', data);
+  return data;
 }
 
 // ✅ Get all events for a host
@@ -38,26 +38,29 @@ export async function getEventsByHost(host_id: string) {
     .select('*')
     .eq('host_id', host_id)
     .eq('deleted', false)
-    .order('created_at', { ascending: false })
+    .order('created_at', { ascending: false });
 
   if (error) {
-    console.error('❌ Error fetching events:', error.message)
-    return []
+    console.error('❌ Error fetching events:', error.message);
+    return [];
   }
 
-  return data
+  return data;
 }
 
-// ✅ Delete event
+// ✅ Delete event (soft delete)
 export async function deleteEvent(id: string) {
   const { error } = await supabase
     .from('events')
-    .delete()
-    .eq('id', id)
+    .update({
+      deleted: true,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', id);
 
   if (error) {
-    console.error('❌ Error deleting event:', error.message)
-    throw error
+    console.error('❌ Error deleting event:', error.message);
+    throw error;
   }
 }
 
@@ -66,11 +69,11 @@ export async function clearEventPosts(event_id: string) {
   const { error } = await supabase
     .from('submissions')
     .delete()
-    .eq('event_id', event_id)
+    .eq('event_id', event_id);
 
   if (error) {
-    console.error('❌ Error clearing posts:', error.message)
-    throw error
+    console.error('❌ Error clearing posts:', error.message);
+    throw error;
   }
 }
 
@@ -82,10 +85,10 @@ export async function toggleEventStatus(id: string, makeLive: boolean) {
       status: makeLive ? 'live' : 'inactive',
       updated_at: new Date().toISOString(),
     })
-    .eq('id', id)
+    .eq('id', id);
 
   if (error) {
-    console.error('❌ Error updating status:', error.message)
-    throw error
+    console.error('❌ Error updating status:', error.message);
+    throw error;
   }
 }
