@@ -48,7 +48,8 @@ export default function DashboardPage() {
 
     try {
       await deleteEvent(id);
-      setEvents((prev) => prev.filter((e) => e.id !== id));
+      const updated = await getEventsByHost(host.id);
+      setEvents(updated);
     } catch (err) {
       console.error('❌ Error deleting event:', err);
       alert('Error deleting event. Check console for details.');
@@ -71,12 +72,12 @@ export default function DashboardPage() {
     setEvents(updated);
   }
 
-  // ✅ Go Live + Launch Wall (popup-safe)
+  // ✅ Go Live + Launch Wall (popup-safe + correct route)
   async function handleLaunch(id: string) {
-    // 🟢 Step 1: open immediately so browser allows popup
-    const newTab = window.open(`/wall/${id}`, '_blank');
+    // Open tab immediately so browser doesn't block it
+    const newTab = window.open(`${window.location.origin}/wall/${id}`, '_blank');
 
-    // 🟢 Step 2: fetch event
+    // Fetch event
     const { data: ev, error } = await supabase.from('events').select('*').eq('id', id).single();
     if (error || !ev) {
       alert('Error fetching event details.');
@@ -84,11 +85,11 @@ export default function DashboardPage() {
       return;
     }
 
-    // 🟢 Step 3: check for countdown timer
+    // If countdown in future
     if (ev.countdown && new Date(ev.countdown).getTime() > Date.now()) {
-      alert('⏳ Countdown mode active — wall will start automatically when timer hits 0.');
+      alert('⏳ Countdown active — wall will go live automatically.');
     } else {
-      // 🟢 Step 4: set event to live
+      // Go live immediately
       const { error: updateError } = await supabase
         .from('events')
         .update({
@@ -99,7 +100,7 @@ export default function DashboardPage() {
 
       if (updateError) {
         console.error('❌ Error updating event status:', updateError.message);
-        alert('Error setting event live.');
+        alert('Error updating event status.');
         newTab?.close();
       }
     }
