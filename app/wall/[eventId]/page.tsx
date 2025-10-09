@@ -1,232 +1,218 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useParams } from 'next/navigation';
+import {
+  createEvent,
+  getEventsByHost,
+  deleteEvent,
+  clearEventPosts,
+  toggleEventStatus,
+} from '@/lib/actions/events';
 import { supabase } from '@/lib/supabaseClient';
 
-interface Submission {
-  id: string;
-  event_id: string;
-  nickname: string;
-  message: string;
-  photo_url: string | null;
-  status: string;
-  created_at: string;
-}
-
-interface EventData {
-  id: string;
-  title: string | null;
-  status: 'inactive' | 'live';
-  countdown: string | null; // ISO time or seconds
-  background_type: 'gradient' | 'solid' | 'image' | null;
-  background_value: string | null;
-  logo_url: string | null;
-  qr_url: string | null;
-  host_id: string;
-  theme_colors?: string | null;
-}
-
-export default function FanWallPage() {
-  const { eventId } = useParams();
-  const [event, setEvent] = useState<EventData | null>(null);
-  const [posts, setPosts] = useState<Submission[]>([]);
+export default function DashboardPage() {
+  const [host, setHost] = useState<any>(null);
+  const [events, setEvents] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [countdownTime, setCountdownTime] = useState<number | null>(null);
 
-  // ---------------- FETCH DATA ----------------
+  // ✅ Load host + events
   useEffect(() => {
-    if (!eventId) return;
-    async function load() {
-      const { data: ev } = await supabase.from('events').select('*').eq('id', eventId).single();
-      if (!ev) return setLoading(false);
-      setEvent(ev);
+    async function fetchData() {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) return;
+      setHost(user);
 
-      // load posts only if live
-      if (ev.status === 'live') {
-        const { data: subs } = await supabase
-          .from('submissions')
-          .select('*')
-          .eq('event_id', eventId)
-          .eq('status', 'approved')
-          .order('created_at', { ascending: false });
-        setPosts(subs || []);
-      }
-
-      // handle countdown
-      if (ev.countdown) {
-        const diff = new Date(ev.countdown).getTime() - Date.now();
-        setCountdownTime(diff > 0 ? diff : 0);
-      }
+      const fetched = await getEventsByHost(user.id);
+      setEvents(fetched);
       setLoading(false);
     }
-    load();
-  }, [eventId]);
+    fetchData();
+  }, []);
 
-  // ---------------- LIVE UPDATES ----------------
-  useEffect(() => {
-    if (!eventId) return;
-    const ch = supabase
-      .channel('realtime:submissions')
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'submissions' },
-        (payload) => {
-          const newPost = payload.new as Submission;
-          if (newPost.event_id === eventId && newPost.status === 'approved') {
-            setPosts((p) => [newPost, ...p]);
-          }
-        }
-      )
-      .subscribe();
-    return () => supabase.removeChannel(ch);
-  }, [eventId]);
+  // ✅ Create new event
+  async function handleCreate() {
+    const title = prompt('Enter a title for your new Fan Zone Wall:');
+    if (!title) return;
 
-  // ---------------- COUNTDOWN TIMER ----------------
-  useEffect(() => {
-    if (!countdownTime) return;
-    const interval = setInterval(() => {
-      setCountdownTime((prev) => (prev && prev > 1000 ? prev - 1000 : 0));
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [countdownTime]);
+    await createEvent(host.id, { title });
+    const updated = await getEventsByHost(host.id);
+    setEvents(updated);
+  }
 
-  // ---------------- BACKGROUND LOGIC ----------------
-  const getBackground = () => {
-    if (!event) return 'bg-gradient-to-br from-[#4dc6ff] to-[#001f4d]';
-    if (event.background_type === 'image' && event.background_value)
-      return `url(${event.background_value}) center/cover no-repeat`;
-    if (event.background_type === 'solid' && event.background_value)
-      return event.background_value;
-    if (event.background_type === 'gradient' && event.background_value)
-      return event.background_value;
-    return 'linear-gradient(to bottom right, #4dc6ff, #001f4d)';
-  };
+  // ✅ Delete event
+  async function handleDelete(id: string) {
+    const confirmDelete = confirm('Are you sure? This will permanently delete this wall.');
+    if (!confirmDelete) return;
 
-  // ---------------- TIMER FORMAT ----------------
-  const formatCountdown = (ms: number) => {
-    const total = Math.max(0, Math.floor(ms / 1000));
-    const h = String(Math.floor(total / 3600)).padStart(2, '0');
-    const m = String(Math.floor((total % 3600) / 60)).padStart(2, '0');
-    const s = String(total % 60).padStart(2, '0');
-    return `${h}:${m}:${s}`;
-  };
+    await deleteEvent(id);
+    setEvents(events.filter((e) => e.id !== id));
+  }
 
-  if (loading) return <p className="text-white text-center mt-20">Loading Wall...</p>;
-  if (!event) return <p className="text-white text-center mt-20">Event not found.</p>;
+  // ✅ Clear posts
+  async function handleClear(id: string) {
+    const confirmClear = confirm('Remove all posts from this wall?');
+    if (!confirmClear) return;
 
-  // ---------------- RENDER STATES ----------------
-  const now = Date.now();
-  const countdownActive =
-    event.countdown && new Date(event.countdown).getTime() > now && event.status !== 'live';
+    await clearEventPosts(id);
+    alert('All posts cleared.');
+  }
 
-  const bgStyle =
-    event.background_type === 'image'
-      ? { background: getBackground() }
-      : { backgroundImage: getBackground() };
+  // ✅ Toggle Live/Inactive manually
+  async function handleToggle(id: string, makeLive: boolean) {
+    await toggleEventStatus(id, makeLive);
+    const updated = await getEventsByHost(host.id);
+    setEvents(updated);
+  }
 
-  const logo =
-    event.logo_url || '/faninteractlogo.png';
-  const qr = event.qr_url;
+  // ✅ Launch or Go Live (with countdown detection)
+  async function handleLaunch(id: string) {
+    // Fetch the event first
+    const { data: ev, error } = await supabase.from('events').select('*').eq('id', id).single();
+    if (error || !ev) {
+      alert('Error fetching event details.');
+      return;
+    }
+
+    // If there’s a countdown in the future
+    if (ev.countdown && new Date(ev.countdown).getTime() > Date.now()) {
+      alert('⏳ Countdown mode active — wall will start automatically when timer hits 0.');
+    } else {
+      // Otherwise, go live immediately
+      const { error: updateError } = await supabase
+        .from('events')
+        .update({
+          status: 'live',
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', id);
+
+      if (updateError) {
+        console.error('❌ Error updating event status:', updateError.message);
+        alert('Error updating event status.');
+        return;
+      }
+    }
+
+    // Open wall in new tab
+    window.open(`/wall/${id}`, '_blank');
+  }
+
+  if (loading) return <p style={{ color: '#fff', textAlign: 'center' }}>Loading...</p>;
 
   return (
-    <div
-      className="min-h-screen flex flex-col items-center justify-center text-white relative overflow-hidden"
-      style={bgStyle}
-    >
-      <div className="absolute inset-0 bg-black/50" />
+    <div style={pageStyle}>
+      <h1 style={{ marginBottom: 20 }}>🎛 Host Dashboard</h1>
+      <img
+        src="/faninteractlogo.png"
+        alt="FanInteract Logo"
+        style={{ width: 120, marginBottom: 10 }}
+      />
+      <button onClick={handleCreate} style={buttonStyle}>
+        ➕ New Fan Zone Wall
+      </button>
 
-      {/* ---------- INACTIVE ---------- */}
-      {event.status === 'inactive' && !countdownActive && (
-        <div className="relative z-10 text-center">
-          <h1 className="text-4xl md:text-5xl font-bold mb-8 drop-shadow-lg">
-            {event.title || 'Fan Wall Coming Soon'}
-          </h1>
-          <div className="flex flex-col md:flex-row items-center justify-center gap-10">
-            {qr && (
-              <div className="text-center">
-                <img src={qr} alt="QR" className="w-48 h-48 mx-auto rounded-lg shadow-lg" />
-                <p className="mt-2 text-sm opacity-80">Scan to Join</p>
-              </div>
-            )}
-            <div className="flex flex-col items-center">
-              <img src={logo} alt="Logo" className="w-32 h-32 object-contain mb-4" />
-              <p className="text-lg opacity-90">Beginning soon.</p>
+      <div
+        style={{
+          marginTop: 20,
+          display: 'flex',
+          flexWrap: 'wrap',
+          gap: '20px',
+          justifyContent: 'center',
+        }}
+      >
+        {events.length === 0 && <p>No experiences created yet.</p>}
+        {events.map((event) => (
+          <div key={event.id} style={cardStyle}>
+            <h3>{event.title}</h3>
+            <p>
+              Status:{' '}
+              <strong
+                style={{
+                  color: event.status === 'live' ? 'lime' : 'orange',
+                }}
+              >
+                {event.status}
+              </strong>
+            </p>
+            <div
+              style={{
+                display: 'flex',
+                gap: '10px',
+                flexWrap: 'wrap',
+                justifyContent: 'center',
+              }}
+            >
+              <button onClick={() => handleLaunch(event.id)} style={launchBtn}>
+                🚀 Launch Wall
+              </button>
+              <button
+                onClick={() => handleToggle(event.id, event.status !== 'live')}
+                style={smallBtn}
+              >
+                {event.status === 'live' ? '🟥 Stop Wall' : '🟢 Go Live'}
+              </button>
+              <button onClick={() => handleClear(event.id)} style={smallBtn}>
+                🧹 Clear Posts
+              </button>
+              <button onClick={() => handleDelete(event.id)} style={deleteBtn}>
+                ❌ Delete
+              </button>
             </div>
           </div>
-        </div>
-      )}
-
-      {/* ---------- COUNTDOWN ---------- */}
-      {countdownActive && (
-        <div className="relative z-10 text-center">
-          <h1 className="text-4xl md:text-5xl font-bold mb-8 drop-shadow-lg">
-            {event.title || 'Get Ready — The Fan Wall Goes Live Soon!'}
-          </h1>
-          <div className="flex flex-col items-center justify-center">
-            <p className="text-7xl md:text-8xl font-mono font-bold drop-shadow-xl mb-4">
-              {formatCountdown(countdownTime ?? 0)}
-            </p>
-            {qr && (
-              <div className="text-center mt-4">
-                <img src={qr} alt="QR" className="w-44 h-44 mx-auto rounded-lg shadow-lg" />
-                <p className="mt-2 text-sm opacity-80">Scan to Join</p>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* ---------- LIVE ---------- */}
-      {event.status === 'live' && !countdownActive && (
-        <div className="relative z-10 w-full flex flex-col">
-          {/* Header */}
-          <header className="flex justify-between items-center px-6 py-4">
-            <img src={logo} alt="Logo" className="h-14 object-contain" />
-            <h1 className="text-2xl md:text-4xl font-extrabold tracking-wide">
-              {event.title || 'Post Your Best Photos To The Wall!'}
-            </h1>
-          </header>
-
-          {/* Posts Grid */}
-          <main className="flex-1 flex flex-col items-center justify-start px-4 pb-24 w-full max-w-6xl mx-auto">
-            {posts.length === 0 ? (
-              <p className="text-center text-white/80 mt-32">
-                No posts yet — be the first to join in!
-              </p>
-            ) : (
-              <div className="grid gap-6 sm:grid-cols-2 md:grid-cols-3 w-full">
-                {posts.map((post, idx) => (
-                  <div
-                    key={post.id}
-                    className={`bg-white/10 backdrop-blur-sm p-3 rounded-xl shadow-lg transition-all duration-300 hover:bg-white/20 ${
-                      idx % 2 === 0 ? 'justify-self-start' : 'justify-self-end'
-                    }`}
-                  >
-                    {post.photo_url && (
-                      <img
-                        src={post.photo_url}
-                        alt={post.nickname}
-                        className="rounded-lg w-full h-48 object-cover mb-3 border border-white/10"
-                      />
-                    )}
-                    <p className="font-semibold text-lg">{post.nickname}</p>
-                    <p className="text-sm opacity-90">{post.message}</p>
-                  </div>
-                ))}
-              </div>
-            )}
-          </main>
-
-          {/* QR Footer */}
-          {qr && (
-            <footer className="absolute bottom-4 left-4">
-              <img src={qr} alt="QR" className="w-32 h-32 rounded-lg shadow-lg" />
-              <p className="text-xs text-center mt-1 opacity-75">Scan to Join</p>
-            </footer>
-          )}
-        </div>
-      )}
+        ))}
+      </div>
     </div>
   );
 }
+
+// ---------------- STYLES ----------------
+const pageStyle: React.CSSProperties = {
+  display: 'flex',
+  flexDirection: 'column',
+  alignItems: 'center',
+  justifyContent: 'flex-start',
+  minHeight: '100vh',
+  background: 'linear-gradient(180deg, #0d0d0d, #1a1a1a)',
+  color: '#fff',
+  padding: '40px 10px',
+  fontFamily: 'system-ui, sans-serif',
+};
+
+const buttonStyle: React.CSSProperties = {
+  backgroundColor: '#1e90ff',
+  border: 'none',
+  borderRadius: 8,
+  padding: '10px 20px',
+  color: '#fff',
+  fontWeight: 600,
+  cursor: 'pointer',
+};
+
+const cardStyle: React.CSSProperties = {
+  backgroundColor: '#222',
+  borderRadius: 10,
+  padding: 20,
+  width: 300,
+  textAlign: 'center',
+  boxShadow: '0 0 10px rgba(0,0,0,0.3)',
+};
+
+const smallBtn: React.CSSProperties = {
+  backgroundColor: '#444',
+  border: 'none',
+  borderRadius: 6,
+  padding: '6px 10px',
+  color: '#fff',
+  cursor: 'pointer',
+  fontSize: 14,
+};
+
+const deleteBtn: React.CSSProperties = {
+  ...smallBtn,
+  backgroundColor: '#a33',
+};
+
+const launchBtn: React.CSSProperties = {
+  ...
