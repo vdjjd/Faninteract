@@ -8,11 +8,13 @@ import {
   clearEventPosts,
 } from '@/lib/actions/events';
 import { supabase } from '@/lib/supabaseClient';
+import { updateEventSettings } from '@/lib/actions/events';
 
 export default function DashboardPage() {
   const [host, setHost] = useState<any>(null);
   const [events, setEvents] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedEvent, setSelectedEvent] = useState<any | null>(null);
 
   // ✅ Load host + events
   useEffect(() => {
@@ -61,7 +63,7 @@ export default function DashboardPage() {
     popup?.focus();
   }
 
-  // ✅ Start wall or countdown
+  // ✅ Play wall
   async function handleStart(id: string) {
     const { data: ev, error } = await supabase.from('events').select('*').eq('id', id).single();
     if (error || !ev) {
@@ -83,7 +85,7 @@ export default function DashboardPage() {
     setEvents(updated);
   }
 
-  // ✅ Stop wall (reset timer + deactivate)
+  // ✅ Stop wall
   async function handleStop(id: string) {
     const { error } = await supabase
       .from('events')
@@ -105,6 +107,14 @@ export default function DashboardPage() {
     setEvents(updated);
   }
 
+  // ✅ Save settings
+  async function handleSaveSettings(updatedEvent: any) {
+    await updateEventSettings(updatedEvent.id, updatedEvent);
+    const refreshed = await getEventsByHost(host.id);
+    setEvents(refreshed);
+    setSelectedEvent(null);
+  }
+
   if (loading) return <p style={{ color: '#fff', textAlign: 'center' }}>Loading...</p>;
 
   return (
@@ -117,37 +127,82 @@ export default function DashboardPage() {
         {events.length === 0 && <p>No experiences created yet.</p>}
         {events.map((event) => (
           <div key={event.id} style={{ ...cardStyle, background: event.background_value || '#222' }}>
-            <h3>{event.title}</h3>
+            <h3>{event.host_title || `${event.title} Fan Zone Wall`}</h3>
             <p>
-              Status:{' '}
-              <strong style={{ color: event.status === 'live' ? 'lime' : 'orange' }}>
+              <strong>Status:</strong>{' '}
+              <span style={{ color: event.status === 'live' ? 'lime' : 'orange' }}>
                 {event.status}
-              </strong>
+              </span>
             </p>
 
             <div style={cardButtons}>
-              <button onClick={() => handleLaunch(event.id)} style={launchBtn}>
-                🚀 Launch
-              </button>
-              <button onClick={() => handleStart(event.id)} style={playBtn}>
-                ▶️ Play
-              </button>
-              <button onClick={() => handleStop(event.id)} style={stopBtn}>
-                ⏹ Stop
-              </button>
+              <button onClick={() => handleLaunch(event.id)} style={launchBtn}>🚀 Launch</button>
+              <button onClick={() => handleStart(event.id)} style={playBtn}>▶️ Play</button>
+              <button onClick={() => handleStop(event.id)} style={stopBtn}>⏹ Stop</button>
             </div>
 
             <div style={cardButtons}>
-              <button onClick={() => handleClear(event.id)} style={smallBtn}>
-                🧹 Clear
-              </button>
-              <button onClick={() => handleDelete(event.id)} style={deleteBtn}>
-                ❌ Delete
-              </button>
+              <button onClick={() => handleClear(event.id)} style={smallBtn}>🧹 Clear</button>
+              <button onClick={() => handleDelete(event.id)} style={deleteBtn}>❌ Delete</button>
+            </div>
+
+            {/* Options + Pending */}
+            <div style={cardFooter}>
+              <button onClick={() => setSelectedEvent(event)} style={optionsBtn}>⚙️ Options</button>
+              <button style={pendingBtn}>🔔 Pending ({event.pending_posts ?? 0})</button>
             </div>
           </div>
         ))}
       </div>
+
+      {/* Settings Modal */}
+      {selectedEvent && (
+        <div style={modalBackdrop}>
+          <div style={modalBox}>
+            <h2>⚙️ Edit Wall Settings</h2>
+            <label>
+              Host Title:
+              <input
+                type="text"
+                value={selectedEvent.host_title || ''}
+                style={inputStyle}
+                onChange={(e) => setSelectedEvent({ ...selectedEvent, host_title: e.target.value })}
+              />
+            </label>
+            <label>
+              Public Title:
+              <input
+                type="text"
+                value={selectedEvent.title || ''}
+                style={inputStyle}
+                onChange={(e) => setSelectedEvent({ ...selectedEvent, title: e.target.value })}
+              />
+            </label>
+            <label>
+              Countdown (datetime-local):
+              <input
+                type="datetime-local"
+                style={inputStyle}
+                onChange={(e) => setSelectedEvent({ ...selectedEvent, countdown: e.target.value })}
+              />
+            </label>
+            <label>
+              Background (color/gradient URL):
+              <input
+                type="text"
+                value={selectedEvent.background_value || ''}
+                style={inputStyle}
+                onChange={(e) => setSelectedEvent({ ...selectedEvent, background_value: e.target.value })}
+              />
+            </label>
+
+            <div style={{ marginTop: 10, display: 'flex', gap: 10 }}>
+              <button style={saveBtn} onClick={() => handleSaveSettings(selectedEvent)}>💾 Save</button>
+              <button style={cancelBtn} onClick={() => setSelectedEvent(null)}>✖ Close</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -200,6 +255,12 @@ const cardButtons: React.CSSProperties = {
   marginTop: 10,
 };
 
+const cardFooter: React.CSSProperties = {
+  display: 'flex',
+  justifyContent: 'space-between',
+  marginTop: 15,
+};
+
 const smallBtn: React.CSSProperties = {
   backgroundColor: '#444',
   border: 'none',
@@ -210,7 +271,42 @@ const smallBtn: React.CSSProperties = {
   fontSize: 14,
 };
 
-const launchBtn: React.CSSProperties = { ...smallBtn, backgroundColor: '#007bff', fontWeight: 600 };
-const playBtn: React.CSSProperties = { ...smallBtn, backgroundColor: '#16a34a', fontWeight: 600 };
-const stopBtn: React.CSSProperties = { ...smallBtn, backgroundColor: '#d12f2f', fontWeight: 600 };
-const deleteBtn: React.CSSProperties = { ...smallBtn, backgroundColor: '#a33' };
+const launchBtn = { ...smallBtn, backgroundColor: '#007bff', fontWeight: 600 };
+const playBtn = { ...smallBtn, backgroundColor: '#16a34a', fontWeight: 600 };
+const stopBtn = { ...smallBtn, backgroundColor: '#d12f2f', fontWeight: 600 };
+const deleteBtn = { ...smallBtn, backgroundColor: '#a33' };
+const optionsBtn = { ...smallBtn, backgroundColor: '#1e90ff' };
+const pendingBtn = { ...smallBtn, backgroundColor: '#ffaa00', fontWeight: 600 };
+
+const modalBackdrop = {
+  position: 'fixed',
+  inset: 0,
+  background: 'rgba(0,0,0,0.6)',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  zIndex: 100,
+};
+
+const modalBox = {
+  background: '#222',
+  padding: 20,
+  borderRadius: 10,
+  width: 350,
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 10,
+};
+
+const inputStyle = {
+  width: '100%',
+  padding: 8,
+  borderRadius: 6,
+  border: '1px solid #555',
+  marginTop: 4,
+  background: '#111',
+  color: '#fff',
+};
+
+const saveBtn = { ...smallBtn, backgroundColor: '#16a34a', fontWeight: 600 };
+const cancelBtn = { ...smallBtn, backgroundColor: '#a33' };
