@@ -78,7 +78,11 @@ export default function FanWallPage() {
         }
       );
 
-    channel.subscribe().catch((err) => console.error('Realtime subscribe error:', err));
+    try {
+      channel.subscribe();
+    } catch (err) {
+      console.error('Realtime subscribe error:', err);
+    }
 
     // ✅ Proper synchronous cleanup
     return () => {
@@ -182,7 +186,6 @@ export default function FanWallPage() {
       {/* ---------- LIVE STATE ---------- */}
       {event.status === 'live' && !countdownActive && (
         <div className="relative z-10 w-full flex flex-col">
-          {/* Header */}
           <header className="flex justify-between items-center px-6 py-4">
             <img src={logo} alt="Logo" className="h-14 object-contain" />
             <h1 className="text-2xl md:text-4xl font-extrabold tracking-wide">
@@ -190,7 +193,6 @@ export default function FanWallPage() {
             </h1>
           </header>
 
-          {/* Posts Grid */}
           <main className="flex-1 flex flex-col items-center justify-start px-4 pb-24 w-full max-w-6xl mx-auto">
             {posts.length === 0 ? (
               <p className="text-center text-white/80 mt-32">
@@ -220,7 +222,6 @@ export default function FanWallPage() {
             )}
           </main>
 
-          {/* QR Footer */}
           {qr && (
             <footer className="absolute bottom-4 left-4">
               <img src={qr} alt="QR" className="w-32 h-32 rounded-lg shadow-lg" />
