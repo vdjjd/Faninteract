@@ -61,7 +61,7 @@ export default function FanWallPage() {
     load();
   }, [eventId]);
 
-  // ---------------- FIXED REALTIME UPDATES ----------------
+  // ---------------- REALTIME UPDATES ----------------
   useEffect(() => {
     if (!eventId) return;
 
@@ -84,7 +84,6 @@ export default function FanWallPage() {
       console.error('Realtime subscribe error:', err);
     }
 
-    // ✅ Proper synchronous cleanup
     return () => {
       supabase.removeChannel(channel);
     };
@@ -142,53 +141,28 @@ export default function FanWallPage() {
     >
       <div className="absolute inset-0 bg-black/50" />
 
-      {/* ---------- INACTIVE STATE ---------- */}
-      {event.status === 'inactive' && !countdownActive && (
-        <div className="relative z-10 text-center">
-          <h1 className="text-4xl md:text-5xl font-bold mb-8 drop-shadow-lg">
-            {event.title || 'Fan Wall Coming Soon'}
-          </h1>
-          <div className="flex flex-col md:flex-row items-center justify-center gap-10">
-            {qr && (
-              <div className="text-center">
-                <img src={qr} alt="QR" className="w-48 h-48 mx-auto rounded-lg shadow-lg" />
-                <p className="mt-2 text-sm opacity-80">Scan to Join</p>
-              </div>
-            )}
-            <div className="flex flex-col items-center">
-              <img src={logo} alt="Logo" className="w-32 h-32 object-contain mb-4" />
-              <p className="text-lg opacity-90">Beginning soon.</p>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ---------- COUNTDOWN STATE ---------- */}
-      {countdownActive && (
-        <div className="relative z-10 text-center">
-          <h1 className="text-4xl md:text-5xl font-bold mb-8 drop-shadow-lg">
-            {event.title || 'Get Ready — The Fan Wall Goes Live Soon!'}
-          </h1>
-          <div className="flex flex-col items-center justify-center">
-            <p className="text-7xl md:text-8xl font-mono font-bold drop-shadow-xl mb-4">
-              {formatCountdown(countdownTime ?? 0)}
-            </p>
-            {qr && (
-              <div className="text-center mt-4">
-                <img src={qr} alt="QR" className="w-44 h-44 mx-auto rounded-lg shadow-lg" />
-                <p className="mt-2 text-sm opacity-80">Scan to Join</p>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* ---------- LIVE STATE ---------- */}
+      {/* ---------- LIVE WALL ---------- */}
       {event.status === 'live' && !countdownActive && (
         <div className="relative z-10 w-full flex flex-col">
-          <header className="flex justify-between items-center px-6 py-4">
-            <img src={logo} alt="Logo" className="h-14 object-contain" />
-            <h1 className="text-2xl md:text-4xl font-extrabold tracking-wide">
+          <header className="flex justify-between items-center px-6 py-4 relative">
+            <img
+              src={logo}
+              alt="Logo"
+              style={{
+                width: '300px',
+                height: '300px',
+                objectFit: 'contain',
+                position: 'absolute',
+                top: 20,
+                left: 20,
+                opacity: 0.9,
+                pointerEvents: 'none',
+              }}
+            />
+            <h1
+              className="text-2xl md:text-4xl font-extrabold tracking-wide text-center w-full drop-shadow-lg"
+              style={{ marginTop: '60px' }}
+            >
               {event.title || 'Post Your Best Photos To The Wall!'}
             </h1>
           </header>
