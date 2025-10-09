@@ -45,7 +45,6 @@ export async function getEventsByHost(host_id: string) {
     .from('events')
     .select('*')
     .eq('host_id', host_id)
-    .eq('deleted', false)
     .order('created_at', { ascending: false });
 
   if (error) {
@@ -89,14 +88,11 @@ export async function updateEventSettings(
 }
 
 /* -------------------------------------------------------------------------- */
-// ✅ Delete (soft delete)
+// ✅ Permanently delete an event from DB
 export async function deleteEvent(id: string) {
   const { error } = await supabase
     .from('events')
-    .update({
-      deleted: true,
-      updated_at: new Date().toISOString(),
-    })
+    .delete()
     .eq('id', id);
 
   if (error) {
@@ -104,7 +100,7 @@ export async function deleteEvent(id: string) {
     throw error;
   }
 
-  console.log('🗑️ Event marked deleted:', id);
+  console.log('🗑️ Event permanently deleted:', id);
 }
 
 /* -------------------------------------------------------------------------- */
@@ -157,4 +153,3 @@ export async function updatePendingPosts(event_id: string, delta: number) {
 
   console.log('🔔 Pending posts updated:', { event_id, delta });
 }
-
