@@ -1,7 +1,13 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { createEvent, getEventsByHost, deleteEvent, clearEventPosts, toggleEventStatus } from '@/lib/actions/events';
+import {
+  createEvent,
+  getEventsByHost,
+  deleteEvent,
+  clearEventPosts,
+  toggleEventStatus,
+} from '@/lib/actions/events';
 import { supabase } from '@/lib/supabaseClient';
 
 export default function DashboardPage() {
@@ -12,7 +18,9 @@ export default function DashboardPage() {
   // ✅ Fetch host + events on load
   useEffect(() => {
     async function fetchData() {
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       if (!user) return;
       setHost(user);
 
@@ -38,8 +46,13 @@ export default function DashboardPage() {
     const confirmDelete = confirm('Are you sure? This will permanently delete this wall.');
     if (!confirmDelete) return;
 
-    await deleteEvent(id);
-    setEvents(events.filter(e => e.id !== id));
+    try {
+      await deleteEvent(id);
+      setEvents((prev) => prev.filter((e) => e.id !== id));
+    } catch (err) {
+      console.error('❌ Error deleting event:', err);
+      alert('Error deleting event. Check console for details.');
+    }
   }
 
   // ✅ Clear posts from event
@@ -58,10 +71,38 @@ export default function DashboardPage() {
     setEvents(updated);
   }
 
-  // ✅ Go Live + Launch Wall
+  // ✅ Go Live + Launch Wall (popup-safe)
   async function handleLaunch(id: string) {
-    await toggleEventStatus(id, true); // set live = true
-    window.open(`/wall/${id}`, '_blank');
+    // 🟢 Step 1: open immediately so browser allows popup
+    const newTab = window.open(`/wall/${id}`, '_blank');
+
+    // 🟢 Step 2: fetch event
+    const { data: ev, error } = await supabase.from('events').select('*').eq('id', id).single();
+    if (error || !ev) {
+      alert('Error fetching event details.');
+      newTab?.close();
+      return;
+    }
+
+    // 🟢 Step 3: check for countdown timer
+    if (ev.countdown && new Date(ev.countdown).getTime() > Date.now()) {
+      alert('⏳ Countdown mode active — wall will start automatically when timer hits 0.');
+    } else {
+      // 🟢 Step 4: set event to live
+      const { error: updateError } = await supabase
+        .from('events')
+        .update({
+          status: 'live',
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', id);
+
+      if (updateError) {
+        console.error('❌ Error updating event status:', updateError.message);
+        alert('Error setting event live.');
+        newTab?.close();
+      }
+    }
   }
 
   if (loading) return <p style={{ color: '#fff', textAlign: 'center' }}>Loading...</p>;
@@ -74,21 +115,56 @@ export default function DashboardPage() {
         alt="FanInteract Logo"
         style={{ width: 120, marginBottom: 10 }}
       />
-      <button onClick={handleCreate} style={buttonStyle}>➕ New Fan Zone Wall</button>
+      <button onClick={handleCreate} style={buttonStyle}>
+        ➕ New Fan Zone Wall
+      </button>
 
-      <div style={{ marginTop: 20, display: 'flex', flexWrap: 'wrap', gap: '20px', justifyContent: 'center' }}>
+      <div
+        style={{
+          marginTop: 20,
+          display: 'flex',
+          flexWrap: 'wrap',
+          gap: '20px',
+          justifyContent: 'center',
+        }}
+      >
         {events.length === 0 && <p>No experiences created yet.</p>}
-        {events.map(event => (
+        {events.map((event) => (
           <div key={event.id} style={cardStyle}>
             <h3>{event.title}</h3>
-            <p>Status: <strong style={{ color: event.status === 'live' ? 'lime' : 'orange' }}>{event.status}</strong></p>
-            <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', justifyContent: 'center' }}>
-              <button onClick={() => handleLaunch(event.id)} style={launchBtn}>🚀 Launch Wall</button>
-              <button onClick={() => handleToggle(event.id, event.status !== 'live')} style={smallBtn}>
+            <p>
+              Status:{' '}
+              <strong
+                style={{
+                  color: event.status === 'live' ? 'lime' : 'orange',
+                }}
+              >
+                {event.status}
+              </strong>
+            </p>
+            <div
+              style={{
+                display: 'flex',
+                gap: '10px',
+                flexWrap: 'wrap',
+                justifyContent: 'center',
+              }}
+            >
+              <button onClick={() => handleLaunch(event.id)} style={launchBtn}>
+                🚀 Launch Wall
+              </button>
+              <button
+                onClick={() => handleToggle(event.id, event.status !== 'live')}
+                style={smallBtn}
+              >
                 {event.status === 'live' ? '🟥 Stop Wall' : '🟢 Go Live'}
               </button>
-              <button onClick={() => handleClear(event.id)} style={smallBtn}>🧹 Clear Posts</button>
-              <button onClick={() => handleDelete(event.id)} style={deleteBtn}>❌ Delete</button>
+              <button onClick={() => handleClear(event.id)} style={smallBtn}>
+                🧹 Clear Posts
+              </button>
+              <button onClick={() => handleDelete(event.id)} style={deleteBtn}>
+                ❌ Delete
+              </button>
             </div>
           </div>
         ))}
