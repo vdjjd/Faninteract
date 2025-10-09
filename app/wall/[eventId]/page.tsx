@@ -7,7 +7,6 @@ import { supabase } from '@/lib/supabaseClient';
 interface Submission {
   id: string;
   event_id: string;
-  user_id: string;
   nickname: string;
   message: string;
   photo_url: string | null;
@@ -15,139 +14,220 @@ interface Submission {
   created_at: string;
 }
 
+interface EventData {
+  id: string;
+  title: string | null;
+  status: 'inactive' | 'live';
+  countdown: string | null; // ISO time or seconds
+  background_type: 'gradient' | 'solid' | 'image' | null;
+  background_value: string | null;
+  logo_url: string | null;
+  qr_url: string | null;
+  host_id: string;
+  theme_colors?: string | null;
+}
+
 export default function FanWallPage() {
   const { eventId } = useParams();
+  const [event, setEvent] = useState<EventData | null>(null);
   const [posts, setPosts] = useState<Submission[]>([]);
-  const [event, setEvent] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [countdownTime, setCountdownTime] = useState<number | null>(null);
 
-  // ✅ Load event + posts
+  // ---------------- FETCH DATA ----------------
   useEffect(() => {
     if (!eventId) return;
+    async function load() {
+      const { data: ev } = await supabase.from('events').select('*').eq('id', eventId).single();
+      if (!ev) return setLoading(false);
+      setEvent(ev);
 
-    async function fetchData() {
-      // Get event info
-      const { data: eventData } = await supabase
-        .from('events')
-        .select('*')
-        .eq('id', eventId)
-        .single();
+      // load posts only if live
+      if (ev.status === 'live') {
+        const { data: subs } = await supabase
+          .from('submissions')
+          .select('*')
+          .eq('event_id', eventId)
+          .eq('status', 'approved')
+          .order('created_at', { ascending: false });
+        setPosts(subs || []);
+      }
 
-      setEvent(eventData);
-
-      // Get approved posts
-      const { data: submissions } = await supabase
-        .from('submissions')
-        .select('*')
-        .eq('event_id', eventId)
-        .eq('status', 'approved')
-        .order('created_at', { ascending: false });
-
-      setPosts(submissions || []);
+      // handle countdown
+      if (ev.countdown) {
+        const diff = new Date(ev.countdown).getTime() - Date.now();
+        setCountdownTime(diff > 0 ? diff : 0);
+      }
       setLoading(false);
     }
+    load();
+  }, [eventId]);
 
-    fetchData();
-
-    // ✅ Live updates: new approved submissions
-    const channel = supabase
+  // ---------------- LIVE UPDATES ----------------
+  useEffect(() => {
+    if (!eventId) return;
+    const ch = supabase
       .channel('realtime:submissions')
       .on(
         'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'submissions',
-        },
+        { event: 'INSERT', schema: 'public', table: 'submissions' },
         (payload) => {
           const newPost = payload.new as Submission;
           if (newPost.event_id === eventId && newPost.status === 'approved') {
-            setPosts((prev): Submission[] => [newPost, ...prev]);
+            setPosts((p) => [newPost, ...p]);
           }
         }
       )
       .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
+    return () => supabase.removeChannel(ch);
   }, [eventId]);
 
-  if (loading) return <p style={{ color: '#fff', textAlign: 'center' }}>Loading Fan Wall...</p>;
-  if (!event) return <p style={{ color: '#fff', textAlign: 'center' }}>Event not found.</p>;
+  // ---------------- COUNTDOWN TIMER ----------------
+  useEffect(() => {
+    if (!countdownTime) return;
+    const interval = setInterval(() => {
+      setCountdownTime((prev) => (prev && prev > 1000 ? prev - 1000 : 0));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [countdownTime]);
+
+  // ---------------- BACKGROUND LOGIC ----------------
+  const getBackground = () => {
+    if (!event) return 'bg-gradient-to-br from-[#4dc6ff] to-[#001f4d]';
+    if (event.background_type === 'image' && event.background_value)
+      return `url(${event.background_value}) center/cover no-repeat`;
+    if (event.background_type === 'solid' && event.background_value)
+      return event.background_value;
+    if (event.background_type === 'gradient' && event.background_value)
+      return event.background_value;
+    return 'linear-gradient(to bottom right, #4dc6ff, #001f4d)';
+  };
+
+  // ---------------- TIMER FORMAT ----------------
+  const formatCountdown = (ms: number) => {
+    const total = Math.max(0, Math.floor(ms / 1000));
+    const h = String(Math.floor(total / 3600)).padStart(2, '0');
+    const m = String(Math.floor((total % 3600) / 60)).padStart(2, '0');
+    const s = String(total % 60).padStart(2, '0');
+    return `${h}:${m}:${s}`;
+  };
+
+  if (loading) return <p className="text-white text-center mt-20">Loading Wall...</p>;
+  if (!event) return <p className="text-white text-center mt-20">Event not found.</p>;
+
+  // ---------------- RENDER STATES ----------------
+  const now = Date.now();
+  const countdownActive =
+    event.countdown && new Date(event.countdown).getTime() > now && event.status !== 'live';
+
+  const bgStyle =
+    event.background_type === 'image'
+      ? { background: getBackground() }
+      : { backgroundImage: getBackground() };
+
+  const logo =
+    event.logo_url || '/faninteractlogo.png';
+  const qr = event.qr_url;
 
   return (
     <div
-      style={{
-        ...pageStyle,
-        background: event.background_url
-          ? `url(${event.background_url}) center/cover no-repeat`
-          : 'linear-gradient(180deg, #000, #111)',
-      }}
+      className="min-h-screen flex flex-col items-center justify-center text-white relative overflow-hidden"
+      style={bgStyle}
     >
-      <div style={overlayStyle}>
-        <h1 style={titleStyle}>{event.title}</h1>
-        <div style={gridStyle}>
-          {posts.length === 0 && <p>No posts yet. Be the first to join in!</p>}
-          {posts.map((post) => (
-            <div key={post.id} style={cardStyle}>
-              {post.photo_url && (
-                <img
-                  src={post.photo_url}
-                  alt={post.nickname}
-                  style={{ width: '100%', borderRadius: '10px', marginBottom: '8px' }}
-                />
-              )}
-              <p style={{ fontWeight: 600 }}>{post.nickname}</p>
-              <p>{post.message}</p>
+      <div className="absolute inset-0 bg-black/50" />
+
+      {/* ---------- INACTIVE ---------- */}
+      {event.status === 'inactive' && !countdownActive && (
+        <div className="relative z-10 text-center">
+          <h1 className="text-4xl md:text-5xl font-bold mb-8 drop-shadow-lg">
+            {event.title || 'Fan Wall Coming Soon'}
+          </h1>
+          <div className="flex flex-col md:flex-row items-center justify-center gap-10">
+            {qr && (
+              <div className="text-center">
+                <img src={qr} alt="QR" className="w-48 h-48 mx-auto rounded-lg shadow-lg" />
+                <p className="mt-2 text-sm opacity-80">Scan to Join</p>
+              </div>
+            )}
+            <div className="flex flex-col items-center">
+              <img src={logo} alt="Logo" className="w-32 h-32 object-contain mb-4" />
+              <p className="text-lg opacity-90">Beginning soon.</p>
             </div>
-          ))}
+          </div>
         </div>
-      </div>
+      )}
+
+      {/* ---------- COUNTDOWN ---------- */}
+      {countdownActive && (
+        <div className="relative z-10 text-center">
+          <h1 className="text-4xl md:text-5xl font-bold mb-8 drop-shadow-lg">
+            {event.title || 'Get Ready — The Fan Wall Goes Live Soon!'}
+          </h1>
+          <div className="flex flex-col items-center justify-center">
+            <p className="text-7xl md:text-8xl font-mono font-bold drop-shadow-xl mb-4">
+              {formatCountdown(countdownTime ?? 0)}
+            </p>
+            {qr && (
+              <div className="text-center mt-4">
+                <img src={qr} alt="QR" className="w-44 h-44 mx-auto rounded-lg shadow-lg" />
+                <p className="mt-2 text-sm opacity-80">Scan to Join</p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ---------- LIVE ---------- */}
+      {event.status === 'live' && !countdownActive && (
+        <div className="relative z-10 w-full flex flex-col">
+          {/* Header */}
+          <header className="flex justify-between items-center px-6 py-4">
+            <img src={logo} alt="Logo" className="h-14 object-contain" />
+            <h1 className="text-2xl md:text-4xl font-extrabold tracking-wide">
+              {event.title || 'Post Your Best Photos To The Wall!'}
+            </h1>
+          </header>
+
+          {/* Posts Grid */}
+          <main className="flex-1 flex flex-col items-center justify-start px-4 pb-24 w-full max-w-6xl mx-auto">
+            {posts.length === 0 ? (
+              <p className="text-center text-white/80 mt-32">
+                No posts yet — be the first to join in!
+              </p>
+            ) : (
+              <div className="grid gap-6 sm:grid-cols-2 md:grid-cols-3 w-full">
+                {posts.map((post, idx) => (
+                  <div
+                    key={post.id}
+                    className={`bg-white/10 backdrop-blur-sm p-3 rounded-xl shadow-lg transition-all duration-300 hover:bg-white/20 ${
+                      idx % 2 === 0 ? 'justify-self-start' : 'justify-self-end'
+                    }`}
+                  >
+                    {post.photo_url && (
+                      <img
+                        src={post.photo_url}
+                        alt={post.nickname}
+                        className="rounded-lg w-full h-48 object-cover mb-3 border border-white/10"
+                      />
+                    )}
+                    <p className="font-semibold text-lg">{post.nickname}</p>
+                    <p className="text-sm opacity-90">{post.message}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </main>
+
+          {/* QR Footer */}
+          {qr && (
+            <footer className="absolute bottom-4 left-4">
+              <img src={qr} alt="QR" className="w-32 h-32 rounded-lg shadow-lg" />
+              <p className="text-xs text-center mt-1 opacity-75">Scan to Join</p>
+            </footer>
+          )}
+        </div>
+      )}
     </div>
   );
 }
 
-// ---------------- STYLES ----------------
-const pageStyle: React.CSSProperties = {
-  minHeight: '100vh',
-  display: 'flex',
-  justifyContent: 'center',
-  alignItems: 'center',
-  color: 'white',
-  overflow: 'hidden',
-};
-
-const overlayStyle: React.CSSProperties = {
-  width: '100%',
-  height: '100%',
-  background: 'rgba(0, 0, 0, 0.6)',
-  padding: '40px 20px',
-  display: 'flex',
-  flexDirection: 'column',
-  alignItems: 'center',
-};
-
-const titleStyle: React.CSSProperties = {
-  fontSize: '2.5rem',
-  marginBottom: '20px',
-  textAlign: 'center',
-  color: '#1e90ff',
-};
-
-const gridStyle: React.CSSProperties = {
-  display: 'grid',
-  gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
-  gap: '20px',
-  width: '100%',
-  maxWidth: '1200px',
-};
-
-const cardStyle: React.CSSProperties = {
-  background: 'rgba(255, 255, 255, 0.1)',
-  borderRadius: '10px',
-  padding: '10px',
-  textAlign: 'center',
-  transition: 'all 0.3s ease',
-  backdropFilter: 'blur(6px)',
-};
