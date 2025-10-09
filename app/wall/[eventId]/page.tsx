@@ -215,4 +215,7 @@ const deleteBtn: React.CSSProperties = {
 };
 
 const launchBtn: React.CSSProperties = {
-  ...
+  ...smallBtn,
+  backgroundColor: '#16a34a',
+  fontWeight: 600,
+};
