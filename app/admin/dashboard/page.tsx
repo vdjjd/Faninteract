@@ -115,41 +115,28 @@ export default function DashboardPage() {
     setSelectedEvent(null);
   }
 
+  /* ---------------- COLOR CHANGE + FADE ---------------- */
   async function handleBackgroundChange(event: any, newValue: string) {
-  const card = document.getElementById(`card-${event.id}`);
-  const modal = document.getElementById('options-modal');
-
-  // fade-out effect first
-  [card, modal].forEach((el) => {
-    if (el) {
-      el.animate([{ opacity: 1 }, { opacity: 0.6 }, { opacity: 1 }], {
-        duration: 1000,
-        easing: 'ease-in-out',
-      });
-      el.style.transition = 'background 2s ease';
-      el.style.background = newValue;
-    }
-  });
-
-  // save to DB
-  await supabase
-    .from('events')
-    .update({ background_value: newValue, updated_at: new Date().toISOString() })
-    .eq('id', event.id);
-
-  const refreshed = await getEventsByHost(host.id);
-  setEvents(refreshed);
-  }
-
+    const card = document.getElementById(`card-${event.id}`);
     const modal = document.getElementById('options-modal');
-    if (modal) {
-      modal.style.transition = 'background 2s ease';
-      modal.style.background = newValue;
-    }
+
+    [card, modal].forEach((el) => {
+      if (el) {
+        el.animate([{ opacity: 1 }, { opacity: 0.6 }, { opacity: 1 }], {
+          duration: 1000,
+          easing: 'ease-in-out',
+        });
+        el.style.transition = 'background 2s ease';
+        el.style.background = newValue;
+      }
+    });
 
     await supabase
       .from('events')
-      .update({ background_value: newValue, updated_at: new Date().toISOString() })
+      .update({
+        background_value: newValue,
+        updated_at: new Date().toISOString(),
+      })
       .eq('id', event.id);
 
     const refreshed = await getEventsByHost(host.id);
@@ -169,7 +156,11 @@ export default function DashboardPage() {
     'linear-gradient(135deg,#203731,#FFB612)', 'linear-gradient(135deg,#0B2265,#A71930)',
     'linear-gradient(135deg,#241773,#9E7C0C)', 'linear-gradient(135deg,#03202F,#FB4F14)',
     'linear-gradient(135deg,#002244,#B0B7BC)', 'linear-gradient(135deg,#002C5F,#FFC20E)',
-   ];
+    'linear-gradient(135deg,#E31837,#C60C30)', 'linear-gradient(135deg,#002C5F,#A5ACAF)',
+    'linear-gradient(135deg,#5A1414,#D3BC8D)', 'linear-gradient(135deg,#4F2683,#FFC62F)',
+    'linear-gradient(135deg,#A71930,#FFB612)', 'linear-gradient(135deg,#000000,#FB4F14)',
+    'linear-gradient(135deg,#004C54,#A5ACAF)', 'linear-gradient(135deg,#A5ACAF,#0B2265)',
+  ];
 
   const countdownOptions = [
     '30 Seconds', '1 Minute', '2 Minutes', '3 Minutes', '4 Minutes', '5 Minutes',
@@ -178,7 +169,8 @@ export default function DashboardPage() {
   ];
 
   /* ---------------- RENDER ---------------- */
-  if (loading) return <p style={{ color: '#fff', textAlign: 'center' }}>Loading...</p>;
+  if (loading)
+    return <p style={{ color: '#fff', textAlign: 'center' }}>Loading...</p>;
 
   return (
     <div style={pageStyle}>
@@ -276,7 +268,7 @@ export default function DashboardPage() {
           <input
             type="text"
             value={selectedEvent.host_title || ''}
-            style={{ ...inputStyle, width: '90%' }}
+            style={{ ...inputStyle, width: '88%' }}
             onChange={(e) =>
               setSelectedEvent({ ...selectedEvent, host_title: e.target.value })
             }
@@ -286,7 +278,7 @@ export default function DashboardPage() {
           <input
             type="text"
             value={selectedEvent.title || ''}
-            style={inputStyle}
+            style={{ ...inputStyle, width: '95%' }}
             onChange={(e) =>
               setSelectedEvent({ ...selectedEvent, title: e.target.value })
             }
@@ -462,10 +454,11 @@ const colorGrid = {
 };
 
 const colorCircle = {
-  width: 25,
-  height: 25,
+  width: 20,
+  height: 20,
   borderRadius: '50%',
   cursor: 'pointer',
   border: '1px solid #555',
-  transition: 'transform 0.2s ease',
+  transition: 'transform 0.2s ease, background 0.5s ease',
 };
+
