@@ -15,6 +15,7 @@ export default function DashboardPage() {
   const [events, setEvents] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedEvent, setSelectedEvent] = useState<any | null>(null);
+  const [confirmingDelete, setConfirmingDelete] = useState<string | null>(null);
 
   // ✅ Load host + events
   useEffect(() => {
@@ -38,18 +39,18 @@ export default function DashboardPage() {
     setEvents(updated);
   }
 
-  // ✅ Delete event
+  // ✅ Delete event (inline confirm)
   async function handleDelete(id: string) {
-    if (!confirm('Are you sure? This will permanently delete this wall.')) return;
     await deleteEvent(id);
     setEvents((prev) => prev.filter((e) => e.id !== id));
+    setConfirmingDelete(null);
   }
 
-  // ✅ Clear posts
+  // ✅ Clear posts (silent)
   async function handleClear(id: string) {
-    if (!confirm('Remove all posts from this wall?')) return;
     await clearEventPosts(id);
-    alert('All posts cleared.');
+    const updated = await getEventsByHost(host.id);
+    setEvents(updated);
   }
 
   // ✅ Launch popup only
@@ -63,29 +64,23 @@ export default function DashboardPage() {
     popup?.focus();
   }
 
-  // ✅ Play wall
+  // ✅ Play wall (silent)
   async function handleStart(id: string) {
     const { data: ev, error } = await supabase.from('events').select('*').eq('id', id).single();
-    if (error || !ev) {
-      alert('Error fetching event.');
-      return;
-    }
+    if (error || !ev) return;
 
-    if (ev.countdown && new Date(ev.countdown).getTime() > Date.now()) {
-      alert('⏳ Countdown started — wall will go live automatically.');
-    } else {
+    if (!ev.countdown || new Date(ev.countdown).getTime() <= Date.now()) {
       await supabase
         .from('events')
         .update({ status: 'live', updated_at: new Date().toISOString() })
         .eq('id', id);
-      alert('✅ Wall is now live!');
     }
 
     const updated = await getEventsByHost(host.id);
     setEvents(updated);
   }
 
-  // ✅ Stop wall
+  // ✅ Stop wall (silent)
   async function handleStop(id: string) {
     const { error } = await supabase
       .from('events')
@@ -96,15 +91,10 @@ export default function DashboardPage() {
       })
       .eq('id', id);
 
-    if (error) {
-      console.error('❌ Error stopping wall:', error.message);
-      alert('Error stopping wall.');
-      return;
+    if (!error) {
+      const updated = await getEventsByHost(host.id);
+      setEvents(updated);
     }
-
-    alert('🟥 Wall stopped and countdown reset.');
-    const updated = await getEventsByHost(host.id);
-    setEvents(updated);
   }
 
   // ✅ Open moderation popup (NEW)
@@ -136,7 +126,10 @@ export default function DashboardPage() {
       <div style={gridStyle}>
         {events.length === 0 && <p>No experiences created yet.</p>}
         {events.map((event) => (
-          <div key={event.id} style={{ ...cardStyle, background: event.background_value || '#222' }}>
+          <div
+            key={event.id}
+            style={{ ...cardStyle, background: event.background_value || '#222', position: 'relative' }}
+          >
             <h3>{event.host_title || `${event.title} Fan Zone Wall`}</h3>
             <p>
               <strong>Status:</strong>{' '}
@@ -153,7 +146,28 @@ export default function DashboardPage() {
 
             <div style={cardButtons}>
               <button onClick={() => handleClear(event.id)} style={smallBtn}>🧹 Clear</button>
-              <button onClick={() => handleDelete(event.id)} style={deleteBtn}>❌ Delete</button>
+
+              {confirmingDelete === event.id ? (
+                <div style={confirmOverlay}>
+                  <p style={{ margin: 0, fontSize: 14 }}>Confirm delete?</p>
+                  <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
+                    <button
+                      onClick={() => handleDelete(event.id)}
+                      style={{ ...smallBtn, backgroundColor: '#16a34a' }}
+                    >
+                      ✅ Confirm
+                    </button>
+                    <button
+                      onClick={() => setConfirmingDelete(null)}
+                      style={{ ...smallBtn, backgroundColor: '#a33' }}
+                    >
+                      ✖ Cancel
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <button onClick={() => setConfirmingDelete(event.id)} style={deleteBtn}>❌ Delete</button>
+              )}
             </div>
 
             {/* Options + Pending */}
@@ -257,6 +271,7 @@ const cardStyle: React.CSSProperties = {
   textAlign: 'center',
   color: '#fff',
   boxShadow: '0 0 15px rgba(0,0,0,0.3)',
+  position: 'relative',
 };
 
 const cardButtons: React.CSSProperties = {
@@ -290,6 +305,20 @@ const deleteBtn: React.CSSProperties = { ...smallBtn, backgroundColor: '#a33' };
 const optionsBtn: React.CSSProperties = { ...smallBtn, backgroundColor: '#1e90ff' };
 const pendingBtn: React.CSSProperties = { ...smallBtn, backgroundColor: '#ffaa00', fontWeight: 600 };
 
+const confirmOverlay: React.CSSProperties = {
+  position: 'absolute',
+  top: '50%',
+  left: '50%',
+  transform: 'translate(-50%, -50%)',
+  background: '#222',
+  border: '1px solid #555',
+  borderRadius: 10,
+  padding: '12px 16px',
+  boxShadow: '0 0 10px rgba(0,0,0,0.6)',
+  zIndex: 10,
+  textAlign: 'center',
+};
+
 const modalBackdrop: React.CSSProperties = {
   position: 'fixed',
   inset: 0,
@@ -322,4 +351,3 @@ const inputStyle: React.CSSProperties = {
 
 const saveBtn: React.CSSProperties = { ...smallBtn, backgroundColor: '#16a34a', fontWeight: 600 };
 const cancelBtn: React.CSSProperties = { ...smallBtn, backgroundColor: '#a33' };
-
