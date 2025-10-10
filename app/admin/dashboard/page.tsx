@@ -21,6 +21,8 @@ const inputStyle: React.CSSProperties = {
   color: '#fff',
 };
 
+const DEFAULT_GRADIENT = 'linear-gradient(135deg, #0d47a1, #1976d2)';
+
 export default function DashboardPage() {
   const [host, setHost] = useState<any>(null);
   const [events, setEvents] = useState<any[]>([]);
@@ -30,7 +32,7 @@ export default function DashboardPage() {
   const [creatingNew, setCreatingNew] = useState(false);
   const [newTitle, setNewTitle] = useState('');
 
-  // ✅ Load host + events
+  /* ---------------- FETCH EVENTS ---------------- */
   useEffect(() => {
     async function fetchData() {
       const { data: { user } } = await supabase.auth.getUser();
@@ -43,7 +45,7 @@ export default function DashboardPage() {
     fetchData();
   }, []);
 
-  // ✅ Create new event (inline overlay)
+  /* ---------------- CREATE EVENT ---------------- */
   async function handleCreateConfirm() {
     if (!newTitle.trim()) return;
     await createEvent(host.id, { title: newTitle.trim() });
@@ -53,27 +55,25 @@ export default function DashboardPage() {
     setNewTitle('');
   }
 
-  // ✅ Delete event (inline confirm)
+  /* ---------------- DELETE EVENT ---------------- */
   async function handleDelete(id: string) {
     await deleteEvent(id);
     setEvents((prev) => prev.filter((e) => e.id !== id));
     setConfirmingDelete(null);
   }
 
-  // ✅ Clear posts (updates status to 'cleared', but keeps event data)
+  /* ---------------- CLEAR POSTS ---------------- */
   async function handleClear(id: string) {
     await clearEventPosts(id);
-
     await supabase
       .from('events')
       .update({ status: 'cleared', updated_at: new Date().toISOString() })
       .eq('id', id);
-
     const updated = await getEventsByHost(host.id);
     setEvents(updated);
   }
 
-  // ✅ Launch popup only
+  /* ---------------- LAUNCH WALL ---------------- */
   async function handleLaunch(id: string) {
     const wallUrl = `${window.location.origin}/wall/${id}`;
     const popup = window.open(
@@ -84,37 +84,26 @@ export default function DashboardPage() {
     popup?.focus();
   }
 
-  // ✅ Play wall (silent)
+  /* ---------------- START / STOP WALL ---------------- */
   async function handleStart(id: string) {
-    const { data: ev, error } = await supabase.from('events').select('*').eq('id', id).single();
-    if (error || !ev) return;
-    if (!ev.countdown || new Date(ev.countdown).getTime() <= Date.now()) {
-      await supabase
-        .from('events')
-        .update({ status: 'live', updated_at: new Date().toISOString() })
-        .eq('id', id);
-    }
+    await supabase
+      .from('events')
+      .update({ status: 'live', updated_at: new Date().toISOString() })
+      .eq('id', id);
     const updated = await getEventsByHost(host.id);
     setEvents(updated);
   }
 
-  // ✅ Stop wall (silent)
   async function handleStop(id: string) {
-    const { error } = await supabase
+    await supabase
       .from('events')
-      .update({
-        status: 'inactive',
-        countdown: null,
-        updated_at: new Date().toISOString(),
-      })
+      .update({ status: 'inactive', countdown: null, updated_at: new Date().toISOString() })
       .eq('id', id);
-    if (!error) {
-      const updated = await getEventsByHost(host.id);
-      setEvents(updated);
-    }
+    const updated = await getEventsByHost(host.id);
+    setEvents(updated);
   }
 
-  // ✅ Open moderation popup
+  /* ---------------- OPEN MODERATION ---------------- */
   function handleOpenModeration(id: string) {
     const modUrl = `${window.location.origin}/admin/moderation/${id}`;
     window.open(
@@ -124,7 +113,7 @@ export default function DashboardPage() {
     );
   }
 
-  // ✅ Save settings
+  /* ---------------- SAVE SETTINGS ---------------- */
   async function handleSaveSettings(updatedEvent: any) {
     await updateEventSettings(updatedEvent.id, updatedEvent);
     const refreshed = await getEventsByHost(host.id);
@@ -132,14 +121,71 @@ export default function DashboardPage() {
     setSelectedEvent(null);
   }
 
+  /* ---------------- BACKGROUND UPDATE (FADE + SYNC) ---------------- */
+  async function handleBackgroundChange(event: any, newValue: string) {
+    const card = document.getElementById(`card-${event.id}`);
+    if (card) {
+      card.style.transition = 'background 2s ease';
+      card.style.background = newValue;
+    }
+
+    const modal = document.getElementById('options-modal');
+    if (modal) {
+      modal.style.transition = 'background 2s ease';
+      modal.style.background = newValue;
+    }
+
+    await supabase
+      .from('events')
+      .update({ background_value: newValue, updated_at: new Date().toISOString() })
+      .eq('id', event.id);
+
+    const refreshed = await getEventsByHost(host.id);
+    setEvents(refreshed);
+  }
+
+  /* ---------------- COLOR PALETTES ---------------- */
+  const solidColors = [
+    '#e53935', '#d81b60', '#8e24aa', '#5e35b1',
+    '#3949ab', '#1e88e5', '#039be5', '#00acc1',
+    '#00897b', '#43a047', '#7cb342', '#c0ca33',
+    '#fdd835', '#fb8c00', '#f4511e', '#6d4c41'
+  ];
+
+  const nflGradients = [
+    'linear-gradient(135deg,#002244,#69BE28)', 'linear-gradient(135deg,#00338D,#C60C30)',
+    'linear-gradient(135deg,#203731,#FFB612)', 'linear-gradient(135deg,#0B2265,#A71930)',
+    'linear-gradient(135deg,#241773,#9E7C0C)', 'linear-gradient(135deg,#03202F,#FB4F14)',
+    'linear-gradient(135deg,#002244,#B0B7BC)', 'linear-gradient(135deg,#002C5F,#FFC20E)',
+    'linear-gradient(135deg,#E31837,#C60C30)', 'linear-gradient(135deg,#002C5F,#A5ACAF)',
+    'linear-gradient(135deg,#002244,#69BE28)', 'linear-gradient(135deg,#5A1414,#D3BC8D)',
+    'linear-gradient(135deg,#203731,#FFB612)', 'linear-gradient(135deg,#002244,#FB4F14)',
+    'linear-gradient(135deg,#4F2683,#FFC62F)', 'linear-gradient(135deg,#A71930,#FFB612)',
+    'linear-gradient(135deg,#000000,#FB4F14)', 'linear-gradient(135deg,#002244,#69BE28)',
+    'linear-gradient(135deg,#03202F,#FB4F14)', 'linear-gradient(135deg,#0B2265,#A71930)',
+    'linear-gradient(135deg,#002244,#C60C30)', 'linear-gradient(135deg,#002244,#A71930)',
+    'linear-gradient(135deg,#00338D,#FFB612)', 'linear-gradient(135deg,#004C54,#A5ACAF)',
+    'linear-gradient(135deg,#A5ACAF,#0B2265)', 'linear-gradient(135deg,#002244,#C60C30)',
+    'linear-gradient(135deg,#004C54,#A5ACAF)', 'linear-gradient(135deg,#5A1414,#C60C30)',
+    'linear-gradient(135deg,#002244,#B0B7BC)', 'linear-gradient(135deg,#002C5F,#A71930)',
+    'linear-gradient(135deg,#002244,#FFB612)', 'linear-gradient(135deg,#203731,#A5ACAF)',
+  ];
+
+  const countdownOptions = [
+    '30 Seconds', '1 Minute', '2 Minutes', '3 Minutes', '4 Minutes', '5 Minutes',
+    '10 Minutes', '15 Minutes', '20 Minutes', '25 Minutes', '30 Minutes',
+    '35 Minutes', '40 Minutes', '45 Minutes', '50 Minutes', '55 Minutes', '60 Minutes',
+  ];
+
+  /* ---------------- RENDER ---------------- */
   if (loading) return <p style={{ color: '#fff', textAlign: 'center' }}>Loading...</p>;
 
   return (
     <div style={pageStyle}>
-      <h1 style={{ marginBottom: 20 }}>🎛 Host Dashboard</h1>
-      <img src="/faninteractlogo.png" alt="FanInteract Logo" style={{ width: 120, marginBottom: 10 }} />
+      <h1 style={{ marginBottom: 15 }}>🎛 Host Dashboard</h1>
+      <img src="/faninteractlogo.png" alt="FanInteract Logo" style={{ width: 110, marginBottom: 10 }} />
 
-      {/* Inline Create New Fan Zone Wall */}
+      {/* Create New Wall */}
       {!creatingNew ? (
         <button onClick={() => setCreatingNew(true)} style={buttonStyle}>
           ➕ New Fan Zone Wall
@@ -147,7 +193,7 @@ export default function DashboardPage() {
       ) : (
         <div style={newCardOverlay}>
           <div style={newCardBox}>
-            <h3 style={{ marginBottom: 10 }}>🆕 Create New Fan Zone Wall</h3>
+            <h3>🆕 Create New Fan Zone Wall</h3>
             <input
               type="text"
               placeholder="Enter a title for your new Fan Zone Wall"
@@ -155,38 +201,33 @@ export default function DashboardPage() {
               onChange={(e) => setNewTitle(e.target.value)}
               style={inputStyle}
             />
-            <div style={{ display: 'flex', gap: 8, marginTop: 10, justifyContent: 'center' }}>
-              <button onClick={handleCreateConfirm} style={{ ...smallBtn, backgroundColor: '#16a34a' }}>
-                💾 Create
-              </button>
-              <button onClick={() => setCreatingNew(false)} style={{ ...smallBtn, backgroundColor: '#a33' }}>
-                ✖ Cancel
-              </button>
+            <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+              <button onClick={handleCreateConfirm} style={{ ...smallBtn, backgroundColor: '#16a34a' }}>💾 Create</button>
+              <button onClick={() => setCreatingNew(false)} style={{ ...smallBtn, backgroundColor: '#a33' }}>✖ Cancel</button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Grid of Events */}
+      {/* Cards Grid */}
       <div style={gridStyle}>
-        {events.length === 0 && <p>No experiences created yet.</p>}
         {events.map((event) => (
-          <div key={event.id} style={{ ...cardStyle, background: event.background_value || '#222' }}>
-            <h3 style={{ fontSize: 16 }}>{event.host_title || `${event.title} Fan Zone Wall`}</h3>
-            <p style={{ fontSize: 13 }}>
+          <div
+            key={event.id}
+            id={`card-${event.id}`}
+            style={{
+              ...cardStyle,
+              background: event.background_value || DEFAULT_GRADIENT,
+              transition: 'background 2s ease',
+            }}
+          >
+            <h3 style={{ fontSize: 14 }}>{event.host_title || `${event.title} Fan Zone Wall`}</h3>
+            <p style={{ fontSize: 12 }}>
               <strong>Status:</strong>{' '}
-              <span
-                style={{
-                  color:
-                    event.status === 'live'
-                      ? 'lime'
-                      : event.status === 'cleared'
-                      ? '#00bcd4'
-                      : 'orange',
-                }}
-              >
-                {event.status}
-              </span>
+              <span style={{
+                color: event.status === 'live' ? 'lime' :
+                       event.status === 'cleared' ? '#00bcd4' : 'orange'
+              }}>{event.status}</span>
             </p>
 
             <div style={cardButtons}>
@@ -197,23 +238,12 @@ export default function DashboardPage() {
 
             <div style={cardButtons}>
               <button onClick={() => handleClear(event.id)} style={clearBtn}>🧹 Clear</button>
-
               {confirmingDelete === event.id ? (
                 <div style={confirmOverlay}>
-                  <p style={{ margin: 0, fontSize: 14 }}>Confirm delete?</p>
+                  <p>Confirm delete?</p>
                   <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
-                    <button
-                      onClick={() => handleDelete(event.id)}
-                      style={{ ...smallBtn, backgroundColor: '#16a34a' }}
-                    >
-                      ✅ Confirm
-                    </button>
-                    <button
-                      onClick={() => setConfirmingDelete(null)}
-                      style={{ ...smallBtn, backgroundColor: '#a33' }}
-                    >
-                      ✖ Cancel
-                    </button>
+                    <button onClick={() => handleDelete(event.id)} style={{ ...smallBtn, backgroundColor: '#16a34a' }}>✅ Confirm</button>
+                    <button onClick={() => setConfirmingDelete(null)} style={{ ...smallBtn, backgroundColor: '#a33' }}>✖ Cancel</button>
                   </div>
                 </div>
               ) : (
@@ -222,7 +252,7 @@ export default function DashboardPage() {
             </div>
 
             <div style={cardFooter}>
-              <button onClick={() => setSelectedEvent(event)} style={optionsBtn}>⚙️ Options</button>
+              <button onClick={() => setSelectedEvent(event)} style={optionsBtn}>⚙ Options</button>
               <button onClick={() => handleOpenModeration(event.id)} style={pendingBtn}>
                 🔔 Pending ({event.pending_posts ?? 0})
               </button>
@@ -231,52 +261,47 @@ export default function DashboardPage() {
         ))}
       </div>
 
-      {/* Settings Modal */}
+      {/* OPTIONS MODAL */}
       {selectedEvent && (
-        <div style={modalBackdrop}>
-          <div style={modalBox}>
-            <h2>⚙️ Edit Wall Settings</h2>
-            <label>
-              Host Title:
-              <input
-                type="text"
-                value={selectedEvent.host_title || ''}
-                style={inputStyle}
-                onChange={(e) => setSelectedEvent({ ...selectedEvent, host_title: e.target.value })}
-              />
-            </label>
-            <label>
-              Public Title:
-              <input
-                type="text"
-                value={selectedEvent.title || ''}
-                style={inputStyle}
-                onChange={(e) => setSelectedEvent({ ...selectedEvent, title: e.target.value })}
-              />
-            </label>
-            <label>
-              Countdown (datetime-local):
-              <input
-                type="datetime-local"
-                style={inputStyle}
-                onChange={(e) => setSelectedEvent({ ...selectedEvent, countdown: e.target.value })}
-              />
-            </label>
-            <label>
-              Background (color/gradient URL):
-              <input
-                type="text"
-                value={selectedEvent.background_value || ''}
-                style={inputStyle}
-                onChange={(e) => setSelectedEvent({ ...selectedEvent, background_value: e.target.value })}
-              />
-            </label>
+        <div id="options-modal" style={{
+          ...modalBox,
+          background: selectedEvent.background_value || DEFAULT_GRADIENT,
+          transition: 'background 2s ease',
+        }}>
+          <h3 style={{ textAlign: 'center' }}>⚙ Edit Wall Settings</h3>
 
-            <div style={{ marginTop: 10, display: 'flex', gap: 10 }}>
-              <button style={saveBtn} onClick={() => handleSaveSettings(selectedEvent)}>💾 Save</button>
-              <button style={cancelBtn} onClick={() => setSelectedEvent(null)}>✖ Close</button>
-            </div>
+          <label style={{ fontSize: 12 }}>Countdown:</label>
+          <select
+            style={inputStyle}
+            value={selectedEvent.countdown || ''}
+            onChange={(e) => setSelectedEvent({ ...selectedEvent, countdown: e.target.value })}
+          >
+            {countdownOptions.map((opt) => <option key={opt}>{opt}</option>)}
+          </select>
+
+          <h4 style={{ marginTop: 10, fontSize: 13 }}>Solid Colors</h4>
+          <div style={colorGrid}>
+            {solidColors.map((c) => (
+              <div
+                key={c}
+                style={{ ...colorCircle, background: c }}
+                onClick={() => handleBackgroundChange(selectedEvent, c)}
+              />
+            ))}
           </div>
+
+          <h4 style={{ marginTop: 10, fontSize: 13 }}>Gradients</h4>
+          <div style={colorGrid}>
+            {nflGradients.map((g) => (
+              <div
+                key={g}
+                style={{ ...colorCircle, background: g }}
+                onClick={() => handleBackgroundChange(selectedEvent, g)}
+              />
+            ))}
+          </div>
+
+          <button onClick={() => setSelectedEvent(null)} style={cancelBtn}>✖ Close</button>
         </div>
       )}
     </div>
@@ -290,94 +315,94 @@ const pageStyle: React.CSSProperties = {
   alignItems: 'center',
   justifyContent: 'flex-start',
   minHeight: '100vh',
-  background: 'linear-gradient(180deg, #0d0d0d, #1a1a1a)',
+  background: 'linear-gradient(180deg,#0d0d0d,#1a1a1a)',
   color: '#fff',
-  padding: '40px 10px',
-  fontFamily: 'system-ui, sans-serif',
+  padding: '20px 10px',
+  fontFamily: 'system-ui,sans-serif',
 };
 
 const buttonStyle: React.CSSProperties = {
   backgroundColor: '#1e90ff',
   border: 'none',
   borderRadius: 8,
-  padding: '10px 20px',
+  padding: '8px 16px',
   color: '#fff',
   fontWeight: 600,
   cursor: 'pointer',
 };
 
-const newCardOverlay: React.CSSProperties = {
-  width: 260,
-  marginTop: 20,
+const newCardOverlay = {
+  width: 250,
+  marginTop: 15,
   background: '#222',
-  borderRadius: 12,
-  padding: 16,
-  textAlign: 'center',
-  boxShadow: '0 0 15px rgba(0,0,0,0.4)',
+  borderRadius: 10,
+  padding: 14,
+  textAlign: 'center' as const,
+  boxShadow: '0 0 10px rgba(0,0,0,0.3)',
 };
 
-const newCardBox: React.CSSProperties = {
+const newCardBox = {
   display: 'flex',
-  flexDirection: 'column',
+  flexDirection: 'column' as const,
   alignItems: 'center',
 };
 
-const gridStyle: React.CSSProperties = {
-  marginTop: 20,
+const gridStyle = {
+  marginTop: 15,
   display: 'grid',
-  gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
-  gap: 16,
+  gridTemplateColumns: 'repeat(4,1fr)',
+  gap: 10,
   width: '100%',
-  maxWidth: 1100,
-  justifyItems: 'center',
+  maxWidth: 1080,
+  justifyItems: 'center' as const,
 };
 
-const cardStyle: React.CSSProperties = {
+const cardStyle = {
   borderRadius: 10,
-  padding: 14,
-  textAlign: 'center',
+  padding: 10,
+  textAlign: 'center' as const,
   color: '#fff',
   boxShadow: '0 0 10px rgba(0,0,0,0.25)',
-  position: 'relative',
   width: '100%',
   maxWidth: 230,
   transition: 'all 0.3s ease',
 };
 
-const cardButtons: React.CSSProperties = {
+const cardButtons = {
   display: 'flex',
-  gap: 8,
-  flexWrap: 'wrap',
-  justifyContent: 'center',
+  gap: 6,
+  flexWrap: 'wrap' as const,
+  justifyContent: 'center' as const,
+  marginTop: 6,
+};
+
+const cardFooter = {
+  display: 'flex',
+  justifyContent: 'space-between' as const,
   marginTop: 8,
 };
 
-const cardFooter: React.CSSProperties = {
-  display: 'flex',
-  justifyContent: 'space-between',
-  marginTop: 10,
-};
-
-const smallBtn: React.CSSProperties = {
+const smallBtn = {
   backgroundColor: '#444',
   border: 'none',
   borderRadius: 6,
   padding: '6px 10px',
   color: '#fff',
   cursor: 'pointer',
-  fontSize: 13,
+  fontSize: 12,
 };
 
-const clearBtn: React.CSSProperties = { ...smallBtn, backgroundColor: '#00bcd4', fontWeight: 600 };
-const launchBtn: React.CSSProperties = { ...smallBtn, backgroundColor: '#007bff', fontWeight: 600 };
-const playBtn: React.CSSProperties = { ...smallBtn, backgroundColor: '#16a34a', fontWeight: 600 };
-const stopBtn: React.CSSProperties = { ...smallBtn, backgroundColor: '#d12f2f', fontWeight: 600 };
-const deleteBtn: React.CSSProperties = { ...smallBtn, backgroundColor: '#a33' };
-const optionsBtn: React.CSSProperties = { ...smallBtn, backgroundColor: '#1e90ff' };
-const pendingBtn: React.CSSProperties = { ...smallBtn, backgroundColor: '#ffaa00', fontWeight: 600 };
+const clearBtn = { ...smallBtn, backgroundColor: '#00bcd4', fontWeight: 600 };
+const launchBtn = { ...smallBtn, backgroundColor: '#007bff', fontWeight: 600 };
+const playBtn = { ...smallBtn, backgroundColor: '#16a34a', fontWeight: 600 };
+const stopBtn = { ...smallBtn, backgroundColor: '#d12f2f', fontWeight: 600 };
+const deleteBtn = { ...smallBtn, backgroundColor: '#a33' };
+const optionsBtn = { ...smallBtn, backgroundColor: '#1e90ff' };
+const pendingBtn = { ...smallBtn, backgroundColor: '#ffaa00', fontWeight: 600 };
+const cancelBtn = { ...smallBtn, backgroundColor: '#a33', width: '100%' };
 
-const confirmOverlay: React.CSSProperties = {
-  position: 'absolute',
+const confirmOverlay = {
+  position: 'absolute' as const,
   top: '50%',
   left: '50%',
   transform: 'translate(-50%, -50%)',
@@ -387,28 +412,34 @@ const confirmOverlay: React.CSSProperties = {
   padding: '12px 16px',
   boxShadow: '0 0 10px rgba(0,0,0,0.6)',
   zIndex: 10,
-  textAlign: 'center',
+  textAlign: 'center' as const,
 };
 
-const modalBackdrop: React.CSSProperties = {
-  position: 'fixed',
-  inset: 0,
-  background: 'rgba(0,0,0,0.6)',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  zIndex: 100,
-};
-
-const modalBox: React.CSSProperties = {
-  background: '#222',
-  padding: 20,
+const modalBox = {
+  position: 'fixed' as const,
+  top: '50%',
+  left: '50%',
+  transform: 'translate(-50%, -50%)',
+  padding: 15,
   borderRadius: 10,
-  width: 350,
-  display: 'flex',
-  flexDirection: 'column',
-  gap: 10,
+  width: 320,
+  zIndex: 999,
+  boxShadow: '0 0 20px rgba(0,0,0,0.7)',
+  color: '#fff',
 };
 
-const saveBtn: React.CSSProperties = { ...smallBtn, backgroundColor: '#16a34a', fontWeight: 600 };
-const cancelBtn: React.CSSProperties = { ...smallBtn, backgroundColor: '#a33' };
+const colorGrid = {
+  display: 'grid',
+  gridTemplateColumns: 'repeat(8,1fr)',
+  gap: 6,
+  marginTop: 5,
+};
+
+const colorCircle = {
+  width: 25,
+  height: 25,
+  borderRadius: '50%',
+  cursor: 'pointer',
+  border: '1px solid #555',
+  transition: 'transform 0.2s ease',
+};
