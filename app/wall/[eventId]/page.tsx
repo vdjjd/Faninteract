@@ -12,6 +12,7 @@ interface Submission {
   status: string;
   created_at: string;
 }
+
 interface EventData {
   id: string;
   title: string | null;
@@ -29,6 +30,13 @@ export default function FanWallPage() {
   const [event, setEvent] = useState<EventData | null>(null);
   const [posts, setPosts] = useState<Submission[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Track background fade
+  const [bgTransition, setBgTransition] = useState({
+    current: '',
+    next: '',
+    fading: false,
+  });
 
   // ---------------- FETCH EVENT + POSTS ----------------
   async function loadEventAndPosts() {
@@ -58,7 +66,6 @@ export default function FanWallPage() {
   useEffect(() => {
     if (!eventId) return;
 
-    // new approved post
     const subChannel = supabase
       .channel('realtime:submissions')
       .on(
@@ -74,7 +81,6 @@ export default function FanWallPage() {
       )
       .subscribe((s) => console.log('Submissions channel:', s));
 
-    // event color/status update
     const eventChannel = supabase
       .channel('realtime:events')
       .on(
@@ -107,26 +113,31 @@ export default function FanWallPage() {
     return () => clearInterval(interval);
   }, [eventId, event]);
 
-  // ---------------- BACKGROUND STYLE ----------------
-  const getBackground = () => {
-    if (!event) return 'linear-gradient(to bottom right,#4dc6ff,#001f4d)';
-    if (event.background_type === 'image' && event.background_value)
-      return `url(${event.background_value}) center/cover no-repeat`;
-    if (event.background_type === 'gradient' && event.background_value)
-      return event.background_value;
-    if (event.background_type === 'solid' && event.background_value)
-      return event.background_value;
-    return 'linear-gradient(to bottom right,#4dc6ff,#001f4d)';
-  };
+  // ---------------- HANDLE BACKGROUND CHANGES ----------------
+  useEffect(() => {
+    if (!event?.background_value) return;
+    if (event.background_value === bgTransition.current) return;
 
-  const bgStyle: React.CSSProperties = {
-    background: getBackground(),
-    backgroundSize: 'cover',
-    backgroundRepeat: 'no-repeat',
-    backgroundAttachment: 'fixed',
-    transition: 'background 2s ease',
-    minHeight: '100vh',
-    width: '100%',
+    setBgTransition({
+      current: bgTransition.current || event.background_value,
+      next: event.background_value,
+      fading: true,
+    });
+
+    const timer = setTimeout(() => {
+      setBgTransition({
+        current: event.background_value,
+        next: '',
+        fading: false,
+      });
+    }, 2000);
+    return () => clearTimeout(timer);
+  }, [event?.background_value]);
+
+  const getBackground = (bg?: string, type?: string | null) => {
+    if (!bg) return 'linear-gradient(to bottom right,#4dc6ff,#001f4d)';
+    if (type === 'image') return `url(${bg}) center/cover no-repeat`;
+    return bg;
   };
 
   if (loading) return <p className="text-white text-center mt-20">Loading Wall...</p>;
@@ -137,11 +148,38 @@ export default function FanWallPage() {
 
   // ---------------- RENDER ----------------
   return (
-    <div className="min-h-screen text-white relative overflow-hidden" style={bgStyle}>
-      <div className="absolute inset-0 bg-black/40" />
+    <div
+      className="min-h-screen text-white relative overflow-hidden"
+      style={{
+        background: getBackground(bgTransition.current, event.background_type),
+        backgroundSize: 'cover',
+        backgroundRepeat: 'no-repeat',
+        backgroundAttachment: 'fixed',
+        transition: bgTransition.fading ? 'none' : 'background 2s ease',
+      }}
+    >
+      {/* Crossfade layer */}
+      {bgTransition.fading && (
+        <div
+          style={{
+            position: 'absolute',
+            inset: 0,
+            background: getBackground(bgTransition.next, event.background_type),
+            backgroundSize: 'cover',
+            backgroundRepeat: 'no-repeat',
+            backgroundAttachment: 'fixed',
+            opacity: 0,
+            animation: 'fadeGradient 2s ease forwards',
+            zIndex: 0,
+          }}
+        />
+      )}
+
+      {/* dark overlay */}
+      <div className="absolute inset-0 bg-black/40 z-10" />
 
       {event.status === 'live' && (
-        <div className="relative z-10 w-full flex flex-col items-center px-8 py-10">
+        <div className="relative z-20 w-full flex flex-col items-center px-8 py-10">
           <img
             src={logo}
             alt="Logo"
@@ -215,6 +253,15 @@ export default function FanWallPage() {
           <path strokeLinecap="round" strokeLinejoin="round" d="M3 9V4h5M21 9V4h-5M3 15v5h5M21 15v5h-5" />
         </svg>
       </div>
+
+      {/* CSS animation for smooth crossfade */}
+      <style jsx global>{`
+        @keyframes fadeGradient {
+          0% { opacity: 0; }
+          50% { opacity: 1; }
+          100% { opacity: 0; }
+        }
+      `}</style>
     </div>
   );
 }
