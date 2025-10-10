@@ -107,6 +107,16 @@ export default function DashboardPage() {
     setEvents(updated);
   }
 
+  // ✅ Open moderation popup (NEW)
+  function handleOpenModeration(id: string) {
+    const modUrl = `${window.location.origin}/admin/moderation/${id}`;
+    window.open(
+      modUrl,
+      '_blank',
+      'width=1200,height=700,left=200,top=120,menubar=no,toolbar=no,location=no,status=no,resizable=yes,scrollbars=yes'
+    );
+  }
+
   // ✅ Save settings
   async function handleSaveSettings(updatedEvent: any) {
     await updateEventSettings(updatedEvent.id, updatedEvent);
@@ -149,7 +159,9 @@ export default function DashboardPage() {
             {/* Options + Pending */}
             <div style={cardFooter}>
               <button onClick={() => setSelectedEvent(event)} style={optionsBtn}>⚙️ Options</button>
-              <button style={pendingBtn}>🔔 Pending ({event.pending_posts ?? 0})</button>
+              <button onClick={() => handleOpenModeration(event.id)} style={pendingBtn}>
+                🔔 Pending ({event.pending_posts ?? 0})
+              </button>
             </div>
           </div>
         ))}
@@ -310,3 +322,4 @@ const inputStyle: React.CSSProperties = {
 
 const saveBtn: React.CSSProperties = { ...smallBtn, backgroundColor: '#16a34a', fontWeight: 600 };
 const cancelBtn: React.CSSProperties = { ...smallBtn, backgroundColor: '#a33' };
+
