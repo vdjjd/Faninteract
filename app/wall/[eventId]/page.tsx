@@ -1,5 +1,4 @@
 'use client';
-
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
@@ -13,7 +12,6 @@ interface Submission {
   status: string;
   created_at: string;
 }
-
 interface EventData {
   id: string;
   title: string | null;
@@ -24,7 +22,6 @@ interface EventData {
   logo_url: string | null;
   qr_url: string | null;
   host_id: string;
-  theme_colors?: string | null;
 }
 
 export default function FanWallPage() {
@@ -32,7 +29,6 @@ export default function FanWallPage() {
   const [event, setEvent] = useState<EventData | null>(null);
   const [posts, setPosts] = useState<Submission[]>([]);
   const [loading, setLoading] = useState(true);
-  const [countdownTime, setCountdownTime] = useState<number | null>(null);
 
   // ---------------- FETCH EVENT + POSTS ----------------
   async function loadEventAndPosts() {
@@ -51,11 +47,6 @@ export default function FanWallPage() {
       setPosts(subs || []);
     }
 
-    if (ev.countdown) {
-      const diff = new Date(ev.countdown).getTime() - Date.now();
-      setCountdownTime(diff > 0 ? diff : 0);
-    }
-
     setLoading(false);
   }
 
@@ -63,11 +54,11 @@ export default function FanWallPage() {
     loadEventAndPosts();
   }, [eventId]);
 
-  // ---------------- REALTIME SUBSCRIPTIONS ----------------
+  // ---------------- REALTIME UPDATES ----------------
   useEffect(() => {
     if (!eventId) return;
 
-    // 1️⃣ Submissions realtime channel
+    // new approved post
     const subChannel = supabase
       .channel('realtime:submissions')
       .on(
@@ -76,31 +67,26 @@ export default function FanWallPage() {
         (payload) => {
           const newPost = payload.new as Submission;
           if (newPost.event_id === eventId && newPost.status === 'approved') {
-            console.log('🆕 New approved post:', newPost);
+            console.log('🆕 new post', newPost);
             setPosts((prev) => [newPost, ...prev]);
           }
         }
       )
-      .subscribe((status) => console.log('Submissions channel:', status));
+      .subscribe((s) => console.log('Submissions channel:', s));
 
-    // 2️⃣ Events realtime diagnostic (catch ALL events)
+    // event color/status update
     const eventChannel = supabase
       .channel('realtime:events')
       .on(
         'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'events',
-          filter: `id=eq.${eventId}`,
-        },
+        { event: '*', schema: 'public', table: 'events', filter: `id=eq.${eventId}` },
         (payload) => {
-          console.log('🔥 Realtime payload received:', payload);
+          console.log('🔥 Realtime event update:', payload);
           const updated = payload.new as EventData;
           if (updated) setEvent((prev) => ({ ...prev!, ...updated }));
         }
       )
-      .subscribe((status) => console.log('Events channel:', status));
+      .subscribe((s) => console.log('Events channel:', s));
 
     return () => {
       supabase.removeChannel(subChannel);
@@ -112,47 +98,25 @@ export default function FanWallPage() {
   useEffect(() => {
     if (!eventId) return;
     const interval = setInterval(async () => {
-      const { data: latest } = await supabase
-        .from('events')
-        .select('*')
-        .eq('id', eventId)
-        .single();
-      if (latest && JSON.stringify(latest) !== JSON.stringify(event)) {
-        console.log('🔄 Poll update:', latest);
-        setEvent(latest);
+      const { data } = await supabase.from('events').select('*').eq('id', eventId).single();
+      if (data && JSON.stringify(data) !== JSON.stringify(event)) {
+        console.log('🔄 Poll update', data);
+        setEvent(data);
       }
-    }, 5000); // every 5 seconds
+    }, 5000);
     return () => clearInterval(interval);
   }, [eventId, event]);
 
-  // ---------------- FADE BACKGROUND ----------------
-  useEffect(() => {
-    const root = document.documentElement;
-    if (event?.background_value) {
-      root.style.transition = 'background 2s ease';
-      root.style.background = event.background_value;
-    }
-  }, [event?.background_value]);
-
-  // ---------------- COUNTDOWN TIMER ----------------
-  useEffect(() => {
-    if (!countdownTime) return;
-    const interval = setInterval(() => {
-      setCountdownTime((prev) => (prev && prev > 1000 ? prev - 1000 : 0));
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [countdownTime]);
-
   // ---------------- BACKGROUND STYLE ----------------
   const getBackground = () => {
-    if (!event) return 'linear-gradient(to bottom right, #4dc6ff, #001f4d)';
+    if (!event) return 'linear-gradient(to bottom right,#4dc6ff,#001f4d)';
     if (event.background_type === 'image' && event.background_value)
       return `url(${event.background_value}) center/cover no-repeat`;
-    if (event.background_type === 'solid' && event.background_value)
-      return event.background_value;
     if (event.background_type === 'gradient' && event.background_value)
       return event.background_value;
-    return 'linear-gradient(to bottom right, #4dc6ff, #001f4d)';
+    if (event.background_type === 'solid' && event.background_value)
+      return event.background_value;
+    return 'linear-gradient(to bottom right,#4dc6ff,#001f4d)';
   };
 
   const bgStyle: React.CSSProperties = {
@@ -165,104 +129,50 @@ export default function FanWallPage() {
     width: '100%',
   };
 
-  // ---------------- TIMER FORMAT ----------------
-  const formatCountdown = (ms: number) => {
-    const total = Math.max(0, Math.floor(ms / 1000));
-    const h = String(Math.floor(total / 3600)).padStart(2, '0');
-    const m = String(Math.floor((total % 3600) / 60)).padStart(2, '0');
-    const s = String(total % 60).padStart(2, '0');
-    return `${h}:${m}:${s}`;
-  };
-
   if (loading) return <p className="text-white text-center mt-20">Loading Wall...</p>;
   if (!event) return <p className="text-white text-center mt-20">Event not found.</p>;
-
-  const now = Date.now();
-  const countdownActive =
-    event.countdown && new Date(event.countdown).getTime() > now && event.status !== 'live';
 
   const logo = event.logo_url || '/faninteractlogo.png';
   const qr = event.qr_url;
 
-  // ---------------- UI ----------------
+  // ---------------- RENDER ----------------
   return (
-    <div
-      className="min-h-screen flex flex-col items-center justify-center text-white relative overflow-hidden"
-      style={bgStyle}
-    >
+    <div className="min-h-screen text-white relative overflow-hidden" style={bgStyle}>
       <div className="absolute inset-0 bg-black/40" />
 
-      {event.status === 'live' && !countdownActive && (
-        <div
-          className="relative z-10 w-full flex flex-col"
-          style={{
-            padding: '80px 100px 60px 100px',
-            boxSizing: 'border-box',
-          }}
-        >
-          <header className="flex justify-between items-center px-6 py-4 relative">
-            <img
-              src={logo}
-              alt="Logo"
-              style={{
-                width: '300px',
-                height: '300px',
-                objectFit: 'contain',
-                position: 'absolute',
-                top: 0,
-                left: 0,
-                opacity: 0.9,
-                pointerEvents: 'none',
-              }}
-            />
-            <h1
-              className="text-2xl md:text-4xl font-extrabold tracking-wide text-center w-full drop-shadow-lg"
-              style={{ marginTop: '40px' }}
-            >
-              {event.title || 'Post Your Best Photos To The Wall!'}
-            </h1>
-          </header>
+      {event.status === 'live' && (
+        <div className="relative z-10 w-full flex flex-col items-center px-8 py-10">
+          <img
+            src={logo}
+            alt="Logo"
+            style={{ width: 240, objectFit: 'contain', opacity: 0.9, pointerEvents: 'none' }}
+          />
+          <h1 className="text-3xl font-extrabold text-center my-6">
+            {event.title || 'Post Your Best Photos To The Wall!'}
+          </h1>
 
-          <main
-            className="flex-1 flex flex-col items-center justify-start px-4 pb-24 w-full max-w-6xl mx-auto"
-            style={{
-              marginTop: '50px',
-              paddingBottom: '80px',
-            }}
-          >
-            {posts.length === 0 ? (
-              <p className="text-center text-white/80 mt-32">
-                No posts yet — be the first to join in!
-              </p>
-            ) : (
-              <div
-                className="grid gap-8 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 w-full"
-                style={{
-                  maxWidth: '1600px',
-                  margin: '0 auto',
-                }}
-              >
-                {posts.map((post, idx) => (
-                  <div
-                    key={post.id}
-                    className={`bg-white/10 backdrop-blur-sm p-3 rounded-xl shadow-lg transition-all duration-300 hover:bg-white/20 ${
-                      idx % 2 === 0 ? 'justify-self-start' : 'justify-self-end'
-                    }`}
-                  >
-                    {post.photo_url && (
-                      <img
-                        src={post.photo_url}
-                        alt={post.nickname}
-                        className="rounded-lg w-full h-52 object-cover mb-3 border border-white/10"
-                      />
-                    )}
-                    <p className="font-semibold text-lg">{post.nickname}</p>
-                    <p className="text-sm opacity-90">{post.message}</p>
-                  </div>
-                ))}
-              </div>
-            )}
-          </main>
+          {posts.length === 0 ? (
+            <p className="mt-32 text-white/80">No posts yet — be the first to join in!</p>
+          ) : (
+            <div className="grid gap-8 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 w-full max-w-6xl">
+              {posts.map((p) => (
+                <div
+                  key={p.id}
+                  className="bg-white/10 backdrop-blur-sm p-3 rounded-xl shadow-lg hover:bg-white/20 transition-all"
+                >
+                  {p.photo_url && (
+                    <img
+                      src={p.photo_url}
+                      alt={p.nickname}
+                      className="rounded-lg w-full h-52 object-cover mb-3 border border-white/10"
+                    />
+                  )}
+                  <p className="font-semibold text-lg">{p.nickname}</p>
+                  <p className="text-sm opacity-90">{p.message}</p>
+                </div>
+              ))}
+            </div>
+          )}
 
           {qr && (
             <footer className="absolute bottom-4 left-4">
@@ -273,7 +183,7 @@ export default function FanWallPage() {
         </div>
       )}
 
-      {/* ✅ Fullscreen Toggle */}
+      {/* Fullscreen Button */}
       <div
         style={{
           position: 'fixed',
@@ -281,7 +191,7 @@ export default function FanWallPage() {
           right: 10,
           width: 48,
           height: 48,
-          borderRadius: '10px',
+          borderRadius: 10,
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
