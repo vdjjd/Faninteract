@@ -34,6 +34,7 @@ export default function DashboardPage() {
   const [confirmingDelete, setConfirmingDelete] = useState<string | null>(null);
   const [creatingNew, setCreatingNew] = useState(false);
   const [newTitle, setNewTitle] = useState('');
+  const [saving, setSaving] = useState(false);
 
   /* ---------------- LOAD HOST EVENTS ---------------- */
   useEffect(() => {
@@ -108,6 +109,7 @@ export default function DashboardPage() {
     );
   }
 
+  /* ---------------- SAVE SETTINGS ---------------- */
   async function handleSaveSettings(updatedEvent: any) {
     await updateEventSettings(updatedEvent.id, updatedEvent);
     const refreshed = await getEventsByHost(host.id);
@@ -167,10 +169,10 @@ export default function DashboardPage() {
     '35 Minutes', '40 Minutes', '45 Minutes', '50 Minutes', '55 Minutes', '60 Minutes',
   ];
 
-  /* ---------------- RENDER ---------------- */
   if (loading)
     return <p style={{ color: '#fff', textAlign: 'center' }}>Loading...</p>;
 
+  /* ---------------- RENDER ---------------- */
   return (
     <div style={pageStyle}>
       <h1 style={{ marginBottom: 15 }}>🎛 Host Dashboard</h1>
@@ -297,36 +299,32 @@ export default function DashboardPage() {
           {/* 💾 SAVE CHANGES BUTTON */}
           <div style={{ marginTop: 10, textAlign: 'center' }}>
             <button
+              disabled={saving}
               onClick={async () => {
-                try {
-                  const { error } = await supabase
-                    .from('events')
-                    .update({
-                      host_title: selectedEvent.host_title || '',
-                      title: selectedEvent.title || '',
-                      countdown: selectedEvent.countdown || null,
-                      updated_at: new Date().toISOString(),
-                    })
-                    .eq('id', selectedEvent.id);
+                setSaving(true);
+                await supabase
+                  .from('events')
+                  .update({
+                    host_title: selectedEvent.host_title || '',
+                    title: selectedEvent.title || '',
+                    countdown: selectedEvent.countdown || null,
+                    updated_at: new Date().toISOString(),
+                  })
+                  .eq('id', selectedEvent.id);
 
-                  if (error) throw error;
-
-                  const refreshed = await getEventsByHost(host.id);
-                  setEvents(refreshed);
-                  alert('✅ Changes saved successfully!');
-                } catch (err) {
-                  console.error('Save error:', err);
-                  alert('❌ Failed to save changes.');
-                }
+                const refreshed = await getEventsByHost(host.id);
+                setEvents(refreshed);
+                setSaving(false);
+                setSelectedEvent(null);
               }}
               style={{
                 ...smallBtn,
-                backgroundColor: '#16a34a',
+                backgroundColor: saving ? '#555' : '#16a34a',
                 width: '60%',
                 marginTop: 8,
               }}
             >
-              💾 Save Changes
+              {saving ? 'Saving…' : '💾 Save Changes'}
             </button>
           </div>
 
