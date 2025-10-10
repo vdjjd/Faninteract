@@ -31,7 +31,7 @@ export default function FanWallPage() {
   const [posts, setPosts] = useState<Submission[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Track background fade
+  // Track background fade transition
   const [bgTransition, setBgTransition] = useState({
     current: '',
     next: '',
@@ -115,18 +115,19 @@ export default function FanWallPage() {
 
   // ---------------- HANDLE BACKGROUND CHANGES ----------------
   useEffect(() => {
-    if (!event?.background_value) return;
-    if (event.background_value === bgTransition.current) return;
+    const bgValue = event?.background_value ?? '';
+    if (!bgValue) return;
+    if (bgValue === bgTransition.current) return;
 
     setBgTransition({
-      current: bgTransition.current || event.background_value,
-      next: event.background_value,
+      current: bgTransition.current || bgValue,
+      next: bgValue,
       fading: true,
     });
 
     const timer = setTimeout(() => {
       setBgTransition({
-        current: event.background_value,
+        current: bgValue,
         next: '',
         fading: false,
       });
