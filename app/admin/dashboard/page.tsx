@@ -407,4 +407,47 @@ const smallBtn: React.CSSProperties = {
 };
 
 const clearBtn: React.CSSProperties = { ...smallBtn, backgroundColor: '#00bcd4', fontWeight: 600 };
-const launchBtn: React.CSSProperties = { ...smallBtn, backgroundColor
+const clearBtn: React.CSSProperties = { ...smallBtn, backgroundColor: '#00bcd4', fontWeight: 600 };
+const launchBtn: React.CSSProperties = { ...smallBtn, backgroundColor: '#007bff', fontWeight: 600 };
+const playBtn: React.CSSProperties = { ...smallBtn, backgroundColor: '#16a34a', fontWeight: 600 };
+const stopBtn: React.CSSProperties = { ...smallBtn, backgroundColor: '#d12f2f', fontWeight: 600 };
+const deleteBtn: React.CSSProperties = { ...smallBtn, backgroundColor: '#a33' };
+const optionsBtn: React.CSSProperties = { ...smallBtn, backgroundColor: '#1e90ff' };
+const pendingBtn: React.CSSProperties = { ...smallBtn, backgroundColor: '#ffaa00', fontWeight: 600 };
+
+const confirmOverlay: React.CSSProperties = {
+  position: 'absolute',
+  top: '50%',
+  left: '50%',
+  transform: 'translate(-50%, -50%)',
+  background: '#222',
+  border: '1px solid #555',
+  borderRadius: 10,
+  padding: '12px 16px',
+  boxShadow: '0 0 10px rgba(0,0,0,0.6)',
+  zIndex: 10,
+  textAlign: 'center',
+};
+
+const modalBackdrop: React.CSSProperties = {
+  position: 'fixed',
+  inset: 0,
+  background: 'rgba(0,0,0,0.6)',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  zIndex: 100,
+};
+
+const modalBox: React.CSSProperties = {
+  background: '#222',
+  padding: 20,
+  borderRadius: 10,
+  width: 350,
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 10,
+};
+
+const saveBtn: React.CSSProperties = { ...smallBtn, backgroundColor: '#16a34a', fontWeight: 600 };
+const cancelBtn: React.CSSProperties = { ...smallBtn, backgroundColor: '#a33' };
