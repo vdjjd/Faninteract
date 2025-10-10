@@ -31,13 +31,6 @@ export default function FanWallPage() {
   const [posts, setPosts] = useState<Submission[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Track background fade transition
-  const [bgTransition, setBgTransition] = useState({
-    current: '',
-    next: '',
-    fading: false,
-  });
-
   // ---------------- FETCH EVENT + POSTS ----------------
   async function loadEventAndPosts() {
     if (!eventId) return;
@@ -113,28 +106,6 @@ export default function FanWallPage() {
     return () => clearInterval(interval);
   }, [eventId, event]);
 
-  // ---------------- HANDLE BACKGROUND CHANGES ----------------
-  useEffect(() => {
-    const bgValue = event?.background_value ?? '';
-    if (!bgValue) return;
-    if (bgValue === bgTransition.current) return;
-
-    setBgTransition({
-      current: bgTransition.current || bgValue,
-      next: bgValue,
-      fading: true,
-    });
-
-    const timer = setTimeout(() => {
-      setBgTransition({
-        current: bgValue,
-        next: '',
-        fading: false,
-      });
-    }, 2000);
-    return () => clearTimeout(timer);
-  }, [event?.background_value]);
-
   const getBackground = (bg?: string, type?: string | null) => {
     if (!bg) return 'linear-gradient(to bottom right,#4dc6ff,#001f4d)';
     if (type === 'image') return `url(${bg}) center/cover no-repeat`;
@@ -152,30 +123,12 @@ export default function FanWallPage() {
     <div
       className="min-h-screen text-white relative overflow-hidden"
       style={{
-        background: getBackground(bgTransition.current, event.background_type),
+        background: getBackground(event.background_value ?? '', event.background_type),
         backgroundSize: 'cover',
         backgroundRepeat: 'no-repeat',
         backgroundAttachment: 'fixed',
-        transition: bgTransition.fading ? 'none' : 'background 2s ease',
       }}
     >
-      {/* Crossfade layer */}
-      {bgTransition.fading && (
-        <div
-          style={{
-            position: 'absolute',
-            inset: 0,
-            background: getBackground(bgTransition.next, event.background_type),
-            backgroundSize: 'cover',
-            backgroundRepeat: 'no-repeat',
-            backgroundAttachment: 'fixed',
-            opacity: 0,
-            animation: 'fadeGradient 2s ease forwards',
-            zIndex: 0,
-          }}
-        />
-      )}
-
       {/* dark overlay */}
       <div className="absolute inset-0 bg-black/40 z-10" />
 
@@ -254,15 +207,6 @@ export default function FanWallPage() {
           <path strokeLinecap="round" strokeLinejoin="round" d="M3 9V4h5M21 9V4h-5M3 15v5h5M21 15v5h-5" />
         </svg>
       </div>
-
-      {/* CSS animation for smooth crossfade */}
-      <style jsx global>{`
-        @keyframes fadeGradient {
-          0% { opacity: 0; }
-          50% { opacity: 1; }
-          100% { opacity: 0; }
-        }
-      `}</style>
     </div>
   );
 }
