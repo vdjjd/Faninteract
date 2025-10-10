@@ -283,7 +283,7 @@ const pageStyle: React.CSSProperties = {
   fontFamily: 'system-ui, sans-serif',
 };
 
-const buttonStyle = {
+const buttonStyle: React.CSSProperties = {
   backgroundColor: '#1e90ff',
   border: 'none',
   borderRadius: 8,
@@ -293,7 +293,7 @@ const buttonStyle = {
   cursor: 'pointer',
 };
 
-const newCardOverlay = {
+const newCardOverlay: React.CSSProperties = {
   width: 300,
   marginTop: 20,
   background: '#222',
@@ -303,9 +303,13 @@ const newCardOverlay = {
   boxShadow: '0 0 15px rgba(0,0,0,0.4)',
 };
 
-const newCardBox = { display: 'flex', flexDirection: 'column', alignItems: 'center' };
+const newCardBox: React.CSSProperties = {
+  display: 'flex',
+  flexDirection: 'column',
+  alignItems: 'center',
+};
 
-const gridStyle = {
+const gridStyle: React.CSSProperties = {
   marginTop: 20,
   display: 'grid',
   gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
@@ -314,7 +318,7 @@ const gridStyle = {
   maxWidth: 1200,
 };
 
-const cardStyle = {
+const cardStyle: React.CSSProperties = {
   borderRadius: 12,
   padding: 20,
   textAlign: 'center',
@@ -324,22 +328,71 @@ const cardStyle = {
   transition: 'background 2s ease',
 };
 
-const cardButtons = { display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'center', marginTop: 10 };
-const cardFooter = { display: 'flex', justifyContent: 'space-between', marginTop: 15 };
-const smallBtn = { backgroundColor: '#444', border: 'none', borderRadius: 6, padding: '6px 10px', color: '#fff', cursor: 'pointer', fontSize: 14 };
-const clearBtn = { ...smallBtn, backgroundColor: '#00bcd4', fontWeight: 600 };
-const launchBtn = { ...smallBtn, backgroundColor: '#007bff', fontWeight: 600 };
-const playBtn = { ...smallBtn, backgroundColor: '#16a34a', fontWeight: 600 };
-const stopBtn = { ...smallBtn, backgroundColor: '#d12f2f', fontWeight: 600 };
-const deleteBtn = { ...smallBtn, backgroundColor: '#a33' };
-const optionsBtn = { ...smallBtn, backgroundColor: '#1e90ff' };
-const pendingBtn = { ...smallBtn, backgroundColor: '#ffaa00', fontWeight: 600 };
-const confirmOverlay = {
-  position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
-  background: '#222', border: '1px solid #555', borderRadius: 10, padding: '12px 16px',
-  boxShadow: '0 0 10px rgba(0,0,0,0.6)', zIndex: 10, textAlign: 'center'
+const cardButtons: React.CSSProperties = {
+  display: 'flex',
+  gap: 8,
+  flexWrap: 'wrap',
+  justifyContent: 'center',
+  marginTop: 10,
 };
-const modalBackdrop = { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 };
-const modalBox = { background: '#222', padding: 20, borderRadius: 10, width: 350, display: 'flex', flexDirection: 'column', gap: 10 };
-const saveBtn = { ...smallBtn, backgroundColor: '#16a34a', fontWeight: 600 };
-const cancelBtn = { ...smallBtn, backgroundColor: '#a33' };
+
+const cardFooter: React.CSSProperties = {
+  display: 'flex',
+  justifyContent: 'space-between',
+  marginTop: 15,
+};
+
+const smallBtn: React.CSSProperties = {
+  backgroundColor: '#444',
+  border: 'none',
+  borderRadius: 6,
+  padding: '6px 10px',
+  color: '#fff',
+  cursor: 'pointer',
+  fontSize: 14,
+};
+
+const clearBtn: React.CSSProperties = { ...smallBtn, backgroundColor: '#00bcd4', fontWeight: 600 };
+const launchBtn: React.CSSProperties = { ...smallBtn, backgroundColor: '#007bff', fontWeight: 600 };
+const playBtn: React.CSSProperties = { ...smallBtn, backgroundColor: '#16a34a', fontWeight: 600 };
+const stopBtn: React.CSSProperties = { ...smallBtn, backgroundColor: '#d12f2f', fontWeight: 600 };
+const deleteBtn: React.CSSProperties = { ...smallBtn, backgroundColor: '#a33' };
+const optionsBtn: React.CSSProperties = { ...smallBtn, backgroundColor: '#1e90ff' };
+const pendingBtn: React.CSSProperties = { ...smallBtn, backgroundColor: '#ffaa00', fontWeight: 600 };
+
+const confirmOverlay: React.CSSProperties = {
+  position: 'absolute',
+  top: '50%',
+  left: '50%',
+  transform: 'translate(-50%, -50%)',
+  background: '#222',
+  border: '1px solid #555',
+  borderRadius: 10,
+  padding: '12px 16px',
+  boxShadow: '0 0 10px rgba(0,0,0,0.6)',
+  zIndex: 10,
+  textAlign: 'center',
+};
+
+const modalBackdrop: React.CSSProperties = {
+  position: 'fixed',
+  inset: 0,
+  background: 'rgba(0,0,0,0.6)',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  zIndex: 100,
+};
+
+const modalBox: React.CSSProperties = {
+  background: '#222',
+  padding: 20,
+  borderRadius: 10,
+  width: 350,
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 10,
+};
+
+const saveBtn: React.CSSProperties = { ...smallBtn, backgroundColor: '#16a34a', fontWeight: 600 };
+const cancelBtn: React.CSSProperties = { ...smallBtn, backgroundColor: '#a33' };
