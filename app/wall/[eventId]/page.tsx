@@ -35,40 +35,39 @@ export default function FanWallPage() {
   const [countdownTime, setCountdownTime] = useState<number | null>(null);
 
   // ---------------- FETCH EVENT + POSTS ----------------
-  useEffect(() => {
+  async function loadEventAndPosts() {
     if (!eventId) return;
+    const { data: ev } = await supabase.from('events').select('*').eq('id', eventId).single();
+    if (!ev) return setLoading(false);
+    setEvent(ev);
 
-    async function load() {
-      const { data: ev } = await supabase.from('events').select('*').eq('id', eventId).single();
-      if (!ev) return setLoading(false);
-      setEvent(ev);
-
-      if (ev.status === 'live') {
-        const { data: subs } = await supabase
-          .from('submissions')
-          .select('*')
-          .eq('event_id', eventId)
-          .eq('status', 'approved')
-          .order('created_at', { ascending: false });
-        setPosts(subs || []);
-      }
-
-      if (ev.countdown) {
-        const diff = new Date(ev.countdown).getTime() - Date.now();
-        setCountdownTime(diff > 0 ? diff : 0);
-      }
-
-      setLoading(false);
+    if (ev.status === 'live') {
+      const { data: subs } = await supabase
+        .from('submissions')
+        .select('*')
+        .eq('event_id', eventId)
+        .eq('status', 'approved')
+        .order('created_at', { ascending: false });
+      setPosts(subs || []);
     }
 
-    load();
+    if (ev.countdown) {
+      const diff = new Date(ev.countdown).getTime() - Date.now();
+      setCountdownTime(diff > 0 ? diff : 0);
+    }
+
+    setLoading(false);
+  }
+
+  useEffect(() => {
+    loadEventAndPosts();
   }, [eventId]);
 
   // ---------------- REALTIME SUBSCRIPTIONS ----------------
   useEffect(() => {
     if (!eventId) return;
 
-    // 1️⃣ Submissions Realtime Channel
+    // 1️⃣ Submissions realtime channel
     const subChannel = supabase
       .channel('realtime:submissions')
       .on(
@@ -84,16 +83,21 @@ export default function FanWallPage() {
       )
       .subscribe((status) => console.log('Submissions channel:', status));
 
-    // 2️⃣ Events Realtime Channel (listen for live background/status changes)
+    // 2️⃣ Events realtime diagnostic (catch ALL events)
     const eventChannel = supabase
       .channel('realtime:events')
       .on(
         'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'events', filter: `id=eq.${eventId}` },
+        {
+          event: '*',
+          schema: 'public',
+          table: 'events',
+          filter: `id=eq.${eventId}`,
+        },
         (payload) => {
+          console.log('🔥 Realtime payload received:', payload);
           const updated = payload.new as EventData;
-          console.log('🔁 Realtime event update:', updated);
-          setEvent((prev) => ({ ...prev!, ...updated }));
+          if (updated) setEvent((prev) => ({ ...prev!, ...updated }));
         }
       )
       .subscribe((status) => console.log('Events channel:', status));
@@ -104,7 +108,24 @@ export default function FanWallPage() {
     };
   }, [eventId]);
 
-  // ---------------- FADE BACKGROUND WHEN UPDATED ----------------
+  // ---------------- POLLING FALLBACK ----------------
+  useEffect(() => {
+    if (!eventId) return;
+    const interval = setInterval(async () => {
+      const { data: latest } = await supabase
+        .from('events')
+        .select('*')
+        .eq('id', eventId)
+        .single();
+      if (latest && JSON.stringify(latest) !== JSON.stringify(event)) {
+        console.log('🔄 Poll update:', latest);
+        setEvent(latest);
+      }
+    }, 5000); // every 5 seconds
+    return () => clearInterval(interval);
+  }, [eventId, event]);
+
+  // ---------------- FADE BACKGROUND ----------------
   useEffect(() => {
     const root = document.documentElement;
     if (event?.background_value) {
@@ -163,15 +184,14 @@ export default function FanWallPage() {
   const logo = event.logo_url || '/faninteractlogo.png';
   const qr = event.qr_url;
 
+  // ---------------- UI ----------------
   return (
     <div
       className="min-h-screen flex flex-col items-center justify-center text-white relative overflow-hidden"
       style={bgStyle}
     >
-      {/* translucent overlay */}
       <div className="absolute inset-0 bg-black/40" />
 
-      {/* ---------- LIVE WALL ---------- */}
       {event.status === 'live' && !countdownActive && (
         <div
           className="relative z-10 w-full flex flex-col"
@@ -253,7 +273,7 @@ export default function FanWallPage() {
         </div>
       )}
 
-      {/* ✅ Fullscreen Toggle Button */}
+      {/* ✅ Fullscreen Toggle */}
       <div
         style={{
           position: 'fixed',
