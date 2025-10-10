@@ -34,7 +34,7 @@ export default function FanWallPage() {
   const [loading, setLoading] = useState(true);
   const [countdownTime, setCountdownTime] = useState<number | null>(null);
 
-  // ---------------- FETCH EVENT + POSTS ----------------
+  /* ---------------- FETCH EVENT + POSTS ---------------- */
   useEffect(() => {
     if (!eventId) return;
     async function load() {
@@ -61,10 +61,9 @@ export default function FanWallPage() {
     load();
   }, [eventId]);
 
-  // ---------------- REALTIME UPDATES ----------------
+  /* ---------------- REALTIME SUBMISSIONS ---------------- */
   useEffect(() => {
     if (!eventId) return;
-
     const channel = supabase
       .channel('realtime:submissions')
       .on(
@@ -76,20 +75,41 @@ export default function FanWallPage() {
             setPosts((prev) => [newPost, ...prev]);
           }
         }
-      );
-
-    try {
-      channel.subscribe();
-    } catch (err) {
-      console.error('Realtime subscribe error:', err);
-    }
+      )
+      .subscribe();
 
     return () => {
       supabase.removeChannel(channel);
     };
   }, [eventId]);
 
-  // ---------------- COUNTDOWN TIMER ----------------
+  /* ---------------- REALTIME EVENT UPDATES (AUTO BG CHANGE) ---------------- */
+  useEffect(() => {
+    if (!eventId) return;
+
+    const eventChannel = supabase
+      .channel('realtime:event-bg')
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'events', filter: `id=eq.${eventId}` },
+        (payload) => {
+          const updated = payload.new as EventData;
+          setEvent((prev) => ({ ...prev, ...updated }));
+
+          if (updated.background_value) {
+            document.body.style.transition = 'background 2s ease';
+            document.body.style.background = updated.background_value;
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(eventChannel);
+    };
+  }, [eventId]);
+
+  /* ---------------- COUNTDOWN TIMER ---------------- */
   useEffect(() => {
     if (!countdownTime) return;
     const interval = setInterval(() => {
@@ -98,15 +118,12 @@ export default function FanWallPage() {
     return () => clearInterval(interval);
   }, [countdownTime]);
 
-  // ---------------- BACKGROUND STYLE ----------------
+  /* ---------------- BACKGROUND STYLE ---------------- */
   const getBackground = () => {
     if (!event) return 'linear-gradient(to bottom right, #4dc6ff, #001f4d)';
     if (event.background_type === 'image' && event.background_value)
       return `url(${event.background_value}) center/cover no-repeat`;
-    if (event.background_type === 'solid' && event.background_value)
-      return event.background_value;
-    if (event.background_type === 'gradient' && event.background_value)
-      return event.background_value;
+    if (event.background_value) return event.background_value;
     return 'linear-gradient(to bottom right, #4dc6ff, #001f4d)';
   };
 
@@ -115,11 +132,12 @@ export default function FanWallPage() {
     backgroundSize: 'cover',
     backgroundRepeat: 'no-repeat',
     backgroundAttachment: 'fixed',
+    transition: 'background 2s ease',
     minHeight: '100vh',
     width: '100%',
   };
 
-  // ---------------- TIMER FORMAT ----------------
+  /* ---------------- TIMER FORMAT ---------------- */
   const formatCountdown = (ms: number) => {
     const total = Math.max(0, Math.floor(ms / 1000));
     const h = String(Math.floor(total / 3600)).padStart(2, '0');
@@ -143,7 +161,7 @@ export default function FanWallPage() {
       className="min-h-screen flex flex-col items-center justify-center text-white relative overflow-hidden"
       style={bgStyle}
     >
-      {/* translucent overlay so text stays legible */}
+      {/* translucent overlay */}
       <div className="absolute inset-0 bg-black/40" />
 
       {/* ---------- LIVE WALL ---------- */}
@@ -151,7 +169,7 @@ export default function FanWallPage() {
         <div
           className="relative z-10 w-full flex flex-col"
           style={{
-            padding: '80px 100px 60px 100px', // <-- margins all around
+            padding: '80px 100px 60px 100px',
             boxSizing: 'border-box',
           }}
         >
@@ -181,7 +199,7 @@ export default function FanWallPage() {
           <main
             className="flex-1 flex flex-col items-center justify-start px-4 pb-24 w-full max-w-6xl mx-auto"
             style={{
-              marginTop: '50px', // push posts further down
+              marginTop: '50px',
               paddingBottom: '80px',
             }}
           >
