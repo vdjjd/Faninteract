@@ -10,7 +10,7 @@ import {
 } from '@/lib/actions/events';
 import { supabase } from '@/lib/supabaseClient';
 
-/* ---------------- STYLES THAT MUST LOAD EARLY ---------------- */
+/* ---------------- BASE STYLES ---------------- */
 const inputStyle: React.CSSProperties = {
   width: '100%',
   padding: 8,
@@ -21,7 +21,7 @@ const inputStyle: React.CSSProperties = {
   color: '#fff',
 };
 
-const DEFAULT_GRADIENT = 'linear-gradient(135deg, #0d47a1, #1976d2)';
+const DEFAULT_GRADIENT = 'linear-gradient(135deg,#0d47a1,#1976d2)';
 
 export default function DashboardPage() {
   const [host, setHost] = useState<any>(null);
@@ -32,7 +32,7 @@ export default function DashboardPage() {
   const [creatingNew, setCreatingNew] = useState(false);
   const [newTitle, setNewTitle] = useState('');
 
-  /* ---------------- FETCH EVENTS ---------------- */
+  /* ---------------- LOAD HOST EVENTS ---------------- */
   useEffect(() => {
     async function fetchData() {
       const { data: { user } } = await supabase.auth.getUser();
@@ -45,7 +45,7 @@ export default function DashboardPage() {
     fetchData();
   }, []);
 
-  /* ---------------- CREATE EVENT ---------------- */
+  /* ---------------- CRUD HANDLERS ---------------- */
   async function handleCreateConfirm() {
     if (!newTitle.trim()) return;
     await createEvent(host.id, { title: newTitle.trim() });
@@ -55,25 +55,21 @@ export default function DashboardPage() {
     setNewTitle('');
   }
 
-  /* ---------------- DELETE EVENT ---------------- */
   async function handleDelete(id: string) {
     await deleteEvent(id);
     setEvents((prev) => prev.filter((e) => e.id !== id));
     setConfirmingDelete(null);
   }
 
-  /* ---------------- CLEAR POSTS ---------------- */
   async function handleClear(id: string) {
     await clearEventPosts(id);
-    await supabase
-      .from('events')
+    await supabase.from('events')
       .update({ status: 'cleared', updated_at: new Date().toISOString() })
       .eq('id', id);
     const updated = await getEventsByHost(host.id);
     setEvents(updated);
   }
 
-  /* ---------------- LAUNCH WALL ---------------- */
   async function handleLaunch(id: string) {
     const wallUrl = `${window.location.origin}/wall/${id}`;
     const popup = window.open(
@@ -84,10 +80,8 @@ export default function DashboardPage() {
     popup?.focus();
   }
 
-  /* ---------------- START / STOP WALL ---------------- */
   async function handleStart(id: string) {
-    await supabase
-      .from('events')
+    await supabase.from('events')
       .update({ status: 'live', updated_at: new Date().toISOString() })
       .eq('id', id);
     const updated = await getEventsByHost(host.id);
@@ -95,15 +89,13 @@ export default function DashboardPage() {
   }
 
   async function handleStop(id: string) {
-    await supabase
-      .from('events')
+    await supabase.from('events')
       .update({ status: 'inactive', countdown: null, updated_at: new Date().toISOString() })
       .eq('id', id);
     const updated = await getEventsByHost(host.id);
     setEvents(updated);
   }
 
-  /* ---------------- OPEN MODERATION ---------------- */
   function handleOpenModeration(id: string) {
     const modUrl = `${window.location.origin}/admin/moderation/${id}`;
     window.open(
@@ -113,7 +105,6 @@ export default function DashboardPage() {
     );
   }
 
-  /* ---------------- SAVE SETTINGS ---------------- */
   async function handleSaveSettings(updatedEvent: any) {
     await updateEventSettings(updatedEvent.id, updatedEvent);
     const refreshed = await getEventsByHost(host.id);
@@ -121,7 +112,7 @@ export default function DashboardPage() {
     setSelectedEvent(null);
   }
 
-  /* ---------------- BACKGROUND UPDATE (FADE + SYNC) ---------------- */
+  /* ---------------- COLOR CHANGE + FADE ---------------- */
   async function handleBackgroundChange(event: any, newValue: string) {
     const card = document.getElementById(`card-${event.id}`);
     if (card) {
@@ -144,7 +135,7 @@ export default function DashboardPage() {
     setEvents(refreshed);
   }
 
-  /* ---------------- COLOR PALETTES ---------------- */
+  /* ---------------- COLORS + GRADIENTS ---------------- */
   const solidColors = [
     '#e53935', '#d81b60', '#8e24aa', '#5e35b1',
     '#3949ab', '#1e88e5', '#039be5', '#00acc1',
@@ -158,17 +149,17 @@ export default function DashboardPage() {
     'linear-gradient(135deg,#241773,#9E7C0C)', 'linear-gradient(135deg,#03202F,#FB4F14)',
     'linear-gradient(135deg,#002244,#B0B7BC)', 'linear-gradient(135deg,#002C5F,#FFC20E)',
     'linear-gradient(135deg,#E31837,#C60C30)', 'linear-gradient(135deg,#002C5F,#A5ACAF)',
-    'linear-gradient(135deg,#002244,#69BE28)', 'linear-gradient(135deg,#5A1414,#D3BC8D)',
-    'linear-gradient(135deg,#203731,#FFB612)', 'linear-gradient(135deg,#002244,#FB4F14)',
-    'linear-gradient(135deg,#4F2683,#FFC62F)', 'linear-gradient(135deg,#A71930,#FFB612)',
-    'linear-gradient(135deg,#000000,#FB4F14)', 'linear-gradient(135deg,#002244,#69BE28)',
-    'linear-gradient(135deg,#03202F,#FB4F14)', 'linear-gradient(135deg,#0B2265,#A71930)',
-    'linear-gradient(135deg,#002244,#C60C30)', 'linear-gradient(135deg,#002244,#A71930)',
-    'linear-gradient(135deg,#00338D,#FFB612)', 'linear-gradient(135deg,#004C54,#A5ACAF)',
-    'linear-gradient(135deg,#A5ACAF,#0B2265)', 'linear-gradient(135deg,#002244,#C60C30)',
-    'linear-gradient(135deg,#004C54,#A5ACAF)', 'linear-gradient(135deg,#5A1414,#C60C30)',
+    'linear-gradient(135deg,#5A1414,#D3BC8D)', 'linear-gradient(135deg,#4F2683,#FFC62F)',
+    'linear-gradient(135deg,#A71930,#FFB612)', 'linear-gradient(135deg,#000000,#FB4F14)',
+    'linear-gradient(135deg,#004C54,#A5ACAF)', 'linear-gradient(135deg,#A5ACAF,#0B2265)',
+    'linear-gradient(135deg,#002244,#C60C30)', 'linear-gradient(135deg,#203731,#A5ACAF)',
+    'linear-gradient(135deg,#002244,#FFB612)', 'linear-gradient(135deg,#002244,#A71930)',
+    'linear-gradient(135deg,#03202F,#FB4F14)', 'linear-gradient(135deg,#00338D,#FFB612)',
     'linear-gradient(135deg,#002244,#B0B7BC)', 'linear-gradient(135deg,#002C5F,#A71930)',
-    'linear-gradient(135deg,#002244,#FFB612)', 'linear-gradient(135deg,#203731,#A5ACAF)',
+    'linear-gradient(135deg,#002244,#69BE28)', 'linear-gradient(135deg,#002244,#C60C30)',
+    'linear-gradient(135deg,#004C54,#A5ACAF)', 'linear-gradient(135deg,#5A1414,#C60C30)',
+    'linear-gradient(135deg,#203731,#FFB612)', 'linear-gradient(135deg,#241773,#9E7C0C)',
+    'linear-gradient(135deg,#002244,#69BE28)', 'linear-gradient(135deg,#A71930,#FFB612)',
   ];
 
   const countdownOptions = [
@@ -185,11 +176,9 @@ export default function DashboardPage() {
       <h1 style={{ marginBottom: 15 }}>🎛 Host Dashboard</h1>
       <img src="/faninteractlogo.png" alt="FanInteract Logo" style={{ width: 110, marginBottom: 10 }} />
 
-      {/* Create New Wall */}
+      {/* CREATE NEW WALL */}
       {!creatingNew ? (
-        <button onClick={() => setCreatingNew(true)} style={buttonStyle}>
-          ➕ New Fan Zone Wall
-        </button>
+        <button onClick={() => setCreatingNew(true)} style={buttonStyle}>➕ New Fan Zone Wall</button>
       ) : (
         <div style={newCardOverlay}>
           <div style={newCardBox}>
@@ -209,7 +198,7 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* Cards Grid */}
+      {/* GRID OF WALL CARDS */}
       <div style={gridStyle}>
         {events.map((event) => (
           <div
@@ -225,8 +214,9 @@ export default function DashboardPage() {
             <p style={{ fontSize: 12 }}>
               <strong>Status:</strong>{' '}
               <span style={{
-                color: event.status === 'live' ? 'lime' :
-                       event.status === 'cleared' ? '#00bcd4' : 'orange'
+                color: event.status === 'live' ? 'lime'
+                  : event.status === 'cleared' ? '#00bcd4'
+                  : 'orange'
               }}>{event.status}</span>
             </p>
 
@@ -263,14 +253,33 @@ export default function DashboardPage() {
 
       {/* OPTIONS MODAL */}
       {selectedEvent && (
-        <div id="options-modal" style={{
-          ...modalBox,
-          background: selectedEvent.background_value || DEFAULT_GRADIENT,
-          transition: 'background 2s ease',
-        }}>
+        <div
+          id="options-modal"
+          style={{
+            ...modalBox,
+            background: selectedEvent.background_value || DEFAULT_GRADIENT,
+            transition: 'background 2s ease',
+          }}
+        >
           <h3 style={{ textAlign: 'center' }}>⚙ Edit Wall Settings</h3>
 
-          <label style={{ fontSize: 12 }}>Countdown:</label>
+          <label>Host Title:</label>
+          <input
+            type="text"
+            value={selectedEvent.host_title || ''}
+            style={inputStyle}
+            onChange={(e) => setSelectedEvent({ ...selectedEvent, host_title: e.target.value })}
+          />
+
+          <label>Public Title:</label>
+          <input
+            type="text"
+            value={selectedEvent.title || ''}
+            style={inputStyle}
+            onChange={(e) => setSelectedEvent({ ...selectedEvent, title: e.target.value })}
+          />
+
+          <label>Countdown:</label>
           <select
             style={inputStyle}
             value={selectedEvent.countdown || ''}
@@ -279,7 +288,7 @@ export default function DashboardPage() {
             {countdownOptions.map((opt) => <option key={opt}>{opt}</option>)}
           </select>
 
-          <h4 style={{ marginTop: 10, fontSize: 13 }}>Solid Colors</h4>
+          <h4 style={{ marginTop: 10 }}>Solid Colors</h4>
           <div style={colorGrid}>
             {solidColors.map((c) => (
               <div
@@ -290,7 +299,7 @@ export default function DashboardPage() {
             ))}
           </div>
 
-          <h4 style={{ marginTop: 10, fontSize: 13 }}>Gradients</h4>
+          <h4 style={{ marginTop: 10 }}>Gradients</h4>
           <div style={colorGrid}>
             {nflGradients.map((g) => (
               <div
@@ -301,14 +310,16 @@ export default function DashboardPage() {
             ))}
           </div>
 
-          <button onClick={() => setSelectedEvent(null)} style={cancelBtn}>✖ Close</button>
+          <div style={{ marginTop: 18 }}>
+            <button onClick={() => setSelectedEvent(null)} style={cancelBtn}>✖ Close</button>
+          </div>
         </div>
       )}
     </div>
   );
 }
 
-/* ---------------- STYLES ---------------- */
+/* ---------------- STYLE CONSTANTS ---------------- */
 const pageStyle: React.CSSProperties = {
   display: 'flex',
   flexDirection: 'column',
@@ -321,7 +332,7 @@ const pageStyle: React.CSSProperties = {
   fontFamily: 'system-ui,sans-serif',
 };
 
-const buttonStyle: React.CSSProperties = {
+const buttonStyle = {
   backgroundColor: '#1e90ff',
   border: 'none',
   borderRadius: 8,
