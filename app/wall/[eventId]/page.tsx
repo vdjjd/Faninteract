@@ -34,9 +34,10 @@ export default function FanWallPage() {
   const [loading, setLoading] = useState(true);
   const [countdownTime, setCountdownTime] = useState<number | null>(null);
 
-  /* ---------------- FETCH EVENT + POSTS ---------------- */
+  // ---------------- FETCH EVENT + POSTS ----------------
   useEffect(() => {
     if (!eventId) return;
+
     async function load() {
       const { data: ev } = await supabase.from('events').select('*').eq('id', eventId).single();
       if (!ev) return setLoading(false);
@@ -56,15 +57,19 @@ export default function FanWallPage() {
         const diff = new Date(ev.countdown).getTime() - Date.now();
         setCountdownTime(diff > 0 ? diff : 0);
       }
+
       setLoading(false);
     }
+
     load();
   }, [eventId]);
 
-  /* ---------------- REALTIME SUBMISSIONS ---------------- */
+  // ---------------- REALTIME SUBSCRIPTIONS ----------------
   useEffect(() => {
     if (!eventId) return;
-    const channel = supabase
+
+    // 1️⃣ Realtime listener for new approved submissions
+    const subChannel = supabase
       .channel('realtime:submissions')
       .on(
         'postgres_changes',
@@ -76,40 +81,31 @@ export default function FanWallPage() {
           }
         }
       )
-      .subscribe();
+      .subscribe((status) => console.log('Submissions channel:', status));
 
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [eventId]);
-
-  /* ---------------- REALTIME EVENT UPDATES (AUTO BG CHANGE) ---------------- */
-  useEffect(() => {
-    if (!eventId) return;
-
+    // 2️⃣ Realtime listener for event updates (background/status)
     const eventChannel = supabase
-      .channel('realtime:event-bg')
+      .channel('realtime:events')
       .on(
         'postgres_changes',
         { event: 'UPDATE', schema: 'public', table: 'events', filter: `id=eq.${eventId}` },
         (payload) => {
-          const updated = payload.new as EventData;
-          setEvent((prev) => ({ ...prev, ...updated }));
-
-          if (updated.background_value) {
-            document.body.style.transition = 'background 2s ease';
-            document.body.style.background = updated.background_value;
-          }
+          console.log('🔁 Realtime event update:', payload.new);
+          setEvent((prev) => ({
+            ...prev!,
+            ...payload.new,
+          }));
         }
       )
-      .subscribe();
+      .subscribe((status) => console.log('Events channel:', status));
 
     return () => {
+      supabase.removeChannel(subChannel);
       supabase.removeChannel(eventChannel);
     };
   }, [eventId]);
 
-  /* ---------------- COUNTDOWN TIMER ---------------- */
+  // ---------------- COUNTDOWN TIMER ----------------
   useEffect(() => {
     if (!countdownTime) return;
     const interval = setInterval(() => {
@@ -118,12 +114,15 @@ export default function FanWallPage() {
     return () => clearInterval(interval);
   }, [countdownTime]);
 
-  /* ---------------- BACKGROUND STYLE ---------------- */
+  // ---------------- BACKGROUND STYLE ----------------
   const getBackground = () => {
     if (!event) return 'linear-gradient(to bottom right, #4dc6ff, #001f4d)';
     if (event.background_type === 'image' && event.background_value)
       return `url(${event.background_value}) center/cover no-repeat`;
-    if (event.background_value) return event.background_value;
+    if (event.background_type === 'solid' && event.background_value)
+      return event.background_value;
+    if (event.background_type === 'gradient' && event.background_value)
+      return event.background_value;
     return 'linear-gradient(to bottom right, #4dc6ff, #001f4d)';
   };
 
@@ -137,7 +136,7 @@ export default function FanWallPage() {
     width: '100%',
   };
 
-  /* ---------------- TIMER FORMAT ---------------- */
+  // ---------------- TIMER FORMAT ----------------
   const formatCountdown = (ms: number) => {
     const total = Math.max(0, Math.floor(ms / 1000));
     const h = String(Math.floor(total / 3600)).padStart(2, '0');
@@ -267,28 +266,15 @@ export default function FanWallPage() {
         onMouseLeave={(e) => (e.currentTarget.style.opacity = '0.15')}
         onClick={() => {
           if (!document.fullscreenElement) {
-            document.documentElement.requestFullscreen().catch((err) => {
-              console.error('Fullscreen error:', err);
-            });
+            document.documentElement.requestFullscreen().catch(console.error);
           } else {
             document.exitFullscreen();
           }
         }}
         title="Toggle Fullscreen"
       >
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          fill="none"
-          viewBox="0 0 24 24"
-          strokeWidth={1.5}
-          stroke="white"
-          style={{ width: 26, height: 26 }}
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            d="M3 9V4h5M21 9V4h-5M3 15v5h5M21 15v5h-5"
-          />
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="white" style={{ width: 26, height: 26 }}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M3 9V4h5M21 9V4h-5M3 15v5h5M21 15v5h-5" />
         </svg>
       </div>
     </div>
