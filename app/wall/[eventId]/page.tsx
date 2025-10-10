@@ -67,12 +67,11 @@ export default function FanWallPage() {
         (payload) => {
           const newPost = payload.new as Submission;
           if (newPost.event_id === eventId && newPost.status === 'approved') {
-            console.log('🆕 new post', newPost);
             setPosts((prev) => [newPost, ...prev]);
           }
         }
       )
-      .subscribe((s) => console.log('Submissions channel:', s));
+      .subscribe();
 
     const eventChannel = supabase
       .channel('realtime:events')
@@ -80,12 +79,11 @@ export default function FanWallPage() {
         'postgres_changes',
         { event: '*', schema: 'public', table: 'events', filter: `id=eq.${eventId}` },
         (payload) => {
-          console.log('🔥 Realtime event update:', payload);
           const updated = payload.new as EventData;
           if (updated) setEvent((prev) => ({ ...prev!, ...updated }));
         }
       )
-      .subscribe((s) => console.log('Events channel:', s));
+      .subscribe();
 
     return () => {
       supabase.removeChannel(subChannel);
@@ -99,7 +97,6 @@ export default function FanWallPage() {
     const interval = setInterval(async () => {
       const { data } = await supabase.from('events').select('*').eq('id', eventId).single();
       if (data && JSON.stringify(data) !== JSON.stringify(event)) {
-        console.log('🔄 Poll update', data);
         setEvent(data);
       }
     }, 5000);
@@ -107,7 +104,7 @@ export default function FanWallPage() {
   }, [eventId, event]);
 
   const getBackground = (bg?: string, type?: string | null) => {
-    if (!bg) return 'linear-gradient(to bottom right,#4dc6ff,#001f4d)';
+    if (!bg) return 'linear-gradient(to bottom right, #4dc6ff, #001f4d)';
     if (type === 'image') return `url(${bg}) center/cover no-repeat`;
     return bg;
   };
@@ -126,7 +123,9 @@ export default function FanWallPage() {
         background: getBackground(event.background_value ?? '', event.background_type),
         backgroundSize: 'cover',
         backgroundRepeat: 'no-repeat',
-        backgroundAttachment: 'fixed',
+        transition: 'background 0.3s ease',
+        minHeight: '100vh',
+        width: '100%',
       }}
     >
       {/* dark overlay */}
@@ -210,3 +209,4 @@ export default function FanWallPage() {
     </div>
   );
 }
+
