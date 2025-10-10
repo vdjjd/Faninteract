@@ -75,27 +75,26 @@ export default function DashboardPage() {
   }
 
   async function handleLaunch(id: string) {
-  const wallUrl = `${window.location.origin}/wall/${id}`;
-  const popup = window.open(
-    wallUrl,
-    '_blank',
-    [
-      'popup=yes',
-      'width=1280',
-      'height=800',
-      'left=100',
-      'top=100',
-      'menubar=no',
-      'toolbar=no',
-      'location=no',
-      'status=no',
-      'resizable=yes',
-      'scrollbars=no',
-      'titlebar=no',
-    ].join(',')
-  );
-  popup?.focus();
-}
+    const wallUrl = `${window.location.origin}/wall/${id}`;
+    const popup = window.open(
+      wallUrl,
+      '_blank',
+      [
+        'popup=yes',
+        'width=1280',
+        'height=800',
+        'left=100',
+        'top=100',
+        'menubar=no',
+        'toolbar=no',
+        'location=no',
+        'status=no',
+        'resizable=yes',
+        'scrollbars=no',
+        'titlebar=no',
+      ].join(',')
+    );
+    popup?.focus();
   }
 
   async function handleStart(id: string) {
@@ -123,7 +122,12 @@ export default function DashboardPage() {
     );
   }
 
-  /* ---------------- BACKGROUND CHANGE ---------------- */
+  async function handleSaveSettings(updatedEvent: any) {
+    await updateEventSettings(updatedEvent.id, updatedEvent);
+    const refreshed = await getEventsByHost(host.id);
+    setEvents(refreshed);
+  }
+
   async function handleBackgroundChange(event: any, newValue: string) {
     const card = document.getElementById(`card-${event.id}`);
     const modal = document.getElementById('options-modal');
@@ -150,33 +154,10 @@ export default function DashboardPage() {
     setEvents(refreshed);
   }
 
-  /* ---------------- COLORS + GRADIENTS ---------------- */
-  const solidColors = [
-    '#e53935', '#d81b60', '#8e24aa', '#5e35b1',
-    '#3949ab', '#1e88e5', '#039be5', '#00acc1',
-    '#00897b', '#43a047', '#7cb342', '#c0ca33',
-    '#fdd835', '#fb8c00', '#f4511e', '#6d4c41'
-  ];
-
-  const nflGradients = [
-    'linear-gradient(135deg,#002244,#69BE28)', 'linear-gradient(135deg,#00338D,#C60C30)',
-    'linear-gradient(135deg,#203731,#FFB612)', 'linear-gradient(135deg,#0B2265,#A71930)',
-    'linear-gradient(135deg,#241773,#9E7C0C)', 'linear-gradient(135deg,#03202F,#FB4F14)',
-    'linear-gradient(135deg,#002244,#B0B7BC)', 'linear-gradient(135deg,#002C5F,#FFC20E)',
-    'linear-gradient(135deg,#E31837,#C60C30)', 'linear-gradient(135deg,#002C5F,#A5ACAF)',
-    'linear-gradient(135deg,#5A1414,#D3BC8D)', 'linear-gradient(135deg,#4F2683,#FFC62F)',
-    'linear-gradient(135deg,#A71930,#FFB612)', 'linear-gradient(135deg,#000000,#FB4F14)',
-    'linear-gradient(135deg,#004C54,#A5ACAF)', 'linear-gradient(135deg,#A5ACAF,#0B2265)',
-  ];
-
-  const countdownOptions = [
-    '30 Seconds', '1 Minute', '2 Minutes', '3 Minutes', '4 Minutes', '5 Minutes',
-    '10 Minutes', '15 Minutes', '20 Minutes', '25 Minutes', '30 Minutes',
-    '35 Minutes', '40 Minutes', '45 Minutes', '50 Minutes', '55 Minutes', '60 Minutes',
-  ];
-
-  if (loading)
+  // ✅ Fix: "return" must be inside component, not outside or nested improperly
+  if (loading) {
     return <p style={{ color: '#fff', textAlign: 'center' }}>Loading...</p>;
+  }
 
   /* ---------------- RENDER ---------------- */
   return (
