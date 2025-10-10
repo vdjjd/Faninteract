@@ -115,11 +115,10 @@ export default function DashboardPage() {
     setSelectedEvent(null);
   }
 
-  /* ---------------- COLOR CHANGE + FADE ---------------- */
+  /* ---------------- COLOR CHANGE ---------------- */
   async function handleBackgroundChange(event: any, newValue: string) {
     const card = document.getElementById(`card-${event.id}`);
     const modal = document.getElementById('options-modal');
-
     [card, modal].forEach((el) => {
       if (el) {
         el.animate([{ opacity: 1 }, { opacity: 0.6 }, { opacity: 1 }], {
@@ -295,6 +294,42 @@ export default function DashboardPage() {
             {countdownOptions.map((opt) => <option key={opt}>{opt}</option>)}
           </select>
 
+          {/* 💾 SAVE CHANGES BUTTON */}
+          <div style={{ marginTop: 10, textAlign: 'center' }}>
+            <button
+              onClick={async () => {
+                try {
+                  const { error } = await supabase
+                    .from('events')
+                    .update({
+                      host_title: selectedEvent.host_title || '',
+                      title: selectedEvent.title || '',
+                      countdown: selectedEvent.countdown || null,
+                      updated_at: new Date().toISOString(),
+                    })
+                    .eq('id', selectedEvent.id);
+
+                  if (error) throw error;
+
+                  const refreshed = await getEventsByHost(host.id);
+                  setEvents(refreshed);
+                  alert('✅ Changes saved successfully!');
+                } catch (err) {
+                  console.error('Save error:', err);
+                  alert('❌ Failed to save changes.');
+                }
+              }}
+              style={{
+                ...smallBtn,
+                backgroundColor: '#16a34a',
+                width: '60%',
+                marginTop: 8,
+              }}
+            >
+              💾 Save Changes
+            </button>
+          </div>
+
           <h4 style={{ marginTop: 10 }}>Solid Colors</h4>
           <div style={colorGrid}>
             {solidColors.map((c) => (
@@ -461,4 +496,3 @@ const colorCircle = {
   border: '1px solid #555',
   transition: 'transform 0.2s ease, background 0.5s ease',
 };
-
