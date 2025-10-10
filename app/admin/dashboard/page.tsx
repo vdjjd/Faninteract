@@ -115,7 +115,6 @@ export default function DashboardPage() {
     setSelectedEvent(null);
   }
 
-  /* ---------------- COLOR CHANGE + FADE ---------------- */
   async function handleBackgroundChange(event: any, newValue: string) {
   const card = document.getElementById(`card-${event.id}`);
   const modal = document.getElementById('options-modal');
@@ -140,7 +139,7 @@ export default function DashboardPage() {
 
   const refreshed = await getEventsByHost(host.id);
   setEvents(refreshed);
-    }
+  }
 
     const modal = document.getElementById('options-modal');
     if (modal) {
