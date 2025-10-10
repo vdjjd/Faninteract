@@ -337,7 +337,7 @@ const pendingBtn = { ...smallBtn, backgroundColor: '#ffaa00', fontWeight: 600 };
 const confirmOverlay = {
   position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
   background: '#222', border: '1px solid #555', borderRadius: 10, padding: '12px 16px',
-  boxShadow: '0 0 10px rgba(0,0,0,0.6)', zzIndex: 10, textAlign: 'center'
+  boxShadow: '0 0 10px rgba(0,0,0,0.6)', zIndex: 10, textAlign: 'center'
 };
 const modalBackdrop = { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 };
 const modalBox = { background: '#222', padding: 20, borderRadius: 10, width: 350, display: 'flex', flexDirection: 'column', gap: 10 };
