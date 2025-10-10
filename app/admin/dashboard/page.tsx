@@ -12,11 +12,14 @@ import { supabase } from '@/lib/supabaseClient';
 
 /* ---------------- BASE STYLES ---------------- */
 const inputStyle: React.CSSProperties = {
-  width: '100%',
+  width: '95%',
   padding: 8,
   borderRadius: 6,
   border: '1px solid #555',
   marginTop: 4,
+  marginLeft: 'auto',
+  marginRight: 'auto',
+  display: 'block',
   background: '#111',
   color: '#fff',
 };
@@ -267,8 +270,10 @@ export default function DashboardPage() {
           <input
             type="text"
             value={selectedEvent.host_title || ''}
-            style={inputStyle}
-            onChange={(e) => setSelectedEvent({ ...selectedEvent, host_title: e.target.value })}
+            style={{ ...inputStyle, width: '90%' }}
+            onChange={(e) =>
+              setSelectedEvent({ ...selectedEvent, host_title: e.target.value })
+            }
           />
 
           <label>Public Title:</label>
@@ -276,14 +281,18 @@ export default function DashboardPage() {
             type="text"
             value={selectedEvent.title || ''}
             style={inputStyle}
-            onChange={(e) => setSelectedEvent({ ...selectedEvent, title: e.target.value })}
+            onChange={(e) =>
+              setSelectedEvent({ ...selectedEvent, title: e.target.value })
+            }
           />
 
           <label>Countdown:</label>
           <select
             style={inputStyle}
             value={selectedEvent.countdown || ''}
-            onChange={(e) => setSelectedEvent({ ...selectedEvent, countdown: e.target.value })}
+            onChange={(e) =>
+              setSelectedEvent({ ...selectedEvent, countdown: e.target.value })
+            }
           >
             {countdownOptions.map((opt) => <option key={opt}>{opt}</option>)}
           </select>
