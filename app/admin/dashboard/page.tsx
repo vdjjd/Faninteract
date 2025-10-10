@@ -271,7 +271,7 @@ const nflGradients = [
   'linear-gradient(135deg,#AA0000,#B3995D)', // 49ers alt
 ];
 
-const pageStyle = {
+const pageStyle: React.CSSProperties = {
   display: 'flex',
   flexDirection: 'column',
   alignItems: 'center',
