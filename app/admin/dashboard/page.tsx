@@ -21,41 +21,6 @@ const inputStyle: React.CSSProperties = {
   color: '#fff',
 };
 
-const nflGradients = [
-  'linear-gradient(135deg,#00338D,#C60C30)', // Bills
-  'linear-gradient(135deg,#002244,#69BE28)', // Seahawks
-  'linear-gradient(135deg,#0B162A,#C83803)', // Bears
-  'linear-gradient(135deg,#002244,#FB4F14)', // Broncos
-  'linear-gradient(135deg,#203731,#FFB612)', // Packers
-  'linear-gradient(135deg,#0C2340,#C8102E)', // Patriots
-  'linear-gradient(135deg,#101820,#D50A0A)', // Falcons
-  'linear-gradient(135deg,#002244,#D7A22A)', // Rams
-  'linear-gradient(135deg,#002244,#E31837)', // Texans
-  'linear-gradient(135deg,#003594,#FFB81C)', // Chargers
-  'linear-gradient(135deg,#203731,#A71930)', // Cardinals
-  'linear-gradient(135deg,#002244,#69BE28)', // Jets
-  'linear-gradient(135deg,#4B92DB,#002244)', // Lions
-  'linear-gradient(135deg,#E31837,#203731)', // Chiefs
-  'linear-gradient(135deg,#0C2340,#FFB81C)', // Steelers
-  'linear-gradient(135deg,#002244,#69BE28)', // Eagles
-  'linear-gradient(135deg,#241773,#9E7C0C)', // Ravens
-  'linear-gradient(135deg,#002244,#FB4F14)', // Browns
-  'linear-gradient(135deg,#002244,#B0B7BC)', // Cowboys
-  'linear-gradient(135deg,#003594,#FFB81C)', // Vikings
-  'linear-gradient(135deg,#311D00,#FFB612)', // Saints
-  'linear-gradient(135deg,#AA0000,#B3995D)', // 49ers
-  'linear-gradient(135deg,#5B2B82,#A5ACAF)', // Raiders
-  'linear-gradient(135deg,#002244,#C60C30)', // Giants
-  'linear-gradient(135deg,#002244,#9E7C0C)', // Commanders
-  'linear-gradient(135deg,#2C2A29,#A71930)', // Buccaneers
-  'linear-gradient(135deg,#101820,#D50A0A)', // Panthers
-  'linear-gradient(135deg,#00338D,#C60C30)', // Colts
-  'linear-gradient(135deg,#002244,#FB4F14)', // Bengals
-  'linear-gradient(135deg,#002244,#E31837)', // Titans
-  'linear-gradient(135deg,#0B162A,#C83803)', // Steelers alt
-  'linear-gradient(135deg,#AA0000,#B3995D)', // 49ers alt
-];
-
 export default function DashboardPage() {
   const [host, setHost] = useState<any>(null);
   const [events, setEvents] = useState<any[]>([]);
@@ -78,7 +43,7 @@ export default function DashboardPage() {
     fetchData();
   }, []);
 
-  // ✅ Create new event
+  // ✅ Create new event (inline overlay)
   async function handleCreateConfirm() {
     if (!newTitle.trim()) return;
     await createEvent(host.id, { title: newTitle.trim() });
@@ -95,18 +60,20 @@ export default function DashboardPage() {
     setConfirmingDelete(null);
   }
 
-  // ✅ Clear posts and mark cleared
+  // ✅ Clear posts (updates status to 'cleared', but keeps event data)
   async function handleClear(id: string) {
     await clearEventPosts(id);
+
     await supabase
       .from('events')
       .update({ status: 'cleared', updated_at: new Date().toISOString() })
       .eq('id', id);
+
     const updated = await getEventsByHost(host.id);
     setEvents(updated);
   }
 
-  // ✅ Launch wall in popup
+  // ✅ Launch popup only
   async function handleLaunch(id: string) {
     const wallUrl = `${window.location.origin}/wall/${id}`;
     const popup = window.open(
@@ -117,23 +84,34 @@ export default function DashboardPage() {
     popup?.focus();
   }
 
-  // ✅ Start wall silently
+  // ✅ Play wall (silent)
   async function handleStart(id: string) {
-    const { data: ev } = await supabase.from('events').select('*').eq('id', id).single();
-    if (!ev) return;
-    await supabase.from('events').update({ status: 'live', updated_at: new Date().toISOString() }).eq('id', id);
+    const { data: ev, error } = await supabase.from('events').select('*').eq('id', id).single();
+    if (error || !ev) return;
+    if (!ev.countdown || new Date(ev.countdown).getTime() <= Date.now()) {
+      await supabase
+        .from('events')
+        .update({ status: 'live', updated_at: new Date().toISOString() })
+        .eq('id', id);
+    }
     const updated = await getEventsByHost(host.id);
     setEvents(updated);
   }
 
-  // ✅ Stop wall silently
+  // ✅ Stop wall (silent)
   async function handleStop(id: string) {
-    await supabase
+    const { error } = await supabase
       .from('events')
-      .update({ status: 'inactive', countdown: null, updated_at: new Date().toISOString() })
+      .update({
+        status: 'inactive',
+        countdown: null,
+        updated_at: new Date().toISOString(),
+      })
       .eq('id', id);
-    const updated = await getEventsByHost(host.id);
-    setEvents(updated);
+    if (!error) {
+      const updated = await getEventsByHost(host.id);
+      setEvents(updated);
+    }
   }
 
   // ✅ Open moderation popup
@@ -189,16 +167,13 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* Event Grid */}
+      {/* Grid of Events */}
       <div style={gridStyle}>
+        {events.length === 0 && <p>No experiences created yet.</p>}
         {events.map((event) => (
-          <div
-            key={event.id}
-            data-id={event.id}
-            style={{ ...cardStyle, background: event.background_value || '#222' }}
-          >
-            <h3>{event.host_title || `${event.title} Fan Zone Wall`}</h3>
-            <p>
+          <div key={event.id} style={{ ...cardStyle, background: event.background_value || '#222' }}>
+            <h3 style={{ fontSize: 16 }}>{event.host_title || `${event.title} Fan Zone Wall`}</h3>
+            <p style={{ fontSize: 13 }}>
               <strong>Status:</strong>{' '}
               <span
                 style={{
@@ -222,12 +197,23 @@ export default function DashboardPage() {
 
             <div style={cardButtons}>
               <button onClick={() => handleClear(event.id)} style={clearBtn}>🧹 Clear</button>
+
               {confirmingDelete === event.id ? (
                 <div style={confirmOverlay}>
                   <p style={{ margin: 0, fontSize: 14 }}>Confirm delete?</p>
                   <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
-                    <button onClick={() => handleDelete(event.id)} style={{ ...smallBtn, backgroundColor: '#16a34a' }}>✅ Confirm</button>
-                    <button onClick={() => setConfirmingDelete(null)} style={{ ...smallBtn, backgroundColor: '#a33' }}>✖ Cancel</button>
+                    <button
+                      onClick={() => handleDelete(event.id)}
+                      style={{ ...smallBtn, backgroundColor: '#16a34a' }}
+                    >
+                      ✅ Confirm
+                    </button>
+                    <button
+                      onClick={() => setConfirmingDelete(null)}
+                      style={{ ...smallBtn, backgroundColor: '#a33' }}
+                    >
+                      ✖ Cancel
+                    </button>
                   </div>
                 </div>
               ) : (
@@ -237,7 +223,9 @@ export default function DashboardPage() {
 
             <div style={cardFooter}>
               <button onClick={() => setSelectedEvent(event)} style={optionsBtn}>⚙️ Options</button>
-              <button onClick={() => handleOpenModeration(event.id)} style={pendingBtn}>🔔 Pending ({event.pending_posts ?? 0})</button>
+              <button onClick={() => handleOpenModeration(event.id)} style={pendingBtn}>
+                🔔 Pending ({event.pending_posts ?? 0})
+              </button>
             </div>
           </div>
         ))}
@@ -246,74 +234,45 @@ export default function DashboardPage() {
       {/* Settings Modal */}
       {selectedEvent && (
         <div style={modalBackdrop}>
-          <div style={{ ...modalBox, background: selectedEvent.background_value || 'linear-gradient(180deg,#0d0d0d,#1a1a1a)' }}>
-            <h2 style={{ textAlign: 'center' }}>⚙️ Edit Wall Settings</h2>
+          <div style={modalBox}>
+            <h2>⚙️ Edit Wall Settings</h2>
             <label>
               Host Title:
-              <input type="text" value={selectedEvent.host_title || ''} style={inputStyle} onChange={(e) => setSelectedEvent({ ...selectedEvent, host_title: e.target.value })}/>
+              <input
+                type="text"
+                value={selectedEvent.host_title || ''}
+                style={inputStyle}
+                onChange={(e) => setSelectedEvent({ ...selectedEvent, host_title: e.target.value })}
+              />
             </label>
             <label>
               Public Title:
-              <input type="text" value={selectedEvent.title || ''} style={inputStyle} onChange={(e) => setSelectedEvent({ ...selectedEvent, title: e.target.value })}/>
+              <input
+                type="text"
+                value={selectedEvent.title || ''}
+                style={inputStyle}
+                onChange={(e) => setSelectedEvent({ ...selectedEvent, title: e.target.value })}
+              />
             </label>
             <label>
-              Countdown:
-              <select style={inputStyle} value={selectedEvent.countdown || ''} onChange={(e) => setSelectedEvent({ ...selectedEvent, countdown: e.target.value })}>
-                <option value="">None</option>
-                <option value="30">30 Seconds</option>
-                <option value="60">1 Minute</option>
-                <option value="120">2 Minutes</option>
-                <option value="180">3 Minutes</option>
-                <option value="240">4 Minutes</option>
-                <option value="300">5 Minutes</option>
-                <option value="600">10 Minutes</option>
-                <option value="900">15 Minutes</option>
-                <option value="1200">20 Minutes</option>
-                <option value="1500">25 Minutes</option>
-                <option value="1800">30 Minutes</option>
-                <option value="3600">60 Minutes</option>
-              </select>
+              Countdown (datetime-local):
+              <input
+                type="datetime-local"
+                style={inputStyle}
+                onChange={(e) => setSelectedEvent({ ...selectedEvent, countdown: e.target.value })}
+              />
+            </label>
+            <label>
+              Background (color/gradient URL):
+              <input
+                type="text"
+                value={selectedEvent.background_value || ''}
+                style={inputStyle}
+                onChange={(e) => setSelectedEvent({ ...selectedEvent, background_value: e.target.value })}
+              />
             </label>
 
-            <div style={{ marginTop: 10 }}>
-              <h4>Solid Colors</h4>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(8, 1fr)', gap: 8 }}>
-                {['#FF0000','#FF7F00','#FFFF00','#00FF00','#0000FF','#4B0082','#8B00FF','#00CED1','#FFD700','#FF69B4','#00FA9A','#FF4500','#20B2AA','#ADFF2F','#C71585','#708090'].map((color) => (
-                  <div key={color} onClick={() => {
-                    setSelectedEvent((prev: any) => ({ ...prev, background_value: color }));
-                    const el = document.querySelector(`[data-id="${selectedEvent.id}"]`) as HTMLElement;
-                    if (el) {
-                      el.style.transition = 'background 2s ease';
-                      el.style.background = color;
-                    }
-                  }} style={{
-                    background: color, width: 30, height: 30, borderRadius: '50%', cursor: 'pointer',
-                    border: selectedEvent.background_value === color ? '3px solid #fff' : '1px solid #555',
-                  }}/>
-                ))}
-              </div>
-            </div>
-
-            <div style={{ marginTop: 20 }}>
-              <h4>Gradients</h4>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(8, 1fr)', gap: 8 }}>
-                {nflGradients.map((grad, i) => (
-                  <div key={i} onClick={() => {
-                    setSelectedEvent((prev: any) => ({ ...prev, background_value: grad }));
-                    const el = document.querySelector(`[data-id="${selectedEvent.id}"]`) as HTMLElement;
-                    if (el) {
-                      el.style.transition = 'background 2s ease';
-                      el.style.background = grad;
-                    }
-                  }} style={{
-                    background: grad, width: 30, height: 30, borderRadius: '50%', cursor: 'pointer',
-                    border: selectedEvent.background_value === grad ? '3px solid #fff' : '1px solid #555',
-                  }}/>
-                ))}
-              </div>
-            </div>
-
-            <div style={{ marginTop: 20, display: 'flex', gap: 10, justifyContent: 'center' }}>
+            <div style={{ marginTop: 10, display: 'flex', gap: 10 }}>
               <button style={saveBtn} onClick={() => handleSaveSettings(selectedEvent)}>💾 Save</button>
               <button style={cancelBtn} onClick={() => setSelectedEvent(null)}>✖ Close</button>
             </div>
@@ -348,11 +307,11 @@ const buttonStyle: React.CSSProperties = {
 };
 
 const newCardOverlay: React.CSSProperties = {
-  width: 300,
+  width: 260,
   marginTop: 20,
   background: '#222',
   borderRadius: 12,
-  padding: 20,
+  padding: 16,
   textAlign: 'center',
   boxShadow: '0 0 15px rgba(0,0,0,0.4)',
 };
@@ -366,20 +325,23 @@ const newCardBox: React.CSSProperties = {
 const gridStyle: React.CSSProperties = {
   marginTop: 20,
   display: 'grid',
-  gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
-  gap: 20,
+  gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
+  gap: 16,
   width: '100%',
-  maxWidth: 1200,
+  maxWidth: 1100,
+  justifyItems: 'center',
 };
 
 const cardStyle: React.CSSProperties = {
-  borderRadius: 12,
-  padding: 20,
+  borderRadius: 10,
+  padding: 14,
   textAlign: 'center',
   color: '#fff',
-  boxShadow: '0 0 15px rgba(0,0,0,0.3)',
+  boxShadow: '0 0 10px rgba(0,0,0,0.25)',
   position: 'relative',
-  transition: 'background 2s ease',
+  width: '100%',
+  maxWidth: 230,
+  transition: 'all 0.3s ease',
 };
 
 const cardButtons: React.CSSProperties = {
@@ -387,13 +349,13 @@ const cardButtons: React.CSSProperties = {
   gap: 8,
   flexWrap: 'wrap',
   justifyContent: 'center',
-  marginTop: 10,
+  marginTop: 8,
 };
 
 const cardFooter: React.CSSProperties = {
   display: 'flex',
   justifyContent: 'space-between',
-  marginTop: 15,
+  marginTop: 10,
 };
 
 const smallBtn: React.CSSProperties = {
@@ -403,7 +365,7 @@ const smallBtn: React.CSSProperties = {
   padding: '6px 10px',
   color: '#fff',
   cursor: 'pointer',
-  fontSize: 14,
+  fontSize: 13,
 };
 
 const clearBtn: React.CSSProperties = { ...smallBtn, backgroundColor: '#00bcd4', fontWeight: 600 };
