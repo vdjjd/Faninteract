@@ -15,7 +15,7 @@ export default function ModerationPage() {
       .from('submissions')
       .select('*')
       .eq('event_id', eventId)
-      .in('status', ['pending', 'approved', 'rejected'])
+      .eq('status', 'pending')
       .order('created_at', { ascending: false });
 
     if (error) {
@@ -43,74 +43,64 @@ export default function ModerationPage() {
     };
   }, [eventId]);
 
-  // ✅ Approve / Reject
+  // ✅ Approve / Deny
   async function handleModeration(id: string, action: 'approved' | 'rejected') {
     const { error } = await supabase.rpc('update_submission_status', {
       submission_id: id,
       new_status: action,
     });
     if (error) console.error('❌ Moderation error:', error.message);
-    else await fetchSubs();
+    else {
+      // Smooth fade-out
+      setSubmissions((prev) => prev.filter((s) => s.id !== id));
+    }
   }
 
-  if (loading) return <p style={{ color: '#fff', textAlign: 'center' }}>Loading queue…</p>;
+  // ✅ Close popup
+  function handleClose() {
+    window.close();
+  }
+
+  if (loading)
+    return <p style={{ color: '#fff', textAlign: 'center' }}>Loading moderation queue…</p>;
 
   return (
     <div style={pageStyle}>
-      <h1 style={{ marginBottom: 10 }}>🛡️ Moderation Panel</h1>
-      <p style={{ marginBottom: 30, color: '#ccc' }}>
-        Review and approve posts for this Fan Zone wall.
-      </p>
+      <img src="/faninteractlogo.png" alt="FanInteract Logo" style={{ width: 160, marginBottom: 10 }} />
+      <button style={closeBtn} onClick={handleClose}>✖ Close Moderation</button>
+      <h2 style={{ marginTop: 10, marginBottom: 30 }}>🛡️ Pending Submissions</h2>
 
       <div style={gridStyle}>
         {submissions.length === 0 && (
-          <p style={{ color: '#999', textAlign: 'center' }}>No submissions yet.</p>
+          <p style={{ color: '#ccc', textAlign: 'center', width: '100%' }}>
+            No pending posts right now.
+          </p>
         )}
 
         {submissions.map((s) => (
           <div key={s.id} style={cardStyle}>
-            <img
-              src={s.photo_url}
-              alt="User submission"
-              style={{ width: '100%', height: 180, objectFit: 'cover', borderRadius: 8 }}
-            />
-            <p style={{ marginTop: 8 }}>
-              <strong>{s.nickname || s.first_name || 'Guest'}</strong>
-            </p>
-            <p
-              style={{
-                fontSize: 14,
-                color: '#ccc',
-                minHeight: 40,
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-              }}
-            >
-              {s.message}
-            </p>
-            <p
-              style={{
-                fontSize: 13,
-                color:
-                  s.status === 'pending'
-                    ? 'orange'
-                    : s.status === 'approved'
-                    ? 'lime'
-                    : '#ff5555',
-              }}
-            >
-              {s.status.toUpperCase()}
-            </p>
-            {s.status === 'pending' && (
-              <div style={btnGroup}>
-                <button style={approveBtn} onClick={() => handleModeration(s.id, 'approved')}>
-                  ✅ Approve
-                </button>
-                <button style={rejectBtn} onClick={() => handleModeration(s.id, 'rejected')}>
-                  ❌ Reject
-                </button>
+            <div style={cardContent}>
+              <img
+                src={s.photo_url}
+                alt="Submitted Photo"
+                style={imageStyle}
+              />
+              <div style={textSection}>
+                <p style={messageStyle}>{s.message}</p>
+                <p style={nicknameStyle}>{s.nickname || 'Guest'}</p>
+                <p style={timestampStyle}>
+                  {new Date(s.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                </p>
               </div>
-            )}
+            </div>
+            <div style={buttonRow}>
+              <button style={approveBtn} onClick={() => handleModeration(s.id, 'approved')}>
+                ✅ Approve
+              </button>
+              <button style={denyBtn} onClick={() => handleModeration(s.id, 'rejected')}>
+                ❌ Deny
+              </button>
+            </div>
           </div>
         ))}
       </div>
@@ -119,52 +109,114 @@ export default function ModerationPage() {
 }
 
 /* ---------------- STYLES ---------------- */
+
 const pageStyle: React.CSSProperties = {
-  minHeight: '100vh',
+  display: 'flex',
+  flexDirection: 'column',
+  alignItems: 'center',
   background: 'linear-gradient(180deg, #0d0d0d, #1a1a1a)',
   color: '#fff',
-  padding: '40px 20px',
+  minHeight: '100vh',
+  padding: '30px 20px',
   fontFamily: 'system-ui, sans-serif',
+  overflowY: 'auto',
 };
 
 const gridStyle: React.CSSProperties = {
   display: 'grid',
-  gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))',
+  gridTemplateColumns: 'repeat(auto-fill, minmax(400px, 1fr))',
   gap: 20,
   width: '100%',
   maxWidth: 1200,
-  margin: '0 auto',
 };
 
 const cardStyle: React.CSSProperties = {
   background: '#222',
-  borderRadius: 10,
-  padding: 10,
-  textAlign: 'center',
-  boxShadow: '0 0 8px rgba(0,0,0,0.4)',
+  borderRadius: 12,
+  padding: 15,
+  display: 'flex',
+  flexDirection: 'column',
+  justifyContent: 'space-between',
+  boxShadow: '0 0 12px rgba(0,0,0,0.4)',
+  transition: 'opacity 0.3s ease',
 };
 
-const btnGroup: React.CSSProperties = {
+const cardContent: React.CSSProperties = {
   display: 'flex',
-  justifyContent: 'center',
-  gap: 8,
-  marginTop: 8,
+  flexDirection: 'row',
+  alignItems: 'flex-start',
+  gap: 12,
+};
+
+const imageStyle: React.CSSProperties = {
+  width: 120,
+  height: 120,
+  objectFit: 'cover',
+  borderRadius: 10,
+};
+
+const textSection: React.CSSProperties = {
+  flex: 1,
+  display: 'flex',
+  flexDirection: 'column',
+  justifyContent: 'space-between',
+};
+
+const messageStyle: React.CSSProperties = {
+  fontSize: 15,
+  color: '#fff',
+  marginBottom: 6,
+  wordBreak: 'break-word',
+};
+
+const nicknameStyle: React.CSSProperties = {
+  fontSize: 14,
+  color: '#66ccff',
+  fontWeight: 'bold',
+  marginBottom: 4,
+};
+
+const timestampStyle: React.CSSProperties = {
+  fontSize: 12,
+  color: '#999',
+};
+
+const buttonRow: React.CSSProperties = {
+  display: 'flex',
+  justifyContent: 'space-between',
+  marginTop: 10,
 };
 
 const approveBtn: React.CSSProperties = {
-  backgroundColor: '#16a34a',
+  flex: 1,
+  background: '#16a34a',
   border: 'none',
   borderRadius: 6,
-  padding: '6px 10px',
+  padding: '8px 10px',
   color: '#fff',
   cursor: 'pointer',
+  fontWeight: 600,
+  marginRight: 8,
 };
 
-const rejectBtn: React.CSSProperties = {
-  backgroundColor: '#a33',
+const denyBtn: React.CSSProperties = {
+  flex: 1,
+  background: '#a33',
   border: 'none',
   borderRadius: 6,
-  padding: '6px 10px',
+  padding: '8px 10px',
   color: '#fff',
   cursor: 'pointer',
+  fontWeight: 600,
+};
+
+const closeBtn: React.CSSProperties = {
+  backgroundColor: '#1e90ff',
+  border: 'none',
+  borderRadius: 8,
+  padding: '10px 25px',
+  color: '#fff',
+  fontWeight: 700,
+  cursor: 'pointer',
+  marginBottom: 20,
 };
