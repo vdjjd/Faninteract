@@ -60,9 +60,15 @@ export default function DashboardPage() {
     setConfirmingDelete(null);
   }
 
-  // ✅ Clear posts (silent)
+  // ✅ Clear posts (updates status to 'cleared', but keeps event data)
   async function handleClear(id: string) {
     await clearEventPosts(id);
+
+    await supabase
+      .from('events')
+      .update({ status: 'cleared', updated_at: new Date().toISOString() })
+      .eq('id', id);
+
     const updated = await getEventsByHost(host.id);
     setEvents(updated);
   }
@@ -169,7 +175,16 @@ export default function DashboardPage() {
             <h3>{event.host_title || `${event.title} Fan Zone Wall`}</h3>
             <p>
               <strong>Status:</strong>{' '}
-              <span style={{ color: event.status === 'live' ? 'lime' : 'orange' }}>
+              <span
+                style={{
+                  color:
+                    event.status === 'live'
+                      ? 'lime'
+                      : event.status === 'cleared'
+                      ? '#00bcd4'
+                      : 'orange',
+                }}
+              >
                 {event.status}
               </span>
             </p>
@@ -181,7 +196,7 @@ export default function DashboardPage() {
             </div>
 
             <div style={cardButtons}>
-              <button onClick={() => handleClear(event.id)} style={smallBtn}>🧹 Clear</button>
+              <button onClick={() => handleClear(event.id)} style={clearBtn}>🧹 Clear</button>
 
               {confirmingDelete === event.id ? (
                 <div style={confirmOverlay}>
@@ -349,6 +364,7 @@ const smallBtn: React.CSSProperties = {
   fontSize: 14,
 };
 
+const clearBtn: React.CSSProperties = { ...smallBtn, backgroundColor: '#00bcd4', fontWeight: 600 };
 const launchBtn: React.CSSProperties = { ...smallBtn, backgroundColor: '#007bff', fontWeight: 600 };
 const playBtn: React.CSSProperties = { ...smallBtn, backgroundColor: '#16a34a', fontWeight: 600 };
 const stopBtn: React.CSSProperties = { ...smallBtn, backgroundColor: '#d12f2f', fontWeight: 600 };
