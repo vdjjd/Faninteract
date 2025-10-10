@@ -75,13 +75,27 @@ export default function DashboardPage() {
   }
 
   async function handleLaunch(id: string) {
-    const wallUrl = `${window.location.origin}/wall/${id}`;
-    const popup = window.open(
-      wallUrl,
-      '_blank',
-      'width=1200,height=800,left=100,top=100,menubar=no,toolbar=no,location=no,status=no,resizable=yes,scrollbars=yes'
-    );
-    popup?.focus();
+  const wallUrl = `${window.location.origin}/wall/${id}`;
+  const popup = window.open(
+    wallUrl,
+    '_blank',
+    [
+      'popup=yes',
+      'width=1280',
+      'height=800',
+      'left=100',
+      'top=100',
+      'menubar=no',
+      'toolbar=no',
+      'location=no',
+      'status=no',
+      'resizable=yes',
+      'scrollbars=no',
+      'titlebar=no',
+    ].join(',')
+  );
+  popup?.focus();
+}
   }
 
   async function handleStart(id: string) {
