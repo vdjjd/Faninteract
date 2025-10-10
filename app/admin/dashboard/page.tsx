@@ -109,15 +109,7 @@ export default function DashboardPage() {
     );
   }
 
-  /* ---------------- SAVE SETTINGS ---------------- */
-  async function handleSaveSettings(updatedEvent: any) {
-    await updateEventSettings(updatedEvent.id, updatedEvent);
-    const refreshed = await getEventsByHost(host.id);
-    setEvents(refreshed);
-    setSelectedEvent(null);
-  }
-
-  /* ---------------- COLOR CHANGE ---------------- */
+  /* ---------------- BACKGROUND CHANGE ---------------- */
   async function handleBackgroundChange(event: any, newValue: string) {
     const card = document.getElementById(`card-${event.id}`);
     const modal = document.getElementById('options-modal');
@@ -252,7 +244,6 @@ export default function DashboardPage() {
           </div>
         ))}
       </div>
-
       {/* OPTIONS MODAL */}
       {selectedEvent && (
         <div
@@ -293,7 +284,13 @@ export default function DashboardPage() {
               setSelectedEvent({ ...selectedEvent, countdown: e.target.value })
             }
           >
-            {countdownOptions.map((opt) => <option key={opt}>{opt}</option>)}
+            {[
+              '30 Seconds','1 Minute','2 Minutes','3 Minutes','4 Minutes','5 Minutes',
+              '10 Minutes','15 Minutes','20 Minutes','25 Minutes','30 Minutes',
+              '35 Minutes','40 Minutes','45 Minutes','50 Minutes','55 Minutes','60 Minutes',
+            ].map((opt) => (
+              <option key={opt}>{opt}</option>
+            ))}
           </select>
 
           {/* 💾 SAVE CHANGES BUTTON */}
@@ -314,8 +311,7 @@ export default function DashboardPage() {
 
                 const refreshed = await getEventsByHost(host.id);
                 setEvents(refreshed);
-                setSaving(false);
-                setSelectedEvent(null);
+                setSaving(false); // ✅ stays open after save
               }}
               style={{
                 ...smallBtn,
@@ -330,7 +326,10 @@ export default function DashboardPage() {
 
           <h4 style={{ marginTop: 10 }}>Solid Colors</h4>
           <div style={colorGrid}>
-            {solidColors.map((c) => (
+            {[
+              '#e53935','#d81b60','#8e24aa','#5e35b1','#3949ab','#1e88e5','#039be5','#00acc1',
+              '#00897b','#43a047','#7cb342','#c0ca33','#fdd835','#fb8c00','#f4511e','#6d4c41',
+            ].map((c) => (
               <div
                 key={c}
                 style={{ ...colorCircle, background: c }}
@@ -341,7 +340,24 @@ export default function DashboardPage() {
 
           <h4 style={{ marginTop: 10 }}>Gradients</h4>
           <div style={colorGrid}>
-            {nflGradients.map((g) => (
+            {[
+              'linear-gradient(135deg,#002244,#69BE28)',
+              'linear-gradient(135deg,#00338D,#C60C30)',
+              'linear-gradient(135deg,#203731,#FFB612)',
+              'linear-gradient(135deg,#0B2265,#A71930)',
+              'linear-gradient(135deg,#241773,#9E7C0C)',
+              'linear-gradient(135deg,#03202F,#FB4F14)',
+              'linear-gradient(135deg,#002244,#B0B7BC)',
+              'linear-gradient(135deg,#002C5F,#FFC20E)',
+              'linear-gradient(135deg,#E31837,#C60C30)',
+              'linear-gradient(135deg,#002C5F,#A5ACAF)',
+              'linear-gradient(135deg,#5A1414,#D3BC8D)',
+              'linear-gradient(135deg,#4F2683,#FFC62F)',
+              'linear-gradient(135deg,#A71930,#FFB612)',
+              'linear-gradient(135deg,#000000,#FB4F14)',
+              'linear-gradient(135deg,#004C54,#A5ACAF)',
+              'linear-gradient(135deg,#A5ACAF,#0B2265)',
+            ].map((g) => (
               <div
                 key={g}
                 style={{ ...colorCircle, background: g }}
@@ -351,7 +367,9 @@ export default function DashboardPage() {
           </div>
 
           <div style={{ marginTop: 18 }}>
-            <button onClick={() => setSelectedEvent(null)} style={cancelBtn}>✖ Close</button>
+            <button onClick={() => setSelectedEvent(null)} style={cancelBtn}>
+              ✖ Close
+            </button>
           </div>
         </div>
       )}
@@ -456,7 +474,7 @@ const confirmOverlay = {
   position: 'absolute' as const,
   top: '50%',
   left: '50%',
-  transform: 'translate(-50%, -50%)',
+  transform: 'translate(-50%,-50%)',
   background: '#222',
   border: '1px solid #555',
   borderRadius: 10,
@@ -470,7 +488,7 @@ const modalBox = {
   position: 'fixed' as const,
   top: '50%',
   left: '50%',
-  transform: 'translate(-50%, -50%)',
+  transform: 'translate(-50%,-50%)',
   padding: 15,
   borderRadius: 10,
   width: 320,
