@@ -68,7 +68,7 @@ export default function FanWallPage() {
   useEffect(() => {
     if (!eventId) return;
 
-    // 1️⃣ Realtime listener for new approved submissions
+    // 1️⃣ Submissions Realtime Channel
     const subChannel = supabase
       .channel('realtime:submissions')
       .on(
@@ -77,24 +77,23 @@ export default function FanWallPage() {
         (payload) => {
           const newPost = payload.new as Submission;
           if (newPost.event_id === eventId && newPost.status === 'approved') {
+            console.log('🆕 New approved post:', newPost);
             setPosts((prev) => [newPost, ...prev]);
           }
         }
       )
       .subscribe((status) => console.log('Submissions channel:', status));
 
-    // 2️⃣ Realtime listener for event updates (background/status)
+    // 2️⃣ Events Realtime Channel (listen for live background/status changes)
     const eventChannel = supabase
       .channel('realtime:events')
       .on(
         'postgres_changes',
         { event: 'UPDATE', schema: 'public', table: 'events', filter: `id=eq.${eventId}` },
         (payload) => {
-          console.log('🔁 Realtime event update:', payload.new);
-          setEvent((prev) => ({
-            ...prev!,
-            ...payload.new,
-          }));
+          const updated = payload.new as EventData;
+          console.log('🔁 Realtime event update:', updated);
+          setEvent((prev) => ({ ...prev!, ...updated }));
         }
       )
       .subscribe((status) => console.log('Events channel:', status));
@@ -104,6 +103,15 @@ export default function FanWallPage() {
       supabase.removeChannel(eventChannel);
     };
   }, [eventId]);
+
+  // ---------------- FADE BACKGROUND WHEN UPDATED ----------------
+  useEffect(() => {
+    const root = document.documentElement;
+    if (event?.background_value) {
+      root.style.transition = 'background 2s ease';
+      root.style.background = event.background_value;
+    }
+  }, [event?.background_value]);
 
   // ---------------- COUNTDOWN TIMER ----------------
   useEffect(() => {
