@@ -21,7 +21,7 @@ export default function FanWallPage() {
   const [event, setEvent] = useState<EventData | null>(null);
   const [loading, setLoading] = useState(true);
 
-  /* ---------------- INITIAL LOAD ---------------- */
+  /* ---------- LOAD + REALTIME ---------- */
   useEffect(() => {
     async function loadEvent() {
       if (!eventId) return;
@@ -32,7 +32,6 @@ export default function FanWallPage() {
     loadEvent();
   }, [eventId]);
 
-  /* ---------------- REALTIME UPDATES ---------------- */
   useEffect(() => {
     if (!eventId) return;
     const channel = supabase
@@ -58,17 +57,16 @@ export default function FanWallPage() {
     };
   }, [eventId, event]);
 
-  /* ---------------- BACKGROUND HELPER ---------------- */
   const getBackground = (bg?: string, type?: string | null) => {
     if (!bg) return 'linear-gradient(to bottom right, #1b2735, #090a0f)';
     if (type === 'image') return `url(${bg}) center/cover no-repeat`;
     return bg;
   };
 
-  if (loading) return <p className="text-white text-center mt-20">Loading Wall ...</p>;
+  if (loading) return <p className="text-white text-center mt-20">Loading Wall …</p>;
   if (!event) return <p className="text-white text-center mt-20">Event not found.</p>;
 
-  /* ---------------- RENDER ---------------- */
+  /* ---------- RENDER ---------- */
   return (
     <div
       style={{
@@ -84,11 +82,11 @@ export default function FanWallPage() {
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
-        justifyContent: 'center',
+        justifyContent: 'flex-start', // move upward on screen
         transition: 'background 0.8s ease',
       }}
     >
-      {/* ---- Public Wall Title ---- */}
+      {/* ---- Public Title ---- */}
       <h1
         style={{
           color: 'white',
@@ -98,20 +96,20 @@ export default function FanWallPage() {
           letterSpacing: '1px',
           width: '80%',
           maxWidth: '1600px',
-          marginTop: '2vh',
-          marginBottom: '2vh',
-          fontSize: 'clamp(2rem, 5vw, 5rem)', // scales smoothly with screen size
+          marginTop: '4vh', // space from top of screen
+          marginBottom: '2vh', // tighter gap to MSV
+          fontSize: 'clamp(2rem, 5vw, 5rem)',
           lineHeight: '1.1',
         }}
       >
         {event.title || 'Fan Zone Wall'}
       </h1>
 
-      {/* ---- Card Area Box ---- */}
+      {/* ---- MSV (Main Visual Container) ---- */}
       <div
         style={{
           width: '75vw',
-          height: '75vh',
+          height: '70vh', // moved up visually by reducing height slightly
           backdropFilter: 'blur(18px)',
           background: 'rgba(255, 255, 255, 0.08)',
           borderRadius: '20px',
