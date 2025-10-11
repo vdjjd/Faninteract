@@ -130,7 +130,7 @@ export default function FanWallPage() {
         <div
           style={{
             position: 'absolute',
-            left: 'calc(45% + 20px)', // start 20px after QR container’s right edge
+            left: 'calc(45% + 40px)', // start 20px after QR container’s right edge
             right: '20px', // stop 20px before right edge
             height: '10px',
             top: '50%',
@@ -155,8 +155,7 @@ export default function FanWallPage() {
             opacity: 0.8,
           }}
         >
-          <p>Main Visual Content Area</p>
-        </div>
+          </div>
       </div>
 
       {/* ---- Fullscreen Toggle ---- */}
