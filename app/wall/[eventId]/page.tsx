@@ -129,8 +129,8 @@ export default function FanWallPage() {
         {/* ---- QR Code Container ---- */}
         <div
           style={{
-            flexBasis: '33%',
-            height: 'calc(100% - 40px)', // 20px top + 20px bottom spacing
+            flexBasis: '45%', // increased width (was 33%)
+            height: 'calc(100% - 40px)', // 20px top + 20px bottom
             marginLeft: '20px',
             marginTop: '20px',
             marginBottom: '20px',
@@ -147,7 +147,7 @@ export default function FanWallPage() {
             <img
               src={event.qr_url}
               alt="QR Code"
-              style={{ width: '70%', height: 'auto', borderRadius: '12px' }}
+              style={{ width: '75%', height: 'auto', borderRadius: '12px' }}
             />
           ) : (
             <p style={{ fontSize: '1rem', opacity: 0.7 }}>QR Placeholder</p>
