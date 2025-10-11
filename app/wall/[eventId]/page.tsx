@@ -32,7 +32,7 @@ export default function FanWallPage() {
     loadEvent();
   }, [eventId]);
 
-  // --- Realtime Background Updates ---
+  // --- Realtime Updates (Fixed TypeScript typing) ---
   useEffect(() => {
     if (!eventId) return;
 
@@ -43,7 +43,10 @@ export default function FanWallPage() {
         { event: '*', schema: 'public', table: 'events', filter: `id=eq.${eventId}` },
         (payload) => {
           console.log('Realtime event update:', payload.new);
-          setEvent((prev) => ({ ...prev, ...payload.new }));
+          const updated = payload.new as Partial<EventData>;
+          setEvent((prev) =>
+            prev ? { ...prev, ...updated } : (updated as EventData)
+          );
         }
       )
       .subscribe((status) => {
@@ -155,8 +158,8 @@ export default function FanWallPage() {
         <div
           style={{
             position: 'absolute',
-            left: 'calc(45% + 40px)', // start 20px after QR container’s right edge
-            right: '20px', // stop 20px before right edge
+            left: 'calc(45% + 40px)',
+            right: '20px',
             height: '10px',
             top: '50%',
             transform: 'translateY(-50%)',
@@ -217,3 +220,4 @@ export default function FanWallPage() {
     </div>
   );
 }
+
