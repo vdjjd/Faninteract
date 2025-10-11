@@ -55,7 +55,31 @@ export default function FanWallPage() {
         overflow: 'hidden',
         margin: 0,
         padding: 0,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
       }}
-    ></div>
+    >
+      {/* ---- Card Area Box ---- */}
+      <div
+        style={{
+          width: '70vw',
+          height: '70vh',
+          backdropFilter: 'blur(18px)',
+          background: 'rgba(255, 255, 255, 0.08)',
+          borderRadius: '20px',
+          boxShadow: '10px 10px 30px rgba(0, 0, 0, 0.4)',
+          border: '1px solid rgba(255,255,255,0.15)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          color: 'white',
+          textAlign: 'center',
+          fontSize: '1.8rem',
+        }}
+      >
+        <p style={{ opacity: 0.8 }}>Fan Zone Wall - Inactive Mode</p>
+      </div>
+    </div>
   );
 }
