@@ -82,7 +82,7 @@ export default function FanWallPage() {
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
-        justifyContent: 'flex-start', // move upward on screen
+        justifyContent: 'flex-start',
         transition: 'background 0.8s ease',
       }}
     >
@@ -96,8 +96,8 @@ export default function FanWallPage() {
           letterSpacing: '1px',
           width: '80%',
           maxWidth: '1600px',
-          marginTop: '4vh', // space from top of screen
-          marginBottom: '2vh', // tighter gap to MSV
+          marginTop: '4vh',
+          marginBottom: '2vh',
           fontSize: 'clamp(2rem, 5vw, 5rem)',
           lineHeight: '1.1',
         }}
@@ -109,21 +109,66 @@ export default function FanWallPage() {
       <div
         style={{
           width: '75vw',
-          height: '70vh', // moved up visually by reducing height slightly
+          height: '70vh',
           backdropFilter: 'blur(18px)',
           background: 'rgba(255, 255, 255, 0.08)',
           borderRadius: '20px',
           boxShadow: '10px 10px 30px rgba(0, 0, 0, 0.4)',
           border: '1px solid rgba(255,255,255,0.15)',
           display: 'flex',
+          flexDirection: 'row',
           alignItems: 'center',
-          justifyContent: 'center',
+          justifyContent: 'flex-start',
           color: 'white',
           textAlign: 'center',
           fontSize: '1.8rem',
+          position: 'relative',
+          overflow: 'hidden',
         }}
       >
-        <p style={{ opacity: 0.8 }}>Fan Zone Wall – Inactive Mode</p>
+        {/* ---- QR Code Container ---- */}
+        <div
+          style={{
+            flexBasis: '33%',
+            height: 'calc(100% - 40px)', // 20px top + 20px bottom spacing
+            marginLeft: '20px',
+            marginTop: '20px',
+            marginBottom: '20px',
+            borderRadius: '16px',
+            border: '1px solid rgba(255,255,255,0.2)',
+            background: 'rgba(255,255,255,0.05)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            boxShadow: 'inset 0 0 15px rgba(255,255,255,0.1)',
+          }}
+        >
+          {event.qr_url ? (
+            <img
+              src={event.qr_url}
+              alt="QR Code"
+              style={{ width: '70%', height: 'auto', borderRadius: '12px' }}
+            />
+          ) : (
+            <p style={{ fontSize: '1rem', opacity: 0.7 }}>QR Placeholder</p>
+          )}
+        </div>
+
+        {/* ---- Placeholder Center Content ---- */}
+        <div
+          style={{
+            flexGrow: 1,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            height: '100%',
+            color: 'white',
+            fontSize: '1.6rem',
+            opacity: 0.8,
+          }}
+        >
+          <p>Main Visual Content Area</p>
+        </div>
       </div>
 
       {/* ---- Fullscreen Toggle ---- */}
