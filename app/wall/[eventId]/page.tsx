@@ -63,8 +63,8 @@ export default function FanWallPage() {
       {/* ---- Card Area Box ---- */}
       <div
         style={{
-          width: '70vw',
-          height: '70vh',
+          width: '75vw',
+          height: '75vh',
           backdropFilter: 'blur(18px)',
           background: 'rgba(255, 255, 255, 0.08)',
           borderRadius: '20px',
@@ -79,6 +79,49 @@ export default function FanWallPage() {
         }}
       >
         <p style={{ opacity: 0.8 }}>Fan Zone Wall - Inactive Mode</p>
+      </div>
+
+      {/* ---- Fullscreen Toggle Button ---- */}
+      <div
+        style={{
+          position: 'fixed',
+          bottom: 10,
+          right: 10,
+          width: 48,
+          height: 48,
+          borderRadius: 10,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          cursor: 'pointer',
+          zIndex: 9999,
+          transition: 'opacity 0.3s ease',
+          opacity: 0.15,
+          background: 'rgba(255,255,255,0.1)',
+          backdropFilter: 'blur(6px)',
+          border: '1px solid rgba(255,255,255,0.2)',
+        }}
+        onMouseEnter={(e) => (e.currentTarget.style.opacity = '1')}
+        onMouseLeave={(e) => (e.currentTarget.style.opacity = '0.15')}
+        onClick={() => {
+          if (!document.fullscreenElement) {
+            document.documentElement.requestFullscreen().catch(console.error);
+          } else {
+            document.exitFullscreen();
+          }
+        }}
+        title="Toggle Fullscreen"
+      >
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          fill="none"
+          viewBox="0 0 24 24"
+          strokeWidth={1.5}
+          stroke="white"
+          style={{ width: 26, height: 26 }}
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" d="M3 9V4h5M21 9V4h-5M3 15v5h5M21 15v5h-5" />
+        </svg>
       </div>
     </div>
   );
