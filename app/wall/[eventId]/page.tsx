@@ -26,7 +26,8 @@ interface EventData {
 }
 
 export default function FanWallPage() {
-  const { eventId } = useParams();
+  const params = useParams();
+  const eventId = params?.eventId as string | undefined;
   const [event, setEvent] = useState<EventData | null>(null);
   const [posts, setPosts] = useState<Submission[]>([]);
   const [loading, setLoading] = useState(true);
@@ -36,16 +37,16 @@ export default function FanWallPage() {
   async function loadEventAndPosts() {
     if (!eventId) return;
     const { data: ev } = await supabase.from('events').select('*').eq('id', eventId).single();
-    if (!ev) return setLoading(false);
+    if (!ev) {
+      setLoading(false);
+      return;
+    }
     setEvent(ev);
 
     if (ev.countdown && ev.countdown !== '0 Seconds') {
-      const parts = ev.countdown.split(' ');
-      const val = parseInt(parts[0]);
-      const unit = parts[1]?.toLowerCase();
-      let seconds = val;
-      if (unit.includes('minute')) seconds = val * 60;
-      else if (unit.includes('second')) seconds = val;
+      const [valStr, unit] = ev.countdown.split(' ');
+      const val = parseInt(valStr);
+      const seconds = unit?.toLowerCase().includes('minute') ? val * 60 : val;
       setCountdownTime(seconds);
     }
 
@@ -72,28 +73,24 @@ export default function FanWallPage() {
 
     const subChannel = supabase
       .channel('realtime:submissions')
-      .on(
-        'postgres_changes',
+      .on('postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'submissions' },
         (payload) => {
           const newPost = payload.new as Submission;
           if (newPost.event_id === eventId && newPost.status === 'approved') {
             setPosts((prev) => [newPost, ...prev]);
           }
-        }
-      )
+        })
       .subscribe();
 
     const eventChannel = supabase
       .channel('realtime:events')
-      .on(
-        'postgres_changes',
+      .on('postgres_changes',
         { event: '*', schema: 'public', table: 'events', filter: `id=eq.${eventId}` },
         (payload) => {
           const updated = payload.new as EventData;
           if (updated) setEvent((prev) => ({ ...prev!, ...updated }));
-        }
-      )
+        })
       .subscribe();
 
     return () => {
@@ -117,7 +114,7 @@ export default function FanWallPage() {
     return `${m > 0 ? `${m}m ` : ''}${sec}s`;
   };
 
-  const getBackground = (bg?: string, type?: string | null) => {
+  const getBackground = (bg?: string | null, type?: string | null) => {
     if (!bg) return 'linear-gradient(to bottom right, #4dc6ff, #001f4d)';
     if (type === 'image') return `url(${bg}) center/cover no-repeat`;
     return bg;
@@ -132,7 +129,6 @@ export default function FanWallPage() {
   // ---------------- RENDER ----------------
   return (
     <>
-      {/* 🔥 Inline Keyframes for Fade Animation */}
       <style jsx global>{`
         @keyframes fadeIn {
           from { opacity: 0; transform: scale(0.97); }
@@ -154,37 +150,17 @@ export default function FanWallPage() {
         {/* INACTIVE STATE */}
         {event.status !== 'live' && (
           <div className="relative z-20 flex flex-col items-center justify-center h-screen px-8">
-            {/* Top Title */}
             <h1 className="text-4xl font-bold mb-6 text-center drop-shadow-lg">
               {event.title || 'Fan Zone Wall'}
             </h1>
 
-            {/* Center Card with Fade */}
             <div
-              className="flex flex-col items-center justify-center p-10 rounded-2xl shadow-2xl backdrop-blur-md bg-white/10 border border-white/20
-                         opacity-0 animate-[fadeIn_1.5s_ease_forwards]"
-              style={{
-                minWidth: '60%',
-                maxWidth: 800,
-                textAlign: 'center',
-              }}
+              className="flex flex-col items-center justify-center p-10 rounded-2xl shadow-2xl backdrop-blur-md bg-white/10 border border-white/20 opacity-0 animate-[fadeIn_1.5s_ease_forwards]"
+              style={{ minWidth: '60%', maxWidth: 800, textAlign: 'center' }}
             >
-              {/* Logo */}
-              <img
-                src={logo}
-                alt="Logo"
-                style={{ width: 200, objectFit: 'contain', marginBottom: 10 }}
-              />
-
-              {/* Divider */}
+              <img src={logo} alt="Logo" style={{ width: 200, objectFit: 'contain', marginBottom: 10 }} />
               <div className="w-3/4 h-px bg-gray-400/40 mb-6" />
-
-              {/* Text */}
-              <h2 className="text-2xl font-semibold mb-4">
-                Fan Zone Wall Beginning Soon
-              </h2>
-
-              {/* Countdown */}
+              <h2 className="text-2xl font-semibold mb-4">Fan Zone Wall Beginning Soon</h2>
               {countdownTime && countdownTime > 0 && (
                 <div className="text-lg font-mono text-white/90 mt-2">
                   {formatTime(countdownTime)}
@@ -192,7 +168,6 @@ export default function FanWallPage() {
               )}
             </div>
 
-            {/* QR Code (bottom left) */}
             {qr && (
               <div className="absolute bottom-6 left-6">
                 <img
@@ -278,19 +253,8 @@ export default function FanWallPage() {
           }}
           title="Toggle Fullscreen"
         >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            fill="none"
-            viewBox="0 0 24 24"
-            strokeWidth={1.5}
-            stroke="white"
-            style={{ width: 26, height: 26 }}
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M3 9V4h5M21 9V4h-5M3 15v5h5M21 15v5h-5"
-            />
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="white" style={{ width: 26, height: 26 }}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M3 9V4h5M21 9V4h-5M3 15v5h5M21 15v5h-5" />
           </svg>
         </div>
       </div>
