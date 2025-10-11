@@ -32,7 +32,7 @@ export default function FanWallPage() {
     loadEvent();
   }, [eventId]);
 
-  /* ---------------- REALTIME BACKGROUND UPDATES ---------------- */
+  /* ---------------- REALTIME UPDATES ---------------- */
   useEffect(() => {
     if (!eventId) return;
     const channel = supabase
@@ -47,7 +47,6 @@ export default function FanWallPage() {
       )
       .subscribe();
 
-    // safety fallback polling (in case realtime is disabled)
     const interval = setInterval(async () => {
       const { data } = await supabase.from('events').select('*').eq('id', eventId).single();
       if (data && JSON.stringify(data) !== JSON.stringify(event)) setEvent(data);
@@ -83,11 +82,31 @@ export default function FanWallPage() {
         margin: 0,
         padding: 0,
         display: 'flex',
+        flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
         transition: 'background 0.8s ease',
       }}
     >
+      {/* ---- Public Wall Title ---- */}
+      <h1
+        style={{
+          color: 'white',
+          textAlign: 'center',
+          textShadow: '0 0 20px rgba(0,0,0,0.6)',
+          fontWeight: 900,
+          letterSpacing: '1px',
+          width: '80%',
+          maxWidth: '1600px',
+          marginTop: '2vh',
+          marginBottom: '2vh',
+          fontSize: 'clamp(2rem, 5vw, 5rem)', // scales smoothly with screen size
+          lineHeight: '1.1',
+        }}
+      >
+        {event.title || 'Fan Zone Wall'}
+      </h1>
+
       {/* ---- Card Area Box ---- */}
       <div
         style={{
