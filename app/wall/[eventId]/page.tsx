@@ -37,16 +37,18 @@ export default function FanWallPage() {
     if (!eventId) return;
 
     const eventChannel = supabase
-      .channel('realtime:events')
+      .channel(`events-changes-${eventId}`)
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'events', filter: `id=eq.${eventId}` },
         (payload) => {
-          const updated = payload.new as EventData;
-          if (updated) setEvent((prev) => ({ ...prev!, ...updated }));
+          console.log('Realtime event update:', payload.new);
+          setEvent((prev) => ({ ...prev, ...payload.new }));
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        console.log('Events channel:', status);
+      });
 
     return () => {
       supabase.removeChannel(eventChannel);
