@@ -21,6 +21,7 @@ export default function FanWallPage() {
   const [event, setEvent] = useState<EventData | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // --- Initial Load ---
   useEffect(() => {
     async function loadEvent() {
       if (!eventId) return;
@@ -31,6 +32,28 @@ export default function FanWallPage() {
     loadEvent();
   }, [eventId]);
 
+  // --- Realtime Background Updates ---
+  useEffect(() => {
+    if (!eventId) return;
+
+    const eventChannel = supabase
+      .channel('realtime:events')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'events', filter: `id=eq.${eventId}` },
+        (payload) => {
+          const updated = payload.new as EventData;
+          if (updated) setEvent((prev) => ({ ...prev!, ...updated }));
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(eventChannel);
+    };
+  }, [eventId]);
+
+  // --- Background Helper ---
   const getBackground = (bg?: string, type?: string | null) => {
     if (!bg) return 'linear-gradient(to bottom right, #1b2735, #090a0f)';
     if (type === 'image') return `url(${bg}) center/cover no-repeat`;
@@ -141,21 +164,6 @@ export default function FanWallPage() {
             opacity: 0.8,
           }}
         ></div>
-
-        {/* ---- Placeholder Center Content ---- */}
-        <div
-          style={{
-            flexGrow: 1,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            height: '100%',
-            color: 'white',
-            fontSize: '1.6rem',
-            opacity: 0.8,
-          }}
-        >
-          </div>
       </div>
 
       {/* ---- Fullscreen Toggle ---- */}
@@ -197,7 +205,11 @@ export default function FanWallPage() {
           stroke="white"
           style={{ width: 26, height: 26 }}
         >
-          <path strokeLinecap="round" strokeLinejoin="round" d="M3 9V4h5M21 9V4h-5M3 15v5h5M21 15v5h-5" />
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M3 9V4h5M21 9V4h-5M3 15v5h5M21 15v5h-5"
+          />
         </svg>
       </div>
     </div>
