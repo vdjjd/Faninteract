@@ -21,7 +21,7 @@ export default function FanWallPage() {
   const [event, setEvent] = useState<EventData | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // ---------------- FETCH EVENT ----------------
+  /* ---------------- INITIAL LOAD ---------------- */
   useEffect(() => {
     async function loadEvent() {
       if (!eventId) return;
@@ -32,17 +32,44 @@ export default function FanWallPage() {
     loadEvent();
   }, [eventId]);
 
-  // ---------------- BACKGROUND HELPER ----------------
+  /* ---------------- REALTIME BACKGROUND UPDATES ---------------- */
+  useEffect(() => {
+    if (!eventId) return;
+    const channel = supabase
+      .channel('realtime:events')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'events', filter: `id=eq.${eventId}` },
+        (payload) => {
+          const updated = payload.new as EventData;
+          if (updated) setEvent((prev) => ({ ...prev!, ...updated }));
+        }
+      )
+      .subscribe();
+
+    // safety fallback polling (in case realtime is disabled)
+    const interval = setInterval(async () => {
+      const { data } = await supabase.from('events').select('*').eq('id', eventId).single();
+      if (data && JSON.stringify(data) !== JSON.stringify(event)) setEvent(data);
+    }, 5000);
+
+    return () => {
+      supabase.removeChannel(channel);
+      clearInterval(interval);
+    };
+  }, [eventId, event]);
+
+  /* ---------------- BACKGROUND HELPER ---------------- */
   const getBackground = (bg?: string, type?: string | null) => {
     if (!bg) return 'linear-gradient(to bottom right, #1b2735, #090a0f)';
     if (type === 'image') return `url(${bg}) center/cover no-repeat`;
     return bg;
   };
 
-  // ---------------- RENDER ----------------
-  if (loading) return <p className="text-white text-center mt-20">Loading Wall...</p>;
+  if (loading) return <p className="text-white text-center mt-20">Loading Wall ...</p>;
   if (!event) return <p className="text-white text-center mt-20">Event not found.</p>;
 
+  /* ---------------- RENDER ---------------- */
   return (
     <div
       style={{
@@ -58,6 +85,7 @@ export default function FanWallPage() {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
+        transition: 'background 0.8s ease',
       }}
     >
       {/* ---- Card Area Box ---- */}
@@ -78,10 +106,10 @@ export default function FanWallPage() {
           fontSize: '1.8rem',
         }}
       >
-        <p style={{ opacity: 0.8 }}>Fan Zone Wall - Inactive Mode</p>
+        <p style={{ opacity: 0.8 }}>Fan Zone Wall – Inactive Mode</p>
       </div>
 
-      {/* ---- Fullscreen Toggle Button ---- */}
+      {/* ---- Fullscreen Toggle ---- */}
       <div
         style={{
           position: 'fixed',
