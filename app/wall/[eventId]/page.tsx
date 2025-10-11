@@ -21,7 +21,6 @@ export default function FanWallPage() {
   const [event, setEvent] = useState<EventData | null>(null);
   const [loading, setLoading] = useState(true);
 
-  /* ---------- LOAD + REALTIME ---------- */
   useEffect(() => {
     async function loadEvent() {
       if (!eventId) return;
@@ -32,31 +31,6 @@ export default function FanWallPage() {
     loadEvent();
   }, [eventId]);
 
-  useEffect(() => {
-    if (!eventId) return;
-    const channel = supabase
-      .channel('realtime:events')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'events', filter: `id=eq.${eventId}` },
-        (payload) => {
-          const updated = payload.new as EventData;
-          if (updated) setEvent((prev) => ({ ...prev!, ...updated }));
-        }
-      )
-      .subscribe();
-
-    const interval = setInterval(async () => {
-      const { data } = await supabase.from('events').select('*').eq('id', eventId).single();
-      if (data && JSON.stringify(data) !== JSON.stringify(event)) setEvent(data);
-    }, 5000);
-
-    return () => {
-      supabase.removeChannel(channel);
-      clearInterval(interval);
-    };
-  }, [eventId, event]);
-
   const getBackground = (bg?: string, type?: string | null) => {
     if (!bg) return 'linear-gradient(to bottom right, #1b2735, #090a0f)';
     if (type === 'image') return `url(${bg}) center/cover no-repeat`;
@@ -66,7 +40,6 @@ export default function FanWallPage() {
   if (loading) return <p className="text-white text-center mt-20">Loading Wall …</p>;
   if (!event) return <p className="text-white text-center mt-20">Event not found.</p>;
 
-  /* ---------- RENDER ---------- */
   return (
     <div
       style={{
@@ -77,8 +50,6 @@ export default function FanWallPage() {
         width: '100%',
         height: '100vh',
         overflow: 'hidden',
-        margin: 0,
-        padding: 0,
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
@@ -129,8 +100,8 @@ export default function FanWallPage() {
         {/* ---- QR Code Container ---- */}
         <div
           style={{
-            flexBasis: '45%', // increased width (was 33%)
-            height: 'calc(100% - 40px)', // 20px top + 20px bottom
+            flexBasis: '45%',
+            height: 'calc(100% - 40px)',
             marginLeft: '20px',
             marginTop: '20px',
             marginBottom: '20px',
@@ -141,6 +112,7 @@ export default function FanWallPage() {
             alignItems: 'center',
             justifyContent: 'center',
             boxShadow: 'inset 0 0 15px rgba(255,255,255,0.1)',
+            position: 'relative',
           }}
         >
           {event.qr_url ? (
@@ -153,6 +125,22 @@ export default function FanWallPage() {
             <p style={{ fontSize: '1rem', opacity: 0.7 }}>QR Placeholder</p>
           )}
         </div>
+
+        {/* ---- Horizontal Divider Line ---- */}
+        <div
+          style={{
+            position: 'absolute',
+            left: 'calc(45% + 20px)', // start 20px after QR container’s right edge
+            right: '20px', // stop 20px before right edge
+            height: '10px',
+            top: '50%',
+            transform: 'translateY(-50%)',
+            borderRadius: '6px',
+            background: 'linear-gradient(to right, #000, #444)',
+            boxShadow: '0 0 10px rgba(0,0,0,0.6)',
+            opacity: 0.8,
+          }}
+        ></div>
 
         {/* ---- Placeholder Center Content ---- */}
         <div
