@@ -21,6 +21,7 @@ export default function FanWallPage() {
   const [event, setEvent] = useState<EventData | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // --- Initial Load ---
   async function loadEvent() {
     if (!eventId) return;
     const { data } = await supabase.from('events').select('*').eq('id', eventId).single();
@@ -32,6 +33,7 @@ export default function FanWallPage() {
     loadEvent();
   }, [eventId]);
 
+  // --- Realtime Sync ---
   useEffect(() => {
     if (!eventId) return;
 
@@ -60,12 +62,14 @@ export default function FanWallPage() {
     };
   }, [eventId]);
 
+  // --- Background Helper ---
   const getBackground = (bg?: string, type?: string | null) => {
     if (!bg) return 'linear-gradient(to bottom right, #1b2735, #090a0f)';
     if (type === 'image') return `url(${bg}) center/cover no-repeat`;
     return bg;
   };
 
+  // --- Render ---
   if (loading) return <p className="text-white text-center mt-20">Loading Wall …</p>;
   if (!event) return <p className="text-white text-center mt-20">Event not found.</p>;
 
@@ -105,7 +109,7 @@ export default function FanWallPage() {
         {event.title || 'Fan Zone Wall'}
       </h1>
 
-      {/* ---- MSV (Main Visual Container) ---- */}
+      {/* ---- Main Visual Container ---- */}
       <div
         style={{
           width: '75vw',
@@ -155,51 +159,36 @@ export default function FanWallPage() {
           )}
         </div>
 
-        {/* ---- Right Section Wrapper ---- */}
+        {/* ---- Logo Container (Perfectly Centered Above Divider) ---- */}
         <div
           style={{
             position: 'absolute',
-            left: '45%',
-            right: 0,
-            top: 0,
-            bottom: 0,
+            left: 'calc(67%)',
+            top: '42%',
+            transform: 'translate(-50%, -50%)',
+            width: '420px',
+            height: '180px',
+            borderRadius: '18px',
+            background: 'rgba(255,255,255,0.06)',
+            border: '1px solid rgba(255,255,255,0.25)',
+            boxShadow: 'inset 0 0 15px rgba(255,255,255,0.15)',
+            overflow: 'hidden',
+            padding: '12px',
             display: 'flex',
-            alignItems: 'flex-start',
+            alignItems: 'center',
             justifyContent: 'center',
-            pointerEvents: 'none',
           }}
         >
-          {/* ---- Logo Container (Locked Horizontal Position) ---- */}
-          <div
+          <img
+            src={event.logo_url || '/faninteractlogo.png'}
+            alt="Event or Venue Logo"
             style={{
-              position: 'absolute',
-              top: '48%', // vertically tuned for your desired lower position
-              left: '50%',
-              transform: 'translate(-50%, -50%)', // keeps perfect horizontal center
-              width: '340px',
-              height: '150px',
-              borderRadius: '18px',
-              background: 'rgba(255,255,255,0.06)',
-              border: '1px solid rgba(255,255,255,0.25)',
-              boxShadow: 'inset 0 0 15px rgba(255,255,255,0.15)',
-              overflow: 'hidden',
-              padding: '12px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
+              width: '100%',
+              height: '100%',
+              objectFit: 'contain',
+              filter: 'drop-shadow(0 0 10px rgba(0,0,0,0.8))',
             }}
-          >
-            <img
-              src={event.logo_url || '/faninteractlogo.png'}
-              alt="Event or Venue Logo"
-              style={{
-                width: '100%',
-                height: '100%',
-                objectFit: 'contain',
-                filter: 'drop-shadow(0 0 10px rgba(0,0,0,0.8))',
-              }}
-            />
-          </div>
+          />
         </div>
 
         {/* ---- Horizontal Divider Line ---- */}
