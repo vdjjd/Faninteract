@@ -155,14 +155,14 @@ export default function FanWallPage() {
           )}
         </div>
 
-        {/* ---- Floating Logo (Container Hidden) ---- */}
+        {/* ---- Floating Logo (Higher Position) ---- */}
         <img
           src={event.logo_url || '/faninteractlogo.png'}
           alt="Event or Venue Logo"
           style={{
             position: 'absolute',
             left: '73%',
-            top: '28%',
+            top: '24%', // ⬆️ moved higher
             transform: 'translate(-50%, -50%)',
             width: '540px',
             height: '240px',
