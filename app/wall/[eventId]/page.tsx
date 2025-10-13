@@ -162,7 +162,7 @@ export default function FanWallPage() {
           )}
         </div>
 
-        {/* ---------- LOGO (LARGE + FIXED) ---------- */}
+        {/* ---------- LOGO (LOCKED + LARGE) ---------- */}
         <div
           style={{
             position: 'absolute',
@@ -214,30 +214,19 @@ export default function FanWallPage() {
             transform: 'translate(-50%, -50%)',
             textAlign: 'center',
             color: '#fff',
+            maxWidth: '90%',
           }}
         >
           {event.countdown ? (
             <>
-              <h2 style={{ fontSize: 'clamp(1.5rem, 2vw, 2.5rem)', marginBottom: 10 }}>
-                Fan Zone Wall Starting In
-              </h2>
+              <h2 className="fz-heading">Fan Zone Wall Starting In</h2>
               <CountdownDisplay
                 countdown={event.countdown}
                 isLive={event.status === 'live'}
               />
             </>
           ) : (
-            <h2
-              style={{
-                fontSize: 'clamp(1.8rem, 4vw, 3rem)', // 🔥 responsive size
-                fontWeight: 700,
-                animation: 'pulse 2s infinite',
-                textShadow: '0 0 15px rgba(0,0,0,0.7)',
-                margin: 0,
-              }}
-            >
-              Fan Zone Wall Starting Soon!!
-            </h2>
+            <h2 className="fz-message">Fan Zone Wall Starting Soon!!</h2>
           )}
         </div>
       </div>
@@ -287,6 +276,7 @@ export default function FanWallPage() {
         </svg>
       </div>
 
+      {/* ---------- STYLES ---------- */}
       <style jsx>{`
         @keyframes pulse {
           0% {
@@ -300,6 +290,49 @@ export default function FanWallPage() {
           100% {
             opacity: 1;
             transform: scale(1);
+          }
+        }
+
+        .fz-message {
+          font-weight: 700;
+          text-shadow: 0 0 15px rgba(0, 0, 0, 0.7);
+          margin: 0;
+          animation: pulse 2s infinite;
+          /* 🔥 Responsive scaling */
+          font-size: 4vw;
+        }
+
+        .fz-heading {
+          font-weight: 600;
+          text-shadow: 0 0 10px rgba(0, 0, 0, 0.6);
+          margin-bottom: 10px;
+          font-size: 2.5vw;
+        }
+
+        @media (max-width: 1200px) {
+          .fz-message {
+            font-size: 5vw;
+          }
+          .fz-heading {
+            font-size: 3vw;
+          }
+        }
+
+        @media (max-width: 800px) {
+          .fz-message {
+            font-size: 6vw;
+          }
+          .fz-heading {
+            font-size: 3.5vw;
+          }
+        }
+
+        @media (max-width: 500px) {
+          .fz-message {
+            font-size: 7vw;
+          }
+          .fz-heading {
+            font-size: 4vw;
           }
         }
       `}</style>
