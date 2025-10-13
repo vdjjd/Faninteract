@@ -19,6 +19,7 @@ interface EventData {
 /* ---------- COUNTDOWN ---------- */
 function CountdownDisplay({ countdown, isLive }: { countdown: string; isLive: boolean }) {
   const [timeLeft, setTimeLeft] = useState(0);
+
   useEffect(() => {
     if (!countdown) return;
     const n = parseInt(countdown.split(' ')[0]);
@@ -53,21 +54,30 @@ export default function FanWallPage() {
     setLoading(false);
   }
 
+  // ✅ Initial load
   useEffect(() => {
     loadEvent();
   }, [eventId]);
 
+  // ✅ Realtime listener - fixed TypeScript issue
   useEffect(() => {
     if (!eventId) return;
+
     const ch = supabase
       .channel(`events-${eventId}`)
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'events', filter: `id=eq.${eventId}` },
-        payload => setEvent(p => (p ? { ...p, ...payload.new } : (payload.new as EventData)))
+        payload => {
+          const updated = payload.new as Partial<EventData>;
+          setEvent(prev => (prev ? { ...prev, ...updated } : (updated as EventData)));
+        }
       )
       .subscribe();
-    return () => supabase.removeChannel(ch);
+
+    return () => {
+      supabase.removeChannel(ch);
+    };
   }, [eventId]);
 
   const bg =
@@ -156,10 +166,10 @@ export default function FanWallPage() {
         <div
           style={{
             position: 'absolute',
-            top: '32%', // ↑ raised from 36 %
+            top: '32%',
             left: '72%',
             transform: 'translate(-50%, -50%)',
-            width: '420px', // ↑ larger fixed width
+            width: '420px',
             maxWidth: '90%',
             height: '180px',
             display: 'flex',
