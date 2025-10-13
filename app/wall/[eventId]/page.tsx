@@ -58,7 +58,6 @@ export default function FanWallPage() {
 
   useEffect(() => {
     if (!eventId) return;
-
     const ch = supabase
       .channel(`events-${eventId}`)
       .on(
@@ -70,10 +69,7 @@ export default function FanWallPage() {
         }
       )
       .subscribe();
-
-    return () => {
-      supabase.removeChannel(ch);
-    };
+    return () => supabase.removeChannel(ch);
   }, [eventId]);
 
   const bg =
@@ -98,7 +94,6 @@ export default function FanWallPage() {
         transition: 'background 0.8s ease',
       }}
     >
-      {/* ---------- TITLE ---------- */}
       <h1
         style={{
           color: '#fff',
@@ -115,7 +110,6 @@ export default function FanWallPage() {
         {event.title || 'Fan Zone Wall'}
       </h1>
 
-      {/* ---------- MAIN CONTAINER ---------- */}
       <div
         style={{
           width: '75vw',
@@ -132,7 +126,6 @@ export default function FanWallPage() {
           overflow: 'hidden',
         }}
       >
-        {/* ---------- QR CODE ---------- */}
         <div
           style={{
             flexBasis: '45%',
@@ -158,7 +151,6 @@ export default function FanWallPage() {
           )}
         </div>
 
-        {/* ---------- LOGO ---------- */}
         <div
           style={{
             position: 'absolute',
@@ -185,7 +177,6 @@ export default function FanWallPage() {
           />
         </div>
 
-        {/* ---------- GREY BAR ---------- */}
         <div
           style={{
             position: 'absolute',
@@ -201,14 +192,14 @@ export default function FanWallPage() {
           }}
         ></div>
 
-        {/* ---------- COUNTDOWN / MESSAGE ---------- */}
+        {/* ✅ FIXED TEXT FITTING UNDER BAR */}
         <div
           style={{
             position: 'absolute',
             top: '65%',
             left: '72%',
             transform: 'translate(-50%, -50%)',
-            width: '45%',
+            width: '46%',
             textAlign: 'center',
             color: '#fff',
             overflow: 'hidden',
@@ -229,25 +220,42 @@ export default function FanWallPage() {
               <CountdownDisplay countdown={event.countdown} isLive={event.status === 'live'} />
             </>
           ) : (
-            <h2
+            <div
               style={{
-                fontWeight: 800,
-                textShadow: '0 0 18px rgba(0,0,0,0.8)',
-                margin: 0,
-                whiteSpace: 'nowrap',
-                textAlign: 'center',
-                fontSize: 'clamp(1.5rem, 3.5vw, 4.5rem)',
                 width: '100%',
-                textOverflow: 'ellipsis',
+                display: 'flex',
+                justifyContent: 'center',
+                alignItems: 'center',
               }}
             >
-              Fan Zone Wall Starting Soon!!
-            </h2>
+              <h2
+                style={{
+                  fontWeight: 800,
+                  textShadow: '0 0 18px rgba(0,0,0,0.8)',
+                  margin: 0,
+                  whiteSpace: 'nowrap',
+                  textAlign: 'center',
+                  fontSize: 'min(4vw, 3rem)',
+                  lineHeight: 1,
+                  transformOrigin: 'center',
+                  overflow: 'visible',
+                }}
+              >
+                <span
+                  style={{
+                    display: 'inline-block',
+                    transform: 'scale(calc(46 / var(--text-width, 46)))',
+                    transformOrigin: 'center',
+                  }}
+                >
+                  Fan Zone Wall Starting Soon!!
+                </span>
+              </h2>
+            </div>
           )}
         </div>
       </div>
 
-      {/* ---------- FULLSCREEN BUTTON ---------- */}
       <div
         style={{
           position: 'fixed',
