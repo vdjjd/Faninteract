@@ -155,21 +155,21 @@ export default function FanWallPage() {
           )}
         </div>
 
-        {/* ---- Logo Container (Moved Right & Up, Larger) ---- */}
+        {/* ---- Logo Container (Moved Right, Higher, Larger) ---- */}
         <div
           style={{
             position: 'absolute',
-            left: 'calc(70%)', // moved further right
-            top: '38%', // moved slightly up
+            left: 'calc(73%)', // farther right
+            top: '34%', // moved up more
             transform: 'translate(-50%, -50%)',
-            width: '480px', // increased size
-            height: '200px',
-            borderRadius: '20px',
-            background: 'rgba(255,255,255,0.06)',
+            width: '540px', // larger
+            height: '240px',
+            borderRadius: '22px',
+            background: 'rgba(255,255,255,0.07)',
             border: '1px solid rgba(255,255,255,0.25)',
             boxShadow: 'inset 0 0 18px rgba(255,255,255,0.15)',
             overflow: 'hidden',
-            padding: '12px',
+            padding: '14px',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -182,7 +182,7 @@ export default function FanWallPage() {
               width: '100%',
               height: '100%',
               objectFit: 'contain',
-              filter: 'drop-shadow(0 0 10px rgba(0,0,0,0.8))',
+              filter: 'drop-shadow(0 0 12px rgba(0,0,0,0.8))',
             }}
           />
         </div>
