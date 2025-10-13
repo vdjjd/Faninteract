@@ -22,7 +22,7 @@ export default function FanWallPage() {
   const [loading, setLoading] = useState(true);
   const [timeLeft, setTimeLeft] = useState<number | null>(null);
 
-  // --- Initial Load ---
+  // --- Load Event Data ---
   async function loadEvent() {
     if (!eventId) return;
     const { data } = await supabase.from('events').select('*').eq('id', eventId).single();
@@ -49,7 +49,7 @@ export default function FanWallPage() {
         }
       );
 
-    channel.subscribe(); // ✅ separate call to avoid async return issue
+    channel.subscribe(); // ✅ avoid async return type issue
 
     return () => {
       supabase.removeChannel(channel);
@@ -109,7 +109,7 @@ export default function FanWallPage() {
           transition: 'background 0.8s ease',
         }}
       >
-        {/* ---- Title ---- */}
+        {/* ---- Public Title ---- */}
         <h1
           style={{
             color: 'white',
@@ -225,7 +225,7 @@ export default function FanWallPage() {
           <div
             style={{
               position: 'absolute',
-              left: '72%', // aligned with divider bar
+              left: '74%', // 👈 adjusted for perfect optical centering under divider bar
               top: '63%',
               transform: 'translate(-50%, -50%)',
               textAlign: 'center',
