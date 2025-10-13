@@ -155,37 +155,21 @@ export default function FanWallPage() {
           )}
         </div>
 
-        {/* ---- Logo Container (Moved Right, Higher, Larger) ---- */}
-        <div
+        {/* ---- Floating Logo (Container Hidden) ---- */}
+        <img
+          src={event.logo_url || '/faninteractlogo.png'}
+          alt="Event or Venue Logo"
           style={{
             position: 'absolute',
-            left: 'calc(73%)', // right side balance
-            top: '28%', // higher position
+            left: '73%',
+            top: '28%',
             transform: 'translate(-50%, -50%)',
-            width: '540px', // large and bold
+            width: '540px',
             height: '240px',
-            borderRadius: '22px',
-            background: 'rgba(255,255,255,0.07)',
-            border: '1px solid rgba(255,255,255,0.25)',
-            boxShadow: 'inset 0 0 18px rgba(255,255,255,0.15)',
-            overflow: 'hidden',
-            padding: '14px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
+            objectFit: 'contain',
+            filter: 'drop-shadow(0 0 14px rgba(0,0,0,0.8))',
           }}
-        >
-          <img
-            src={event.logo_url || '/faninteractlogo.png'}
-            alt="Event or Venue Logo"
-            style={{
-              width: '100%',
-              height: '100%',
-              objectFit: 'contain',
-              filter: 'drop-shadow(0 0 12px rgba(0,0,0,0.8))',
-            }}
-          />
-        </div>
+        />
 
         {/* ---- Horizontal Divider Line ---- */}
         <div
