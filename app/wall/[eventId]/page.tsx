@@ -186,4 +186,127 @@ export default function FanWallPage() {
               overflow: 'hidden',
             }}
           >
-            <
+            <img
+              src={event.logo_url || '/faninteractlogo.png'}
+              alt="Event or Venue Logo"
+              style={{
+                width: '100%',
+                height: '100%',
+                objectFit: 'contain',
+                filter: 'drop-shadow(0 0 14px rgba(0,0,0,0.8))',
+              }}
+            />
+          </div>
+
+          {/* ---- Divider ---- */}
+          <div
+            style={{
+              position: 'absolute',
+              left: 'calc(45% + 40px)',
+              right: '20px',
+              height: '10px',
+              top: '50%',
+              transform: 'translateY(-50%)',
+              borderRadius: '6px',
+              background: 'linear-gradient(to right, #000, #444)',
+              boxShadow: '0 0 10px rgba(0,0,0,0.6)',
+              opacity: 0.8,
+            }}
+          ></div>
+
+          {/* ---- Countdown or Message ---- */}
+          <div
+            style={{
+              position: 'absolute',
+              left: '72%', // 👈 shifted right to align with grey bar
+              top: '63%',
+              transform: 'translate(-50%, -50%)',
+              textAlign: 'center',
+            }}
+          >
+            {timeLeft === null ? (
+              <h2
+                style={{
+                  color: 'white',
+                  fontSize: '3rem',
+                  fontWeight: 700,
+                  textShadow: '0 0 15px rgba(0,0,0,0.7)',
+                }}
+              >
+                Fan Zone Wall Starting Soon!!
+              </h2>
+            ) : (
+              <>
+                <h2
+                  style={{
+                    color: 'white',
+                    fontSize: '2.5rem',
+                    fontWeight: 600,
+                    marginBottom: '10px',
+                    textShadow: '0 0 10px rgba(0,0,0,0.6)',
+                  }}
+                >
+                  Fan Zone Wall Starting In
+                </h2>
+                <div
+                  style={{
+                    fontSize: '5rem',
+                    fontWeight: 900,
+                    letterSpacing: '4px',
+                    color: '#fff',
+                    textShadow: '0 0 25px rgba(0,0,0,0.9)',
+                  }}
+                >
+                  {timeLeft > 0 ? formatCountdown(timeLeft) : '00:00'}
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* ---- Fullscreen Button ---- */}
+      <div
+        style={{
+          position: 'fixed',
+          bottom: 10,
+          right: 10,
+          width: 48,
+          height: 48,
+          borderRadius: 10,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          cursor: 'pointer',
+          zIndex: 9999,
+          transition: 'opacity 0.3s ease',
+          opacity: 0.2,
+          background: 'rgba(255,255,255,0.1)',
+          backdropFilter: 'blur(6px)',
+          border: '1px solid rgba(255,255,255,0.2)',
+        }}
+        onMouseEnter={(e) => (e.currentTarget.style.opacity = '1')}
+        onMouseLeave={(e) => (e.currentTarget.style.opacity = '0.2')}
+        onClick={() => {
+          if (!document.fullscreenElement) {
+            document.documentElement.requestFullscreen().catch(console.error);
+          } else {
+            document.exitFullscreen();
+          }
+        }}
+        title="Toggle Fullscreen"
+      >
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          fill="none"
+          viewBox="0 0 24 24"
+          strokeWidth={1.5}
+          stroke="white"
+          style={{ width: 26, height: 26 }}
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" d="M3 9V4h5M21 9V4h-5M3 15v5h5M21 15v5h-5" />
+        </svg>
+      </div>
+    </>
+  );
+}
