@@ -21,7 +21,6 @@ export default function FanWallPage() {
   const [event, setEvent] = useState<EventData | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // --- Initial Load + Resync ---
   async function loadEvent() {
     if (!eventId) return;
     const { data } = await supabase.from('events').select('*').eq('id', eventId).single();
@@ -33,7 +32,6 @@ export default function FanWallPage() {
     loadEvent();
   }, [eventId]);
 
-  // --- Realtime Updates with Auto-Reconnect + Resync ---
   useEffect(() => {
     if (!eventId) return;
 
@@ -56,17 +54,7 @@ export default function FanWallPage() {
 
     subscribeToChannel();
 
-    const handleVisibility = () => {
-      if (document.visibilityState === 'visible') {
-        if (channel) supabase.removeChannel(channel);
-        subscribeToChannel();
-        loadEvent();
-      }
-    };
-    document.addEventListener('visibilitychange', handleVisibility);
-
     return () => {
-      document.removeEventListener('visibilitychange', handleVisibility);
       if (channel) supabase.removeChannel(channel);
       if (reconnectTimer) clearTimeout(reconnectTimer);
     };
@@ -181,16 +169,19 @@ export default function FanWallPage() {
             pointerEvents: 'none',
           }}
         >
-          {/* ---- Logo Container (moved down & enlarged) ---- */}
+          {/* ---- Logo Container (Locked Horizontal Position) ---- */}
           <div
             style={{
-              marginTop: '140px', // moved further down
-              width: '320px',     // enlarged width
-              height: '140px',    // enlarged height
-              borderRadius: '16px',
+              position: 'absolute',
+              top: '48%', // vertically tuned for your desired lower position
+              left: '50%',
+              transform: 'translate(-50%, -50%)', // keeps perfect horizontal center
+              width: '340px',
+              height: '150px',
+              borderRadius: '18px',
               background: 'rgba(255,255,255,0.06)',
               border: '1px solid rgba(255,255,255,0.25)',
-              boxShadow: 'inset 0 0 12px rgba(255,255,255,0.12)',
+              boxShadow: 'inset 0 0 15px rgba(255,255,255,0.15)',
               overflow: 'hidden',
               padding: '12px',
               display: 'flex',
@@ -276,4 +267,5 @@ export default function FanWallPage() {
       </div>
     </div>
   );
+}
 }
