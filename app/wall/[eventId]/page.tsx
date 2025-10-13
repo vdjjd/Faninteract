@@ -21,10 +21,10 @@ export default function FanWallPage() {
   const [event, setEvent] = useState<EventData | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // --- Load Event ---
+  // --- Initial Load + Resync ---
   async function loadEvent() {
     if (!eventId) return;
-    console.log('🔄 Loading event data...');
+    console.log('🔄 Loading event data from Supabase...');
     const { data } = await supabase.from('events').select('*').eq('id', eventId).single();
     if (data) setEvent(data);
     setLoading(false);
@@ -34,43 +34,69 @@ export default function FanWallPage() {
     loadEvent();
   }, [eventId]);
 
-  // --- Realtime Updates with Debug Logging ---
+  // --- Realtime Updates with Auto-Reconnect + Resync ---
   useEffect(() => {
     if (!eventId) return;
 
     let channel: ReturnType<typeof supabase.channel> | null = null;
+    let reconnectTimer: NodeJS.Timeout | null = null;
 
-    console.log(`🔌 Subscribing to realtime for event: ${eventId}`);
-
-    channel = supabase
-      .channel(`events-debug-${eventId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'events',
-          // NOTE: temporarily listen to ALL event updates for debug
-          // remove filter: `filter: id=eq.${eventId}` until confirmed
-        },
-        (payload) => {
-          console.log('🔥 Payload received from realtime:', payload);
-
-          const updated = payload.new as Partial<EventData>;
-          // Only update if it matches this event
-          if (updated.id === eventId) {
-            console.log('✅ Updating wall UI with new data:', updated);
-            setEvent((prev) => (prev ? { ...prev, ...updated } : (updated as EventData)));
-          } else {
-            console.log('⚠️ Received payload for a different event:', updated.id);
+    const subscribeToChannel = () => {
+      console.log(`🔌 Subscribing to realtime channel for event ${eventId}...`);
+      channel = supabase
+        .channel(`events-changes-${eventId}`)
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'events',
+            filter: `id=eq.${eventId}`,
+          },
+          (payload) => {
+            console.log('⚡ Realtime event update:', payload.new);
+            const updated = payload.new as Partial<EventData>;
+            setEvent((prev) =>
+              prev ? { ...prev, ...updated } : (updated as EventData)
+            );
           }
-        }
-      )
-      .subscribe((status) => {
-        console.log('🛰️ Channel status:', status);
-      });
+        )
+        .subscribe((status) => {
+          console.log('🛰️ Channel status:', status);
+          if (status === 'SUBSCRIBED') {
+            console.log('✅ Connected to realtime channel');
+          } else if (
+            status === 'CLOSED' ||
+            status === 'TIMED_OUT' ||
+            status === 'CHANNEL_ERROR'
+          ) {
+            console.warn('⚠️ Channel disconnected, retrying in 3 seconds...');
+            if (reconnectTimer) clearTimeout(reconnectTimer);
+            reconnectTimer = setTimeout(() => {
+              subscribeToChannel();
+            }, 3000);
+          }
+        });
+    };
+
+    // Initial subscribe
+    subscribeToChannel();
+
+    // Fallback: resubscribe when tab becomes active again
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        console.log('🟢 Tab active — resubscribing realtime channel and refreshing state');
+        if (reconnectTimer) clearTimeout(reconnectTimer);
+        if (channel) supabase.removeChannel(channel);
+        subscribeToChannel();
+        loadEvent(); // ensure we didn’t miss any DB updates
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
 
     return () => {
+      document.removeEventListener('visibilitychange', handleVisibility);
+      if (reconnectTimer) clearTimeout(reconnectTimer);
       if (channel) supabase.removeChannel(channel);
     };
   }, [eventId]);
@@ -171,6 +197,38 @@ export default function FanWallPage() {
           ) : (
             <p style={{ fontSize: '1rem', opacity: 0.7 }}>QR Placeholder</p>
           )}
+        </div>
+
+        {/* ---- Logo Container (NEW) ---- */}
+        <div
+          style={{
+            position: 'absolute',
+            top: '40px',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            width: '220px',
+            height: '100px',
+            borderRadius: '12px',
+            background: 'rgba(255,255,255,0.05)',
+            border: '1px solid rgba(255,255,255,0.2)',
+            boxShadow: 'inset 0 0 10px rgba(255,255,255,0.1)',
+            overflow: 'hidden',
+            padding: '10px',
+          }}
+        >
+          <img
+            src={event.logo_url || '/faninteractlogo.png'}
+            alt="Event or Venue Logo"
+            style={{
+              width: '100%',
+              height: '100%',
+              objectFit: 'contain',
+              filter: 'drop-shadow(0 0 6px rgba(0,0,0,0.6))',
+            }}
+          />
         </div>
 
         {/* ---- Horizontal Divider Line ---- */}
