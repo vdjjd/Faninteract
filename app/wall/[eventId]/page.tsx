@@ -21,40 +21,83 @@ export default function FanWallPage() {
   const [event, setEvent] = useState<EventData | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // --- Initial Load ---
+  // --- Initial Load + Resync ---
+  async function loadEvent() {
+    if (!eventId) return;
+    console.log('🔄 Loading event data from Supabase...');
+    const { data } = await supabase.from('events').select('*').eq('id', eventId).single();
+    if (data) setEvent(data);
+    setLoading(false);
+  }
+
   useEffect(() => {
-    async function loadEvent() {
-      if (!eventId) return;
-      const { data } = await supabase.from('events').select('*').eq('id', eventId).single();
-      if (data) setEvent(data);
-      setLoading(false);
-    }
     loadEvent();
   }, [eventId]);
 
-  // --- Realtime Updates (Fixed TypeScript typing) ---
+  // --- Realtime Updates with Auto-Reconnect + Resync ---
   useEffect(() => {
     if (!eventId) return;
 
-    const eventChannel = supabase
-      .channel(`events-changes-${eventId}`)
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'events', filter: `id=eq.${eventId}` },
-        (payload) => {
-          console.log('Realtime event update:', payload.new);
-          const updated = payload.new as Partial<EventData>;
-          setEvent((prev) =>
-            prev ? { ...prev, ...updated } : (updated as EventData)
-          );
-        }
-      )
-      .subscribe((status) => {
-        console.log('Events channel:', status);
-      });
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+    let reconnectTimer: NodeJS.Timeout | null = null;
+
+    const subscribeToChannel = () => {
+      console.log(`🔌 Subscribing to realtime channel for event ${eventId}...`);
+      channel = supabase
+        .channel(`events-changes-${eventId}`)
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'events',
+            filter: `id=eq.${eventId}`,
+          },
+          (payload) => {
+            console.log('⚡ Realtime event update:', payload.new);
+            const updated = payload.new as Partial<EventData>;
+            setEvent((prev) =>
+              prev ? { ...prev, ...updated } : (updated as EventData)
+            );
+          }
+        )
+        .subscribe((status) => {
+          console.log('🛰️ Channel status:', status);
+          if (status === 'SUBSCRIBED') {
+            console.log('✅ Connected to realtime channel');
+          } else if (
+            status === 'CLOSED' ||
+            status === 'TIMED_OUT' ||
+            status === 'CHANNEL_ERROR'
+          ) {
+            console.warn('⚠️ Channel disconnected, retrying in 3 seconds...');
+            if (reconnectTimer) clearTimeout(reconnectTimer);
+            reconnectTimer = setTimeout(() => {
+              subscribeToChannel();
+            }, 3000);
+          }
+        });
+    };
+
+    // Initial subscribe
+    subscribeToChannel();
+
+    // Fallback: resubscribe when tab becomes active again
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        console.log('🟢 Tab active — resubscribing realtime channel and refreshing state');
+        if (reconnectTimer) clearTimeout(reconnectTimer);
+        if (channel) supabase.removeChannel(channel);
+        subscribeToChannel();
+        loadEvent(); // ensure we didn’t miss any DB updates
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
 
     return () => {
-      supabase.removeChannel(eventChannel);
+      document.removeEventListener('visibilitychange', handleVisibility);
+      if (reconnectTimer) clearTimeout(reconnectTimer);
+      if (channel) supabase.removeChannel(channel);
     };
   }, [eventId]);
 
@@ -65,8 +108,10 @@ export default function FanWallPage() {
     return bg;
   };
 
-  if (loading) return <p className="text-white text-center mt-20">Loading Wall …</p>;
-  if (!event) return <p className="text-white text-center mt-20">Event not found.</p>;
+  if (loading)
+    return <p className="text-white text-center mt-20">Loading Wall …</p>;
+  if (!event)
+    return <p className="text-white text-center mt-20">Event not found.</p>;
 
   return (
     <div
@@ -220,4 +265,3 @@ export default function FanWallPage() {
     </div>
   );
 }
-
