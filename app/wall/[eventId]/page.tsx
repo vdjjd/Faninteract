@@ -16,7 +16,6 @@ interface EventData {
   host_id: string;
 }
 
-/* ---------- COUNTDOWN COMPONENT ---------- */
 function CountdownDisplay({ countdown, isLive }: { countdown: string; isLive: boolean }) {
   const [timeLeft, setTimeLeft] = useState(0);
 
@@ -41,7 +40,6 @@ function CountdownDisplay({ countdown, isLive }: { countdown: string; isLive: bo
   );
 }
 
-/* ---------- MAIN ---------- */
 export default function FanWallPage() {
   const { eventId } = useParams();
   const [event, setEvent] = useState<EventData | null>(null);
@@ -210,13 +208,10 @@ export default function FanWallPage() {
             top: '65%',
             left: '72%',
             transform: 'translate(-50%, -50%)',
+            width: '45%',
             textAlign: 'center',
             color: '#fff',
-            width: '80%',
-            whiteSpace: 'nowrap',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
+            overflow: 'hidden',
           }}
         >
           {event.countdown ? (
@@ -225,7 +220,7 @@ export default function FanWallPage() {
                 style={{
                   fontWeight: 600,
                   textShadow: '0 0 10px rgba(0,0,0,0.6)',
-                  fontSize: '2.2vw',
+                  fontSize: 'clamp(1.8rem, 2.4vw, 3rem)',
                   marginBottom: 10,
                 }}
               >
@@ -239,13 +234,11 @@ export default function FanWallPage() {
                 fontWeight: 800,
                 textShadow: '0 0 18px rgba(0,0,0,0.8)',
                 margin: 0,
-                lineHeight: 1,
-                textAlign: 'center',
                 whiteSpace: 'nowrap',
-                overflow: 'hidden',
+                textAlign: 'center',
+                fontSize: 'clamp(1.5rem, 3.5vw, 4.5rem)',
+                width: '100%',
                 textOverflow: 'ellipsis',
-                fontSize: 'clamp(2rem, 4.5vw, 5rem)',
-                maxWidth: '95%',
               }}
             >
               Fan Zone Wall Starting Soon!!
