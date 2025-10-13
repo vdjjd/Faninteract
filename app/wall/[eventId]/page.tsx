@@ -162,7 +162,7 @@ export default function FanWallPage() {
             top: '25%',
             left: '72%',
             transform: 'translate(-50%, -50%)',
-            width: 'clamp(180px, 20vw, 320px)', // scales with screen width
+            width: 'clamp(180px, 20vw, 320px)',
             height: 'auto',
             display: 'flex',
             alignItems: 'center',
@@ -197,7 +197,7 @@ export default function FanWallPage() {
           }}
         ></div>
 
-        {/* ---------- MESSAGE ---------- */}
+        {/* ---------- MESSAGE (2-line version) ---------- */}
         <div
           style={{
             position: 'absolute',
@@ -224,24 +224,35 @@ export default function FanWallPage() {
               <CountdownDisplay countdown={event.countdown} isLive={event.status === 'live'} />
             </>
           ) : (
-            <h2
-              style={{
-                fontWeight: 800,
-                textShadow: '0 0 18px rgba(0,0,0,0.8)',
-                margin: 0,
-                textAlign: 'center',
-                fontSize: 'clamp(2rem, 3vw, 4rem)',
-                lineHeight: 1.1,
-                wordBreak: 'break-word',
-              }}
-            >
-              Fan Zone Wall Starting Soon!!
-            </h2>
+            <>
+              <h2
+                style={{
+                  fontWeight: 900,
+                  textShadow: '0 0 18px rgba(0,0,0,0.8)',
+                  margin: 0,
+                  fontSize: 'clamp(2.4rem, 3vw, 4rem)',
+                  lineHeight: 1.1,
+                }}
+              >
+                Fan Zone Wall
+              </h2>
+              <h2
+                style={{
+                  fontWeight: 800,
+                  textShadow: '0 0 18px rgba(0,0,0,0.8)',
+                  marginTop: '0.4em',
+                  fontSize: 'clamp(2rem, 2.8vw, 3.6rem)',
+                  lineHeight: 1.1,
+                }}
+              >
+                Starting Soon!!
+              </h2>
+            </>
           )}
         </div>
       </div>
 
-      {/* ---------- FULLSCREEN ---------- */}
+      {/* ---------- FULLSCREEN BUTTON ---------- */}
       <div
         style={{
           position: 'fixed',
