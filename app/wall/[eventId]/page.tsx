@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useParams } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
 
@@ -44,6 +44,26 @@ export default function FanWallPage() {
   const { eventId } = useParams();
   const [event, setEvent] = useState<EventData | null>(null);
   const [loading, setLoading] = useState(true);
+  const textRef = useRef<HTMLHeadingElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // --- Auto-scale text width ---
+  useEffect(() => {
+    function resizeText() {
+      const textEl = textRef.current;
+      const containerEl = containerRef.current;
+      if (!textEl || !containerEl) return;
+      textEl.style.transform = 'scale(1)';
+      const containerWidth = containerEl.offsetWidth;
+      const textWidth = textEl.scrollWidth;
+      const scale = Math.min(containerWidth / textWidth, 1);
+      textEl.style.transform = `scale(${scale})`;
+      textEl.style.transformOrigin = 'center';
+    }
+    resizeText();
+    window.addEventListener('resize', resizeText);
+    return () => window.removeEventListener('resize', resizeText);
+  }, [event]);
 
   async function loadEvent() {
     if (!eventId) return;
@@ -56,6 +76,7 @@ export default function FanWallPage() {
     loadEvent();
   }, [eventId]);
 
+  // ✅ FIXED — no async cleanup
   useEffect(() => {
     if (!eventId) return;
     const ch = supabase
@@ -69,7 +90,11 @@ export default function FanWallPage() {
         }
       )
       .subscribe();
-    return () => supabase.removeChannel(ch);
+
+    // proper cleanup (no async)
+    return () => {
+      supabase.removeChannel(ch);
+    };
   }, [eventId]);
 
   const bg =
@@ -94,6 +119,7 @@ export default function FanWallPage() {
         transition: 'background 0.8s ease',
       }}
     >
+      {/* ---------- TITLE ---------- */}
       <h1
         style={{
           color: '#fff',
@@ -110,6 +136,7 @@ export default function FanWallPage() {
         {event.title || 'Fan Zone Wall'}
       </h1>
 
+      {/* ---------- MAIN BOX ---------- */}
       <div
         style={{
           width: '75vw',
@@ -126,6 +153,7 @@ export default function FanWallPage() {
           overflow: 'hidden',
         }}
       >
+        {/* ---------- QR ---------- */}
         <div
           style={{
             flexBasis: '45%',
@@ -151,15 +179,16 @@ export default function FanWallPage() {
           )}
         </div>
 
+        {/* ---------- LOGO ---------- */}
         <div
           style={{
             position: 'absolute',
             top: '30%',
             left: '72%',
             transform: 'translate(-50%, -50%)',
-            width: '700px',
+            width: '750px',
             maxWidth: '95%',
-            height: '300px',
+            height: '340px',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -177,6 +206,7 @@ export default function FanWallPage() {
           />
         </div>
 
+        {/* ---------- GREY BAR ---------- */}
         <div
           style={{
             position: 'absolute',
@@ -192,8 +222,9 @@ export default function FanWallPage() {
           }}
         ></div>
 
-        {/* ✅ FIXED TEXT FITTING UNDER BAR */}
+        {/* ---------- MESSAGE ---------- */}
         <div
+          ref={containerRef}
           style={{
             position: 'absolute',
             top: '65%',
@@ -220,42 +251,26 @@ export default function FanWallPage() {
               <CountdownDisplay countdown={event.countdown} isLive={event.status === 'live'} />
             </>
           ) : (
-            <div
+            <h2
+              ref={textRef}
               style={{
-                width: '100%',
-                display: 'flex',
-                justifyContent: 'center',
-                alignItems: 'center',
+                fontWeight: 800,
+                textShadow: '0 0 18px rgba(0,0,0,0.8)',
+                margin: 0,
+                whiteSpace: 'nowrap',
+                textAlign: 'center',
+                fontSize: '4rem',
+                lineHeight: 1,
+                transformOrigin: 'center',
               }}
             >
-              <h2
-                style={{
-                  fontWeight: 800,
-                  textShadow: '0 0 18px rgba(0,0,0,0.8)',
-                  margin: 0,
-                  whiteSpace: 'nowrap',
-                  textAlign: 'center',
-                  fontSize: 'min(4vw, 3rem)',
-                  lineHeight: 1,
-                  transformOrigin: 'center',
-                  overflow: 'visible',
-                }}
-              >
-                <span
-                  style={{
-                    display: 'inline-block',
-                    transform: 'scale(calc(46 / var(--text-width, 46)))',
-                    transformOrigin: 'center',
-                  }}
-                >
-                  Fan Zone Wall Starting Soon!!
-                </span>
-              </h2>
-            </div>
+              Fan Zone Wall Starting Soon!!
+            </h2>
           )}
         </div>
       </div>
 
+      {/* ---------- FULLSCREEN BUTTON ---------- */}
       <div
         style={{
           position: 'fixed',
@@ -284,14 +299,7 @@ export default function FanWallPage() {
         }}
         title="Toggle Fullscreen"
       >
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          fill="none"
-          viewBox="0 0 24 24"
-          strokeWidth={1.5}
-          stroke="white"
-          style={{ width: 26, height: 26 }}
-        >
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="white" style={{ width: 26, height: 26 }}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M3 9V4h5M21 9V4h-5M3 15v5h5M21 15v5h-5" />
         </svg>
       </div>
