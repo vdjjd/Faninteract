@@ -155,16 +155,15 @@ export default function FanWallPage() {
           )}
         </div>
 
-        {/* ---------- LOGO ---------- */}
+        {/* ---------- LOGO (responsive scaling) ---------- */}
         <div
           style={{
             position: 'absolute',
-            top: '30%',
+            top: '25%',
             left: '72%',
             transform: 'translate(-50%, -50%)',
-            width: '750px',
-            maxWidth: '95%',
-            height: '340px',
+            width: 'clamp(180px, 20vw, 320px)', // scales with screen width
+            height: 'auto',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -175,7 +174,7 @@ export default function FanWallPage() {
             alt="Logo"
             style={{
               width: '100%',
-              height: '100%',
+              height: 'auto',
               objectFit: 'contain',
               filter: 'drop-shadow(0 0 12px rgba(0,0,0,0.85))',
             }}
@@ -198,7 +197,7 @@ export default function FanWallPage() {
           }}
         ></div>
 
-        {/* ---------- MESSAGE (Fluid Font + Wrapping) ---------- */}
+        {/* ---------- MESSAGE ---------- */}
         <div
           style={{
             position: 'absolute',
@@ -208,7 +207,6 @@ export default function FanWallPage() {
             width: '46%',
             textAlign: 'center',
             color: '#fff',
-            overflow: 'hidden',
           }}
         >
           {event.countdown ? (
