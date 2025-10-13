@@ -154,7 +154,6 @@ export default function DashboardPage() {
     setEvents(refreshed);
   }
 
-  // ✅ Fix: "return" must be inside component, not outside or nested improperly
   if (loading) {
     return <p style={{ color: '#fff', textAlign: 'center' }}>Loading...</p>;
   }
@@ -239,6 +238,7 @@ export default function DashboardPage() {
           </div>
         ))}
       </div>
+
       {/* OPTIONS MODAL */}
       {selectedEvent && (
         <div
@@ -274,18 +274,34 @@ export default function DashboardPage() {
           <label>Countdown:</label>
           <select
             style={inputStyle}
-            value={selectedEvent.countdown || ''}
-            onChange={(e) =>
-              setSelectedEvent({ ...selectedEvent, countdown: e.target.value })
-            }
+            value={selectedEvent.countdown || 'none'}
+            onChange={(e) => {
+              const val = e.target.value;
+              if (val === 'none') {
+                setSelectedEvent({ ...selectedEvent, countdown: null });
+              } else {
+                setSelectedEvent({ ...selectedEvent, countdown: val });
+              }
+            }}
           >
-            {[
-              '30 Seconds','1 Minute','2 Minutes','3 Minutes','4 Minutes','5 Minutes',
-              '10 Minutes','15 Minutes','20 Minutes','25 Minutes','30 Minutes',
-              '35 Minutes','40 Minutes','45 Minutes','50 Minutes','55 Minutes','60 Minutes',
-            ].map((opt) => (
-              <option key={opt}>{opt}</option>
-            ))}
+            <option value="none">No Countdown / Start Immediately</option>
+            <option value="30 Seconds">30 Seconds</option>
+            <option value="1 Minute">1 Minute</option>
+            <option value="2 Minutes">2 Minutes</option>
+            <option value="3 Minutes">3 Minutes</option>
+            <option value="4 Minutes">4 Minutes</option>
+            <option value="5 Minutes">5 Minutes</option>
+            <option value="10 Minutes">10 Minutes</option>
+            <option value="15 Minutes">15 Minutes</option>
+            <option value="20 Minutes">20 Minutes</option>
+            <option value="25 Minutes">25 Minutes</option>
+            <option value="30 Minutes">30 Minutes</option>
+            <option value="35 Minutes">35 Minutes</option>
+            <option value="40 Minutes">40 Minutes</option>
+            <option value="45 Minutes">45 Minutes</option>
+            <option value="50 Minutes">50 Minutes</option>
+            <option value="55 Minutes">55 Minutes</option>
+            <option value="60 Minutes">60 Minutes</option>
           </select>
 
           {/* 💾 SAVE CHANGES BUTTON */}
@@ -306,7 +322,7 @@ export default function DashboardPage() {
 
                 const refreshed = await getEventsByHost(host.id);
                 setEvents(refreshed);
-                setSaving(false); // ✅ stays open after save
+                setSaving(false);
               }}
               style={{
                 ...smallBtn,
