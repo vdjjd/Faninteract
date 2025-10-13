@@ -47,9 +47,9 @@ export default function FanWallPage() {
   const textRef = useRef<HTMLHeadingElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // --- Auto-scale text width ---
+  // --- Fix scaling to match window width but not shrink too small ---
   useEffect(() => {
-    function resizeText() {
+    const resizeText = () => {
       const textEl = textRef.current;
       const containerEl = containerRef.current;
       if (!textEl || !containerEl) return;
@@ -57,9 +57,11 @@ export default function FanWallPage() {
       const containerWidth = containerEl.offsetWidth;
       const textWidth = textEl.scrollWidth;
       const scale = Math.min(containerWidth / textWidth, 1);
-      textEl.style.transform = `scale(${scale})`;
+      // apply minimum readable scale (don’t let it vanish)
+      const safeScale = Math.max(scale, 0.65);
+      textEl.style.transform = `scale(${safeScale})`;
       textEl.style.transformOrigin = 'center';
-    }
+    };
     resizeText();
     window.addEventListener('resize', resizeText);
     return () => window.removeEventListener('resize', resizeText);
@@ -76,7 +78,6 @@ export default function FanWallPage() {
     loadEvent();
   }, [eventId]);
 
-  // ✅ FIXED — no async cleanup
   useEffect(() => {
     if (!eventId) return;
     const ch = supabase
@@ -90,8 +91,6 @@ export default function FanWallPage() {
         }
       )
       .subscribe();
-
-    // proper cleanup (no async)
     return () => {
       supabase.removeChannel(ch);
     };
@@ -119,7 +118,6 @@ export default function FanWallPage() {
         transition: 'background 0.8s ease',
       }}
     >
-      {/* ---------- TITLE ---------- */}
       <h1
         style={{
           color: '#fff',
@@ -136,7 +134,6 @@ export default function FanWallPage() {
         {event.title || 'Fan Zone Wall'}
       </h1>
 
-      {/* ---------- MAIN BOX ---------- */}
       <div
         style={{
           width: '75vw',
@@ -153,7 +150,6 @@ export default function FanWallPage() {
           overflow: 'hidden',
         }}
       >
-        {/* ---------- QR ---------- */}
         <div
           style={{
             flexBasis: '45%',
@@ -179,7 +175,6 @@ export default function FanWallPage() {
           )}
         </div>
 
-        {/* ---------- LOGO ---------- */}
         <div
           style={{
             position: 'absolute',
@@ -206,7 +201,6 @@ export default function FanWallPage() {
           />
         </div>
 
-        {/* ---------- GREY BAR ---------- */}
         <div
           style={{
             position: 'absolute',
@@ -222,7 +216,6 @@ export default function FanWallPage() {
           }}
         ></div>
 
-        {/* ---------- MESSAGE ---------- */}
         <div
           ref={containerRef}
           style={{
@@ -262,6 +255,8 @@ export default function FanWallPage() {
                 fontSize: '4rem',
                 lineHeight: 1,
                 transformOrigin: 'center',
+                width: 'fit-content',
+                marginInline: 'auto',
               }}
             >
               Fan Zone Wall Starting Soon!!
@@ -270,7 +265,6 @@ export default function FanWallPage() {
         </div>
       </div>
 
-      {/* ---------- FULLSCREEN BUTTON ---------- */}
       <div
         style={{
           position: 'fixed',
