@@ -181,18 +181,18 @@ export default function FanWallPage() {
             pointerEvents: 'none',
           }}
         >
-          {/* ---- Logo Container (now centered above grey bar) ---- */}
+          {/* ---- Logo Container (moved down & enlarged) ---- */}
           <div
             style={{
-              marginTop: '40px',
-              width: '220px',
-              height: '100px',
-              borderRadius: '12px',
-              background: 'rgba(255,255,255,0.05)',
-              border: '1px solid rgba(255,255,255,0.2)',
-              boxShadow: 'inset 0 0 10px rgba(255,255,255,0.1)',
+              marginTop: '140px', // moved further down
+              width: '320px',     // enlarged width
+              height: '140px',    // enlarged height
+              borderRadius: '16px',
+              background: 'rgba(255,255,255,0.06)',
+              border: '1px solid rgba(255,255,255,0.25)',
+              boxShadow: 'inset 0 0 12px rgba(255,255,255,0.12)',
               overflow: 'hidden',
-              padding: '10px',
+              padding: '12px',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -205,7 +205,7 @@ export default function FanWallPage() {
                 width: '100%',
                 height: '100%',
                 objectFit: 'contain',
-                filter: 'drop-shadow(0 0 6px rgba(0,0,0,0.6))',
+                filter: 'drop-shadow(0 0 10px rgba(0,0,0,0.8))',
               }}
             />
           </div>
