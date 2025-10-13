@@ -21,6 +21,7 @@ export default function FanWallPage() {
   const [event, setEvent] = useState<EventData | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // --- Initial Load ---
   async function loadEvent() {
     if (!eventId) return;
     const { data } = await supabase.from('events').select('*').eq('id', eventId).single();
@@ -32,34 +33,30 @@ export default function FanWallPage() {
     loadEvent();
   }, [eventId]);
 
+  // --- Realtime Updates ---
   useEffect(() => {
     if (!eventId) return;
 
     let channel: ReturnType<typeof supabase.channel> | null = null;
-    let reconnectTimer: NodeJS.Timeout | null = null;
 
-    const subscribeToChannel = () => {
-      channel = supabase
-        .channel(`events-changes-${eventId}`)
-        .on(
-          'postgres_changes',
-          { event: '*', schema: 'public', table: 'events', filter: `id=eq.${eventId}` },
-          (payload) => {
-            const updated = payload.new as Partial<EventData>;
-            setEvent((prev) => (prev ? { ...prev, ...updated } : (updated as EventData)));
-          }
-        )
-        .subscribe();
-    };
-
-    subscribeToChannel();
+    channel = supabase
+      .channel(`events-changes-${eventId}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'events', filter: `id=eq.${eventId}` },
+        (payload) => {
+          const updated = payload.new as Partial<EventData>;
+          setEvent((prev) => (prev ? { ...prev, ...updated } : (updated as EventData)));
+        }
+      )
+      .subscribe();
 
     return () => {
       if (channel) supabase.removeChannel(channel);
-      if (reconnectTimer) clearTimeout(reconnectTimer);
     };
   }, [eventId]);
 
+  // --- Background Helper ---
   const getBackground = (bg?: string, type?: string | null) => {
     if (!bg) return 'linear-gradient(to bottom right, #1b2735, #090a0f)';
     if (type === 'image') return `url(${bg}) center/cover no-repeat`;
@@ -155,21 +152,32 @@ export default function FanWallPage() {
           )}
         </div>
 
-        {/* ---- Floating Logo (Higher Position) ---- */}
-        <img
-          src={event.logo_url || '/faninteractlogo.png'}
-          alt="Event or Venue Logo"
+        {/* ---- Floating Logo (Locked position, fixed box) ---- */}
+        <div
           style={{
             position: 'absolute',
             left: '73%',
-            top: '24%', // ⬆️ moved higher
+            top: '24%',
             transform: 'translate(-50%, -50%)',
             width: '540px',
             height: '240px',
-            objectFit: 'contain',
-            filter: 'drop-shadow(0 0 14px rgba(0,0,0,0.8))',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            overflow: 'hidden',
           }}
-        />
+        >
+          <img
+            src={event.logo_url || '/faninteractlogo.png'}
+            alt="Event or Venue Logo"
+            style={{
+              width: '100%',
+              height: '100%',
+              objectFit: 'contain',
+              filter: 'drop-shadow(0 0 14px rgba(0,0,0,0.8))',
+            }}
+          />
+        </div>
 
         {/* ---- Horizontal Divider Line ---- */}
         <div
