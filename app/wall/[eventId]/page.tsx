@@ -8,7 +8,7 @@ interface EventData {
   id: string;
   title: string | null;
   status: 'inactive' | 'live';
-  countdown: string | null;
+  countdown: string | null; // ISO timestamp for when the wall goes live
   background_type: 'gradient' | 'solid' | 'image' | null;
   background_value: string | null;
   logo_url: string | null;
@@ -20,8 +20,9 @@ export default function FanWallPage() {
   const { eventId } = useParams();
   const [event, setEvent] = useState<EventData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [timeLeft, setTimeLeft] = useState<number | null>(null);
 
-  // --- Initial Load ---
+  // --- Load event ---
   async function loadEvent() {
     if (!eventId) return;
     const { data } = await supabase.from('events').select('*').eq('id', eventId).single();
@@ -37,9 +38,7 @@ export default function FanWallPage() {
   useEffect(() => {
     if (!eventId) return;
 
-    let channel: ReturnType<typeof supabase.channel> | null = null;
-
-    channel = supabase
+    const channel = supabase
       .channel(`events-changes-${eventId}`)
       .on(
         'postgres_changes',
@@ -52,11 +51,40 @@ export default function FanWallPage() {
       .subscribe();
 
     return () => {
-      if (channel) supabase.removeChannel(channel);
+      supabase.removeChannel(channel);
     };
   }, [eventId]);
 
-  // --- Background Helper ---
+  // --- Countdown Timer Logic ---
+  useEffect(() => {
+    if (!event?.countdown) {
+      setTimeLeft(null);
+      return;
+    }
+
+    const countdownDate = new Date(event.countdown).getTime();
+    const timer = setInterval(() => {
+      const now = Date.now();
+      const diff = countdownDate - now;
+      if (diff <= 0) {
+        clearInterval(timer);
+        setTimeLeft(0);
+      } else {
+        setTimeLeft(diff);
+      }
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [event?.countdown]);
+
+  // Format countdown as mm:ss
+  const formatCountdown = (ms: number) => {
+    const totalSeconds = Math.floor(ms / 1000);
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+  };
+
   const getBackground = (bg?: string, type?: string | null) => {
     if (!bg) return 'linear-gradient(to bottom right, #1b2735, #090a0f)';
     if (type === 'image') return `url(${bg}) center/cover no-repeat`;
@@ -102,7 +130,7 @@ export default function FanWallPage() {
         {event.title || 'Fan Zone Wall'}
       </h1>
 
-      {/* ---- Main Visual Container ---- */}
+      {/* ---- MSV (Main Visual Container) ---- */}
       <div
         style={{
           width: '75vw',
@@ -123,7 +151,7 @@ export default function FanWallPage() {
           overflow: 'hidden',
         }}
       >
-        {/* ---- QR Code Container ---- */}
+        {/* ---- QR Code ---- */}
         <div
           style={{
             flexBasis: '45%',
@@ -152,7 +180,7 @@ export default function FanWallPage() {
           )}
         </div>
 
-        {/* ---- Floating Logo (Locked position, fixed box) ---- */}
+        {/* ---- Floating Logo ---- */}
         <div
           style={{
             position: 'absolute',
@@ -179,7 +207,7 @@ export default function FanWallPage() {
           />
         </div>
 
-        {/* ---- Horizontal Divider Line ---- */}
+        {/* ---- Divider Line ---- */}
         <div
           style={{
             position: 'absolute',
@@ -194,53 +222,55 @@ export default function FanWallPage() {
             opacity: 0.8,
           }}
         ></div>
-      </div>
 
-      {/* ---- Fullscreen Toggle ---- */}
-      <div
-        style={{
-          position: 'fixed',
-          bottom: 10,
-          right: 10,
-          width: 48,
-          height: 48,
-          borderRadius: 10,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          cursor: 'pointer',
-          zIndex: 9999,
-          transition: 'opacity 0.3s ease',
-          opacity: 0.15,
-          background: 'rgba(255,255,255,0.1)',
-          backdropFilter: 'blur(6px)',
-          border: '1px solid rgba(255,255,255,0.2)',
-        }}
-        onMouseEnter={(e) => (e.currentTarget.style.opacity = '1')}
-        onMouseLeave={(e) => (e.currentTarget.style.opacity = '0.15')}
-        onClick={() => {
-          if (!document.fullscreenElement) {
-            document.documentElement.requestFullscreen().catch(console.error);
-          } else {
-            document.exitFullscreen();
-          }
-        }}
-        title="Toggle Fullscreen"
-      >
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          fill="none"
-          viewBox="0 0 24 24"
-          strokeWidth={1.5}
-          stroke="white"
-          style={{ width: 26, height: 26 }}
+        {/* ---- Countdown or Message ---- */}
+        <div
+          style={{
+            position: 'absolute',
+            left: '50%',
+            top: '75%',
+            transform: 'translate(-50%, -50%)',
+            textAlign: 'center',
+          }}
         >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            d="M3 9V4h5M21 9V4h-5M3 15v5h5M21 15v5h-5"
-          />
-        </svg>
+          {timeLeft === null ? (
+            <h2
+              style={{
+                color: 'white',
+                fontSize: '3rem',
+                fontWeight: 700,
+                textShadow: '0 0 15px rgba(0,0,0,0.7)',
+              }}
+            >
+              Fan Zone Wall Starting Soon!!
+            </h2>
+          ) : (
+            <>
+              <h2
+                style={{
+                  color: 'white',
+                  fontSize: '2.5rem',
+                  fontWeight: 600,
+                  marginBottom: '10px',
+                  textShadow: '0 0 10px rgba(0,0,0,0.6)',
+                }}
+              >
+                Fan Zone Wall Starting In
+              </h2>
+              <div
+                style={{
+                  fontSize: '5rem',
+                  fontWeight: 900,
+                  letterSpacing: '4px',
+                  color: '#fff',
+                  textShadow: '0 0 25px rgba(0,0,0,0.9)',
+                }}
+              >
+                {timeLeft > 0 ? formatCountdown(timeLeft) : '00:00'}
+              </div>
+            </>
+          )}
+        </div>
       </div>
     </div>
   );
