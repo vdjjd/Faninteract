@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
 
@@ -44,37 +44,14 @@ export default function FanWallPage() {
   const { eventId } = useParams();
   const [event, setEvent] = useState<EventData | null>(null);
   const [loading, setLoading] = useState(true);
-  const textRef = useRef<HTMLHeadingElement>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
-
-  // --- Fix scaling to match window width but not shrink too small ---
-  useEffect(() => {
-    const resizeText = () => {
-      const textEl = textRef.current;
-      const containerEl = containerRef.current;
-      if (!textEl || !containerEl) return;
-      textEl.style.transform = 'scale(1)';
-      const containerWidth = containerEl.offsetWidth;
-      const textWidth = textEl.scrollWidth;
-      const scale = Math.min(containerWidth / textWidth, 1);
-      // apply minimum readable scale (don’t let it vanish)
-      const safeScale = Math.max(scale, 0.65);
-      textEl.style.transform = `scale(${safeScale})`;
-      textEl.style.transformOrigin = 'center';
-    };
-    resizeText();
-    window.addEventListener('resize', resizeText);
-    return () => window.removeEventListener('resize', resizeText);
-  }, [event]);
-
-  async function loadEvent() {
-    if (!eventId) return;
-    const { data } = await supabase.from('events').select('*').eq('id', eventId).single();
-    if (data) setEvent(data);
-    setLoading(false);
-  }
 
   useEffect(() => {
+    async function loadEvent() {
+      if (!eventId) return;
+      const { data } = await supabase.from('events').select('*').eq('id', eventId).single();
+      if (data) setEvent(data);
+      setLoading(false);
+    }
     loadEvent();
   }, [eventId]);
 
@@ -118,6 +95,7 @@ export default function FanWallPage() {
         transition: 'background 0.8s ease',
       }}
     >
+      {/* ---------- TITLE ---------- */}
       <h1
         style={{
           color: '#fff',
@@ -134,6 +112,7 @@ export default function FanWallPage() {
         {event.title || 'Fan Zone Wall'}
       </h1>
 
+      {/* ---------- MAIN BOX ---------- */}
       <div
         style={{
           width: '75vw',
@@ -150,6 +129,7 @@ export default function FanWallPage() {
           overflow: 'hidden',
         }}
       >
+        {/* ---------- QR ---------- */}
         <div
           style={{
             flexBasis: '45%',
@@ -175,6 +155,7 @@ export default function FanWallPage() {
           )}
         </div>
 
+        {/* ---------- LOGO ---------- */}
         <div
           style={{
             position: 'absolute',
@@ -201,6 +182,7 @@ export default function FanWallPage() {
           />
         </div>
 
+        {/* ---------- GREY BAR ---------- */}
         <div
           style={{
             position: 'absolute',
@@ -216,11 +198,11 @@ export default function FanWallPage() {
           }}
         ></div>
 
+        {/* ---------- MESSAGE (Fluid Font + Wrapping) ---------- */}
         <div
-          ref={containerRef}
           style={{
             position: 'absolute',
-            top: '65%',
+            top: '63%',
             left: '72%',
             transform: 'translate(-50%, -50%)',
             width: '46%',
@@ -245,18 +227,14 @@ export default function FanWallPage() {
             </>
           ) : (
             <h2
-              ref={textRef}
               style={{
                 fontWeight: 800,
                 textShadow: '0 0 18px rgba(0,0,0,0.8)',
                 margin: 0,
-                whiteSpace: 'nowrap',
                 textAlign: 'center',
-                fontSize: '4rem',
-                lineHeight: 1,
-                transformOrigin: 'center',
-                width: 'fit-content',
-                marginInline: 'auto',
+                fontSize: 'clamp(2rem, 3vw, 4rem)',
+                lineHeight: 1.1,
+                wordBreak: 'break-word',
               }}
             >
               Fan Zone Wall Starting Soon!!
@@ -265,6 +243,7 @@ export default function FanWallPage() {
         </div>
       </div>
 
+      {/* ---------- FULLSCREEN ---------- */}
       <div
         style={{
           position: 'fixed',
