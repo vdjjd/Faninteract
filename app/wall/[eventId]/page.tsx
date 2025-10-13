@@ -16,7 +16,7 @@ interface EventData {
   host_id: string;
 }
 
-/* ---------- COUNTDOWN ---------- */
+/* ---------- COUNTDOWN COMPONENT ---------- */
 function CountdownDisplay({ countdown, isLive }: { countdown: string; isLive: boolean }) {
   const [timeLeft, setTimeLeft] = useState(0);
 
@@ -54,12 +54,12 @@ export default function FanWallPage() {
     setLoading(false);
   }
 
-  // ✅ Initial load
+  // Load event initially
   useEffect(() => {
     loadEvent();
   }, [eventId]);
 
-  // ✅ Realtime listener - fixed TypeScript issue
+  // Real-time updates
   useEffect(() => {
     if (!eventId) return;
 
@@ -162,16 +162,16 @@ export default function FanWallPage() {
           )}
         </div>
 
-        {/* ---------- LOGO (LOCKED POSITION) ---------- */}
+        {/* ---------- LOGO (LARGER AND HIGHER) ---------- */}
         <div
           style={{
             position: 'absolute',
-            top: '32%',
+            top: '28%',
             left: '72%',
             transform: 'translate(-50%, -50%)',
-            width: '420px',
-            maxWidth: '90%',
-            height: '180px',
+            width: '600px', // 🔥 made larger
+            maxWidth: '95%',
+            height: '260px', // 🔥 taller logo
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -184,7 +184,7 @@ export default function FanWallPage() {
               width: '100%',
               height: '100%',
               objectFit: 'contain',
-              filter: 'drop-shadow(0 0 10px rgba(0,0,0,0.8))',
+              filter: 'drop-shadow(0 0 12px rgba(0,0,0,0.85))',
             }}
           />
         </div>
