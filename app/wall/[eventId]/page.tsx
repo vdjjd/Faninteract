@@ -35,7 +35,7 @@ function CountdownDisplay({ countdown, isLive }: { countdown: string; isLive: bo
   const m = Math.floor(timeLeft / 60);
   const s = timeLeft % 60;
   return (
-    <div style={{ fontSize: '3.5rem', fontWeight: 900, lineHeight: 1 }}>
+    <div style={{ fontSize: '4vw', fontWeight: 900, lineHeight: 1 }}>
       {m}:{s.toString().padStart(2, '0')}
     </div>
   );
@@ -54,12 +54,10 @@ export default function FanWallPage() {
     setLoading(false);
   }
 
-  // Load event initially
   useEffect(() => {
     loadEvent();
   }, [eventId]);
 
-  // Real-time updates
   useEffect(() => {
     if (!eventId) return;
 
@@ -162,11 +160,11 @@ export default function FanWallPage() {
           )}
         </div>
 
-        {/* ---------- LOGO (LOCKED + LARGE) ---------- */}
+        {/* ---------- LOGO ---------- */}
         <div
           style={{
             position: 'absolute',
-            top: '28%',
+            top: '30%',
             left: '72%',
             transform: 'translate(-50%, -50%)',
             width: '600px',
@@ -209,24 +207,47 @@ export default function FanWallPage() {
         <div
           style={{
             position: 'absolute',
-            top: '63%',
+            top: '65%',
             left: '72%',
             transform: 'translate(-50%, -50%)',
             textAlign: 'center',
             color: '#fff',
-            maxWidth: '90%',
+            width: '80%',
+            whiteSpace: 'nowrap',
           }}
         >
           {event.countdown ? (
             <>
-              <h2 className="fz-heading">Fan Zone Wall Starting In</h2>
+              <h2
+                style={{
+                  fontWeight: 600,
+                  textShadow: '0 0 10px rgba(0,0,0,0.6)',
+                  fontSize: '2.5vw',
+                  marginBottom: 10,
+                }}
+              >
+                Fan Zone Wall Starting In
+              </h2>
               <CountdownDisplay
                 countdown={event.countdown}
                 isLive={event.status === 'live'}
               />
             </>
           ) : (
-            <h2 className="fz-message">Fan Zone Wall Starting Soon!!</h2>
+            <h2
+              style={{
+                fontWeight: 700,
+                textShadow: '0 0 15px rgba(0,0,0,0.7)',
+                margin: 0,
+                fontSize: '4.5vw',
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                lineHeight: 1,
+              }}
+            >
+              Fan Zone Wall Starting Soon!!
+            </h2>
           )}
         </div>
       </div>
@@ -275,67 +296,6 @@ export default function FanWallPage() {
           />
         </svg>
       </div>
-
-      {/* ---------- STYLES ---------- */}
-      <style jsx>{`
-        @keyframes pulse {
-          0% {
-            opacity: 1;
-            transform: scale(1);
-          }
-          50% {
-            opacity: 0.6;
-            transform: scale(1.05);
-          }
-          100% {
-            opacity: 1;
-            transform: scale(1);
-          }
-        }
-
-        .fz-message {
-          font-weight: 700;
-          text-shadow: 0 0 15px rgba(0, 0, 0, 0.7);
-          margin: 0;
-          animation: pulse 2s infinite;
-          /* 🔥 Responsive scaling */
-          font-size: 4vw;
-        }
-
-        .fz-heading {
-          font-weight: 600;
-          text-shadow: 0 0 10px rgba(0, 0, 0, 0.6);
-          margin-bottom: 10px;
-          font-size: 2.5vw;
-        }
-
-        @media (max-width: 1200px) {
-          .fz-message {
-            font-size: 5vw;
-          }
-          .fz-heading {
-            font-size: 3vw;
-          }
-        }
-
-        @media (max-width: 800px) {
-          .fz-message {
-            font-size: 6vw;
-          }
-          .fz-heading {
-            font-size: 3.5vw;
-          }
-        }
-
-        @media (max-width: 500px) {
-          .fz-message {
-            font-size: 7vw;
-          }
-          .fz-heading {
-            font-size: 4vw;
-          }
-        }
-      `}</style>
     </div>
   );
 }
