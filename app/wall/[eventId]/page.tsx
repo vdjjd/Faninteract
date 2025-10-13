@@ -28,7 +28,7 @@ function CountdownDisplay({ countdown, isLive }: { countdown: string; isLive: bo
     const total = mins ? n * 60 : secs ? n : 0;
     setTimeLeft(total);
     if (!isLive) return;
-    const t = setInterval(() => setTimeLeft(p => (p > 0 ? p - 1 : 0)), 1000);
+    const t = setInterval(() => setTimeLeft((p) => (p > 0 ? p - 1 : 0)), 1000);
     return () => clearInterval(t);
   }, [countdown, isLive]);
 
@@ -66,9 +66,9 @@ export default function FanWallPage() {
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'events', filter: `id=eq.${eventId}` },
-        payload => {
+        (payload) => {
           const updated = payload.new as Partial<EventData>;
-          setEvent(prev => (prev ? { ...prev, ...updated } : (updated as EventData)));
+          setEvent((prev) => (prev ? { ...prev, ...updated } : (updated as EventData)));
         }
       )
       .subscribe();
@@ -117,7 +117,7 @@ export default function FanWallPage() {
         {event.title || 'Fan Zone Wall'}
       </h1>
 
-      {/* ---------- MAIN VISUAL CONTAINER ---------- */}
+      {/* ---------- MAIN CONTAINER ---------- */}
       <div
         style={{
           width: '75vw',
@@ -167,9 +167,9 @@ export default function FanWallPage() {
             top: '30%',
             left: '72%',
             transform: 'translate(-50%, -50%)',
-            width: '600px',
+            width: '700px',
             maxWidth: '95%',
-            height: '260px',
+            height: '300px',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -214,6 +214,9 @@ export default function FanWallPage() {
             color: '#fff',
             width: '80%',
             whiteSpace: 'nowrap',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
           }}
         >
           {event.countdown ? (
@@ -222,28 +225,27 @@ export default function FanWallPage() {
                 style={{
                   fontWeight: 600,
                   textShadow: '0 0 10px rgba(0,0,0,0.6)',
-                  fontSize: '2.5vw',
+                  fontSize: '2.2vw',
                   marginBottom: 10,
                 }}
               >
                 Fan Zone Wall Starting In
               </h2>
-              <CountdownDisplay
-                countdown={event.countdown}
-                isLive={event.status === 'live'}
-              />
+              <CountdownDisplay countdown={event.countdown} isLive={event.status === 'live'} />
             </>
           ) : (
             <h2
               style={{
-                fontWeight: 700,
-                textShadow: '0 0 15px rgba(0,0,0,0.7)',
+                fontWeight: 800,
+                textShadow: '0 0 18px rgba(0,0,0,0.8)',
                 margin: 0,
-                fontSize: '4.5vw',
+                lineHeight: 1,
+                textAlign: 'center',
                 whiteSpace: 'nowrap',
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',
-                lineHeight: 1,
+                fontSize: 'clamp(2rem, 4.5vw, 5rem)',
+                maxWidth: '95%',
               }}
             >
               Fan Zone Wall Starting Soon!!
@@ -272,8 +274,8 @@ export default function FanWallPage() {
           backdropFilter: 'blur(6px)',
           border: '1px solid rgba(255,255,255,0.2)',
         }}
-        onMouseEnter={e => (e.currentTarget.style.opacity = '1')}
-        onMouseLeave={e => (e.currentTarget.style.opacity = '0.15')}
+        onMouseEnter={(e) => (e.currentTarget.style.opacity = '1')}
+        onMouseLeave={(e) => (e.currentTarget.style.opacity = '0.15')}
         onClick={() => {
           if (!document.fullscreenElement)
             document.documentElement.requestFullscreen().catch(console.error);
@@ -289,11 +291,7 @@ export default function FanWallPage() {
           stroke="white"
           style={{ width: 26, height: 26 }}
         >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            d="M3 9V4h5M21 9V4h-5M3 15v5h5M21 15v5h-5"
-          />
+          <path strokeLinecap="round" strokeLinejoin="round" d="M3 9V4h5M21 9V4h-5M3 15v5h5M21 15v5h-5" />
         </svg>
       </div>
     </div>
