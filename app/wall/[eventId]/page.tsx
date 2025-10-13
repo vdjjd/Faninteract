@@ -155,7 +155,7 @@ export default function FanWallPage() {
           )}
         </div>
 
-        {/* ---------- LOGO (responsive scaling) ---------- */}
+        {/* ---------- LOGO ---------- */}
         <div
           style={{
             position: 'absolute',
@@ -197,11 +197,11 @@ export default function FanWallPage() {
           }}
         ></div>
 
-        {/* ---------- MESSAGE (forced 2-line version) ---------- */}
+        {/* ---------- MESSAGE (2-line forced, raised slightly) ---------- */}
         <div
           style={{
             position: 'absolute',
-            top: '63%',
+            top: '60%',
             left: '72%',
             transform: 'translate(-50%, -50%)',
             width: '46%',
@@ -226,13 +226,11 @@ export default function FanWallPage() {
           ) : (
             <h2
               style={{
-                fontWeight: 800,
-                textShadow: '0 0 18px rgba(0,0,0,0.8)',
+                fontWeight: 850,
+                textShadow: '0 0 20px rgba(0,0,0,0.8)',
                 margin: 0,
-                textAlign: 'center',
-                fontSize: 'clamp(2rem, 3vw, 4rem)',
-                lineHeight: 1.15,
-                wordBreak: 'keep-all',
+                fontSize: 'clamp(2.2rem, 3.2vw, 4.2rem)',
+                lineHeight: 1.2,
                 whiteSpace: 'normal',
               }}
             >
@@ -244,7 +242,7 @@ export default function FanWallPage() {
         </div>
       </div>
 
-      {/* ---------- FULLSCREEN BUTTON ---------- */}
+      {/* ---------- FULLSCREEN ---------- */}
       <div
         style={{
           position: 'fixed',
