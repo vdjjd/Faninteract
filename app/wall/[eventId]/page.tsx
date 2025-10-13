@@ -159,10 +159,10 @@ export default function FanWallPage() {
         <div
           style={{
             position: 'absolute',
-            left: 'calc(73%)', // farther right
-            top: '34%', // moved up more
+            left: 'calc(73%)', // right side balance
+            top: '28%', // higher position
             transform: 'translate(-50%, -50%)',
-            width: '540px', // larger
+            width: '540px', // large and bold
             height: '240px',
             borderRadius: '22px',
             background: 'rgba(255,255,255,0.07)',
