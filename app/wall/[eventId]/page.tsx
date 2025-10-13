@@ -18,8 +18,7 @@ interface EventData {
 
 /* ---------- COUNTDOWN ---------- */
 function CountdownDisplay({ countdown, isLive }: { countdown: string; isLive: boolean }) {
-  const [timeLeft, setTimeLeft] = useState<number>(0);
-
+  const [timeLeft, setTimeLeft] = useState(0);
   useEffect(() => {
     if (!countdown) return;
     const n = parseInt(countdown.split(' ')[0]);
@@ -28,20 +27,20 @@ function CountdownDisplay({ countdown, isLive }: { countdown: string; isLive: bo
     const total = mins ? n * 60 : secs ? n : 0;
     setTimeLeft(total);
     if (!isLive) return;
-    const i = setInterval(() => setTimeLeft((p) => (p > 0 ? p - 1 : 0)), 1000);
-    return () => clearInterval(i);
+    const t = setInterval(() => setTimeLeft(p => (p > 0 ? p - 1 : 0)), 1000);
+    return () => clearInterval(t);
   }, [countdown, isLive]);
 
   const m = Math.floor(timeLeft / 60);
   const s = timeLeft % 60;
   return (
-    <div style={{ fontSize: '3rem', fontWeight: 900 }}>
+    <div style={{ fontSize: '3.5rem', fontWeight: 900, lineHeight: 1 }}>
       {m}:{s.toString().padStart(2, '0')}
     </div>
   );
 }
 
-/* ---------- MAIN PAGE ---------- */
+/* ---------- MAIN ---------- */
 export default function FanWallPage() {
   const { eventId } = useParams();
   const [event, setEvent] = useState<EventData | null>(null);
@@ -60,101 +59,80 @@ export default function FanWallPage() {
 
   useEffect(() => {
     if (!eventId) return;
-
-    const channel = supabase
-      .channel(`events-changes-${eventId}`)
+    const ch = supabase
+      .channel(`events-${eventId}`)
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'events', filter: `id=eq.${eventId}` },
-        (payload) => {
-          const updated = payload.new as Partial<EventData>;
-          setEvent((prev) => (prev ? { ...prev, ...updated } : (updated as EventData)));
-        }
+        payload => setEvent(p => (p ? { ...p, ...payload.new } : (payload.new as EventData)))
       )
       .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
+    return () => supabase.removeChannel(ch);
   }, [eventId]);
 
-  const getBackground = (bg?: string, type?: string | null) => {
-    if (!bg) return 'linear-gradient(to bottom right, #1b2735, #090a0f)';
-    if (type === 'image') return `url(${bg}) center/cover no-repeat`;
-    return bg;
-  };
+  const bg =
+    event?.background_type === 'image'
+      ? `url(${event.background_value}) center/cover no-repeat`
+      : event?.background_value || 'linear-gradient(to bottom right,#1b2735,#090a0f)';
 
-  if (loading)
-    return <p className="text-white text-center mt-20">Loading Wall …</p>;
-  if (!event)
-    return <p className="text-white text-center mt-20">Event not found.</p>;
+  if (loading) return <p className="text-white text-center mt-20">Loading Wall …</p>;
+  if (!event) return <p className="text-white text-center mt-20">Event not found.</p>;
 
   return (
     <div
       style={{
-        background: getBackground(event.background_value ?? '', event.background_type),
-        backgroundSize: 'cover',
-        backgroundRepeat: 'no-repeat',
-        backgroundPosition: 'center',
+        background: bg,
         width: '100%',
         height: '100vh',
-        overflow: 'hidden',
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'flex-start',
+        overflow: 'hidden',
         transition: 'background 0.8s ease',
       }}
     >
-      {/* ---- TITLE ---- */}
+      {/* ---------- TITLE ---------- */}
       <h1
         style={{
-          color: 'white',
+          color: '#fff',
           textAlign: 'center',
           textShadow: '0 0 20px rgba(0,0,0,0.6)',
           fontWeight: 900,
           letterSpacing: '1px',
-          width: '80%',
-          maxWidth: '1600px',
           marginTop: '4vh',
           marginBottom: '2vh',
-          fontSize: 'clamp(2rem, 5vw, 5rem)',
-          lineHeight: '1.1',
+          fontSize: 'clamp(2.2rem, 4vw, 5rem)',
+          lineHeight: 1.1,
         }}
       >
         {event.title || 'Fan Zone Wall'}
       </h1>
 
-      {/* ---- MAIN VISUAL CONTAINER ---- */}
+      {/* ---------- MAIN VISUAL CONTAINER ---------- */}
       <div
         style={{
           width: '75vw',
           height: '70vh',
           backdropFilter: 'blur(18px)',
-          background: 'rgba(255, 255, 255, 0.08)',
-          borderRadius: '20px',
-          boxShadow: '10px 10px 30px rgba(0, 0, 0, 0.4)',
+          background: 'rgba(255,255,255,0.08)',
+          borderRadius: 20,
+          boxShadow: '10px 10px 30px rgba(0,0,0,0.4)',
           border: '1px solid rgba(255,255,255,0.15)',
           display: 'flex',
-          flexDirection: 'row',
           alignItems: 'center',
           justifyContent: 'flex-start',
-          color: 'white',
-          textAlign: 'center',
-          fontSize: '1.8rem',
           position: 'relative',
           overflow: 'hidden',
         }}
       >
-        {/* ---- QR CODE CONTAINER ---- */}
+        {/* ---------- QR CODE ---------- */}
         <div
           style={{
             flexBasis: '45%',
             height: 'calc(100% - 40px)',
-            marginLeft: '20px',
-            marginTop: '20px',
-            marginBottom: '20px',
-            borderRadius: '16px',
+            margin: '20px',
+            borderRadius: 16,
             border: '1px solid rgba(255,255,255,0.2)',
             background: 'rgba(255,255,255,0.05)',
             display: 'flex',
@@ -166,23 +144,24 @@ export default function FanWallPage() {
           {event.qr_url ? (
             <img
               src={event.qr_url}
-              alt="QR Code"
-              style={{ width: '75%', height: 'auto', borderRadius: '12px' }}
+              alt="QR"
+              style={{ width: '75%', height: 'auto', borderRadius: 12 }}
             />
           ) : (
-            <p style={{ fontSize: '1rem', opacity: 0.7 }}>QR Placeholder</p>
+            <p style={{ opacity: 0.7 }}>QR Placeholder</p>
           )}
         </div>
 
-        {/* ---- LOGO ABOVE GREY BAR ---- */}
+        {/* ---------- LOGO (LOCKED POSITION) ---------- */}
         <div
           style={{
             position: 'absolute',
-            top: '36%',
+            top: '32%', // ↑ raised from 36 %
             left: '72%',
             transform: 'translate(-50%, -50%)',
-            width: '340px',
-            height: '150px',
+            width: '420px', // ↑ larger fixed width
+            maxWidth: '90%',
+            height: '180px',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -190,7 +169,7 @@ export default function FanWallPage() {
         >
           <img
             src={event.logo_url || '/faninteractlogo.png'}
-            alt="Event or Venue Logo"
+            alt="Logo"
             style={{
               width: '100%',
               height: '100%',
@@ -200,30 +179,31 @@ export default function FanWallPage() {
           />
         </div>
 
-        {/* ---- GREY BAR ---- */}
+        {/* ---------- GREY BAR ---------- */}
         <div
           style={{
             position: 'absolute',
             left: 'calc(45% + 40px)',
             right: '20px',
-            height: '10px',
+            height: 10,
             top: '50%',
             transform: 'translateY(-50%)',
-            borderRadius: '6px',
-            background: 'linear-gradient(to right, #000, #444)',
+            borderRadius: 6,
+            background: 'linear-gradient(to right,#000,#444)',
             boxShadow: '0 0 10px rgba(0,0,0,0.6)',
             opacity: 0.8,
           }}
         ></div>
 
-        {/* ---- COUNTDOWN OR MESSAGE ---- */}
+        {/* ---------- COUNTDOWN / MESSAGE ---------- */}
         <div
           style={{
             position: 'absolute',
-            top: '61%',
+            top: '63%',
             left: '72%',
             transform: 'translate(-50%, -50%)',
             textAlign: 'center',
+            color: '#fff',
           }}
         >
           {event.countdown ? (
@@ -239,7 +219,7 @@ export default function FanWallPage() {
           ) : (
             <h2
               style={{
-                fontSize: '2.5rem',
+                fontSize: '2.6rem',
                 fontWeight: 700,
                 animation: 'pulse 2s infinite',
               }}
@@ -250,7 +230,7 @@ export default function FanWallPage() {
         </div>
       </div>
 
-      {/* ---- FULLSCREEN BUTTON ---- */}
+      {/* ---------- FULLSCREEN BUTTON ---------- */}
       <div
         style={{
           position: 'fixed',
@@ -270,14 +250,12 @@ export default function FanWallPage() {
           backdropFilter: 'blur(6px)',
           border: '1px solid rgba(255,255,255,0.2)',
         }}
-        onMouseEnter={(e) => (e.currentTarget.style.opacity = '1')}
-        onMouseLeave={(e) => (e.currentTarget.style.opacity = '0.15')}
+        onMouseEnter={e => (e.currentTarget.style.opacity = '1')}
+        onMouseLeave={e => (e.currentTarget.style.opacity = '0.15')}
         onClick={() => {
-          if (!document.fullscreenElement) {
+          if (!document.fullscreenElement)
             document.documentElement.requestFullscreen().catch(console.error);
-          } else {
-            document.exitFullscreen();
-          }
+          else document.exitFullscreen();
         }}
         title="Toggle Fullscreen"
       >
