@@ -162,16 +162,16 @@ export default function FanWallPage() {
           )}
         </div>
 
-        {/* ---------- LOGO (LARGER AND HIGHER) ---------- */}
+        {/* ---------- LOGO (LARGE + FIXED) ---------- */}
         <div
           style={{
             position: 'absolute',
             top: '28%',
             left: '72%',
             transform: 'translate(-50%, -50%)',
-            width: '600px', // 🔥 made larger
+            width: '600px',
             maxWidth: '95%',
-            height: '260px', // 🔥 taller logo
+            height: '260px',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -218,7 +218,7 @@ export default function FanWallPage() {
         >
           {event.countdown ? (
             <>
-              <h2 style={{ fontSize: '2rem', marginBottom: 10 }}>
+              <h2 style={{ fontSize: 'clamp(1.5rem, 2vw, 2.5rem)', marginBottom: 10 }}>
                 Fan Zone Wall Starting In
               </h2>
               <CountdownDisplay
@@ -229,9 +229,11 @@ export default function FanWallPage() {
           ) : (
             <h2
               style={{
-                fontSize: '2.6rem',
+                fontSize: 'clamp(1.8rem, 4vw, 3rem)', // 🔥 responsive size
                 fontWeight: 700,
                 animation: 'pulse 2s infinite',
+                textShadow: '0 0 15px rgba(0,0,0,0.7)',
+                margin: 0,
               }}
             >
               Fan Zone Wall Starting Soon!!
