@@ -24,7 +24,6 @@ export default function FanWallPage() {
   // --- Initial Load + Resync ---
   async function loadEvent() {
     if (!eventId) return;
-    console.log('🔄 Loading event data from Supabase...');
     const { data } = await supabase.from('events').select('*').eq('id', eventId).single();
     if (data) setEvent(data);
     setLoading(false);
@@ -42,76 +41,45 @@ export default function FanWallPage() {
     let reconnectTimer: NodeJS.Timeout | null = null;
 
     const subscribeToChannel = () => {
-      console.log(`🔌 Subscribing to realtime channel for event ${eventId}...`);
       channel = supabase
         .channel(`events-changes-${eventId}`)
         .on(
           'postgres_changes',
-          {
-            event: '*',
-            schema: 'public',
-            table: 'events',
-            filter: `id=eq.${eventId}`,
-          },
+          { event: '*', schema: 'public', table: 'events', filter: `id=eq.${eventId}` },
           (payload) => {
-            console.log('⚡ Realtime event update:', payload.new);
             const updated = payload.new as Partial<EventData>;
-            setEvent((prev) =>
-              prev ? { ...prev, ...updated } : (updated as EventData)
-            );
+            setEvent((prev) => (prev ? { ...prev, ...updated } : (updated as EventData)));
           }
         )
-        .subscribe((status) => {
-          console.log('🛰️ Channel status:', status);
-          if (status === 'SUBSCRIBED') {
-            console.log('✅ Connected to realtime channel');
-          } else if (
-            status === 'CLOSED' ||
-            status === 'TIMED_OUT' ||
-            status === 'CHANNEL_ERROR'
-          ) {
-            console.warn('⚠️ Channel disconnected, retrying in 3 seconds...');
-            if (reconnectTimer) clearTimeout(reconnectTimer);
-            reconnectTimer = setTimeout(() => {
-              subscribeToChannel();
-            }, 3000);
-          }
-        });
+        .subscribe();
     };
 
-    // Initial subscribe
     subscribeToChannel();
 
-    // Fallback: resubscribe when tab becomes active again
     const handleVisibility = () => {
       if (document.visibilityState === 'visible') {
-        console.log('🟢 Tab active — resubscribing realtime channel and refreshing state');
-        if (reconnectTimer) clearTimeout(reconnectTimer);
         if (channel) supabase.removeChannel(channel);
         subscribeToChannel();
-        loadEvent(); // ensure we didn’t miss any DB updates
+        loadEvent();
       }
     };
     document.addEventListener('visibilitychange', handleVisibility);
 
     return () => {
       document.removeEventListener('visibilitychange', handleVisibility);
-      if (reconnectTimer) clearTimeout(reconnectTimer);
       if (channel) supabase.removeChannel(channel);
+      if (reconnectTimer) clearTimeout(reconnectTimer);
     };
   }, [eventId]);
 
-  // --- Background Helper ---
   const getBackground = (bg?: string, type?: string | null) => {
     if (!bg) return 'linear-gradient(to bottom right, #1b2735, #090a0f)';
     if (type === 'image') return `url(${bg}) center/cover no-repeat`;
     return bg;
   };
 
-  if (loading)
-    return <p className="text-white text-center mt-20">Loading Wall …</p>;
-  if (!event)
-    return <p className="text-white text-center mt-20">Event not found.</p>;
+  if (loading) return <p className="text-white text-center mt-20">Loading Wall …</p>;
+  if (!event) return <p className="text-white text-center mt-20">Event not found.</p>;
 
   return (
     <div
@@ -199,36 +167,48 @@ export default function FanWallPage() {
           )}
         </div>
 
-        {/* ---- Logo Container (Adjusted) ---- */}
+        {/* ---- Right Section Wrapper ---- */}
         <div
           style={{
             position: 'absolute',
-            top: '40px',
-            left: 'calc(45% + 50%)', // shifts right side horizontally
-            transform: 'translateX(-50%)',
+            left: '45%',
+            right: 0,
+            top: 0,
+            bottom: 0,
             display: 'flex',
-            alignItems: 'center',
+            alignItems: 'flex-start',
             justifyContent: 'center',
-            width: '220px',
-            height: '100px',
-            borderRadius: '12px',
-            background: 'rgba(255,255,255,0.05)',
-            border: '1px solid rgba(255,255,255,0.2)',
-            boxShadow: 'inset 0 0 10px rgba(255,255,255,0.1)',
-            overflow: 'hidden',
-            padding: '10px',
+            pointerEvents: 'none',
           }}
         >
-          <img
-            src={event.logo_url || '/faninteractlogo.png'}
-            alt="Event or Venue Logo"
+          {/* ---- Logo Container (now centered above grey bar) ---- */}
+          <div
             style={{
-              width: '100%',
-              height: '100%',
-              objectFit: 'contain',
-              filter: 'drop-shadow(0 0 6px rgba(0,0,0,0.6))',
+              marginTop: '40px',
+              width: '220px',
+              height: '100px',
+              borderRadius: '12px',
+              background: 'rgba(255,255,255,0.05)',
+              border: '1px solid rgba(255,255,255,0.2)',
+              boxShadow: 'inset 0 0 10px rgba(255,255,255,0.1)',
+              overflow: 'hidden',
+              padding: '10px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
             }}
-          />
+          >
+            <img
+              src={event.logo_url || '/faninteractlogo.png'}
+              alt="Event or Venue Logo"
+              style={{
+                width: '100%',
+                height: '100%',
+                objectFit: 'contain',
+                filter: 'drop-shadow(0 0 6px rgba(0,0,0,0.6))',
+              }}
+            />
+          </div>
         </div>
 
         {/* ---- Horizontal Divider Line ---- */}
