@@ -21,7 +21,6 @@ export default function FanWallPage() {
   const [event, setEvent] = useState<EventData | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // --- Initial Load ---
   async function loadEvent() {
     if (!eventId) return;
     const { data } = await supabase.from('events').select('*').eq('id', eventId).single();
@@ -33,7 +32,6 @@ export default function FanWallPage() {
     loadEvent();
   }, [eventId]);
 
-  // --- Realtime Sync ---
   useEffect(() => {
     if (!eventId) return;
 
@@ -62,14 +60,12 @@ export default function FanWallPage() {
     };
   }, [eventId]);
 
-  // --- Background Helper ---
   const getBackground = (bg?: string, type?: string | null) => {
     if (!bg) return 'linear-gradient(to bottom right, #1b2735, #090a0f)';
     if (type === 'image') return `url(${bg}) center/cover no-repeat`;
     return bg;
   };
 
-  // --- Render ---
   if (loading) return <p className="text-white text-center mt-20">Loading Wall …</p>;
   if (!event) return <p className="text-white text-center mt-20">Event not found.</p>;
 
@@ -159,19 +155,19 @@ export default function FanWallPage() {
           )}
         </div>
 
-        {/* ---- Logo Container (Perfectly Centered Above Divider) ---- */}
+        {/* ---- Logo Container (Moved Right & Up, Larger) ---- */}
         <div
           style={{
             position: 'absolute',
-            left: 'calc(67%)',
-            top: '42%',
+            left: 'calc(70%)', // moved further right
+            top: '38%', // moved slightly up
             transform: 'translate(-50%, -50%)',
-            width: '420px',
-            height: '180px',
-            borderRadius: '18px',
+            width: '480px', // increased size
+            height: '200px',
+            borderRadius: '20px',
             background: 'rgba(255,255,255,0.06)',
             border: '1px solid rgba(255,255,255,0.25)',
-            boxShadow: 'inset 0 0 15px rgba(255,255,255,0.15)',
+            boxShadow: 'inset 0 0 18px rgba(255,255,255,0.15)',
             overflow: 'hidden',
             padding: '12px',
             display: 'flex',
