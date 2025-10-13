@@ -22,6 +22,7 @@ export default function FanWallPage() {
   const [loading, setLoading] = useState(true);
   const [timeLeft, setTimeLeft] = useState<number | null>(null);
 
+  // --- Initial Load ---
   async function loadEvent() {
     if (!eventId) return;
     const { data } = await supabase.from('events').select('*').eq('id', eventId).single();
@@ -33,8 +34,10 @@ export default function FanWallPage() {
     loadEvent();
   }, [eventId]);
 
+  // --- Realtime Updates (Fixed for TypeScript) ---
   useEffect(() => {
     if (!eventId) return;
+
     const channel = supabase
       .channel(`events-changes-${eventId}`)
       .on(
@@ -44,12 +47,16 @@ export default function FanWallPage() {
           const updated = payload.new as Partial<EventData>;
           setEvent((prev) => (prev ? { ...prev, ...updated } : (updated as EventData)));
         }
-      )
-      .subscribe();
-    return () => supabase.removeChannel(channel);
+      );
+
+    channel.subscribe(); // ✅ separate call to avoid async return issue
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [eventId]);
 
-  // Countdown logic
+  // --- Countdown Logic ---
   useEffect(() => {
     if (!event?.countdown) {
       setTimeLeft(null);
@@ -121,7 +128,7 @@ export default function FanWallPage() {
           {event.title || 'Fan Zone Wall'}
         </h1>
 
-        {/* ---- MSV Container ---- */}
+        {/* ---- Main Visual Container ---- */}
         <div
           style={{
             width: '75vw',
@@ -218,7 +225,7 @@ export default function FanWallPage() {
           <div
             style={{
               position: 'absolute',
-              left: '72%', // 👈 shifted right to align with grey bar
+              left: '72%', // aligned with divider bar
               top: '63%',
               transform: 'translate(-50%, -50%)',
               textAlign: 'center',
