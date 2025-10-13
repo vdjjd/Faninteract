@@ -199,12 +199,12 @@ export default function FanWallPage() {
           )}
         </div>
 
-        {/* ---- Logo Container (NEW) ---- */}
+        {/* ---- Logo Container (Adjusted) ---- */}
         <div
           style={{
             position: 'absolute',
             top: '40px',
-            left: '50%',
+            left: 'calc(45% + 50%)', // shifts right side horizontally
             transform: 'translateX(-50%)',
             display: 'flex',
             alignItems: 'center',
