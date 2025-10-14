@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
+import { QRCodeCanvas } from "qrcode.react";
 
 interface EventData {
   id: string;
@@ -161,15 +162,24 @@ export default function FanWallPage() {
               boxShadow: 'inset 0 0 15px rgba(255,255,255,0.1)',
             }}
           >
-            {event.qr_url ? (
-              <img
-                src={event.qr_url}
-                alt="QR"
-                style={{ width: '75%', height: 'auto', borderRadius: 12 }}
-              />
-            ) : (
-              <p style={{ opacity: 0.7 }}>QR Placeholder</p>
-            )}
+         {event ? (
+  <QRCodeCanvas
+    value={`${window.location.origin}/fan/${event.id}`}
+    size={260}
+    bgColor="#ffffff"
+    fgColor="#000000"
+    level="H"
+    includeMargin={false}
+    style={{
+      borderRadius: 12,
+      width: "75%",
+      height: "auto",
+      boxShadow: "0 0 10px rgba(0,0,0,0.4)"
+    }}
+  />
+) : (
+  <p style={{ opacity: 0.7 }}>Generating QR...</p>
+)}
           </div>
 
           {/* ---------- LOGO ---------- */}
