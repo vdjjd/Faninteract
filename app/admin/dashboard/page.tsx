@@ -164,7 +164,6 @@ export default function DashboardPage() {
       <h1 style={{ marginBottom: 15 }}>🎛 Host Dashboard</h1>
       <img src="/faninteractlogo.png" alt="FanInteract Logo" style={{ width: 110, marginBottom: 10 }} />
 
-      {/* CREATE NEW WALL */}
       {!creatingNew ? (
         <button onClick={() => setCreatingNew(true)} style={buttonStyle}>➕ New Fan Zone Wall</button>
       ) : (
@@ -186,7 +185,6 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* GRID OF WALL CARDS */}
       <div style={gridStyle}>
         {events.map((event) => (
           <div
@@ -239,7 +237,6 @@ export default function DashboardPage() {
         ))}
       </div>
 
-      {/* OPTIONS MODAL */}
       {selectedEvent && (
         <div
           id="options-modal"
@@ -256,9 +253,7 @@ export default function DashboardPage() {
             type="text"
             value={selectedEvent.host_title || ''}
             style={{ ...inputStyle, width: '88%' }}
-            onChange={(e) =>
-              setSelectedEvent({ ...selectedEvent, host_title: e.target.value })
-            }
+            onChange={(e) => setSelectedEvent({ ...selectedEvent, host_title: e.target.value })}
           />
 
           <label>Public Title:</label>
@@ -266,19 +261,14 @@ export default function DashboardPage() {
             type="text"
             value={selectedEvent.title || ''}
             style={{ ...inputStyle, width: '95%' }}
-            onChange={(e) =>
-              setSelectedEvent({ ...selectedEvent, title: e.target.value })
-            }
+            onChange={(e) => setSelectedEvent({ ...selectedEvent, title: e.target.value })}
           />
 
           <label>Countdown:</label>
           <select
             style={inputStyle}
             value={selectedEvent.countdown || 'none'}
-            onChange={(e) => {
-              const val = e.target.value;
-              setSelectedEvent({ ...selectedEvent, countdown: val === 'none' ? null : val });
-            }}
+            onChange={(e) => setSelectedEvent({ ...selectedEvent, countdown: e.target.value === 'none' ? null : e.target.value })}
           >
             <option value="none">No Countdown / Start Immediately</option>
             {[
@@ -288,7 +278,6 @@ export default function DashboardPage() {
             ].map((opt) => <option key={opt}>{opt}</option>)}
           </select>
 
-          {/* 💡 LAYOUT TYPE DROPDOWN */}
           <label>Layout Type:</label>
           <select
             style={inputStyle}
@@ -301,7 +290,6 @@ export default function DashboardPage() {
             <option>1 Column × 2 Row</option>
           </select>
 
-          {/* 🎞 POST TRANSITION DROPDOWN */}
           {selectedEvent.layout_type === 'Single Highlight Post' && (
             <>
               <label>Post Transition:</label>
@@ -352,6 +340,49 @@ export default function DashboardPage() {
             >
               {saving ? 'Saving…' : '💾 Save Changes'}
             </button>
+          </div>
+
+          {/* COLOR & GRADIENT PICKERS */}
+          <h4 style={{ marginTop: 10 }}>Solid Colors</h4>
+          <div style={colorGrid}>
+            {[
+              '#e53935','#d81b60','#8e24aa','#5e35b1','#3949ab','#1e88e5','#039be5','#00acc1',
+              '#00897b','#43a047','#7cb342','#c0ca33','#fdd835','#fb8c00','#f4511e','#6d4c41',
+            ].map((c) => (
+              <div
+                key={c}
+                style={{ ...colorCircle, background: c }}
+                onClick={() => handleBackgroundChange(selectedEvent, c)}
+              />
+            ))}
+          </div>
+
+          <h4 style={{ marginTop: 10 }}>Gradients</h4>
+          <div style={colorGrid}>
+            {[
+              'linear-gradient(135deg,#002244,#69BE28)',
+              'linear-gradient(135deg,#00338D,#C60C30)',
+              'linear-gradient(135deg,#203731,#FFB612)',
+              'linear-gradient(135deg,#0B2265,#A71930)',
+              'linear-gradient(135deg,#241773,#9E7C0C)',
+              'linear-gradient(135deg,#03202F,#FB4F14)',
+              'linear-gradient(135deg,#002244,#B0B7BC)',
+              'linear-gradient(135deg,#002C5F,#FFC20E)',
+              'linear-gradient(135deg,#E31837,#C60C30)',
+              'linear-gradient(135deg,#002C5F,#A5ACAF)',
+              'linear-gradient(135deg,#5A1414,#D3BC8D)',
+              'linear-gradient(135deg,#4F2683,#FFC62F)',
+              'linear-gradient(135deg,#A71930,#FFB612)',
+              'linear-gradient(135deg,#000000,#FB4F14)',
+              'linear-gradient(135deg,#004C54,#A5ACAF)',
+              'linear-gradient(135deg,#A5ACAF,#0B2265)',
+            ].map((g) => (
+              <div
+                key={g}
+                style={{ ...colorCircle, background: g }}
+                onClick={() => handleBackgroundChange(selectedEvent, g)}
+              />
+            ))}
           </div>
 
           <div style={{ marginTop: 18 }}>
@@ -451,36 +482,4 @@ const smallBtn: React.CSSProperties = {
 
 const clearBtn = { ...smallBtn, backgroundColor: '#00bcd4', fontWeight: 600 };
 const launchBtn = { ...smallBtn, backgroundColor: '#007bff', fontWeight: 600 };
-const playBtn = { ...smallBtn, backgroundColor: '#16a34a', fontWeight: 600 };
-const stopBtn = { ...smallBtn, backgroundColor: '#d12f2f', fontWeight: 600 };
-const deleteBtn = { ...smallBtn, backgroundColor: '#a33' };
-const optionsBtn = { ...smallBtn, backgroundColor: '#1e90ff' };
-const pendingBtn = { ...smallBtn, backgroundColor: '#ffaa00', fontWeight: 600 };
-const cancelBtn = { ...smallBtn, backgroundColor: '#a33', width: '100%' };
-
-const confirmOverlay: React.CSSProperties = {
-  position: 'absolute',
-  top: '50%',
-  left: '50%',
-  transform: 'translate(-50%,-50%)',
-  background: '#222',
-  border: '1px solid #555',
-  borderRadius: 10,
-  padding: '12px 16px',
-  boxShadow: '0 0 10px rgba(0,0,0,0.6)',
-  zIndex: 10,
-  textAlign: 'center',
-};
-
-const modalBox: React.CSSProperties = {
-  position: 'fixed',
-  top: '50%',
-  left: '50%',
-  transform: 'translate(-50%,-50%)',
-  padding: 15,
-  borderRadius: 10,
-  width: 320,
-  zIndex: 999,
-  boxShadow: '0 0 20px rgba(0,0,0,0.7)',
-  color: '#fff',
-};
+const playBtn = { ...smallBtn, backgroundColor: '#16a34a', fontWeight: 
