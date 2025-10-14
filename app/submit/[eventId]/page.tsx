@@ -88,24 +88,31 @@ export default function GuestInfoPage() {
     await new Promise((res) => setTimeout(res, 600));
 
     /* ---------------- INSERT INTO GUESTS TABLE ---------------- */
-    const { data, error: insertError } = await supabase.from('guests').insert([
-      {
-        event_id: eventId,
-        first_name: firstName?.trim(),
-        last_name: lastName?.trim(),
-        email: email?.trim() || null,
-        phone: phone?.trim() || null,
-        nickname: nickname?.trim() || null,
-        age: age ? parseInt(age) : null,
-      },
-    ]);
+const { data, error: insertError } = await supabase
+  .from('guests')
+  .insert([
+    {
+      event_id: eventId,
+      first_name: firstName?.trim(),
+      last_name: lastName?.trim(),
+      email: email?.trim() || null,
+      phone: phone?.trim() || null,
+      nickname: nickname?.trim() || null,
+      age: age ? parseInt(age) : null,
+    },
+  ])
+  .select(); // 👈 this lets us see what Supabase actually returns
 
-    if (insertError) {
-      console.error('❌ Supabase insert error:', insertError);
-      setError('Something went wrong saving your info. Please try again.');
-      setSubmitting(false);
-      return;
-    }
+if (insertError) {
+  console.error('❌ Supabase insert error:', insertError);
+  alert(`Insert failed: ${insertError.message}`);
+  setError('Something went wrong. Please try again.');
+  setSubmitting(false);
+  return;
+} else {
+  console.log('✅ Insert success:', data);
+  alert('Guest successfully added!'); // temporary check
+}
 
     console.log('✅ Guest inserted successfully:', data);
 
