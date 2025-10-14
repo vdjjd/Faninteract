@@ -277,34 +277,51 @@ export default function DashboardPage() {
             value={selectedEvent.countdown || 'none'}
             onChange={(e) => {
               const val = e.target.value;
-              if (val === 'none') {
-                setSelectedEvent({ ...selectedEvent, countdown: null });
-              } else {
-                setSelectedEvent({ ...selectedEvent, countdown: val });
-              }
+              setSelectedEvent({ ...selectedEvent, countdown: val === 'none' ? null : val });
             }}
           >
             <option value="none">No Countdown / Start Immediately</option>
-            <option value="30 Seconds">30 Seconds</option>
-            <option value="1 Minute">1 Minute</option>
-            <option value="2 Minutes">2 Minutes</option>
-            <option value="3 Minutes">3 Minutes</option>
-            <option value="4 Minutes">4 Minutes</option>
-            <option value="5 Minutes">5 Minutes</option>
-            <option value="10 Minutes">10 Minutes</option>
-            <option value="15 Minutes">15 Minutes</option>
-            <option value="20 Minutes">20 Minutes</option>
-            <option value="25 Minutes">25 Minutes</option>
-            <option value="30 Minutes">30 Minutes</option>
-            <option value="35 Minutes">35 Minutes</option>
-            <option value="40 Minutes">40 Minutes</option>
-            <option value="45 Minutes">45 Minutes</option>
-            <option value="50 Minutes">50 Minutes</option>
-            <option value="55 Minutes">55 Minutes</option>
-            <option value="60 Minutes">60 Minutes</option>
+            {[
+              '30 Seconds','1 Minute','2 Minutes','3 Minutes','4 Minutes','5 Minutes',
+              '10 Minutes','15 Minutes','20 Minutes','25 Minutes','30 Minutes',
+              '35 Minutes','40 Minutes','45 Minutes','50 Minutes','55 Minutes','60 Minutes',
+            ].map((opt) => <option key={opt}>{opt}</option>)}
           </select>
 
-          {/* 💾 SAVE CHANGES BUTTON */}
+          {/* 💡 LAYOUT TYPE DROPDOWN */}
+          <label>Layout Type:</label>
+          <select
+            style={inputStyle}
+            value={selectedEvent.layout_type || 'Single Highlight Post'}
+            onChange={(e) => setSelectedEvent({ ...selectedEvent, layout_type: e.target.value })}
+          >
+            <option>Single Highlight Post</option>
+            <option>2 Column × 2 Row</option>
+            <option>4 Column × 2 Row</option>
+            <option>1 Column × 2 Row</option>
+          </select>
+
+          {/* 🎞 POST TRANSITION DROPDOWN */}
+          {selectedEvent.layout_type === 'Single Highlight Post' && (
+            <>
+              <label>Post Transition:</label>
+              <select
+                style={inputStyle}
+                value={selectedEvent.post_transition || 'Fade In / Fade Out'}
+                onChange={(e) => setSelectedEvent({ ...selectedEvent, post_transition: e.target.value })}
+              >
+                <option>Fade In / Fade Out</option>
+                <option>Slide Up / Slide Out</option>
+                <option>Slide Down / Slide Out</option>
+                <option>Slide Left / Slide Right</option>
+                <option>Zoom In / Zoom Out</option>
+                <option>Flip</option>
+                <option>Rotate In / Rotate Out</option>
+              </select>
+            </>
+          )}
+
+          {/* 💾 SAVE CHANGES */}
           <div style={{ marginTop: 10, textAlign: 'center' }}>
             <button
               disabled={saving}
@@ -316,6 +333,8 @@ export default function DashboardPage() {
                     host_title: selectedEvent.host_title || '',
                     title: selectedEvent.title || '',
                     countdown: selectedEvent.countdown || null,
+                    layout_type: selectedEvent.layout_type || 'Single Highlight Post',
+                    post_transition: selectedEvent.post_transition || 'Fade In / Fade Out',
                     updated_at: new Date().toISOString(),
                   })
                   .eq('id', selectedEvent.id);
@@ -335,48 +354,6 @@ export default function DashboardPage() {
             </button>
           </div>
 
-          <h4 style={{ marginTop: 10 }}>Solid Colors</h4>
-          <div style={colorGrid}>
-            {[
-              '#e53935','#d81b60','#8e24aa','#5e35b1','#3949ab','#1e88e5','#039be5','#00acc1',
-              '#00897b','#43a047','#7cb342','#c0ca33','#fdd835','#fb8c00','#f4511e','#6d4c41',
-            ].map((c) => (
-              <div
-                key={c}
-                style={{ ...colorCircle, background: c }}
-                onClick={() => handleBackgroundChange(selectedEvent, c)}
-              />
-            ))}
-          </div>
-
-          <h4 style={{ marginTop: 10 }}>Gradients</h4>
-          <div style={colorGrid}>
-            {[
-              'linear-gradient(135deg,#002244,#69BE28)',
-              'linear-gradient(135deg,#00338D,#C60C30)',
-              'linear-gradient(135deg,#203731,#FFB612)',
-              'linear-gradient(135deg,#0B2265,#A71930)',
-              'linear-gradient(135deg,#241773,#9E7C0C)',
-              'linear-gradient(135deg,#03202F,#FB4F14)',
-              'linear-gradient(135deg,#002244,#B0B7BC)',
-              'linear-gradient(135deg,#002C5F,#FFC20E)',
-              'linear-gradient(135deg,#E31837,#C60C30)',
-              'linear-gradient(135deg,#002C5F,#A5ACAF)',
-              'linear-gradient(135deg,#5A1414,#D3BC8D)',
-              'linear-gradient(135deg,#4F2683,#FFC62F)',
-              'linear-gradient(135deg,#A71930,#FFB612)',
-              'linear-gradient(135deg,#000000,#FB4F14)',
-              'linear-gradient(135deg,#004C54,#A5ACAF)',
-              'linear-gradient(135deg,#A5ACAF,#0B2265)',
-            ].map((g) => (
-              <div
-                key={g}
-                style={{ ...colorCircle, background: g }}
-                onClick={() => handleBackgroundChange(selectedEvent, g)}
-              />
-            ))}
-          </div>
-
           <div style={{ marginTop: 18 }}>
             <button onClick={() => setSelectedEvent(null)} style={cancelBtn}>
               ✖ Close
@@ -389,7 +366,7 @@ export default function DashboardPage() {
 }
 
 /* ---------------- STYLE CONSTANTS ---------------- */
-const pageStyle: React.CSSProperties = {
+const pageStyle = {
   display: 'flex',
   flexDirection: 'column',
   alignItems: 'center',
@@ -400,7 +377,6 @@ const pageStyle: React.CSSProperties = {
   padding: '20px 10px',
   fontFamily: 'system-ui,sans-serif',
 };
-
 const buttonStyle = {
   backgroundColor: '#1e90ff',
   border: 'none',
@@ -410,7 +386,6 @@ const buttonStyle = {
   fontWeight: 600,
   cursor: 'pointer',
 };
-
 const newCardOverlay = {
   width: 250,
   marginTop: 15,
@@ -420,13 +395,7 @@ const newCardOverlay = {
   textAlign: 'center' as const,
   boxShadow: '0 0 10px rgba(0,0,0,0.3)',
 };
-
-const newCardBox = {
-  display: 'flex',
-  flexDirection: 'column' as const,
-  alignItems: 'center',
-};
-
+const newCardBox = { display: 'flex', flexDirection: 'column' as const, alignItems: 'center' };
 const gridStyle = {
   marginTop: 15,
   display: 'grid',
@@ -436,7 +405,6 @@ const gridStyle = {
   maxWidth: 1080,
   justifyItems: 'center' as const,
 };
-
 const cardStyle = {
   borderRadius: 10,
   padding: 10,
@@ -447,7 +415,6 @@ const cardStyle = {
   maxWidth: 230,
   transition: 'all 0.3s ease',
 };
-
 const cardButtons = {
   display: 'flex',
   gap: 6,
@@ -455,13 +422,7 @@ const cardButtons = {
   justifyContent: 'center' as const,
   marginTop: 6,
 };
-
-const cardFooter = {
-  display: 'flex',
-  justifyContent: 'space-between' as const,
-  marginTop: 8,
-};
-
+const cardFooter = { display: 'flex', justifyContent: 'space-between' as const, marginTop: 8 };
 const smallBtn = {
   backgroundColor: '#444',
   border: 'none',
@@ -471,7 +432,6 @@ const smallBtn = {
   cursor: 'pointer',
   fontSize: 12,
 };
-
 const clearBtn = { ...smallBtn, backgroundColor: '#00bcd4', fontWeight: 600 };
 const launchBtn = { ...smallBtn, backgroundColor: '#007bff', fontWeight: 600 };
 const playBtn = { ...smallBtn, backgroundColor: '#16a34a', fontWeight: 600 };
@@ -480,7 +440,6 @@ const deleteBtn = { ...smallBtn, backgroundColor: '#a33' };
 const optionsBtn = { ...smallBtn, backgroundColor: '#1e90ff' };
 const pendingBtn = { ...smallBtn, backgroundColor: '#ffaa00', fontWeight: 600 };
 const cancelBtn = { ...smallBtn, backgroundColor: '#a33', width: '100%' };
-
 const confirmOverlay = {
   position: 'absolute' as const,
   top: '50%',
@@ -494,7 +453,6 @@ const confirmOverlay = {
   zIndex: 10,
   textAlign: 'center' as const,
 };
-
 const modalBox = {
   position: 'fixed' as const,
   top: '50%',
@@ -506,20 +464,4 @@ const modalBox = {
   zIndex: 999,
   boxShadow: '0 0 20px rgba(0,0,0,0.7)',
   color: '#fff',
-};
-
-const colorGrid = {
-  display: 'grid',
-  gridTemplateColumns: 'repeat(8,1fr)',
-  gap: 6,
-  marginTop: 5,
-};
-
-const colorCircle = {
-  width: 20,
-  height: 20,
-  borderRadius: '50%',
-  cursor: 'pointer',
-  border: '1px solid #555',
-  transition: 'transform 0.2s ease, background 0.5s ease',
 };
