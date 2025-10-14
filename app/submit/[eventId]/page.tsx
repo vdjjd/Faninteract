@@ -64,23 +64,21 @@ export default function GuestInfoPage() {
   return (
     <div
       style={{
-        height: '100dvh', // dynamic full viewport height
+        height: '100dvh',
         width: '100vw',
-        background: '#000', // outer background black
+        background: '#000',
         display: 'flex',
         justifyContent: 'center',
         alignItems: 'center',
         fontFamily: 'system-ui, sans-serif',
         overflow: 'hidden',
-        padding: 0,
-        margin: 0,
       }}
     >
       <div
         style={{
           width: '92%',
           maxWidth: 460,
-          height: 'min(92dvh, 700px)', // fits within most screens but shrinks gracefully
+          height: 'min(92dvh, 700px)',
           display: 'flex',
           justifyContent: 'center',
           alignItems: 'center',
@@ -141,7 +139,16 @@ export default function GuestInfoPage() {
           </p>
 
           {/* FIELDS */}
-          <div style={{ width: '100%', textAlign: 'center' }}>
+          <div
+            style={{
+              width: '100%',
+              textAlign: 'center',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: 10,
+            }}
+          >
             <input
               type="text"
               name="firstName"
@@ -197,7 +204,7 @@ export default function GuestInfoPage() {
           <button
             type="submit"
             style={{
-              width: '100%',
+              width: '88%',
               backgroundColor: '#1e90ff',
               border: 'none',
               padding: '14px 0',
@@ -207,12 +214,13 @@ export default function GuestInfoPage() {
               cursor: 'pointer',
               fontSize: 17,
               boxShadow: '0 0 15px rgba(30,144,255,0.4)',
+              marginTop: 8,
             }}
           >
             Join
           </button>
 
-          <p style={{ fontSize: 11, color: '#bbb', marginTop: 6 }}>
+          <p style={{ fontSize: 11, color: '#bbb', marginTop: 8 }}>
             By joining, you accept our{' '}
             <a href="#" style={{ color: '#1e90ff' }}>
               Terms
@@ -230,9 +238,8 @@ export default function GuestInfoPage() {
 
 /* ---------------- STYLES ---------------- */
 const inputStyle: React.CSSProperties = {
-  width: '100%',
+  width: '88%',
   padding: '12px 14px',
-  marginBottom: 10,
   borderRadius: 6,
   border: '1px solid #444',
   background: '#000',
