@@ -20,17 +20,36 @@ export default function GuestInfoPage() {
   });
   const [error, setError] = useState('');
 
+  // ✅ Load + Subscribe to Event (Realtime)
   useEffect(() => {
+    if (!eventId) return;
+
     async function fetchEvent() {
-      const { data, error } = await supabase
+      const { data } = await supabase
         .from('events')
         .select('title, background_value, logo_url')
         .eq('id', eventId)
         .single();
-      if (!error) setEvent(data);
+      if (data) setEvent(data);
       setLoading(false);
     }
+
     fetchEvent();
+
+    // Realtime updates for title/logo/background
+    const ch = supabase
+      .channel(`events-${eventId}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'events', filter: `id=eq.${eventId}` },
+        (payload) => {
+          const updated = payload.new;
+          setEvent((prev) => (prev ? { ...prev, ...updated } : updated));
+        }
+      )
+      .subscribe();
+
+    return () => supabase.removeChannel(ch);
   }, [eventId]);
 
   function handleChange(e: any) {
@@ -57,7 +76,8 @@ export default function GuestInfoPage() {
     router.push(`/submit/${eventId}/post`);
   }
 
-  if (loading) return <p style={{ textAlign: 'center', color: '#fff' }}>Loading...</p>;
+  if (loading)
+    return <p style={{ textAlign: 'center', color: '#fff' }}>Loading...</p>;
 
   return (
     <div
@@ -89,33 +109,34 @@ export default function GuestInfoPage() {
           justifyContent: 'center',
         }}
       >
-{/* Logo */}
-<img
-  src={event?.logo_url || '/faninteractlogo.png'}
-  alt="Logo"
-  style={{
-    width: 300,
-    height: 300,
-    objectFit: 'contain',
-    marginBottom: -10, // tighter to title
-    marginTop: -20,    // pull up closer to form top
-    filter: 'drop-shadow(0 0 14px rgba(255,255,255,0.3))',
-    display: 'block',
-  }}
-/>
+        {/* Logo */}
+        <img
+          src={event?.logo_url || '/faninteractlogo.png'}
+          alt="Logo"
+          style={{
+            width: 300,
+            height: 300,
+            objectFit: 'contain',
+            marginBottom: -6,  // tighter to title
+            marginTop: -20,    // pull up closer to form top
+            filter: 'drop-shadow(0 0 14px rgba(255,255,255,0.3))',
+            display: 'block',
+          }}
+        />
 
-{/* Wall Title */}
-<h2
-  style={{
-    fontSize: 'clamp(1.5rem, 2.5vw, 2.2rem)',
-    marginTop: -18,      // reduced space under logo
-    marginBottom: 10,    // tighter spacing before subtext
-    fontWeight: 700,
-    textShadow: '0 0 12px rgba(0,0,0,0.6)',
-  }}
->
-  {event?.title || 'FanInteract Wall'}
-</h2>
+        {/* Wall Title (auto-updating) */}
+        <h2
+          style={{
+            fontSize: 'clamp(1.5rem, 2.5vw, 2.2rem)',
+            marginTop: -12,     // reduced more spacing
+            marginBottom: 10,   // tighter before text
+            fontWeight: 700,
+            textShadow: '0 0 12px rgba(0,0,0,0.6)',
+          }}
+        >
+          {event?.title || 'FanInteract Wall'}
+        </h2>
+
         <p style={{ fontSize: 14, color: '#ddd', marginBottom: 20 }}>
           Please complete the fields below to join the wall.
         </p>
@@ -148,7 +169,9 @@ export default function GuestInfoPage() {
               outline: 'none',
               transition: 'all 0.3s ease',
             }}
-            onFocus={(e) => (e.currentTarget.style.boxShadow = '0 0 10px #fff')}
+            onFocus={(e) =>
+              (e.currentTarget.style.boxShadow = '0 0 10px #fff')
+            }
             onBlur={(e) => (e.currentTarget.style.boxShadow = 'none')}
           />
         ))}
