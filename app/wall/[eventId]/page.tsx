@@ -59,16 +59,16 @@ export default function FanWallPage() {
   useEffect(() => {
     if (!eventId) return;
     const ch = supabase
-      .channel(`events-${eventId}`)
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'events', filter: `id=eq.${eventId}` },
-        (payload) => {
-          const updated = payload.new as Partial<EventData>;
-          setEvent((prev) => (prev ? { ...prev, ...updated } : (updated as EventData)));
-        }
-      )
-      .subscribe();
+  .channel('public:events')
+  .on(
+    'postgres_changes',
+    { event: '*', schema: 'public', table: 'events', filter: `id=eq.${eventId}` },
+    (payload) => {
+      const updated = payload.new as Partial<EventData>;
+      setEvent((prev) => (prev ? { ...prev, ...updated } : (updated as EventData)));
+    }
+  )
+  .subscribe();
     return () => {
       supabase.removeChannel(ch);
     };
