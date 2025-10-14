@@ -89,32 +89,33 @@ export default function GuestInfoPage() {
           justifyContent: 'center',
         }}
       >
-        {/* Logo */}
-        <img
-          src={event?.logo_url || '/faninteractlogo.png'}
-          alt="Logo"
-          style={{
-            width: 300,
-            height: 300,
-            objectFit: 'contain',
-            marginBottom: 0, // tightened
-            filter: 'drop-shadow(0 0 14px rgba(255,255,255,0.3))',
-          }}
-        />
+{/* Logo */}
+<img
+  src={event?.logo_url || '/faninteractlogo.png'}
+  alt="Logo"
+  style={{
+    width: 300,
+    height: 300,
+    objectFit: 'contain',
+    marginBottom: -10, // tighter to title
+    marginTop: -20,    // pull up closer to form top
+    filter: 'drop-shadow(0 0 14px rgba(255,255,255,0.3))',
+    display: 'block',
+  }}
+/>
 
-        {/* Wall Title */}
-        <h2
-          style={{
-            fontSize: 'clamp(1.5rem, 2.5vw, 2.2rem)',
-            marginTop: -10, // closer to logo
-            marginBottom: 18,
-            fontWeight: 700,
-            textShadow: '0 0 12px rgba(0,0,0,0.6)',
-          }}
-        >
-          {event?.title || 'FanInteract Wall'}
-        </h2>
-
+{/* Wall Title */}
+<h2
+  style={{
+    fontSize: 'clamp(1.5rem, 2.5vw, 2.2rem)',
+    marginTop: -18,      // reduced space under logo
+    marginBottom: 10,    // tighter spacing before subtext
+    fontWeight: 700,
+    textShadow: '0 0 12px rgba(0,0,0,0.6)',
+  }}
+>
+  {event?.title || 'FanInteract Wall'}
+</h2>
         <p style={{ fontSize: 14, color: '#ddd', marginBottom: 20 }}>
           Please complete the fields below to join the wall.
         </p>
