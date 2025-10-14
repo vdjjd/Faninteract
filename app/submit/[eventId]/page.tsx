@@ -20,11 +20,11 @@ export default function GuestInfoPage() {
   });
   const [error, setError] = useState('');
 
-  // ✅ Load + Subscribe to Event (Realtime)
+  // ✅ Load + Subscribe to Event (Realtime) — Type-safe version
   useEffect(() => {
     if (!eventId) return;
 
-    async function fetchEvent() {
+    const fetchEvent = async () => {
       const { data } = await supabase
         .from('events')
         .select('title, background_value, logo_url')
@@ -32,11 +32,10 @@ export default function GuestInfoPage() {
         .single();
       if (data) setEvent(data);
       setLoading(false);
-    }
+    };
 
     fetchEvent();
 
-    // Realtime updates for title/logo/background
     const ch = supabase
       .channel(`events-${eventId}`)
       .on(
@@ -49,7 +48,10 @@ export default function GuestInfoPage() {
       )
       .subscribe();
 
-    return () => supabase.removeChannel(ch);
+    // 👇 explicit synchronous cleanup to satisfy TS
+    return () => {
+      void supabase.removeChannel(ch);
+    };
   }, [eventId]);
 
   function handleChange(e: any) {
@@ -61,15 +63,22 @@ export default function GuestInfoPage() {
     setError('');
     const { firstName, lastName, email, phone } = form;
 
-    if (!firstName || !lastName) return setError('Please enter your first and last name.');
-    if (!email && !phone) return setError('Please enter either an email or phone.');
+    if (!firstName || !lastName)
+      return setError('Please enter your first and last name.');
+    if (!email && !phone)
+      return setError('Please enter either an email or phone.');
 
     setSubmitting(true);
+
     const formEl = document.getElementById('guest-form');
     formEl?.animate(
-      [{ opacity: 1, transform: 'translateY(0)' }, { opacity: 0, transform: 'translateY(-40px)' }],
+      [
+        { opacity: 1, transform: 'translateY(0)' },
+        { opacity: 0, transform: 'translateY(-40px)' },
+      ],
       { duration: 600, easing: 'ease-in-out', fill: 'forwards' }
     );
+
     await new Promise((res) => setTimeout(res, 600));
 
     localStorage.setItem('guestInfo', JSON.stringify(form));
@@ -97,7 +106,9 @@ export default function GuestInfoPage() {
         style={{
           width: '100%',
           maxWidth: 420,
-          background: event?.background_value || 'linear-gradient(180deg,#0d1b2a,#1b263b)',
+          background:
+            event?.background_value ||
+            'linear-gradient(180deg,#0d1b2a,#1b263b)',
           borderRadius: 16,
           padding: 30,
           color: '#fff',
@@ -117,8 +128,8 @@ export default function GuestInfoPage() {
             width: 300,
             height: 300,
             objectFit: 'contain',
-            marginBottom: -6,  // tighter to title
-            marginTop: -20,    // pull up closer to form top
+            marginBottom: -6,
+            marginTop: -20,
             filter: 'drop-shadow(0 0 14px rgba(255,255,255,0.3))',
             display: 'block',
           }}
@@ -128,8 +139,8 @@ export default function GuestInfoPage() {
         <h2
           style={{
             fontSize: 'clamp(1.5rem, 2.5vw, 2.2rem)',
-            marginTop: -12,     // reduced more spacing
-            marginBottom: 10,   // tighter before text
+            marginTop: -12,
+            marginBottom: 10,
             fontWeight: 700,
             textShadow: '0 0 12px rgba(0,0,0,0.6)',
           }}
@@ -199,8 +210,14 @@ export default function GuestInfoPage() {
 
         <p style={{ fontSize: 11, color: '#bbb', marginTop: 14 }}>
           By joining, you accept our{' '}
-          <a href="#" style={{ color: '#1e90ff' }}>Terms</a> &{' '}
-          <a href="#" style={{ color: '#1e90ff' }}>Privacy Policy</a>.
+          <a href="#" style={{ color: '#1e90ff' }}>
+            Terms
+          </a>{' '}
+          &{' '}
+          <a href="#" style={{ color: '#1e90ff' }}>
+            Privacy Policy
+          </a>
+          .
         </p>
       </form>
     </div>
