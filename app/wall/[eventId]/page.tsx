@@ -214,11 +214,11 @@ export default function FanWallPage() {
             }}
           ></div>
 
-          {/* ---------- MESSAGE (2-line forced + pulse) ---------- */}
+          {/* ---------- MESSAGE (Lowered Position + Pulse) ---------- */}
           <div
             style={{
               position: 'absolute',
-              top: '60%',
+              top: '68%', // 👈 lowered from 60% to 68%
               left: '72%',
               transform: 'translate(-50%, -50%)',
               width: '46%',
@@ -289,14 +289,7 @@ export default function FanWallPage() {
           }}
           title="Toggle Fullscreen"
         >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            fill="none"
-            viewBox="0 0 24 24"
-            strokeWidth={1.5}
-            stroke="white"
-            style={{ width: 26, height: 26 }}
-          >
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="white" style={{ width: 26, height: 26 }}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M3 9V4h5M21 9V4h-5M3 15v5h5M21 15v5h-5" />
           </svg>
         </div>
