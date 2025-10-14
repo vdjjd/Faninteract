@@ -162,9 +162,9 @@ export default function FanWallPage() {
               boxShadow: 'inset 0 0 15px rgba(255,255,255,0.1)',
             }}
           >
-         {event ? (
+        {event ? (
   <QRCodeCanvas
-    value={`https://faninteract.vercel.app/submit/${event.id}`} />
+    value={`https://faninteract.vercel.app/submit/${event.id}`}
     size={260}
     bgColor="#ffffff"
     fgColor="#000000"
@@ -174,8 +174,12 @@ export default function FanWallPage() {
       borderRadius: 12,
       width: "75%",
       height: "auto",
-      boxShadow: "0 0 10px rgba(0,0,0,0.4)"
+      boxShadow: "0 0 10px rgba(0,0,0,0.4)",
     }}
+  />
+) : (
+  <p style={{ opacity: 0.7 }}>Generating QR...</p>
+)}
   />
 ) : (
   <p style={{ opacity: 0.7 }}>Generating QR...</p>
