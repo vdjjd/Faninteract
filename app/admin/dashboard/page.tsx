@@ -366,7 +366,7 @@ export default function DashboardPage() {
 }
 
 /* ---------------- STYLE CONSTANTS ---------------- */
-const pageStyle = {
+const pageStyle: React.CSSProperties = {
   display: 'flex',
   flexDirection: 'column',
   alignItems: 'center',
@@ -377,7 +377,8 @@ const pageStyle = {
   padding: '20px 10px',
   fontFamily: 'system-ui,sans-serif',
 };
-const buttonStyle = {
+
+const buttonStyle: React.CSSProperties = {
   backgroundColor: '#1e90ff',
   border: 'none',
   borderRadius: 8,
@@ -386,44 +387,59 @@ const buttonStyle = {
   fontWeight: 600,
   cursor: 'pointer',
 };
-const newCardOverlay = {
+
+const newCardOverlay: React.CSSProperties = {
   width: 250,
   marginTop: 15,
   background: '#222',
   borderRadius: 10,
   padding: 14,
-  textAlign: 'center' as const,
+  textAlign: 'center',
   boxShadow: '0 0 10px rgba(0,0,0,0.3)',
 };
-const newCardBox = { display: 'flex', flexDirection: 'column' as const, alignItems: 'center' };
-const gridStyle = {
+
+const newCardBox: React.CSSProperties = {
+  display: 'flex',
+  flexDirection: 'column',
+  alignItems: 'center',
+};
+
+const gridStyle: React.CSSProperties = {
   marginTop: 15,
   display: 'grid',
   gridTemplateColumns: 'repeat(4,1fr)',
   gap: 10,
   width: '100%',
   maxWidth: 1080,
-  justifyItems: 'center' as const,
+  justifyItems: 'center',
 };
-const cardStyle = {
+
+const cardStyle: React.CSSProperties = {
   borderRadius: 10,
   padding: 10,
-  textAlign: 'center' as const,
+  textAlign: 'center',
   color: '#fff',
   boxShadow: '0 0 10px rgba(0,0,0,0.25)',
   width: '100%',
   maxWidth: 230,
   transition: 'all 0.3s ease',
 };
-const cardButtons = {
+
+const cardButtons: React.CSSProperties = {
   display: 'flex',
   gap: 6,
-  flexWrap: 'wrap' as const,
-  justifyContent: 'center' as const,
+  flexWrap: 'wrap',
+  justifyContent: 'center',
   marginTop: 6,
 };
-const cardFooter = { display: 'flex', justifyContent: 'space-between' as const, marginTop: 8 };
-const smallBtn = {
+
+const cardFooter: React.CSSProperties = {
+  display: 'flex',
+  justifyContent: 'space-between',
+  marginTop: 8,
+};
+
+const smallBtn: React.CSSProperties = {
   backgroundColor: '#444',
   border: 'none',
   borderRadius: 6,
@@ -432,6 +448,7 @@ const smallBtn = {
   cursor: 'pointer',
   fontSize: 12,
 };
+
 const clearBtn = { ...smallBtn, backgroundColor: '#00bcd4', fontWeight: 600 };
 const launchBtn = { ...smallBtn, backgroundColor: '#007bff', fontWeight: 600 };
 const playBtn = { ...smallBtn, backgroundColor: '#16a34a', fontWeight: 600 };
@@ -440,8 +457,9 @@ const deleteBtn = { ...smallBtn, backgroundColor: '#a33' };
 const optionsBtn = { ...smallBtn, backgroundColor: '#1e90ff' };
 const pendingBtn = { ...smallBtn, backgroundColor: '#ffaa00', fontWeight: 600 };
 const cancelBtn = { ...smallBtn, backgroundColor: '#a33', width: '100%' };
-const confirmOverlay = {
-  position: 'absolute' as const,
+
+const confirmOverlay: React.CSSProperties = {
+  position: 'absolute',
   top: '50%',
   left: '50%',
   transform: 'translate(-50%,-50%)',
@@ -451,10 +469,11 @@ const confirmOverlay = {
   padding: '12px 16px',
   boxShadow: '0 0 10px rgba(0,0,0,0.6)',
   zIndex: 10,
-  textAlign: 'center' as const,
+  textAlign: 'center',
 };
-const modalBox = {
-  position: 'fixed' as const,
+
+const modalBox: React.CSSProperties = {
+  position: 'fixed',
   top: '50%',
   left: '50%',
   transform: 'translate(-50%,-50%)',
