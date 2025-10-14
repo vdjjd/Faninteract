@@ -20,11 +20,11 @@ export default function GuestInfoPage() {
   });
   const [error, setError] = useState('');
 
-  // ✅ Load + Subscribe to Event (Realtime)
+  /* ---------------- LOAD + SUBSCRIBE TO EVENT ---------------- */
   useEffect(() => {
     if (!eventId) return;
 
-    const fetchEvent = async () => {
+    async function fetchEvent() {
       const { data } = await supabase
         .from('events')
         .select('title, background_value, logo_url')
@@ -32,8 +32,7 @@ export default function GuestInfoPage() {
         .single();
       if (data) setEvent(data);
       setLoading(false);
-    };
-
+    }
     fetchEvent();
 
     const ch = supabase
@@ -43,18 +42,17 @@ export default function GuestInfoPage() {
         { event: '*', schema: 'public', table: 'events', filter: `id=eq.${eventId}` },
         (payload) => {
           const updated = payload.new;
-          // 👇 explicitly type prev to satisfy TypeScript
           setEvent((prev: any) => (prev ? { ...prev, ...updated } : updated));
         }
       )
       .subscribe();
 
-    // 👇 explicit synchronous cleanup to satisfy TS
     return () => {
-      void supabase.removeChannel(ch);
+      supabase.removeChannel(ch);
     };
   }, [eventId]);
 
+  /* ---------------- FORM HANDLERS ---------------- */
   function handleChange(e: any) {
     setForm({ ...form, [e.target.name]: e.target.value });
   }
@@ -62,15 +60,21 @@ export default function GuestInfoPage() {
   async function handleJoin(e: any) {
     e.preventDefault();
     setError('');
-    const { firstName, lastName, email, phone } = form;
+    const { firstName, lastName, email, phone, nickname, age } = form;
 
-    if (!firstName || !lastName)
-      return setError('Please enter your first and last name.');
-    if (!email && !phone)
-      return setError('Please enter either an email or phone.');
+    // Simple validation
+    if (!firstName || !lastName) {
+      setError('Please enter your first and last name.');
+      return;
+    }
+    if (!email && !phone) {
+      setError('Please enter either an email or phone.');
+      return;
+    }
 
     setSubmitting(true);
 
+    // Animate form fade out
     const formEl = document.getElementById('guest-form');
     formEl?.animate(
       [
@@ -82,13 +86,36 @@ export default function GuestInfoPage() {
 
     await new Promise((res) => setTimeout(res, 600));
 
+    /* ---------------- INSERT INTO GUESTS TABLE ---------------- */
+    const { error: insertError } = await supabase.from('guests').insert([
+      {
+        event_id: eventId,
+        first_name: firstName.trim(),
+        last_name: lastName.trim(),
+        email: email.trim() || null,
+        phone: phone.trim() || null,
+        nickname: nickname.trim() || null,
+        age: age ? parseInt(age) : null,
+      },
+    ]);
+
+    if (insertError) {
+      console.error('Error inserting guest:', insertError);
+      setError('Something went wrong. Please try again.');
+      setSubmitting(false);
+      return;
+    }
+
+    // Save locally for continuity
     localStorage.setItem('guestInfo', JSON.stringify(form));
+
+    // ✅ Redirect to the “post submission” page
     router.push(`/submit/${eventId}/post`);
   }
 
-  if (loading)
-    return <p style={{ textAlign: 'center', color: '#fff' }}>Loading...</p>;
+  if (loading) return <p style={{ textAlign: 'center', color: '#fff' }}>Loading...</p>;
 
+  /* ---------------- RENDER ---------------- */
   return (
     <div
       style={{
@@ -107,9 +134,7 @@ export default function GuestInfoPage() {
         style={{
           width: '100%',
           maxWidth: 420,
-          background:
-            event?.background_value ||
-            'linear-gradient(180deg,#0d1b2a,#1b263b)',
+          background: event?.background_value || 'linear-gradient(180deg,#0d1b2a,#1b263b)',
           borderRadius: 16,
           padding: 30,
           color: '#fff',
@@ -121,7 +146,7 @@ export default function GuestInfoPage() {
           justifyContent: 'center',
         }}
       >
-        {/* Logo */}
+        {/* ---------- LOGO ---------- */}
         <img
           src={event?.logo_url || '/faninteractlogo.png'}
           alt="Logo"
@@ -132,11 +157,10 @@ export default function GuestInfoPage() {
             marginBottom: -6,
             marginTop: -20,
             filter: 'drop-shadow(0 0 14px rgba(255,255,255,0.3))',
-            display: 'block',
           }}
         />
 
-        {/* Wall Title */}
+        {/* ---------- WALL TITLE ---------- */}
         <h2
           style={{
             fontSize: 'clamp(1.5rem, 2.5vw, 2.2rem)',
@@ -181,9 +205,7 @@ export default function GuestInfoPage() {
               outline: 'none',
               transition: 'all 0.3s ease',
             }}
-            onFocus={(e) =>
-              (e.currentTarget.style.boxShadow = '0 0 10px #fff')
-            }
+            onFocus={(e) => (e.currentTarget.style.boxShadow = '0 0 10px #fff')}
             onBlur={(e) => (e.currentTarget.style.boxShadow = 'none')}
           />
         ))}
@@ -211,16 +233,11 @@ export default function GuestInfoPage() {
 
         <p style={{ fontSize: 11, color: '#bbb', marginTop: 14 }}>
           By joining, you accept our{' '}
-          <a href="#" style={{ color: '#1e90ff' }}>
-            Terms
-          </a>{' '}
-          &{' '}
-          <a href="#" style={{ color: '#1e90ff' }}>
-            Privacy Policy
-          </a>
-          .
+          <a href="#" style={{ color: '#1e90ff' }}>Terms</a> &{' '}
+          <a href="#" style={{ color: '#1e90ff' }}>Privacy Policy</a>.
         </p>
       </form>
     </div>
   );
 }
+
