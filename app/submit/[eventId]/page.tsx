@@ -9,7 +9,7 @@ export default function GuestInfoPage() {
   const { eventId } = useParams();
   const [event, setEvent] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [animate, setAnimate] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [form, setForm] = useState({
     firstName: '',
     lastName: '',
@@ -20,7 +20,7 @@ export default function GuestInfoPage() {
   });
   const [error, setError] = useState('');
 
-  /* ---------------- LOAD EVENT ---------------- */
+  // ✅ Load event info
   useEffect(() => {
     async function fetchEvent() {
       const { data, error } = await supabase
@@ -31,27 +31,19 @@ export default function GuestInfoPage() {
 
       if (!error) setEvent(data);
       setLoading(false);
-
-      const animKey = `guestFormAnimated-${eventId}`;
-      if (!localStorage.getItem(animKey)) {
-        setAnimate(true);
-        localStorage.setItem(animKey, 'true');
-      }
     }
     fetchEvent();
   }, [eventId]);
 
-  /* ---------------- HANDLE CHANGE ---------------- */
   function handleChange(e: any) {
     setForm({ ...form, [e.target.name]: e.target.value });
   }
 
-  /* ---------------- VALIDATE + CONTINUE ---------------- */
-  function handleJoin(e: any) {
+  async function handleJoin(e: any) {
     e.preventDefault();
     setError('');
-
     const { firstName, lastName, email, phone } = form;
+
     if (!firstName || !lastName) {
       setError('Please enter your first and last name.');
       return;
@@ -61,167 +53,142 @@ export default function GuestInfoPage() {
       return;
     }
 
+    setSubmitting(true);
+
+    // Fade-out animation
+    const formEl = document.getElementById('guest-form');
+    if (formEl) {
+      formEl.animate(
+        [
+          { opacity: 1, transform: 'translateY(0)' },
+          { opacity: 0, transform: 'translateY(-40px)' },
+        ],
+        { duration: 600, easing: 'ease-in-out', fill: 'forwards' }
+      );
+      await new Promise((res) => setTimeout(res, 600));
+    }
+
     localStorage.setItem('guestInfo', JSON.stringify(form));
     router.push(`/submit/${eventId}/post`);
   }
 
-  if (loading)
-    return <p style={{ textAlign: 'center', color: '#fff' }}>Loading...</p>;
-
-  /* ---------------- STYLES ---------------- */
-  const inputStyle: React.CSSProperties = {
-    width: '90%',
-    maxWidth: 320,
-    padding: '12px 14px',
-    marginBottom: 12,
-    borderRadius: 10,
-    border: '1px solid #444',
-    background: '#0b0b0b',
-    color: '#fff',
-    fontSize: 15,
-    transition: 'all 0.25s ease',
-    outline: 'none',
-  };
-
-  const containerAnim = animate
-    ? {
-        animation: 'fadeInUp 1.2s ease forwards',
-      }
-    : {};
-
-  const logoAnim = animate
-    ? {
-        animation: 'fadeScale 1s ease forwards',
-      }
-    : {};
+  if (loading) return <p style={{ textAlign: 'center', color: '#fff' }}>Loading...</p>;
 
   return (
     <div
       style={{
         minHeight: '100vh',
-        width: '100%',
-        background:
-          event?.background_value || 'linear-gradient(180deg,#0d1b2a,#1b263b)',
+        background: '#000',
         display: 'flex',
         justifyContent: 'center',
         alignItems: 'center',
-        fontFamily: 'system-ui, sans-serif',
         padding: '20px',
+        fontFamily: 'system-ui, sans-serif',
       }}
     >
       <form
+        id="guest-form"
         onSubmit={handleJoin}
         style={{
           width: '100%',
           maxWidth: 420,
-          background: 'rgba(0,0,0,0.75)',
-          borderRadius: 14,
+          background: event?.background_value || 'linear-gradient(180deg,#0d1b2a,#1b263b)',
+          borderRadius: 16,
           padding: 30,
           color: '#fff',
           textAlign: 'center',
-          boxShadow: '0 0 25px rgba(0,0,0,0.6)',
-          border: '1px solid rgba(255,255,255,0.1)',
-          ...containerAnim,
+          boxShadow: '0 0 30px rgba(0,0,0,0.6)',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
         }}
       >
-        {/* LOGO */}
+        {/* Logo */}
         <img
           src={event?.logo_url || '/faninteractlogo.png'}
           alt="Logo"
           style={{
-            width: 140,
-            height: 140,
+            width: 300,
+            height: 300,
             objectFit: 'contain',
-            margin: '0 auto 12px',
-            filter: 'drop-shadow(0 0 10px rgba(255,255,255,0.3))',
-            ...logoAnim,
+            margin: '0 auto 10px',
+            filter: 'drop-shadow(0 0 14px rgba(255,255,255,0.3))',
           }}
         />
 
-        {/* TITLE */}
+        {/* Wall Title */}
         <h2
           style={{
-            fontSize: 24,
+            fontSize: 'clamp(1.5rem, 2.5vw, 2.2rem)',
+            marginBottom: 18,
             fontWeight: 700,
-            marginBottom: 12,
-            textShadow: '0 0 12px rgba(0,0,0,0.8)',
+            textShadow: '0 0 12px rgba(0,0,0,0.6)',
           }}
         >
           {event?.title || 'FanInteract Wall'}
         </h2>
-        <p style={{ fontSize: 14, color: '#ccc', marginBottom: 20 }}>
+
+        <p style={{ fontSize: 14, color: '#ddd', marginBottom: 20 }}>
           Please complete the fields below to join the wall.
         </p>
 
-        {/* INPUT FIELDS */}
-        {['firstName', 'lastName', 'email', 'phone', 'nickname', 'age'].map(
-          (field) => (
-            <input
-              key={field}
-              type={
-                field === 'email'
-                  ? 'email'
-                  : field === 'phone'
-                  ? 'tel'
-                  : field === 'age'
-                  ? 'number'
-                  : 'text'
-              }
-              name={field}
-              placeholder={
-                field === 'firstName'
-                  ? 'First Name'
-                  : field === 'lastName'
-                  ? 'Last Name'
-                  : field === 'email'
-                  ? 'Email (optional)'
-                  : field === 'phone'
-                  ? 'Phone (optional)'
-                  : field === 'nickname'
-                  ? 'Nickname (optional)'
-                  : 'Age (optional)'
-              }
-              value={(form as any)[field]}
-              onChange={handleChange}
-              style={inputStyle}
-              onFocus={(e) =>
-                (e.currentTarget.style.boxShadow =
-                  '0 0 12px rgba(255,255,255,0.4)')
-              }
-              onBlur={(e) => (e.currentTarget.style.boxShadow = 'none')}
-            />
-          )
-        )}
+        {/* Inputs */}
+        {[
+          { name: 'firstName', placeholder: 'First Name' },
+          { name: 'lastName', placeholder: 'Last Name' },
+          { name: 'email', placeholder: 'Email (optional)' },
+          { name: 'phone', placeholder: 'Phone (optional)' },
+          { name: 'nickname', placeholder: 'Nickname (optional)' },
+          { name: 'age', placeholder: 'Age (optional)', type: 'number' },
+        ].map((field) => (
+          <input
+            key={field.name}
+            type={field.type || 'text'}
+            name={field.name}
+            placeholder={field.placeholder}
+            value={(form as any)[field.name]}
+            onChange={handleChange}
+            style={{
+              width: '85%',
+              padding: '12px',
+              marginBottom: 12,
+              borderRadius: 10,
+              border: '1px solid #777',
+              background: 'rgba(0,0,0,0.3)',
+              color: '#fff',
+              fontSize: 16,
+              textAlign: 'center',
+              outline: 'none',
+              transition: 'all 0.3s ease',
+            }}
+            onFocus={(e) => (e.currentTarget.style.boxShadow = '0 0 10px #fff')}
+            onBlur={(e) => (e.currentTarget.style.boxShadow = 'none')}
+          />
+        ))}
 
-        {error && (
-          <p style={{ color: 'salmon', marginBottom: 8, fontSize: 14 }}>
-            {error}
-          </p>
-        )}
+        {error && <p style={{ color: 'salmon', marginBottom: 8 }}>{error}</p>}
 
-        {/* JOIN BUTTON */}
         <button
           type="submit"
+          disabled={submitting}
           style={{
-            width: '90%',
-            maxWidth: 320,
-            backgroundColor: '#1e90ff',
+            width: '85%',
+            backgroundColor: submitting ? '#444' : '#1e90ff',
             border: 'none',
             padding: '12px 0',
             borderRadius: 10,
             color: '#fff',
-            fontWeight: 700,
+            fontWeight: 600,
             marginTop: 10,
-            cursor: 'pointer',
-            transition: 'all 0.25s ease',
+            cursor: submitting ? 'not-allowed' : 'pointer',
+            transition: 'background 0.3s ease',
           }}
-          onMouseDown={(e) => (e.currentTarget.style.transform = 'scale(0.96)')}
-          onMouseUp={(e) => (e.currentTarget.style.transform = 'scale(1)')}
         >
-          Join
+          {submitting ? 'Joining...' : 'Join'}
         </button>
 
-        <p style={{ fontSize: 11, color: '#aaa', marginTop: 16 }}>
+        <p style={{ fontSize: 11, color: '#bbb', marginTop: 14 }}>
           By joining, you accept our{' '}
           <a href="#" style={{ color: '#1e90ff' }}>
             Terms
@@ -233,30 +200,6 @@ export default function GuestInfoPage() {
           .
         </p>
       </form>
-
-      {/* KEYFRAMES */}
-      <style jsx>{`
-        @keyframes fadeInUp {
-          from {
-            opacity: 0;
-            transform: translateY(30px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
-        }
-        @keyframes fadeScale {
-          from {
-            opacity: 0;
-            transform: scale(0.8);
-          }
-          to {
-            opacity: 1;
-            transform: scale(1);
-          }
-        }
-      `}</style>
     </div>
   );
 }
