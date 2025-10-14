@@ -20,7 +20,7 @@ export default function GuestInfoPage() {
   });
   const [error, setError] = useState('');
 
-  // ✅ Load + Subscribe to Event (Realtime) — Type-safe version
+  // ✅ Load + Subscribe to Event (Realtime)
   useEffect(() => {
     if (!eventId) return;
 
@@ -43,7 +43,8 @@ export default function GuestInfoPage() {
         { event: '*', schema: 'public', table: 'events', filter: `id=eq.${eventId}` },
         (payload) => {
           const updated = payload.new;
-          setEvent((prev) => (prev ? { ...prev, ...updated } : updated));
+          // 👇 explicitly type prev to satisfy TypeScript
+          setEvent((prev: any) => (prev ? { ...prev, ...updated } : updated));
         }
       )
       .subscribe();
@@ -135,7 +136,7 @@ export default function GuestInfoPage() {
           }}
         />
 
-        {/* Wall Title (auto-updating) */}
+        {/* Wall Title */}
         <h2
           style={{
             fontSize: 'clamp(1.5rem, 2.5vw, 2.2rem)',
