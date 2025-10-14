@@ -7,6 +7,7 @@ import { supabase } from '@/lib/supabaseClient';
 export default function GuestInfoPage() {
   const router = useRouter();
   const { eventId } = useParams();
+  const eventUUID = Array.isArray(eventId) ? eventId[0] : eventId; // ✅ clean UUID
   const [event, setEvent] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -22,13 +23,13 @@ export default function GuestInfoPage() {
 
   /* ---------------- LOAD + SUBSCRIBE TO EVENT ---------------- */
   useEffect(() => {
-    if (!eventId) return;
+    if (!eventUUID) return;
 
     async function fetchEvent() {
       const { data, error } = await supabase
         .from('events')
         .select('title, background_value, logo_url')
-        .eq('id', eventId)
+        .eq('id', eventUUID)
         .single();
       if (error) console.error('Error loading event:', error);
       if (data) setEvent(data);
@@ -37,10 +38,10 @@ export default function GuestInfoPage() {
     fetchEvent();
 
     const ch = supabase
-      .channel(`events-${eventId}`)
+      .channel(`events-${eventUUID}`)
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: 'events', filter: `id=eq.${eventId}` },
+        { event: '*', schema: 'public', table: 'events', filter: `id=eq.${eventUUID}` },
         (payload) => {
           const updated = payload.new;
           setEvent((prev: any) => (prev ? { ...prev, ...updated } : updated));
@@ -51,7 +52,7 @@ export default function GuestInfoPage() {
     return () => {
       supabase.removeChannel(ch);
     };
-  }, [eventId]);
+  }, [eventUUID]);
 
   /* ---------------- FORM HANDLERS ---------------- */
   function handleChange(e: any) {
@@ -63,7 +64,7 @@ export default function GuestInfoPage() {
     setError('');
     const { firstName, lastName, email, phone, nickname, age } = form;
 
-    // Basic validation
+    // Simple validation
     if (!firstName || !lastName) {
       setError('Please enter your first and last name.');
       return;
@@ -88,42 +89,43 @@ export default function GuestInfoPage() {
     await new Promise((res) => setTimeout(res, 600));
 
     /* ---------------- INSERT INTO GUESTS TABLE ---------------- */
-const { data, error: insertError } = await supabase
-  .from('guests')
-  .insert([
-    {
-      event_id: eventId,
-      first_name: firstName?.trim(),
-      last_name: lastName?.trim(),
-      email: email?.trim() || null,
-      phone: phone?.trim() || null,
-      nickname: nickname?.trim() || null,
-      age: age ? parseInt(age) : null,
-    },
-  ])
-  .select(); // 👈 this lets us see what Supabase actually returns
+    const { data, error: insertError } = await supabase
+      .from('guests')
+      .insert([
+        {
+          event_id: eventUUID,
+          first_name: firstName?.trim(),
+          last_name: lastName?.trim(),
+          email: email?.trim() || null,
+          phone: phone?.trim() || null,
+          nickname: nickname?.trim() || null,
+          age: age ? parseInt(age) : null,
+        },
+      ])
+      .select();
 
-if (insertError) {
-  console.error('❌ Supabase insert error:', insertError);
-  alert(`Insert failed: ${insertError.message}`);
-  setError('Something went wrong. Please try again.');
-  setSubmitting(false);
-  return;
-} else {
-  console.log('✅ Insert success:', data);
-  alert('Guest successfully added!'); // temporary check
-}
+    console.log('🧠 Supabase insert result:', { data, insertError });
 
-    console.log('✅ Guest inserted successfully:', data);
+    if (insertError) {
+      console.error('❌ Insert error:', insertError);
+      alert(`Insert failed: ${insertError.message}`);
+      setError('Something went wrong. Please try again.');
+      setSubmitting(false);
+      return;
+    } else {
+      console.log('✅ Guest added successfully:', data);
+      alert('Guest added successfully!');
+    }
 
-    // Save locally
+    // Save locally for continuity
     localStorage.setItem('guestInfo', JSON.stringify(form));
 
     // ✅ Redirect to the “post submission” page
-    router.push(`/submit/${eventId}/post`);
+    router.push(`/submit/${eventUUID}/post`);
   }
 
-  if (loading) return <p style={{ textAlign: 'center', color: '#fff' }}>Loading...</p>;
+  if (loading)
+    return <p style={{ textAlign: 'center', color: '#fff' }}>Loading...</p>;
 
   /* ---------------- RENDER ---------------- */
   return (
@@ -144,7 +146,9 @@ if (insertError) {
         style={{
           width: '100%',
           maxWidth: 420,
-          background: event?.background_value || 'linear-gradient(180deg,#0d1b2a,#1b263b)',
+          background:
+            event?.background_value ||
+            'linear-gradient(180deg,#0d1b2a,#1b263b)',
           borderRadius: 16,
           padding: 30,
           color: '#fff',
