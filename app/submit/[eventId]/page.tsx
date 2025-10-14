@@ -25,11 +25,12 @@ export default function GuestInfoPage() {
     if (!eventId) return;
 
     async function fetchEvent() {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('events')
         .select('title, background_value, logo_url')
         .eq('id', eventId)
         .single();
+      if (error) console.error('Error loading event:', error);
       if (data) setEvent(data);
       setLoading(false);
     }
@@ -62,7 +63,7 @@ export default function GuestInfoPage() {
     setError('');
     const { firstName, lastName, email, phone, nickname, age } = form;
 
-    // Simple validation
+    // Basic validation
     if (!firstName || !lastName) {
       setError('Please enter your first and last name.');
       return;
@@ -87,26 +88,28 @@ export default function GuestInfoPage() {
     await new Promise((res) => setTimeout(res, 600));
 
     /* ---------------- INSERT INTO GUESTS TABLE ---------------- */
-    const { error: insertError } = await supabase.from('guests').insert([
+    const { data, error: insertError } = await supabase.from('guests').insert([
       {
         event_id: eventId,
-        first_name: firstName.trim(),
-        last_name: lastName.trim(),
-        email: email.trim() || null,
-        phone: phone.trim() || null,
-        nickname: nickname.trim() || null,
+        first_name: firstName?.trim(),
+        last_name: lastName?.trim(),
+        email: email?.trim() || null,
+        phone: phone?.trim() || null,
+        nickname: nickname?.trim() || null,
         age: age ? parseInt(age) : null,
       },
     ]);
 
     if (insertError) {
-      console.error('Error inserting guest:', insertError);
-      setError('Something went wrong. Please try again.');
+      console.error('❌ Supabase insert error:', insertError);
+      setError('Something went wrong saving your info. Please try again.');
       setSubmitting(false);
       return;
     }
 
-    // Save locally for continuity
+    console.log('✅ Guest inserted successfully:', data);
+
+    // Save locally
     localStorage.setItem('guestInfo', JSON.stringify(form));
 
     // ✅ Redirect to the “post submission” page
@@ -240,4 +243,3 @@ export default function GuestInfoPage() {
     </div>
   );
 }
-
