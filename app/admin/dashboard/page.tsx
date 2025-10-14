@@ -530,5 +530,4 @@ const colorCircle: React.CSSProperties = {
   cursor: 'pointer',
   border: '1px solid #555',
   transition: 'transform 0.2s ease, background 0.5s ease',
- };
-}
+};
