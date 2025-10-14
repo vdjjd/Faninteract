@@ -20,7 +20,6 @@ export default function GuestInfoPage() {
   });
   const [error, setError] = useState('');
 
-  // ✅ Load event info
   useEffect(() => {
     async function fetchEvent() {
       const { data, error } = await supabase
@@ -28,7 +27,6 @@ export default function GuestInfoPage() {
         .select('title, background_value, logo_url')
         .eq('id', eventId)
         .single();
-
       if (!error) setEvent(data);
       setLoading(false);
     }
@@ -44,29 +42,16 @@ export default function GuestInfoPage() {
     setError('');
     const { firstName, lastName, email, phone } = form;
 
-    if (!firstName || !lastName) {
-      setError('Please enter your first and last name.');
-      return;
-    }
-    if (!email && !phone) {
-      setError('Please enter either an email or a phone number.');
-      return;
-    }
+    if (!firstName || !lastName) return setError('Please enter your first and last name.');
+    if (!email && !phone) return setError('Please enter either an email or phone.');
 
     setSubmitting(true);
-
-    // Fade-out animation
     const formEl = document.getElementById('guest-form');
-    if (formEl) {
-      formEl.animate(
-        [
-          { opacity: 1, transform: 'translateY(0)' },
-          { opacity: 0, transform: 'translateY(-40px)' },
-        ],
-        { duration: 600, easing: 'ease-in-out', fill: 'forwards' }
-      );
-      await new Promise((res) => setTimeout(res, 600));
-    }
+    formEl?.animate(
+      [{ opacity: 1, transform: 'translateY(0)' }, { opacity: 0, transform: 'translateY(-40px)' }],
+      { duration: 600, easing: 'ease-in-out', fill: 'forwards' }
+    );
+    await new Promise((res) => setTimeout(res, 600));
 
     localStorage.setItem('guestInfo', JSON.stringify(form));
     router.push(`/submit/${eventId}/post`);
@@ -112,7 +97,7 @@ export default function GuestInfoPage() {
             width: 300,
             height: 300,
             objectFit: 'contain',
-            margin: '0 auto 10px',
+            marginBottom: 0, // tightened
             filter: 'drop-shadow(0 0 14px rgba(255,255,255,0.3))',
           }}
         />
@@ -121,6 +106,7 @@ export default function GuestInfoPage() {
         <h2
           style={{
             fontSize: 'clamp(1.5rem, 2.5vw, 2.2rem)',
+            marginTop: -10, // closer to logo
             marginBottom: 18,
             fontWeight: 700,
             textShadow: '0 0 12px rgba(0,0,0,0.6)',
@@ -133,7 +119,6 @@ export default function GuestInfoPage() {
           Please complete the fields below to join the wall.
         </p>
 
-        {/* Inputs */}
         {[
           { name: 'firstName', placeholder: 'First Name' },
           { name: 'lastName', placeholder: 'Last Name' },
@@ -190,14 +175,8 @@ export default function GuestInfoPage() {
 
         <p style={{ fontSize: 11, color: '#bbb', marginTop: 14 }}>
           By joining, you accept our{' '}
-          <a href="#" style={{ color: '#1e90ff' }}>
-            Terms
-          </a>{' '}
-          &{' '}
-          <a href="#" style={{ color: '#1e90ff' }}>
-            Privacy Policy
-          </a>
-          .
+          <a href="#" style={{ color: '#1e90ff' }}>Terms</a> &{' '}
+          <a href="#" style={{ color: '#1e90ff' }}>Privacy Policy</a>.
         </p>
       </form>
     </div>
