@@ -9,6 +9,7 @@ export default function GuestInfoPage() {
   const { eventId } = useParams();
   const [event, setEvent] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [animate, setAnimate] = useState(false);
   const [form, setForm] = useState({
     firstName: '',
     lastName: '',
@@ -19,7 +20,7 @@ export default function GuestInfoPage() {
   });
   const [error, setError] = useState('');
 
-  /* ---------------- FETCH EVENT DATA ---------------- */
+  /* ---------------- LOAD EVENT ---------------- */
   useEffect(() => {
     async function fetchEvent() {
       const { data, error } = await supabase
@@ -30,15 +31,22 @@ export default function GuestInfoPage() {
 
       if (!error) setEvent(data);
       setLoading(false);
+
+      const animKey = `guestFormAnimated-${eventId}`;
+      if (!localStorage.getItem(animKey)) {
+        setAnimate(true);
+        localStorage.setItem(animKey, 'true');
+      }
     }
     fetchEvent();
   }, [eventId]);
 
-  /* ---------------- FORM HANDLERS ---------------- */
+  /* ---------------- HANDLE CHANGE ---------------- */
   function handleChange(e: any) {
     setForm({ ...form, [e.target.name]: e.target.value });
   }
 
+  /* ---------------- VALIDATE + CONTINUE ---------------- */
   function handleJoin(e: any) {
     e.preventDefault();
     setError('');
@@ -60,191 +68,195 @@ export default function GuestInfoPage() {
   if (loading)
     return <p style={{ textAlign: 'center', color: '#fff' }}>Loading...</p>;
 
-  /* ---------------- RENDER ---------------- */
+  /* ---------------- STYLES ---------------- */
+  const inputStyle: React.CSSProperties = {
+    width: '90%',
+    maxWidth: 320,
+    padding: '12px 14px',
+    marginBottom: 12,
+    borderRadius: 10,
+    border: '1px solid #444',
+    background: '#0b0b0b',
+    color: '#fff',
+    fontSize: 15,
+    transition: 'all 0.25s ease',
+    outline: 'none',
+  };
+
+  const containerAnim = animate
+    ? {
+        animation: 'fadeInUp 1.2s ease forwards',
+      }
+    : {};
+
+  const logoAnim = animate
+    ? {
+        animation: 'fadeScale 1s ease forwards',
+      }
+    : {};
+
   return (
     <div
       style={{
-        height: '100dvh',
-        width: '100vw',
-        background: '#000',
+        minHeight: '100vh',
+        width: '100%',
+        background:
+          event?.background_value || 'linear-gradient(180deg,#0d1b2a,#1b263b)',
         display: 'flex',
         justifyContent: 'center',
         alignItems: 'center',
         fontFamily: 'system-ui, sans-serif',
-        overflow: 'hidden',
+        padding: '20px',
       }}
     >
-      <div
+      <form
+        onSubmit={handleJoin}
         style={{
-          width: '92%',
-          maxWidth: 460,
-          height: 'min(92dvh, 700px)',
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center',
-          background:
-            event?.background_value ||
-            'linear-gradient(180deg,#1a2a4a,#0d1b2a)',
-          borderRadius: 18,
-          padding: 'clamp(16px, 3vh, 28px)',
-          boxShadow: '0 0 35px rgba(0,0,0,0.8)',
+          width: '100%',
+          maxWidth: 420,
+          background: 'rgba(0,0,0,0.75)',
+          borderRadius: 14,
+          padding: 30,
+          color: '#fff',
           textAlign: 'center',
-          overflowY: 'auto',
+          boxShadow: '0 0 25px rgba(0,0,0,0.6)',
+          border: '1px solid rgba(255,255,255,0.1)',
+          ...containerAnim,
         }}
       >
-        <form
-          onSubmit={handleJoin}
+        {/* LOGO */}
+        <img
+          src={event?.logo_url || '/faninteractlogo.png'}
+          alt="Logo"
           style={{
-            width: '100%',
-            color: '#fff',
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: 'clamp(8px, 1vh, 14px)',
+            width: 140,
+            height: 140,
+            objectFit: 'contain',
+            margin: '0 auto 12px',
+            filter: 'drop-shadow(0 0 10px rgba(255,255,255,0.3))',
+            ...logoAnim,
+          }}
+        />
+
+        {/* TITLE */}
+        <h2
+          style={{
+            fontSize: 24,
+            fontWeight: 700,
+            marginBottom: 12,
+            textShadow: '0 0 12px rgba(0,0,0,0.8)',
           }}
         >
-          {/* LOGO */}
-          <img
-            src={event?.logo_url || '/faninteractlogo.png'}
-            alt="Logo"
-            style={{
-              width: 'clamp(180px, 30vw, 240px)',
-              height: 'auto',
-              objectFit: 'contain',
-              marginBottom: 'clamp(10px, 2vh, 18px)',
-              background: 'transparent',
-            }}
-          />
+          {event?.title || 'FanInteract Wall'}
+        </h2>
+        <p style={{ fontSize: 14, color: '#ccc', marginBottom: 20 }}>
+          Please complete the fields below to join the wall.
+        </p>
 
-          <h2
-            style={{
-              fontSize: 'clamp(20px, 2.6vw, 26px)',
-              marginBottom: 6,
-              fontWeight: 700,
-              textShadow: '0 0 8px rgba(0,0,0,0.6)',
-            }}
-          >
-            {event?.title || 'FanInteract Wall'}
-          </h2>
-          <p
-            style={{
-              fontSize: 14,
-              color: '#ddd',
-              marginBottom: 'clamp(12px, 2vh, 22px)',
-              maxWidth: 340,
-            }}
-          >
-            Please complete the fields below to join the wall.
+        {/* INPUT FIELDS */}
+        {['firstName', 'lastName', 'email', 'phone', 'nickname', 'age'].map(
+          (field) => (
+            <input
+              key={field}
+              type={
+                field === 'email'
+                  ? 'email'
+                  : field === 'phone'
+                  ? 'tel'
+                  : field === 'age'
+                  ? 'number'
+                  : 'text'
+              }
+              name={field}
+              placeholder={
+                field === 'firstName'
+                  ? 'First Name'
+                  : field === 'lastName'
+                  ? 'Last Name'
+                  : field === 'email'
+                  ? 'Email (optional)'
+                  : field === 'phone'
+                  ? 'Phone (optional)'
+                  : field === 'nickname'
+                  ? 'Nickname (optional)'
+                  : 'Age (optional)'
+              }
+              value={(form as any)[field]}
+              onChange={handleChange}
+              style={inputStyle}
+              onFocus={(e) =>
+                (e.currentTarget.style.boxShadow =
+                  '0 0 12px rgba(255,255,255,0.4)')
+              }
+              onBlur={(e) => (e.currentTarget.style.boxShadow = 'none')}
+            />
+          )
+        )}
+
+        {error && (
+          <p style={{ color: 'salmon', marginBottom: 8, fontSize: 14 }}>
+            {error}
           </p>
+        )}
 
-          {/* FIELDS */}
-          <div
-            style={{
-              width: '100%',
-              textAlign: 'center',
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              gap: 10,
-            }}
-          >
-            <input
-              type="text"
-              name="firstName"
-              placeholder="First Name"
-              value={form.firstName}
-              onChange={handleChange}
-              style={inputStyle}
-            />
-            <input
-              type="text"
-              name="lastName"
-              placeholder="Last Name"
-              value={form.lastName}
-              onChange={handleChange}
-              style={inputStyle}
-            />
-            <input
-              type="email"
-              name="email"
-              placeholder="Email (optional if phone given)"
-              value={form.email}
-              onChange={handleChange}
-              style={inputStyle}
-            />
-            <input
-              type="tel"
-              name="phone"
-              placeholder="Phone (optional if email given)"
-              value={form.phone}
-              onChange={handleChange}
-              style={inputStyle}
-            />
-            <input
-              type="text"
-              name="nickname"
-              placeholder="Nickname (optional)"
-              value={form.nickname}
-              onChange={handleChange}
-              style={inputStyle}
-            />
-            <input
-              type="number"
-              name="age"
-              placeholder="Age (optional)"
-              value={form.age}
-              onChange={handleChange}
-              style={inputStyle}
-            />
-          </div>
+        {/* JOIN BUTTON */}
+        <button
+          type="submit"
+          style={{
+            width: '90%',
+            maxWidth: 320,
+            backgroundColor: '#1e90ff',
+            border: 'none',
+            padding: '12px 0',
+            borderRadius: 10,
+            color: '#fff',
+            fontWeight: 700,
+            marginTop: 10,
+            cursor: 'pointer',
+            transition: 'all 0.25s ease',
+          }}
+          onMouseDown={(e) => (e.currentTarget.style.transform = 'scale(0.96)')}
+          onMouseUp={(e) => (e.currentTarget.style.transform = 'scale(1)')}
+        >
+          Join
+        </button>
 
-          {error && <p style={{ color: 'salmon', marginBottom: 8 }}>{error}</p>}
+        <p style={{ fontSize: 11, color: '#aaa', marginTop: 16 }}>
+          By joining, you accept our{' '}
+          <a href="#" style={{ color: '#1e90ff' }}>
+            Terms
+          </a>{' '}
+          &{' '}
+          <a href="#" style={{ color: '#1e90ff' }}>
+            Privacy Policy
+          </a>
+          .
+        </p>
+      </form>
 
-          <button
-            type="submit"
-            style={{
-              width: '88%',
-              backgroundColor: '#1e90ff',
-              border: 'none',
-              padding: '14px 0',
-              borderRadius: 8,
-              color: '#fff',
-              fontWeight: 600,
-              cursor: 'pointer',
-              fontSize: 17,
-              boxShadow: '0 0 15px rgba(30,144,255,0.4)',
-              marginTop: 8,
-            }}
-          >
-            Join
-          </button>
-
-          <p style={{ fontSize: 11, color: '#bbb', marginTop: 8 }}>
-            By joining, you accept our{' '}
-            <a href="#" style={{ color: '#1e90ff' }}>
-              Terms
-            </a>{' '}
-            &{' '}
-            <a href="#" style={{ color: '#1e90ff' }}>
-              Privacy Policy
-            </a>.
-          </p>
-        </form>
-      </div>
+      {/* KEYFRAMES */}
+      <style jsx>{`
+        @keyframes fadeInUp {
+          from {
+            opacity: 0;
+            transform: translateY(30px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+        @keyframes fadeScale {
+          from {
+            opacity: 0;
+            transform: scale(0.8);
+          }
+          to {
+            opacity: 1;
+            transform: scale(1);
+          }
+        }
+      `}</style>
     </div>
   );
 }
-
-/* ---------------- STYLES ---------------- */
-const inputStyle: React.CSSProperties = {
-  width: '88%',
-  padding: '12px 14px',
-  borderRadius: 6,
-  border: '1px solid #444',
-  background: '#000',
-  color: '#fff',
-  fontSize: 15,
-  textAlign: 'center',
-  outline: 'none',
-};
