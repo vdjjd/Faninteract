@@ -164,7 +164,7 @@ export default function FanWallPage() {
           >
          {event ? (
   <QRCodeCanvas
-    value={`${window.location.origin}/fan/${event.id}`}
+    value={`https://faninteract.vercel.app/submit/${event.id}`} />
     size={260}
     bgColor="#ffffff"
     fgColor="#000000"
