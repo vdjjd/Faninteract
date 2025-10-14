@@ -482,4 +482,53 @@ const smallBtn: React.CSSProperties = {
 
 const clearBtn = { ...smallBtn, backgroundColor: '#00bcd4', fontWeight: 600 };
 const launchBtn = { ...smallBtn, backgroundColor: '#007bff', fontWeight: 600 };
-const playBtn = { ...smallBtn, backgroundColor: '#16a34a', fontWeight: 
+const playBtn = { ...smallBtn, backgroundColor: '#16a34a', fontWeight: 600 };
+const stopBtn = { ...smallBtn, backgroundColor: '#d12f2f', fontWeight: 600 };
+const deleteBtn = { ...smallBtn, backgroundColor: '#a33' };
+const optionsBtn = { ...smallBtn, backgroundColor: '#1e90ff' };
+const pendingBtn = { ...smallBtn, backgroundColor: '#ffaa00', fontWeight: 600 };
+const cancelBtn = { ...smallBtn, backgroundColor: '#a33', width: '100%' };
+
+const confirmOverlay: React.CSSProperties = {
+  position: 'absolute',
+  top: '50%',
+  left: '50%',
+  transform: 'translate(-50%,-50%)',
+  background: '#222',
+  border: '1px solid #555',
+  borderRadius: 10,
+  padding: '12px 16px',
+  boxShadow: '0 0 10px rgba(0,0,0,0.6)',
+  zIndex: 10,
+  textAlign: 'center',
+};
+
+const modalBox: React.CSSProperties = {
+  position: 'fixed',
+  top: '50%',
+  left: '50%',
+  transform: 'translate(-50%,-50%)',
+  padding: 15,
+  borderRadius: 10,
+  width: 320,
+  zIndex: 999,
+  boxShadow: '0 0 20px rgba(0,0,0,0.7)',
+  color: '#fff',
+};
+
+const colorGrid: React.CSSProperties = {
+  display: 'grid',
+  gridTemplateColumns: 'repeat(8,1fr)',
+  gap: 6,
+  marginTop: 5,
+};
+
+const colorCircle: React.CSSProperties = {
+  width: 20,
+  height: 20,
+  borderRadius: '50%',
+  cursor: 'pointer',
+  border: '1px solid #555',
+  transition: 'transform 0.2s ease, background 0.5s ease',
+ };
+}
