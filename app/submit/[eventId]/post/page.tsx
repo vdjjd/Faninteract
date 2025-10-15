@@ -1,143 +1,118 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams } from 'next/navigation';
 import Cropper from 'react-easy-crop';
+import imageCompression from 'browser-image-compression';
 import { supabase } from '@/lib/supabaseClient';
 
-export default function GuestSubmissionPage() {
+export default function SubmitPostPage() {
   const { eventId } = useParams();
-  const [imageSrc, setImageSrc] = useState<string | null>(null);
+  const [event, setEvent] = useState<any>(null);
+  const [photo, setPhoto] = useState<string | null>(null);
   const [croppedAreaPixels, setCroppedAreaPixels] = useState<any>(null);
-  const [croppedImage, setCroppedImage] = useState<string | null>(null);
   const [message, setMessage] = useState('');
   const [nickname, setNickname] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
+  const [error, setError] = useState('');
 
-  /* ---------- Handle Image Upload ---------- */
-  const handleFileChange = async (e: any) => {
+  /* ---------- Load Event ---------- */
+  useEffect(() => {
+    async function loadEvent() {
+      const { data } = await supabase
+        .from('events')
+        .select('title, background_value, logo_url')
+        .eq('id', eventId)
+        .single();
+      if (data) setEvent(data);
+    }
+    loadEvent();
+
+    const savedName = localStorage.getItem('nickname');
+    if (savedName) setNickname(savedName);
+  }, [eventId]);
+
+  /* ---------- Crop Logic ---------- */
+  const onCropComplete = useCallback((_: any, croppedPixels: any) => {
+    setCroppedAreaPixels(croppedPixels);
+  }, []);
+
+  /* ---------- Handle File Input ---------- */
+  async function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => setImageSrc(reader.result as string);
-    reader.readAsDataURL(file);
-  };
 
-  /* ---------- Handle Camera Input ---------- */
-  const handleCameraInput = () => {
+    const options = { maxSizeMB: 1, maxWidthOrHeight: 1080, useWebWorker: true };
+    const compressed = await imageCompression(file, options);
+    const reader = new FileReader();
+    reader.onload = () => setPhoto(reader.result as string);
+    reader.readAsDataURL(compressed);
+  }
+
+  /* ---------- Handle Camera Capture ---------- */
+  async function handleCameraClick() {
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = 'image/*';
     input.capture = 'environment';
-    input.onchange = handleFileChange;
+    input.onchange = handleFileSelect as any;
     input.click();
-  };
-
-  /* ---------- Crop Logic ---------- */
-  const onCropComplete = useCallback((_: unknown, croppedAreaPixels: any) => {
-    setCroppedAreaPixels(croppedAreaPixels);
-  }, []);
-
-  const createCroppedImage = async () => {
-    if (!imageSrc || !croppedAreaPixels) return null;
-
-    const image = await createImage(imageSrc);
-    const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d')!;
-    const { width, height, x, y } = croppedAreaPixels;
-    const size = 500;
-
-    canvas.width = size;
-    canvas.height = size;
-
-    ctx.drawImage(
-      image,
-      x,
-      y,
-      width,
-      height,
-      0,
-      0,
-      size,
-      size
-    );
-
-    return new Promise<string>((resolve) => {
-      canvas.toBlob((blob) => {
-        const croppedUrl = URL.createObjectURL(blob!);
-        resolve(croppedUrl);
-      }, 'image/jpeg');
-    });
-  };
-
-  function createImage(url: string): Promise<HTMLImageElement> {
-    return new Promise((resolve, reject) => {
-      const img = new Image();
-      img.addEventListener('load', () => resolve(img));
-      img.addEventListener('error', (err) => reject(err));
-      img.src = url;
-    });
   }
 
-  /* ---------- Handle Submit ---------- */
-  const handleSubmit = async (e: any) => {
+  /* ---------- Upload Submission ---------- */
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!imageSrc) return alert('Please upload or take a photo first.');
-    if (!message.trim()) return alert('Please enter a message.');
-
-    setSubmitting(true);
-    const cropped = await createCroppedImage();
-    setCroppedImage(cropped);
-
-    // Convert cropped image to blob
-    const response = await fetch(cropped!);
-    const blob = await response.blob();
-
-    // Upload to Supabase storage
-    const filename = `submission-${Date.now()}.jpg`;
-    const { data: storageData, error: uploadError } = await supabase.storage
-      .from('submissions')
-      .upload(filename, blob, { contentType: 'image/jpeg' });
-
-    if (uploadError) {
-      console.error('Upload error:', uploadError);
-      alert('Error uploading image.');
-      setSubmitting(false);
+    setError('');
+    if (!photo || !message.trim()) {
+      setError('Please add a photo and a message.');
       return;
     }
 
-    const photo_url = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/submissions/${filename}`;
+    setSubmitting(true);
+    try {
+      const blob = await (await fetch(photo)).blob();
+      const fileName = `${Date.now()}-${Math.random().toString(36).slice(2)}.jpg`;
+      const filePath = `submissions/${eventId}/${fileName}`;
 
-    // Insert into submissions table
-    const { error: insertError } = await supabase.from('submissions').insert([
-      {
-        event_id: eventId,
-        photo_url,
-        message: message.trim(),
-        nickname: nickname.trim() || null,
-        status: 'pending',
-      },
-    ]);
+      const { error: uploadError } = await supabase.storage
+        .from('submissions')
+        .upload(filePath, blob, { cacheControl: '3600', upsert: false });
 
-    if (insertError) {
-      console.error('Insert error:', insertError);
-      alert('Error saving post.');
-    } else {
-      setImageSrc(null);
+      if (uploadError) throw uploadError;
+
+      const publicUrl = supabase.storage.from('submissions').getPublicUrl(filePath).data.publicUrl;
+
+      const { error: insertError } = await supabase.from('submissions').insert([
+        {
+          event_id: eventId,
+          photo_url: publicUrl,
+          message: message.trim(),
+          nickname: nickname.trim() || 'Guest',
+          status: 'pending',
+        },
+      ]);
+      if (insertError) throw insertError;
+
+      localStorage.setItem('nickname', nickname);
+      setSubmitted(true);
+      setTimeout(() => setSubmitted(false), 3000);
+      setPhoto(null);
       setMessage('');
-      setNickname('');
-      alert('✅ Submitted to Wall (pending approval)');
+    } catch (err: any) {
+      console.error('Upload error:', err);
+      setError('Upload failed. Please try again.');
+    } finally {
+      setSubmitting(false);
     }
+  }
 
-    setSubmitting(false);
-  };
-
-  /* ---------- UI ---------- */
+  /* ---------- Render ---------- */
   return (
     <div
       style={{
         minHeight: '100vh',
-        background: '#000',
+        background: event?.background_value || 'linear-gradient(180deg,#0d1b2a,#1b263b)',
         display: 'flex',
         justifyContent: 'center',
         alignItems: 'center',
@@ -150,60 +125,99 @@ export default function GuestSubmissionPage() {
         style={{
           width: '100%',
           maxWidth: 420,
-          background: 'linear-gradient(180deg,#0d1b2a,#1b263b)',
+          background: 'rgba(0,0,0,0.7)',
           borderRadius: 16,
           padding: 30,
           color: '#fff',
           textAlign: 'center',
           boxShadow: '0 0 30px rgba(0,0,0,0.6)',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
         }}
       >
-        <h2 style={{ marginBottom: 20, fontWeight: 700 }}>
+        {/* Logo */}
+        <img
+          src={event?.logo_url || '/faninteractlogo.png'}
+          alt="Logo"
+          style={{
+            width: 160,
+            height: 160,
+            objectFit: 'contain',
+            marginBottom: -10,
+            filter: 'drop-shadow(0 0 14px rgba(255,255,255,0.3))',
+          }}
+        />
+
+        {/* Title */}
+        <h2
+          style={{
+            fontSize: 'clamp(1.5rem, 2.5vw, 2.2rem)',
+            color: '#1e90ff',
+            textShadow: '0 0 12px rgba(30,144,255,0.8)',
+            marginTop: -4,
+            marginBottom: 20,
+            fontWeight: 700,
+          }}
+        >
           Add Your Photo to the Wall
         </h2>
 
         {/* Buttons */}
-        <div
-          style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            gap: 10,
-            marginBottom: 20,
-          }}
-        >
+        <div style={{ display: 'flex', gap: 10, marginBottom: 12 }}>
           <button
             type="button"
-            onClick={handleCameraInput}
-            style={buttonStyle}
+            onClick={handleCameraClick}
+            style={{
+              flex: 1,
+              padding: '10px 0',
+              borderRadius: 8,
+              border: 'none',
+              background: '#1e90ff',
+              color: '#fff',
+              fontWeight: 600,
+              cursor: 'pointer',
+            }}
           >
-            📸 Camera
+            📸 Take Photo
           </button>
-          <label style={{ ...buttonStyle, cursor: 'pointer' }}>
-            📁 Upload
+
+          <label
+            style={{
+              flex: 1,
+              padding: '10px 0',
+              borderRadius: 8,
+              background: '#1e90ff',
+              color: '#fff',
+              fontWeight: 600,
+              cursor: 'pointer',
+            }}
+          >
+            ⬆️ Upload
             <input
               type="file"
               accept="image/*"
-              onChange={handleFileChange}
+              onChange={handleFileSelect}
               style={{ display: 'none' }}
             />
           </label>
         </div>
 
         {/* Crop Area */}
-        {imageSrc && (
-          <div
-            style={{
-              position: 'relative',
-              width: '100%',
-              height: 300,
-              background: '#000',
-              borderRadius: 12,
-              overflow: 'hidden',
-              marginBottom: 20,
-            }}
-          >
+        <div
+          style={{
+            width: 280,
+            height: 280,
+            position: 'relative',
+            background: '#111',
+            borderRadius: 12,
+            overflow: 'hidden',
+            marginBottom: 16,
+          }}
+        >
+          {photo ? (
             <Cropper
-              image={imageSrc}
+              image={photo}
               crop={{ x: 0, y: 0 }}
               zoom={1}
               aspect={1}
@@ -211,15 +225,40 @@ export default function GuestSubmissionPage() {
               onCropComplete={onCropComplete}
               onZoomChange={() => {}}
             />
-          </div>
-        )}
+          ) : (
+            <p
+              style={{
+                color: '#888',
+                fontSize: 14,
+                position: 'absolute',
+                top: '50%',
+                left: '50%',
+                transform: 'translate(-50%,-50%)',
+              }}
+            >
+              Take or Upload a Photo
+            </p>
+          )}
+        </div>
 
         {/* Message */}
         <textarea
-          placeholder="Add a message..."
+          placeholder="Write your message..."
           value={message}
           onChange={(e) => setMessage(e.target.value)}
-          style={textAreaStyle}
+          style={{
+            width: '85%',
+            height: 80,
+            padding: 10,
+            borderRadius: 10,
+            border: '1px solid #777',
+            background: 'rgba(0,0,0,0.3)',
+            color: '#fff',
+            fontSize: 16,
+            marginBottom: 12,
+            textAlign: 'center',
+            outline: 'none',
+          }}
         />
 
         {/* Nickname */}
@@ -228,61 +267,41 @@ export default function GuestSubmissionPage() {
           placeholder="Nickname (optional)"
           value={nickname}
           onChange={(e) => setNickname(e.target.value)}
-          style={inputStyle}
+          style={{
+            width: '85%',
+            padding: 12,
+            borderRadius: 10,
+            border: '1px solid #777',
+            background: 'rgba(0,0,0,0.3)',
+            color: '#fff',
+            fontSize: 16,
+            textAlign: 'center',
+            marginBottom: 12,
+            outline: 'none',
+          }}
         />
+
+        {error && <p style={{ color: 'salmon', marginBottom: 8 }}>{error}</p>}
+        {submitted && <p style={{ color: '#1e90ff', marginBottom: 8 }}>✅ Submitted!</p>}
 
         <button
           type="submit"
           disabled={submitting}
           style={{
-            ...buttonStyle,
-            width: '100%',
-            marginTop: 10,
+            width: '85%',
             backgroundColor: submitting ? '#444' : '#1e90ff',
+            border: 'none',
+            padding: '12px 0',
+            borderRadius: 10,
+            color: '#fff',
+            fontWeight: 600,
+            cursor: submitting ? 'not-allowed' : 'pointer',
+            transition: 'background 0.3s ease',
           }}
         >
-          {submitting ? 'Submitting...' : 'Submit to Wall'}
+          {submitting ? 'Submitting...' : 'Submit Post'}
         </button>
       </form>
     </div>
   );
 }
-
-/* ---------- Styles ---------- */
-const buttonStyle: React.CSSProperties = {
-  flex: 1,
-  backgroundColor: '#1e90ff',
-  border: 'none',
-  padding: '12px 0',
-  borderRadius: 10,
-  color: '#fff',
-  fontWeight: 600,
-  cursor: 'pointer',
-  transition: 'background 0.3s ease',
-};
-
-const textAreaStyle: React.CSSProperties = {
-  width: '100%',
-  height: 80,
-  borderRadius: 10,
-  border: '1px solid #777',
-  background: 'rgba(0,0,0,0.3)',
-  color: '#fff',
-  padding: 10,
-  fontSize: 14,
-  marginBottom: 10,
-  resize: 'none',
-  outline: 'none',
-};
-
-const inputStyle: React.CSSProperties = {
-  width: '100%',
-  borderRadius: 10,
-  border: '1px solid #777',
-  background: 'rgba(0,0,0,0.3)',
-  color: '#fff',
-  padding: 10,
-  fontSize: 14,
-  marginBottom: 10,
-  outline: 'none',
-};
