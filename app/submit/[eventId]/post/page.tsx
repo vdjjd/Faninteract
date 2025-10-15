@@ -13,6 +13,7 @@ export default function GuestPostPage() {
   const [imageSrc, setImageSrc] = useState<string | null>(null);
   const [croppedAreaPixels, setCroppedAreaPixels] = useState<any>(null);
   const [zoom, setZoom] = useState(1);
+  const [crop, setCrop] = useState({ x: 0, y: 0 });
   const [message, setMessage] = useState('');
   const [nickname, setNickname] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -238,6 +239,8 @@ export default function GuestPostPage() {
           {imageSrc ? (
             <Cropper
               image={imageSrc}
+              crop={crop}
+              onCropChange={setCrop}
               cropShape="rect"
               aspect={1}
               cropSize={{ width: 260, height: 260 }}
