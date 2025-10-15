@@ -4,7 +4,6 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
 
-// 👇 Add a loose interface so TS stops complaining
 interface Submission {
   id: string;
   event_id: string;
@@ -16,12 +15,10 @@ interface Submission {
 
 export default function ModerationPage() {
   const { eventId } = useParams();
-
-  // ✅ Explicitly tell TS this is an array of Submission
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Fetch pending posts
+  // 🧠 Fetch pending posts
   async function fetchPending() {
     const { data, error } = await supabase
       .from('submissions')
@@ -34,10 +31,12 @@ export default function ModerationPage() {
       console.error('❌ Error fetching pending posts:', error);
       return;
     }
-    setSubmissions((data as Submission[]) || []); // 👈 typed assignment fixes build
+
+    setSubmissions((data as Submission[]) || []);
     setLoading(false);
   }
 
+  // ✅ Approve
   async function approvePost(id: string) {
     const { error } = await supabase
       .from('submissions')
@@ -47,6 +46,7 @@ export default function ModerationPage() {
     setSubmissions((prev) => prev.filter((s) => s.id !== id));
   }
 
+  // 🚫 Reject
   async function rejectPost(id: string) {
     const { error } = await supabase
       .from('submissions')
@@ -56,6 +56,7 @@ export default function ModerationPage() {
     setSubmissions((prev) => prev.filter((s) => s.id !== id));
   }
 
+  // 🔁 Real-time updates
   useEffect(() => {
     fetchPending();
 
@@ -80,15 +81,21 @@ export default function ModerationPage() {
             payload.eventType === 'UPDATE' &&
             newData?.status !== 'pending'
           ) {
-            setSubmissions((prev) => prev.filter((s) => s.id !== newData.id));
+            setSubmissions((prev) =>
+              prev.filter((s) => s.id !== newData.id)
+            );
           }
         }
       )
       .subscribe();
 
-    return () => supabase.removeChannel(channel);
+    // 🧩 Fix: make cleanup synchronous (not async)
+    return () => {
+      supabase.removeChannel(channel); // don't return the Promise
+    };
   }, [eventId]);
 
+  // 🧩 Render
   return (
     <div style={{ padding: 20 }}>
       <h2>Pending Submissions</h2>
@@ -122,7 +129,6 @@ export default function ModerationPage() {
                 />
               )}
               <p>{sub.text || '(no text)'}</p>
-
               <div style={{ display: 'flex', gap: 10, marginTop: 8 }}>
                 <button onClick={() => approvePost(sub.id)}>Approve</button>
                 <button onClick={() => rejectPost(sub.id)}>Reject</button>
