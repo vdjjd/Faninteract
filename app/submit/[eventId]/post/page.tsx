@@ -1,105 +1,138 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { useRouter, useParams } from 'next/navigation';
+import { useState, useCallback } from 'react';
+import { useParams } from 'next/navigation';
+import Cropper from 'react-easy-crop';
 import { supabase } from '@/lib/supabaseClient';
 
-export default function GuestPostPage() {
-  const router = useRouter();
+export default function GuestSubmissionPage() {
   const { eventId } = useParams();
-  const [event, setEvent] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
-  const [submitting, setSubmitting] = useState(false);
-  const [photo, setPhoto] = useState<File | null>(null);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [imageSrc, setImageSrc] = useState<string | null>(null);
+  const [croppedAreaPixels, setCroppedAreaPixels] = useState<any>(null);
+  const [croppedImage, setCroppedImage] = useState<string | null>(null);
   const [message, setMessage] = useState('');
   const [nickname, setNickname] = useState('');
-  const [error, setError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
 
-  /* ---------------- LOAD EVENT ---------------- */
-  useEffect(() => {
-    async function fetchEvent() {
-      const { data } = await supabase
-        .from('events')
-        .select('title, background_value, logo_url')
-        .eq('id', eventId)
-        .single();
-      if (data) setEvent(data);
-      setLoading(false);
-    }
-    if (eventId) fetchEvent();
-  }, [eventId]);
-
-  /* ---------------- HANDLE PHOTO ---------------- */
-  const handlePhotoChange = (e: any) => {
-    const file = e.target.files[0];
+  /* ---------- Handle Image Upload ---------- */
+  const handleFileChange = async (e: any) => {
+    const file = e.target.files?.[0];
     if (!file) return;
-    setPhoto(file);
-    setPreviewUrl(URL.createObjectURL(file));
+    const reader = new FileReader();
+    reader.onload = () => setImageSrc(reader.result as string);
+    reader.readAsDataURL(file);
   };
 
-  /* ---------------- SUBMIT ---------------- */
-  async function handleSubmit(e: any) {
+  /* ---------- Handle Camera Input ---------- */
+  const handleCameraInput = () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    input.capture = 'environment';
+    input.onchange = handleFileChange;
+    input.click();
+  };
+
+  /* ---------- Crop Logic ---------- */
+  const onCropComplete = useCallback((_, croppedAreaPixels: any) => {
+    setCroppedAreaPixels(croppedAreaPixels);
+  }, []);
+
+  const createCroppedImage = async () => {
+    if (!imageSrc || !croppedAreaPixels) return null;
+
+    const image = await createImage(imageSrc);
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d')!;
+    const { width, height, x, y } = croppedAreaPixels;
+    const size = 500;
+
+    canvas.width = size;
+    canvas.height = size;
+
+    ctx.drawImage(
+      image,
+      x,
+      y,
+      width,
+      height,
+      0,
+      0,
+      size,
+      size
+    );
+
+    return new Promise<string>((resolve) => {
+      canvas.toBlob((blob) => {
+        const croppedUrl = URL.createObjectURL(blob!);
+        resolve(croppedUrl);
+      }, 'image/jpeg');
+    });
+  };
+
+  function createImage(url: string): Promise<HTMLImageElement> {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.addEventListener('load', () => resolve(img));
+      img.addEventListener('error', (err) => reject(err));
+      img.src = url;
+    });
+  }
+
+  /* ---------- Handle Submit ---------- */
+  const handleSubmit = async (e: any) => {
     e.preventDefault();
-    setError('');
-    if (!message && !photo) return setError('Please add a message or photo.');
+    if (!imageSrc) return alert('Please upload or take a photo first.');
+    if (!message.trim()) return alert('Please enter a message.');
 
     setSubmitting(true);
+    const cropped = await createCroppedImage();
+    setCroppedImage(cropped);
 
-    let photoUrl: string | null = null;
+    // Convert cropped image to blob
+    const response = await fetch(cropped!);
+    const blob = await response.blob();
 
-    if (photo) {
-      const fileName = `${eventId}/${Date.now()}-${photo.name}`;
-      const { data: uploadData, error: uploadError } = await supabase.storage
-        .from('submissions')
-        .upload(fileName, photo);
+    // Upload to Supabase storage
+    const filename = `submission-${Date.now()}.jpg`;
+    const { data: storageData, error: uploadError } = await supabase.storage
+      .from('submissions')
+      .upload(filename, blob, { contentType: 'image/jpeg' });
 
-      if (uploadError) {
-        console.error('Upload failed:', uploadError);
-        setError('Error uploading photo.');
-        setSubmitting(false);
-        return;
-      }
-
-      const { data: publicUrl } = supabase.storage
-        .from('submissions')
-        .getPublicUrl(fileName);
-
-      photoUrl = publicUrl?.publicUrl || null;
+    if (uploadError) {
+      console.error('Upload error:', uploadError);
+      alert('Error uploading image.');
+      setSubmitting(false);
+      return;
     }
 
+    const photo_url = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/submissions/${filename}`;
+
+    // Insert into submissions table
     const { error: insertError } = await supabase.from('submissions').insert([
       {
         event_id: eventId,
+        photo_url,
         message: message.trim(),
         nickname: nickname.trim() || null,
-        photo_url: photoUrl,
         status: 'pending',
       },
     ]);
 
     if (insertError) {
-      console.error('Insert failed:', insertError);
-      setError('Something went wrong. Please try again.');
-      setSubmitting(false);
-      return;
+      console.error('Insert error:', insertError);
+      alert('Error saving post.');
+    } else {
+      setImageSrc(null);
+      setMessage('');
+      setNickname('');
+      alert('✅ Submitted to Wall (pending approval)');
     }
 
-    // Fade animation before redirect
-    const formEl = document.getElementById('post-form');
-    formEl?.animate(
-      [{ opacity: 1 }, { opacity: 0, transform: 'translateY(-20px)' }],
-      { duration: 600, easing: 'ease-in-out', fill: 'forwards' }
-    );
+    setSubmitting(false);
+  };
 
-    await new Promise((res) => setTimeout(res, 600));
-    router.push(`/submit/${eventId}/thankyou`);
-  }
-
-  if (loading)
-    return <p style={{ textAlign: 'center', color: '#fff' }}>Loading...</p>;
-
-  /* ---------------- RENDER ---------------- */
+  /* ---------- UI ---------- */
   return (
     <div
       style={{
@@ -108,144 +141,148 @@ export default function GuestPostPage() {
         display: 'flex',
         justifyContent: 'center',
         alignItems: 'center',
-        padding: '20px',
+        padding: 20,
         fontFamily: 'system-ui, sans-serif',
       }}
     >
       <form
-        id="post-form"
         onSubmit={handleSubmit}
         style={{
           width: '100%',
           maxWidth: 420,
-          background:
-            event?.background_value ||
-            'linear-gradient(180deg,#0d1b2a,#1b263b)',
+          background: 'linear-gradient(180deg,#0d1b2a,#1b263b)',
           borderRadius: 16,
           padding: 30,
           color: '#fff',
           textAlign: 'center',
           boxShadow: '0 0 30px rgba(0,0,0,0.6)',
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
         }}
       >
-        {/* ---------- LOGO ---------- */}
-        <img
-          src={event?.logo_url || '/faninteractlogo.png'}
-          alt="Logo"
-          style={{
-            width: 300,
-            height: 300,
-            objectFit: 'contain',
-            marginBottom: -6,
-            marginTop: -20,
-            filter: 'drop-shadow(0 0 14px rgba(255,255,255,0.3))',
-          }}
-        />
-
-        <h2
-          style={{
-            fontSize: 'clamp(1.5rem, 2.5vw, 2.2rem)',
-            marginTop: -12,
-            marginBottom: 10,
-            fontWeight: 700,
-            textShadow: '0 0 12px rgba(0,0,0,0.6)',
-          }}
-        >
-          {event?.title || 'FanInteract Wall'}
+        <h2 style={{ marginBottom: 20, fontWeight: 700 }}>
+          Add Your Photo to the Wall
         </h2>
 
-        <p style={{ fontSize: 14, color: '#ddd', marginBottom: 20 }}>
-          Add your photo and message to the wall!
-        </p>
-
-        {/* ---------- PHOTO UPLOAD ---------- */}
-        {previewUrl && (
-          <img
-            src={previewUrl}
-            alt="Preview"
-            style={{
-              width: '85%',
-              borderRadius: 10,
-              marginBottom: 12,
-              objectFit: 'cover',
-              boxShadow: '0 0 10px rgba(255,255,255,0.2)',
-            }}
-          />
-        )}
-        <input
-          type="file"
-          accept="image/*"
-          capture="environment"
-          onChange={handlePhotoChange}
+        {/* Buttons */}
+        <div
           style={{
-            color: '#ccc',
-            marginBottom: 12,
-            width: '85%',
-            textAlign: 'center',
+            display: 'flex',
+            justifyContent: 'space-between',
+            gap: 10,
+            marginBottom: 20,
           }}
-        />
+        >
+          <button
+            type="button"
+            onClick={handleCameraInput}
+            style={buttonStyle}
+          >
+            📸 Camera
+          </button>
+          <label style={{ ...buttonStyle, cursor: 'pointer' }}>
+            📁 Upload
+            <input
+              type="file"
+              accept="image/*"
+              onChange={handleFileChange}
+              style={{ display: 'none' }}
+            />
+          </label>
+        </div>
 
+        {/* Crop Area */}
+        {imageSrc && (
+          <div
+            style={{
+              position: 'relative',
+              width: '100%',
+              height: 300,
+              background: '#000',
+              borderRadius: 12,
+              overflow: 'hidden',
+              marginBottom: 20,
+            }}
+          >
+            <Cropper
+              image={imageSrc}
+              crop={{ x: 0, y: 0 }}
+              zoom={1}
+              aspect={1}
+              onCropChange={() => {}}
+              onCropComplete={onCropComplete}
+              onZoomChange={() => {}}
+            />
+          </div>
+        )}
+
+        {/* Message */}
         <textarea
-          placeholder="Write your message..."
+          placeholder="Add a message..."
           value={message}
           onChange={(e) => setMessage(e.target.value)}
-          style={{
-            width: '85%',
-            minHeight: 80,
-            padding: '10px',
-            borderRadius: 10,
-            border: '1px solid #777',
-            background: 'rgba(0,0,0,0.3)',
-            color: '#fff',
-            fontSize: 16,
-            marginBottom: 12,
-            textAlign: 'center',
-            outline: 'none',
-          }}
+          style={textAreaStyle}
         />
 
+        {/* Nickname */}
         <input
           type="text"
           placeholder="Nickname (optional)"
           value={nickname}
           onChange={(e) => setNickname(e.target.value)}
-          style={{
-            width: '85%',
-            padding: '10px',
-            marginBottom: 12,
-            borderRadius: 10,
-            border: '1px solid #777',
-            background: 'rgba(0,0,0,0.3)',
-            color: '#fff',
-            fontSize: 16,
-            textAlign: 'center',
-          }}
+          style={inputStyle}
         />
-
-        {error && <p style={{ color: 'salmon', marginBottom: 8 }}>{error}</p>}
 
         <button
           type="submit"
           disabled={submitting}
           style={{
-            width: '85%',
-            backgroundColor: submitting ? '#444' : '#1e90ff',
-            border: 'none',
-            padding: '12px 0',
-            borderRadius: 10,
-            color: '#fff',
-            fontWeight: 600,
+            ...buttonStyle,
+            width: '100%',
             marginTop: 10,
-            cursor: submitting ? 'not-allowed' : 'pointer',
-            transition: 'background 0.3s ease',
+            backgroundColor: submitting ? '#444' : '#1e90ff',
           }}
         >
-          {submitting ? 'Posting...' : 'Submit to Wall'}
+          {submitting ? 'Submitting...' : 'Submit to Wall'}
         </button>
       </form>
     </div>
   );
 }
+
+/* ---------- Styles ---------- */
+const buttonStyle: React.CSSProperties = {
+  flex: 1,
+  backgroundColor: '#1e90ff',
+  border: 'none',
+  padding: '12px 0',
+  borderRadius: 10,
+  color: '#fff',
+  fontWeight: 600,
+  cursor: 'pointer',
+  transition: 'background 0.3s ease',
+};
+
+const textAreaStyle: React.CSSProperties = {
+  width: '100%',
+  height: 80,
+  borderRadius: 10,
+  border: '1px solid #777',
+  background: 'rgba(0,0,0,0.3)',
+  color: '#fff',
+  padding: 10,
+  fontSize: 14,
+  marginBottom: 10,
+  resize: 'none',
+  outline: 'none',
+};
+
+const inputStyle: React.CSSProperties = {
+  width: '100%',
+  borderRadius: 10,
+  border: '1px solid #777',
+  background: 'rgba(0,0,0,0.3)',
+  color: '#fff',
+  padding: 10,
+  fontSize: 14,
+  marginBottom: 10,
+  outline: 'none',
+};
