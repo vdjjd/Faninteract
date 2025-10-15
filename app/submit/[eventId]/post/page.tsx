@@ -34,7 +34,7 @@ export default function GuestSubmissionPage() {
   };
 
   /* ---------- Crop Logic ---------- */
-  const onCropComplete = useCallback((_, croppedAreaPixels: any) => {
+  const onCropComplete = useCallback((_: unknown, croppedAreaPixels: any) => {
     setCroppedAreaPixels(croppedAreaPixels);
   }, []);
 
