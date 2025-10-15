@@ -50,21 +50,26 @@ export default function DashboardPage() {
   }, []);
 
   /* 🧠 Real-time listener to auto-refresh pending counts */
-  useEffect(() => {
-    if (!host) return;
-    const channel = supabase
-      .channel('submissions_realtime')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'submissions' },
-        async () => {
-          const updated = await getEventsByHost(host.id);
-          setEvents(updated);
-        }
-      )
-      .subscribe();
-    return () => supabase.removeChannel(channel);
-  }, [host]);
+useEffect(() => {
+  if (!host) return;
+
+  const channel = supabase
+    .channel('submissions_realtime')
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'submissions' },
+      async () => {
+        const updated = await getEventsByHost(host.id);
+        setEvents(updated);
+      }
+    )
+    .subscribe();
+
+  // ✅ Fixed cleanup: return a synchronous callback, not a promise
+  return () => {
+    supabase.removeChannel(channel);
+  };
+}, [host]);
 
   /* ---------------- CRUD HANDLERS ---------------- */
   async function handleCreateConfirm() {
