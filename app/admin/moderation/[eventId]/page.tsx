@@ -4,9 +4,19 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
 
+// 🧩 TypeScript type for submissions
+interface Submission {
+  id: string;
+  event_id: string;
+  text?: string;
+  image_url?: string;
+  status: string;
+  created_at?: string;
+}
+
 export default function ModerationPage() {
   const { eventId } = useParams();
-  const [submissions, setSubmissions] = useState<any[]>([]);
+  const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [loading, setLoading] = useState(true);
 
   // 🧠 Fetch pending submissions
@@ -22,6 +32,7 @@ export default function ModerationPage() {
       console.error('❌ Error loading submissions:', error);
       return;
     }
+
     setSubmissions(data || []);
     setLoading(false);
   }
@@ -38,8 +49,11 @@ export default function ModerationPage() {
       return;
     }
 
+    // Remove from local state immediately
     setSubmissions((prev) => prev.filter((s) => s.id !== id));
-    await supabase.from('events').update({}).eq('id', eventId); // triggers real-time sync
+
+    // Touch the event to trigger host dashboard refresh
+    await supabase.from('events').update({}).eq('id', eventId);
   }
 
   // 🚫 Reject submission
@@ -58,7 +72,7 @@ export default function ModerationPage() {
     await supabase.from('events').update({}).eq('id', eventId);
   }
 
-  // 🔁 Real-time updates
+  // 🔁 Real-time listener for live updates
   useEffect(() => {
     fetchSubs();
 
@@ -72,20 +86,23 @@ export default function ModerationPage() {
           table: 'submissions',
           filter: `event_id=eq.${eventId}`,
         },
-        (payload) => {
+        (payload: any) => {
           console.log('🔄 Realtime update:', payload);
 
-          if (payload.eventType === 'INSERT' && payload.new.status === 'pending') {
-            setSubmissions((prev) => [payload.new, ...prev]);
+          const newData = payload.new as Submission | null;
+
+          // 👀 New pending submission
+          if (payload.eventType === 'INSERT' && newData?.status === 'pending') {
+            setSubmissions((prev) => [newData, ...prev]);
           }
 
+          // 🧹 Remove if updated or deleted
           if (
-            (payload.eventType === 'UPDATE' &&
-              payload.new.status !== 'pending') ||
+            (payload.eventType === 'UPDATE' && newData?.status !== 'pending') ||
             payload.eventType === 'DELETE'
           ) {
             setSubmissions((prev) =>
-              prev.filter((s) => s.id !== payload.new.id)
+              prev.filter((s) => s.id !== newData?.id)
             );
           }
         }
@@ -99,8 +116,18 @@ export default function ModerationPage() {
 
   // 🧩 Render
   return (
-    <div style={{ padding: 24, background: '#0d1117', minHeight: '100vh', color: 'white' }}>
-      <h2 style={{ marginBottom: 20 }}>Pending Submissions</h2>
+    <div
+      style={{
+        padding: 24,
+        background: '#0d1117',
+        minHeight: '100vh',
+        color: 'white',
+      }}
+    >
+      <h2 style={{ marginBottom: 20, fontSize: '1.6rem' }}>
+        Pending Submissions
+      </h2>
+
       {loading ? (
         <p>Loading...</p>
       ) : submissions.length === 0 ? (
@@ -126,10 +153,13 @@ export default function ModerationPage() {
                     borderRadius: 8,
                     marginBottom: 12,
                     objectFit: 'cover',
+                    maxHeight: 400,
                   }}
                 />
               )}
+
               <p style={{ marginBottom: 10 }}>{sub.text || '(no text)'}</p>
+
               <div style={{ display: 'flex', gap: 10 }}>
                 <button
                   onClick={() => approvePost(sub.id)}
@@ -140,10 +170,12 @@ export default function ModerationPage() {
                     padding: '8px 12px',
                     borderRadius: 6,
                     cursor: 'pointer',
+                    fontWeight: 600,
                   }}
                 >
-                  Approve
+                  ✅ Approve
                 </button>
+
                 <button
                   onClick={() => rejectPost(sub.id)}
                   style={{
@@ -153,9 +185,10 @@ export default function ModerationPage() {
                     padding: '8px 12px',
                     borderRadius: 6,
                     cursor: 'pointer',
+                    fontWeight: 600,
                   }}
                 >
-                  Reject
+                  🚫 Reject
                 </button>
               </div>
             </div>
