@@ -6,9 +6,9 @@ import { supabase } from '@/lib/supabaseClient';
 
 export default function ModerationTest() {
   const { eventId } = useParams();
-  const [subs, setSubs] = useState([]);
+  const [subs, setSubs] = useState<any[]>([]);
 
-  // Fetch all submissions for this event (any status)
+  // 🔹 Load all submissions for this event
   async function loadSubs() {
     const { data, error } = await supabase
       .from('submissions')
@@ -16,9 +16,11 @@ export default function ModerationTest() {
       .eq('event_id', eventId)
       .order('created_at', { ascending: false });
 
-    if (error) console.error('❌ Fetch error:', error);
-    else console.log('✅ Loaded submissions:', data);
-
+    if (error) {
+      console.error('❌ Fetch error:', error);
+      return;
+    }
+    console.log('✅ Loaded submissions:', data);
     setSubs(data || []);
   }
 
@@ -27,7 +29,7 @@ export default function ModerationTest() {
     console.log('🔗 Event ID param:', eventId);
     loadSubs();
 
-    // Listen for all changes on submissions
+    // 🔹 Listen for all realtime events on this event’s submissions
     const channel = supabase
       .channel('debug_submissions')
       .on(
@@ -40,7 +42,7 @@ export default function ModerationTest() {
         },
         (payload) => {
           console.log('🟢 REALTIME EVENT:', payload);
-          loadSubs(); // refresh after every change
+          loadSubs(); // refresh list whenever something changes
         }
       )
       .subscribe();
@@ -68,6 +70,4 @@ export default function ModerationTest() {
       )}
     </div>
   );
-}
-
 }
