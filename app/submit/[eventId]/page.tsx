@@ -113,12 +113,12 @@ export default function GuestInfoPage() {
       setSubmitting(false);
       return;
     } else {
-      console.log('✅ Guest added successfully:', data);
-      alert('Guest added successfully!');
-    }
+  console.log('✅ Guest added successfully:', data);
+}
 
-    // Save locally for continuity
-    localStorage.setItem('guestInfo', JSON.stringify(form));
+// Save locally for continuity
+localStorage.setItem('guestInfo', JSON.stringify(form));
+
 
     // ✅ Redirect to the “post submission” page
     router.push(`/submit/${eventUUID}/post`);
