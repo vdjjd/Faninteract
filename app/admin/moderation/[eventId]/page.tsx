@@ -18,7 +18,6 @@ export default function ModerationPage() {
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // 🧠 Fetch pending posts
   async function fetchPending() {
     const { data, error } = await supabase
       .from('submissions')
@@ -28,15 +27,13 @@ export default function ModerationPage() {
       .order('created_at', { ascending: false });
 
     if (error) {
-      console.error('❌ Error fetching pending posts:', error);
+      console.error('❌ fetchPending error:', error);
       return;
     }
-
     setSubmissions((data as Submission[]) || []);
     setLoading(false);
   }
 
-  // ✅ Approve
   async function approvePost(id: string) {
     const { error } = await supabase
       .from('submissions')
@@ -46,7 +43,6 @@ export default function ModerationPage() {
     setSubmissions((prev) => prev.filter((s) => s.id !== id));
   }
 
-  // 🚫 Reject
   async function rejectPost(id: string) {
     const { error } = await supabase
       .from('submissions')
@@ -56,7 +52,6 @@ export default function ModerationPage() {
     setSubmissions((prev) => prev.filter((s) => s.id !== id));
   }
 
-  // 🔁 Real-time updates
   useEffect(() => {
     fetchPending();
 
@@ -71,7 +66,7 @@ export default function ModerationPage() {
           filter: `event_id=eq.${eventId}`,
         },
         (payload: any) => {
-          const newData = payload.new as Submission | undefined;
+          const newData: Submission | undefined = payload?.new;
 
           if (payload.eventType === 'INSERT' && newData?.status === 'pending') {
             setSubmissions((prev) => [newData, ...prev]);
@@ -79,27 +74,26 @@ export default function ModerationPage() {
 
           if (
             payload.eventType === 'UPDATE' &&
-            newData?.status !== 'pending'
+            newData &&
+            newData.status !== 'pending'
           ) {
             setSubmissions((prev) =>
-              prev.filter((s) => s.id !== newData.id)
+              prev.filter((s) => s.id !== (newData?.id ?? ''))
             );
           }
         }
       )
       .subscribe();
 
-    // 🧩 Fix: make cleanup synchronous (not async)
+    // cleanup (must stay synchronous)
     return () => {
-      supabase.removeChannel(channel); // don't return the Promise
+      supabase.removeChannel(channel);
     };
   }, [eventId]);
 
-  // 🧩 Render
   return (
     <div style={{ padding: 20 }}>
       <h2>Pending Submissions</h2>
-
       {loading ? (
         <p>Loading...</p>
       ) : submissions.length === 0 ? (
