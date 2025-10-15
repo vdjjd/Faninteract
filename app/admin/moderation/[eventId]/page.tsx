@@ -4,23 +4,13 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
 
-// 🧩 TypeScript type for submissions
-interface Submission {
-  id: string;
-  event_id: string;
-  text?: string;
-  image_url?: string;
-  status: string;
-  created_at?: string;
-}
-
 export default function ModerationPage() {
   const { eventId } = useParams();
-  const [submissions, setSubmissions] = useState<Submission[]>([]);
+  const [submissions, setSubmissions] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // 🧠 Fetch pending submissions
-  async function fetchSubs() {
+  // Fetch all pending posts
+  async function fetchPending() {
     const { data, error } = await supabase
       .from('submissions')
       .select('*')
@@ -29,16 +19,15 @@ export default function ModerationPage() {
       .order('created_at', { ascending: false });
 
     if (error) {
-      console.error('❌ Error loading submissions:', error);
+      console.error('❌ Error fetching pending posts:', error);
       return;
     }
-
     setSubmissions(data || []);
     setLoading(false);
   }
 
-  // ✅ Approve submission
-  async function approvePost(id: string) {
+  // Approve post
+  async function approvePost(id) {
     const { error } = await supabase
       .from('submissions')
       .update({ status: 'approved' })
@@ -49,15 +38,12 @@ export default function ModerationPage() {
       return;
     }
 
-    // Remove from local state immediately
+    // Remove from current view instantly
     setSubmissions((prev) => prev.filter((s) => s.id !== id));
-
-    // Touch the event to trigger host dashboard refresh
-    await supabase.from('events').update({}).eq('id', eventId);
   }
 
-  // 🚫 Reject submission
-  async function rejectPost(id: string) {
+  // Reject post
+  async function rejectPost(id) {
     const { error } = await supabase
       .from('submissions')
       .update({ status: 'rejected' })
@@ -69,15 +55,14 @@ export default function ModerationPage() {
     }
 
     setSubmissions((prev) => prev.filter((s) => s.id !== id));
-    await supabase.from('events').update({}).eq('id', eventId);
   }
 
-  // 🔁 Real-time listener for live updates
+  // Watch table for new inserts or status changes
   useEffect(() => {
-    fetchSubs();
+    fetchPending();
 
     const channel = supabase
-      .channel('submissions_realtime')
+      .channel('moderation_live')
       .on(
         'postgres_changes',
         {
@@ -86,62 +71,48 @@ export default function ModerationPage() {
           table: 'submissions',
           filter: `event_id=eq.${eventId}`,
         },
-        (payload: any) => {
-          console.log('🔄 Realtime update:', payload);
+        (payload) => {
+          console.log('Realtime update:', payload);
+          const newData = payload.new;
 
-          const newData = payload.new as Submission | null;
-
-          // 👀 New pending submission
           if (payload.eventType === 'INSERT' && newData?.status === 'pending') {
             setSubmissions((prev) => [newData, ...prev]);
           }
 
-          // 🧹 Remove if updated or deleted
           if (
-            (payload.eventType === 'UPDATE' && newData?.status !== 'pending') ||
-            payload.eventType === 'DELETE'
+            payload.eventType === 'UPDATE' &&
+            newData?.status !== 'pending'
           ) {
             setSubmissions((prev) =>
-              prev.filter((s) => s.id !== newData?.id)
+              prev.filter((s) => s.id !== newData.id)
             );
           }
         }
       )
       .subscribe();
 
-    return () => {
-      supabase.removeChannel(channel);
-    };
+    return () => supabase.removeChannel(channel);
   }, [eventId]);
 
-  // 🧩 Render
+  // Render
   return (
-    <div
-      style={{
-        padding: 24,
-        background: '#0d1117',
-        minHeight: '100vh',
-        color: 'white',
-      }}
-    >
-      <h2 style={{ marginBottom: 20, fontSize: '1.6rem' }}>
-        Pending Submissions
-      </h2>
+    <div style={{ padding: 20 }}>
+      <h2>Pending Submissions</h2>
 
       {loading ? (
         <p>Loading...</p>
       ) : submissions.length === 0 ? (
         <p>No pending posts right now.</p>
       ) : (
-        <div style={{ display: 'grid', gap: 20 }}>
+        <div style={{ display: 'grid', gap: 16 }}>
           {submissions.map((sub) => (
             <div
               key={sub.id}
               style={{
-                background: '#161b22',
+                background: '#222',
+                padding: 12,
                 borderRadius: 8,
-                padding: 16,
-                border: '1px solid #30363d',
+                color: 'white',
               }}
             >
               {sub.image_url && (
@@ -151,45 +122,16 @@ export default function ModerationPage() {
                   style={{
                     width: '100%',
                     borderRadius: 8,
-                    marginBottom: 12,
+                    marginBottom: 8,
                     objectFit: 'cover',
-                    maxHeight: 400,
                   }}
                 />
               )}
+              <p>{sub.text || '(no text)'}</p>
 
-              <p style={{ marginBottom: 10 }}>{sub.text || '(no text)'}</p>
-
-              <div style={{ display: 'flex', gap: 10 }}>
-                <button
-                  onClick={() => approvePost(sub.id)}
-                  style={{
-                    background: '#238636',
-                    color: 'white',
-                    border: 'none',
-                    padding: '8px 12px',
-                    borderRadius: 6,
-                    cursor: 'pointer',
-                    fontWeight: 600,
-                  }}
-                >
-                  ✅ Approve
-                </button>
-
-                <button
-                  onClick={() => rejectPost(sub.id)}
-                  style={{
-                    background: '#da3633',
-                    color: 'white',
-                    border: 'none',
-                    padding: '8px 12px',
-                    borderRadius: 6,
-                    cursor: 'pointer',
-                    fontWeight: 600,
-                  }}
-                >
-                  🚫 Reject
-                </button>
+              <div style={{ display: 'flex', gap: 10, marginTop: 8 }}>
+                <button onClick={() => approvePost(sub.id)}>Approve</button>
+                <button onClick={() => rejectPost(sub.id)}>Reject</button>
               </div>
             </div>
           ))}
