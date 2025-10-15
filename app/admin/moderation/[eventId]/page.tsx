@@ -9,13 +9,13 @@ export default function ModerationPage() {
   const [submissions, setSubmissions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // 🧠 Fetch submissions
+  // 🧠 Fetch all pending + approved submissions
   async function fetchSubs() {
     const { data, error } = await supabase
       .from('submissions')
       .select('*')
       .eq('event_id', eventId)
-      .eq('status', 'pending')
+      .in('status', ['pending', 'approved'])
       .order('created_at', { ascending: false });
 
     if (error) {
@@ -30,7 +30,7 @@ export default function ModerationPage() {
   useEffect(() => {
     fetchSubs();
     const ch = supabase
-      .channel('realtime:submissions')
+      .channel(`submissions-${eventId}`)
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'submissions', filter: `event_id=eq.${eventId}` },
@@ -43,17 +43,25 @@ export default function ModerationPage() {
     };
   }, [eventId]);
 
-  // ✅ Approve / Deny
-  async function handleModeration(id: string, action: 'approved' | 'rejected') {
-    const { error } = await supabase.rpc('update_submission_status', {
-      submission_id: id,
-      new_status: action,
-    });
-    if (error) console.error('❌ Moderation error:', error.message);
-    else {
-      // Smooth fade-out
-      setSubmissions((prev) => prev.filter((s) => s.id !== id));
-    }
+  // ✅ Approve post
+  async function handleApprove(id: string) {
+    const { error } = await supabase
+      .from('submissions')
+      .update({ status: 'approved' })
+      .eq('id', id);
+
+    if (error) console.error('❌ Approve error:', error.message);
+    else fetchSubs();
+  }
+
+  // ❌ Reject (delete)
+  async function handleReject(id: string) {
+    const { error } = await supabase
+      .from('submissions')
+      .update({ status: 'rejected' })
+      .eq('id', id);
+    if (error) console.error('❌ Reject error:', error.message);
+    else fetchSubs();
   }
 
   // ✅ Close popup
@@ -68,38 +76,58 @@ export default function ModerationPage() {
     <div style={pageStyle}>
       <img src="/faninteractlogo.png" alt="FanInteract Logo" style={{ width: 160, marginBottom: 10 }} />
       <button style={closeBtn} onClick={handleClose}>✖ Close Moderation</button>
-      <h2 style={{ marginTop: 10, marginBottom: 30 }}>🛡️ Pending Submissions</h2>
+      <h2 style={{ marginTop: 10, marginBottom: 30 }}>🛡️ Pending & Approved Submissions</h2>
 
       <div style={gridStyle}>
         {submissions.length === 0 && (
           <p style={{ color: '#ccc', textAlign: 'center', width: '100%' }}>
-            No pending posts right now.
+            No submissions right now.
           </p>
         )}
 
         {submissions.map((s) => (
-          <div key={s.id} style={cardStyle}>
+          <div
+            key={s.id}
+            style={{
+              ...cardStyle,
+              border:
+                s.status === 'approved'
+                  ? '2px solid #16a34a'
+                  : '2px solid #ffaa00',
+            }}
+          >
             <div style={cardContent}>
               <img
                 src={s.photo_url}
                 alt="Submitted Photo"
                 style={imageStyle}
+                onClick={() => window.open(s.photo_url, '_blank')}
               />
               <div style={textSection}>
                 <p style={messageStyle}>{s.message}</p>
                 <p style={nicknameStyle}>{s.nickname || 'Guest'}</p>
                 <p style={timestampStyle}>
-                  {new Date(s.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  {new Date(s.created_at).toLocaleTimeString([], {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  })}
                 </p>
               </div>
             </div>
+
             <div style={buttonRow}>
-              <button style={approveBtn} onClick={() => handleModeration(s.id, 'approved')}>
-                ✅ Approve
-              </button>
-              <button style={denyBtn} onClick={() => handleModeration(s.id, 'rejected')}>
-                ❌ Deny
-              </button>
+              {s.status === 'pending' ? (
+                <>
+                  <button style={approveBtn} onClick={() => handleApprove(s.id)}>
+                    ✅ Approve
+                  </button>
+                  <button style={denyBtn} onClick={() => handleReject(s.id)}>
+                    ❌ Reject
+                  </button>
+                </>
+              ) : (
+                <p style={{ color: '#16a34a', fontWeight: 600 }}>✅ Approved</p>
+              )}
             </div>
           </div>
         ))}
@@ -153,6 +181,7 @@ const imageStyle: React.CSSProperties = {
   height: 120,
   objectFit: 'cover',
   borderRadius: 10,
+  cursor: 'pointer',
 };
 
 const textSection: React.CSSProperties = {
