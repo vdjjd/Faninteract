@@ -32,18 +32,24 @@ export default function ModerationPage() {
   }
 
   // 🔁 Real-time updates
-  useEffect(() => {
-    fetchSubs();
-    const ch = supabase
-      .channel(`submissions-${eventId}`)
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'submissions', filter: `event_id=eq.${eventId}` },
-        () => fetchSubs()
-      )
-      .subscribe();
-    return () => supabase.removeChannel(ch);
-  }, [eventId]);
+useEffect(() => {
+  fetchSubs();
+
+  const ch = supabase
+    .channel(`submissions-${eventId}`)
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'submissions', filter: `event_id=eq.${eventId}` },
+      () => fetchSubs()
+    )
+    .subscribe();
+
+  // ✅ synchronous cleanup
+  return () => {
+    supabase.removeChannel(ch);
+  };
+}, [eventId]);
+
 
   // ✅ Actions
   async function handleApprove(id: string) {
