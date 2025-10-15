@@ -4,12 +4,24 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
 
+// 👇 Add a loose interface so TS stops complaining
+interface Submission {
+  id: string;
+  event_id: string;
+  text?: string;
+  image_url?: string;
+  status: string;
+  created_at?: string;
+}
+
 export default function ModerationPage() {
   const { eventId } = useParams();
-  const [submissions, setSubmissions] = useState([]);
+
+  // ✅ Explicitly tell TS this is an array of Submission
+  const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Fetch all pending posts
+  // Fetch pending posts
   async function fetchPending() {
     const { data, error } = await supabase
       .from('submissions')
@@ -22,42 +34,28 @@ export default function ModerationPage() {
       console.error('❌ Error fetching pending posts:', error);
       return;
     }
-    setSubmissions(data || []);
+    setSubmissions((data as Submission[]) || []); // 👈 typed assignment fixes build
     setLoading(false);
   }
 
-  // Approve post
-  async function approvePost(id) {
+  async function approvePost(id: string) {
     const { error } = await supabase
       .from('submissions')
       .update({ status: 'approved' })
       .eq('id', id);
-
-    if (error) {
-      console.error('❌ Error approving post:', error);
-      return;
-    }
-
-    // Remove from current view instantly
+    if (error) return console.error('approve error:', error);
     setSubmissions((prev) => prev.filter((s) => s.id !== id));
   }
 
-  // Reject post
-  async function rejectPost(id) {
+  async function rejectPost(id: string) {
     const { error } = await supabase
       .from('submissions')
       .update({ status: 'rejected' })
       .eq('id', id);
-
-    if (error) {
-      console.error('❌ Error rejecting post:', error);
-      return;
-    }
-
+    if (error) return console.error('reject error:', error);
     setSubmissions((prev) => prev.filter((s) => s.id !== id));
   }
 
-  // Watch table for new inserts or status changes
   useEffect(() => {
     fetchPending();
 
@@ -71,9 +69,8 @@ export default function ModerationPage() {
           table: 'submissions',
           filter: `event_id=eq.${eventId}`,
         },
-        (payload) => {
-          console.log('Realtime update:', payload);
-          const newData = payload.new;
+        (payload: any) => {
+          const newData = payload.new as Submission | undefined;
 
           if (payload.eventType === 'INSERT' && newData?.status === 'pending') {
             setSubmissions((prev) => [newData, ...prev]);
@@ -83,9 +80,7 @@ export default function ModerationPage() {
             payload.eventType === 'UPDATE' &&
             newData?.status !== 'pending'
           ) {
-            setSubmissions((prev) =>
-              prev.filter((s) => s.id !== newData.id)
-            );
+            setSubmissions((prev) => prev.filter((s) => s.id !== newData.id));
           }
         }
       )
@@ -94,7 +89,6 @@ export default function ModerationPage() {
     return () => supabase.removeChannel(channel);
   }, [eventId]);
 
-  // Render
   return (
     <div style={{ padding: 20 }}>
       <h2>Pending Submissions</h2>
