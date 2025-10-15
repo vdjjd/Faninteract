@@ -20,6 +20,7 @@ export default function ModerationPage() {
   const [loading, setLoading] = useState(true);
   const [selectedImg, setSelectedImg] = useState<string | null>(null);
 
+  // ✅ Fetch all submissions for this event
   async function loadAll() {
     if (!eventId) return;
     const { data, error } = await supabase
@@ -28,38 +29,51 @@ export default function ModerationPage() {
       .eq('event_id', eventId)
       .order('created_at', { ascending: false });
 
-    if (error) return console.error('❌ Error fetching:', error);
-    setSubs((data as Submission[]) || []);
+    if (error) console.error('❌ Error fetching submissions:', error);
+    else setSubs(data as Submission[]);
     setLoading(false);
   }
 
+  // ✅ Approve post
   async function handleApprove(id: string) {
     const { error } = await supabase
       .from('submissions')
       .update({ status: 'approved' })
       .eq('id', id);
-    if (!error)
+
+    if (error) console.error('❌ Approve error:', error);
+    else {
+      console.log('✅ Approved saved to DB');
       setSubs((prev) =>
         prev.map((s) => (s.id === id ? { ...s, status: 'approved' } : s))
       );
+    }
   }
 
+  // ✅ Reject post
   async function handleReject(id: string) {
     const { error } = await supabase
       .from('submissions')
       .update({ status: 'rejected' })
       .eq('id', id);
-    if (!error)
+
+    if (error) console.error('❌ Reject error:', error);
+    else {
+      console.log('🚫 Rejected saved to DB');
       setSubs((prev) =>
         prev.map((s) => (s.id === id ? { ...s, status: 'rejected' } : s))
       );
+    }
   }
 
+  // ✅ Delete post
   async function handleDelete(id: string) {
     const { error } = await supabase.from('submissions').delete().eq('id', id);
-    if (!error) setSubs((prev) => prev.filter((s) => s.id !== id));
+    if (error) console.error('🗑 Delete error:', error);
+    else setSubs((prev) => prev.filter((s) => s.id !== id));
   }
 
+  // ✅ Listen for realtime changes
   useEffect(() => {
     if (!eventId) return;
     loadAll();
@@ -93,6 +107,7 @@ export default function ModerationPage() {
     };
   }, [eventId]);
 
+  // Split into sections
   const pending = subs.filter((s) => s.status === 'pending');
   const approved = subs.filter((s) => s.status === 'approved');
   const rejected = subs.filter((s) => s.status === 'rejected');
