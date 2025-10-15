@@ -11,7 +11,7 @@ export default function ModerationPage() {
   const [rejected, setRejected] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // 🧠 Fetch all submissions grouped by status
+  // 🔹 Fetch submissions grouped by status
   async function fetchSubs() {
     const { data, error } = await supabase
       .from('submissions')
@@ -75,9 +75,17 @@ export default function ModerationPage() {
   return (
     <div style={pageStyle}>
       <img src="/faninteractlogo.png" alt="FanInteract Logo" style={{ width: 160, marginBottom: 10 }} />
+
+      {/* 🔸 Summary Counts */}
+      <div style={summaryBar}>
+        <span style={{ color: '#ffaa00' }}>🟡 Pending: {pending.length}</span>
+        <span style={{ color: '#16a34a' }}>🟢 Approved: {approved.length}</span>
+        <span style={{ color: '#a33' }}>🔴 Rejected: {rejected.length}</span>
+      </div>
+
       <button style={closeBtn} onClick={handleClose}>✖ Close Moderation</button>
 
-      {/* 🟡 PENDING */}
+      {/* 🟡 Pending */}
       <Section title="🟡 Pending Submissions" color="#ffaa00">
         {pending.length === 0 && <EmptyText>No pending posts.</EmptyText>}
         {pending.map((s) => (
@@ -91,7 +99,7 @@ export default function ModerationPage() {
         ))}
       </Section>
 
-      {/* 🟢 APPROVED */}
+      {/* 🟢 Approved */}
       <Section title="🟢 Approved Posts" color="#16a34a">
         {approved.length === 0 && <EmptyText>No approved posts.</EmptyText>}
         {approved.map((s) => (
@@ -104,7 +112,7 @@ export default function ModerationPage() {
         ))}
       </Section>
 
-      {/* 🔴 REJECTED */}
+      {/* 🔴 Rejected */}
       <Section title="🔴 Rejected Posts" color="#a33">
         {rejected.length === 0 && <EmptyText>No rejected posts.</EmptyText>}
         {rejected.map((s) => (
@@ -120,7 +128,7 @@ export default function ModerationPage() {
   );
 }
 
-/* ---------------- SMALL COMPONENTS ---------------- */
+/* ---------- Helper Components ---------- */
 
 function Section({ title, color, children }: any) {
   return (
@@ -132,17 +140,11 @@ function Section({ title, color, children }: any) {
 }
 
 function EmptyText({ children }: any) {
-  return (
-    <p style={{ color: '#999', textAlign: 'center', width: '100%' }}>
-      {children}
-    </p>
-  );
+  return <p style={{ color: '#999', textAlign: 'center', width: '100%' }}>{children}</p>;
 }
 
 function Card({ border, children }: any) {
-  return (
-    <div style={{ ...cardStyle, border: `2px solid ${border}` }}>{children}</div>
-  );
+  return <div style={{ ...cardStyle, border: `2px solid ${border}` }}>{children}</div>;
 }
 
 function CardContent({ s }: any) {
@@ -165,7 +167,7 @@ function CardContent({ s }: any) {
   );
 }
 
-/* ---------------- STYLES ---------------- */
+/* ---------- Styles ---------- */
 
 const pageStyle: React.CSSProperties = {
   display: 'flex',
@@ -177,6 +179,17 @@ const pageStyle: React.CSSProperties = {
   padding: '30px 20px',
   fontFamily: 'system-ui, sans-serif',
   overflowY: 'auto',
+};
+
+const summaryBar: React.CSSProperties = {
+  display: 'flex',
+  justifyContent: 'center',
+  alignItems: 'center',
+  gap: 30,
+  marginBottom: 20,
+  fontWeight: 700,
+  fontSize: 16,
+  letterSpacing: 0.3,
 };
 
 const gridStyle: React.CSSProperties = {
@@ -233,10 +246,7 @@ const nicknameStyle: React.CSSProperties = {
   marginBottom: 4,
 };
 
-const timestampStyle: React.CSSProperties = {
-  fontSize: 12,
-  color: '#999',
-};
+const timestampStyle: React.CSSProperties = { fontSize: 12, color: '#999' };
 
 const buttonRow: React.CSSProperties = {
   display: 'flex',
@@ -244,7 +254,7 @@ const buttonRow: React.CSSProperties = {
   marginTop: 10,
 };
 
-const approveBtn: React.CSSProperties = {
+const approveBtn = {
   flex: 1,
   background: '#16a34a',
   border: 'none',
@@ -256,7 +266,7 @@ const approveBtn: React.CSSProperties = {
   marginRight: 8,
 };
 
-const denyBtn: React.CSSProperties = {
+const denyBtn = {
   flex: 1,
   background: '#a33',
   border: 'none',
@@ -267,7 +277,7 @@ const denyBtn: React.CSSProperties = {
   fontWeight: 600,
 };
 
-const deleteBtn: React.CSSProperties = {
+const deleteBtn = {
   flex: 1,
   background: '#555',
   border: 'none',
@@ -278,7 +288,7 @@ const deleteBtn: React.CSSProperties = {
   fontWeight: 600,
 };
 
-const closeBtn: React.CSSProperties = {
+const closeBtn = {
   backgroundColor: '#1e90ff',
   border: 'none',
   borderRadius: 8,
