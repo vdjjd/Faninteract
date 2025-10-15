@@ -11,31 +11,25 @@ export default function GuestPostPage() {
   const { eventId } = useParams();
 
   const [imageSrc, setImageSrc] = useState<string | null>(null);
-  const [croppedAreaPixels, setCroppedAreaPixels] = useState<any>(null);
-  const [zoom, setZoom] = useState(1);
   const [crop, setCrop] = useState({ x: 0, y: 0 });
+  const [zoom, setZoom] = useState(1);
+  const [croppedAreaPixels, setCroppedAreaPixels] = useState<any>(null);
   const [message, setMessage] = useState('');
   const [nickname, setNickname] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
-  /* ---------- Handle Image Selection ---------- */
+  /* ---------- File Handling ---------- */
   async function handleFileSelect(e: any) {
     const file = e.target.files?.[0];
     if (!file) return;
-
-    const options = {
-      maxSizeMB: 1,
-      maxWidthOrHeight: 1080,
-      useWebWorker: true,
-    };
-
+    const options = { maxSizeMB: 1, maxWidthOrHeight: 1080, useWebWorker: true };
     const compressed = await imageCompression(file, options);
     const reader = new FileReader();
     reader.onload = () => setImageSrc(reader.result as string);
     reader.readAsDataURL(compressed);
   }
 
-  const handleCameraCapture = async () => {
+  const handleCameraCapture = () => {
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = 'image/*';
@@ -45,24 +39,27 @@ export default function GuestPostPage() {
   };
 
   /* ---------- Crop Logic ---------- */
-  const onCropComplete = useCallback(
-    (_: any, croppedAreaPixels: any) => {
-      setCroppedAreaPixels(croppedAreaPixels);
-    },
-    []
-  );
+  const onCropComplete = useCallback((_: any, area: any) => {
+    setCroppedAreaPixels(area);
+  }, []);
+
+  async function createImage(url: string): Promise<HTMLImageElement> {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.src = url;
+      img.onload = () => resolve(img);
+      img.onerror = (err) => reject(err);
+    });
+  }
 
   async function getCroppedImage() {
     if (!imageSrc || !croppedAreaPixels) return null;
     const image = await createImage(imageSrc);
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
-
     if (!ctx) return null;
-
     canvas.width = croppedAreaPixels.width;
     canvas.height = croppedAreaPixels.height;
-
     ctx.drawImage(
       image,
       croppedAreaPixels.x,
@@ -74,64 +71,30 @@ export default function GuestPostPage() {
       croppedAreaPixels.width,
       croppedAreaPixels.height
     );
-
     return new Promise<string>((resolve) => {
       canvas.toBlob((blob) => {
-        if (blob) {
-          const fileUrl = URL.createObjectURL(blob);
-          resolve(fileUrl);
-        }
+        if (blob) resolve(URL.createObjectURL(blob));
       }, 'image/jpeg');
-    });
-  }
-
-  function createImage(url: string): Promise<HTMLImageElement> {
-    return new Promise((resolve, reject) => {
-      const img = new Image();
-      img.src = url;
-      img.onload = () => resolve(img);
-      img.onerror = (err) => reject(err);
     });
   }
 
   /* ---------- Submit ---------- */
   async function handleSubmit(e: any) {
     e.preventDefault();
-    if (!imageSrc || !message.trim()) {
-      alert('Please add a photo and a message before submitting.');
-      return;
-    }
-
+    if (!imageSrc || !message.trim()) return alert('Please add a photo and message.');
     setSubmitting(true);
-
     const croppedImg = await getCroppedImage();
-    if (!croppedImg) {
-      setSubmitting(false);
-      alert('Error processing image.');
-      return;
-    }
+    if (!croppedImg) return alert('Error processing image.');
 
-    // Upload to Supabase Storage
     const fileName = `submission_${Date.now()}.jpg`;
     const response = await fetch(croppedImg);
     const blob = await response.blob();
-
-    const { data: uploadData, error: uploadError } = await supabase.storage
+    const { error: uploadError } = await supabase.storage
       .from('uploads')
       .upload(fileName, blob, { contentType: 'image/jpeg' });
+    if (uploadError) return alert('Upload failed.');
 
-    if (uploadError) {
-      console.error(uploadError);
-      alert('Upload failed.');
-      setSubmitting(false);
-      return;
-    }
-
-    const { data: publicUrl } = supabase.storage
-      .from('uploads')
-      .getPublicUrl(fileName);
-
-    // Insert into DB
+    const { data: publicUrl } = supabase.storage.from('uploads').getPublicUrl(fileName);
     const { error: insertError } = await supabase.from('submissions').insert([
       {
         event_id: eventId,
@@ -141,18 +104,10 @@ export default function GuestPostPage() {
         status: 'pending',
       },
     ]);
-
-    if (insertError) {
-      console.error(insertError);
-      alert('Error submitting post.');
-      setSubmitting(false);
-      return;
-    }
+    if (insertError) return alert('Error submitting post.');
 
     alert('✅ Your photo has been submitted for approval!');
-    setTimeout(() => {
-      window.close();
-    }, 2000);
+    setTimeout(() => window.close(), 2000);
   }
 
   /* ---------- UI ---------- */
@@ -179,9 +134,11 @@ export default function GuestPostPage() {
           padding: 24,
           textAlign: 'center',
           boxShadow: '0 0 20px rgba(0,0,0,0.6)',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
         }}
       >
-        {/* Logo */}
         <img
           src="/faninteractlogo.png"
           alt="FanInteract"
@@ -197,39 +154,22 @@ export default function GuestPostPage() {
         <h2 style={{ marginBottom: 14, fontWeight: 700 }}>Add Your Photo to the Wall</h2>
 
         {/* Buttons Row */}
-        <div
-          style={{
-            display: 'flex',
-            justifyContent: 'center',
-            gap: 12,
-            marginBottom: 12,
-          }}
-        >
-          <button
-            type="button"
-            onClick={handleCameraCapture}
-            style={buttonStyle}
-          >
+        <div style={{ display: 'flex', justifyContent: 'center', gap: 12, marginBottom: 12 }}>
+          <button type="button" onClick={handleCameraCapture} style={buttonStyle}>
             📷 Camera
           </button>
           <button type="button" onClick={() => document.getElementById('file-input')?.click()} style={buttonStyle}>
             📁 Upload
           </button>
-          <input
-            type="file"
-            id="file-input"
-            accept="image/*"
-            onChange={handleFileSelect}
-            style={{ display: 'none' }}
-          />
+          <input type="file" id="file-input" accept="image/*" onChange={handleFileSelect} style={{ display: 'none' }} />
         </div>
 
-        {/* Crop Area */}
+        {/* Crop Box */}
         <div
           style={{
             position: 'relative',
-            width: '100%',
-            height: 260,
+            width: 280,
+            height: 280,
             background: '#111',
             borderRadius: 12,
             overflow: 'hidden',
@@ -243,10 +183,10 @@ export default function GuestPostPage() {
               onCropChange={setCrop}
               cropShape="rect"
               aspect={1}
-              cropSize={{ width: 260, height: 260 }}
               zoom={zoom}
               onZoomChange={setZoom}
               onCropComplete={onCropComplete}
+              restrictPosition={false}
             />
           ) : (
             <div
@@ -271,13 +211,14 @@ export default function GuestPostPage() {
           value={message}
           onChange={(e) => setMessage(e.target.value)}
           style={{
-            width: '100%',
+            width: '90%',
+            margin: '0 auto 10px',
+            display: 'block',
             padding: 10,
             borderRadius: 8,
             border: '1px solid #666',
             background: 'rgba(0,0,0,0.4)',
             color: '#fff',
-            marginBottom: 10,
             fontSize: 15,
             textAlign: 'center',
             resize: 'none',
@@ -292,13 +233,14 @@ export default function GuestPostPage() {
           value={nickname}
           onChange={(e) => setNickname(e.target.value)}
           style={{
-            width: '100%',
+            width: '90%',
+            margin: '0 auto 16px',
+            display: 'block',
             padding: 10,
             borderRadius: 8,
             border: '1px solid #666',
             background: 'rgba(0,0,0,0.4)',
             color: '#fff',
-            marginBottom: 16,
             fontSize: 15,
             textAlign: 'center',
           }}
@@ -309,7 +251,7 @@ export default function GuestPostPage() {
           disabled={submitting}
           style={{
             ...buttonStyle,
-            width: '100%',
+            width: '90%',
             padding: '12px 0',
             fontSize: 16,
             cursor: submitting ? 'not-allowed' : 'pointer',
