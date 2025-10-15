@@ -4,7 +4,6 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
 
-// Define the shape of the data (matches your table exactly)
 interface Submission {
   id: string;
   event_id: string;
@@ -20,7 +19,6 @@ export default function ModerationPage() {
   const [subs, setSubs] = useState<Submission[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // 🧠 Fetch all pending submissions
   async function loadPending() {
     if (!eventId) return;
     const { data, error } = await supabase
@@ -34,47 +32,28 @@ export default function ModerationPage() {
       console.error('❌ Error fetching submissions:', error);
       return;
     }
-
-    setSubs(data || []);
+    setSubs((data as Submission[]) || []);
     setLoading(false);
   }
 
-  // ✅ Approve a post
   async function handleApprove(id: string) {
     const { error } = await supabase
       .from('submissions')
       .update({ status: 'approved' })
       .eq('id', id);
-
-    if (error) {
-      console.error('❌ Error approving post:', error);
-      return;
-    }
-
-    // Instantly remove it from local state
-    setSubs((prev) => prev.filter((s) => s.id !== id));
+    if (!error) setSubs((p) => p.filter((s) => s.id !== id));
   }
 
-  // 🚫 Reject a post
   async function handleReject(id: string) {
     const { error } = await supabase
       .from('submissions')
       .update({ status: 'rejected' })
       .eq('id', id);
-
-    if (error) {
-      console.error('❌ Error rejecting post:', error);
-      return;
-    }
-
-    // Instantly remove from local state
-    setSubs((prev) => prev.filter((s) => s.id !== id));
+    if (!error) setSubs((p) => p.filter((s) => s.id !== id));
   }
 
-  // 🔁 Realtime listener
   useEffect(() => {
     if (!eventId) return;
-
     loadPending();
 
     const channel = supabase
@@ -87,19 +66,14 @@ export default function ModerationPage() {
           table: 'submissions',
           filter: `event_id=eq.${eventId}`,
         },
-        (payload) => {
-          const newData = payload.new;
+        (payload: any) => {
+          const newData = payload?.new as Submission | undefined;
 
-          // When a new submission is inserted and still pending
           if (payload.eventType === 'INSERT' && newData?.status === 'pending') {
             setSubs((prev) => [newData, ...prev]);
           }
 
-          // When a pending submission gets updated (approved/rejected)
-          if (
-            payload.eventType === 'UPDATE' &&
-            newData?.status !== 'pending'
-          ) {
+          if (payload.eventType === 'UPDATE' && newData?.status !== 'pending') {
             setSubs((prev) => prev.filter((s) => s.id !== newData?.id));
           }
         }
@@ -111,7 +85,6 @@ export default function ModerationPage() {
     };
   }, [eventId]);
 
-  // 🧩 UI
   return (
     <div
       style={{
@@ -122,12 +95,8 @@ export default function ModerationPage() {
         fontFamily: 'Inter, sans-serif',
       }}
     >
-      <h1 style={{ fontSize: 24, marginBottom: 10 }}>
-        Moderation Panel
-      </h1>
-      <p style={{ color: '#8b949e', marginBottom: 30 }}>
-        Event ID: {eventId}
-      </p>
+      <h1 style={{ fontSize: 24, marginBottom: 10 }}>Moderation Panel</h1>
+      <p style={{ color: '#8b949e', marginBottom: 30 }}>Event ID: {eventId}</p>
 
       {loading ? (
         <p>Loading submissions...</p>
