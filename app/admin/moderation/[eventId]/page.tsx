@@ -11,60 +11,73 @@ export default function ModerationPage() {
   const [rejected, setRejected] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // 🧠 Fetch submissions grouped by lowercase status
+  // 🧠 Fetch all submissions grouped by status
   async function fetchSubs() {
+    console.log('🧠 Fetching submissions for', eventId);
     const { data, error } = await supabase
       .from('submissions')
       .select('*')
-      .eq('event_id', eventId)
-      .in('status', ['pending', 'approved', 'rejected'])
+      .eq('event_id', String(eventId))
       .order('created_at', { ascending: false });
 
     if (error) {
       console.error('❌ Error loading submissions:', error.message);
       return;
     }
+    console.log('📦 Result:', data);
 
-    setPending(data.filter((s) => s.status === 'pending'));
-    setApproved(data.filter((s) => s.status === 'approved'));
-    setRejected(data.filter((s) => s.status === 'rejected'));
+    setPending(data?.filter((s) => s.status === 'pending') || []);
+    setApproved(data?.filter((s) => s.status === 'approved') || []);
+    setRejected(data?.filter((s) => s.status === 'rejected') || []);
     setLoading(false);
   }
 
-  // 🔁 Real-time updates
-useEffect(() => {
-  fetchSubs();
+  // 🔁 Real-time updates (no filter yet for debugging)
+  useEffect(() => {
+    fetchSubs();
 
-  const ch = supabase
-    .channel(`submissions-${eventId}`)
-    .on(
-      'postgres_changes',
-      { event: '*', schema: 'public', table: 'submissions', filter: `event_id=eq.${eventId}` },
-      () => fetchSubs()
-    )
-    .subscribe();
+    const ch = supabase
+      .channel('submissions_realtime')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'submissions' },
+        () => fetchSubs()
+      )
+      .subscribe();
 
-  // ✅ synchronous cleanup
-  return () => {
-    supabase.removeChannel(ch);
-  };
-}, [eventId]);
+    return () => {
+      supabase.removeChannel(ch);
+    };
+  }, []);
 
-
-  // ✅ Actions
+  // ✅ Approve post
   async function handleApprove(id: string) {
-    await supabase.from('submissions').update({ status: 'approved' }).eq('id', id);
-    fetchSubs();
+    const { error } = await supabase
+      .from('submissions')
+      .update({ status: 'approved' })
+      .eq('id', id);
+    if (error) console.error('❌ Approve error:', error.message);
+    else fetchSubs();
   }
 
+  // ❌ Reject post
   async function handleReject(id: string) {
-    await supabase.from('submissions').update({ status: 'rejected' }).eq('id', id);
-    fetchSubs();
+    const { error } = await supabase
+      .from('submissions')
+      .update({ status: 'rejected' })
+      .eq('id', id);
+    if (error) console.error('❌ Reject error:', error.message);
+    else fetchSubs();
   }
 
+  // 🗑 Delete permanently (optional)
   async function handleDelete(id: string) {
-    await supabase.from('submissions').delete().eq('id', id);
-    fetchSubs();
+    const { error } = await supabase
+      .from('submissions')
+      .delete()
+      .eq('id', id);
+    if (error) console.error('❌ Delete error:', error.message);
+    else fetchSubs();
   }
 
   function handleClose() {
@@ -74,127 +87,87 @@ useEffect(() => {
   if (loading)
     return <p style={{ color: '#fff', textAlign: 'center' }}>Loading moderation queue…</p>;
 
+  /* ---------- RENDER ---------- */
   return (
     <div style={pageStyle}>
       <img src="/faninteractlogo.png" alt="FanInteract Logo" style={{ width: 160, marginBottom: 10 }} />
-
-      {/* 🔹 Summary Counts */}
-      <div style={summaryBar}>
-        <span style={{ color: '#ffaa00' }}>🟡 Pending: {pending.length}</span>
-        <span style={{ color: '#16a34a' }}>🟢 Approved: {approved.length}</span>
-        <span style={{ color: '#a33' }}>🔴 Rejected: {rejected.length}</span>
-      </div>
-
       <button style={closeBtn} onClick={handleClose}>✖ Close Moderation</button>
 
-      <Section title="🟡 Pending Submissions" color="#ffaa00">
-        {pending.length === 0 && <EmptyText>No pending posts.</EmptyText>}
+      <h2 style={sectionHeader}>🟡 Pending Submissions ({pending.length})</h2>
+      <div style={gridStyle}>
+        {pending.length === 0 && <p style={emptyText}>No pending posts.</p>}
         {pending.map((s) => (
-          <PostCard
-            key={s.id}
-            s={s}
-            border="#ffaa00"
-            actions={
-              <>
-                <button style={approveBtn} onClick={() => handleApprove(s.id)}>✅ Approve</button>
-                <button style={denyBtn} onClick={() => handleReject(s.id)}>❌ Reject</button>
-              </>
-            }
-          />
+          <div key={s.id} style={cardStyle}>
+            <img src={s.photo_url} alt="" style={imgStyle} />
+            <div style={textBlock}>
+              <p style={name}>{s.nickname}</p>
+              <p style={msg}>{s.message}</p>
+            </div>
+            <div style={btnRow}>
+              <button style={approveBtn} onClick={() => handleApprove(s.id)}>✅ Approve</button>
+              <button style={denyBtn} onClick={() => handleReject(s.id)}>❌ Reject</button>
+            </div>
+          </div>
         ))}
-      </Section>
-
-      <Section title="🟢 Approved Posts" color="#16a34a">
-        {approved.length === 0 && <EmptyText>No approved posts.</EmptyText>}
-        {approved.map((s) => (
-          <PostCard
-            key={s.id}
-            s={s}
-            border="#16a34a"
-            actions={<button style={deleteBtn} onClick={() => handleDelete(s.id)}>🗑 Delete</button>}
-          />
-        ))}
-      </Section>
-
-      <Section title="🔴 Rejected Posts" color="#a33">
-        {rejected.length === 0 && <EmptyText>No rejected posts.</EmptyText>}
-        {rejected.map((s) => (
-          <PostCard
-            key={s.id}
-            s={s}
-            border="#a33"
-            actions={<button style={deleteBtn} onClick={() => handleDelete(s.id)}>🗑 Delete</button>}
-          />
-        ))}
-      </Section>
-    </div>
-  );
-}
-
-/* ---------- Helper Components ---------- */
-
-function Section({ title, color, children }: any) {
-  return (
-    <div style={{ width: '100%', maxWidth: 1300, marginBottom: 40 }}>
-      <h2 style={{ color, textAlign: 'left', marginBottom: 10 }}>{title}</h2>
-      <div style={gridStyle}>{children}</div>
-    </div>
-  );
-}
-
-function EmptyText({ children }: any) {
-  return <p style={{ color: '#999', textAlign: 'center', width: '100%' }}>{children}</p>;
-}
-
-function PostCard({ s, border, actions }: any) {
-  return (
-    <div style={{ ...cardStyle, border: `2px solid ${border}` }}>
-      <img
-        src={s.photo_url}
-        alt="Submitted Photo"
-        style={photoStyle}
-        onClick={() => window.open(s.photo_url, '_blank')}
-      />
-      <div style={infoSection}>
-        <p style={nicknameStyle}>{s.nickname || 'Guest'}</p>
-        <p style={messageStyle}>{s.message || ''}</p>
       </div>
-      <div style={buttonRow}>{actions}</div>
+
+      <h2 style={sectionHeader}>🟢 Approved ({approved.length})</h2>
+      <div style={gridStyle}>
+        {approved.length === 0 && <p style={emptyText}>No approved posts yet.</p>}
+        {approved.map((s) => (
+          <div key={s.id} style={{ ...cardStyle, border: '2px solid #16a34a' }}>
+            <img src={s.photo_url} alt="" style={imgStyle} />
+            <div style={textBlock}>
+              <p style={name}>{s.nickname}</p>
+              <p style={msg}>{s.message}</p>
+            </div>
+            <button style={deleteBtn} onClick={() => handleDelete(s.id)}>🗑 Delete</button>
+          </div>
+        ))}
+      </div>
+
+      <h2 style={sectionHeader}>🔴 Rejected ({rejected.length})</h2>
+      <div style={gridStyle}>
+        {rejected.length === 0 && <p style={emptyText}>No rejected posts.</p>}
+        {rejected.map((s) => (
+          <div key={s.id} style={{ ...cardStyle, border: '2px solid #a33' }}>
+            <img src={s.photo_url} alt="" style={imgStyle} />
+            <div style={textBlock}>
+              <p style={name}>{s.nickname}</p>
+              <p style={msg}>{s.message}</p>
+            </div>
+            <button style={deleteBtn} onClick={() => handleDelete(s.id)}>🗑 Delete</button>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
 
-/* ---------- Styles ---------- */
-
+/* ---------- STYLES ---------- */
 const pageStyle: React.CSSProperties = {
   display: 'flex',
   flexDirection: 'column',
   alignItems: 'center',
-  background: 'linear-gradient(180deg, #0d0d0d, #1a1a1a)',
+  background: 'linear-gradient(180deg,#0d0d0d,#1a1a1a)',
   color: '#fff',
   minHeight: '100vh',
-  padding: '30px 20px',
-  fontFamily: 'system-ui, sans-serif',
-  overflowY: 'auto',
+  padding: '25px 20px',
+  fontFamily: 'system-ui,sans-serif',
 };
 
-const summaryBar: React.CSSProperties = {
-  display: 'flex',
-  justifyContent: 'center',
-  alignItems: 'center',
-  gap: 30,
-  marginBottom: 20,
-  fontWeight: 700,
-  fontSize: 16,
-  letterSpacing: 0.3,
+const sectionHeader: React.CSSProperties = {
+  marginTop: 20,
+  marginBottom: 10,
+  fontSize: 18,
 };
 
 const gridStyle: React.CSSProperties = {
-  display: 'grid',
-  gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
-  gap: 20,
-  width: '100%',
-  justifyItems: 'center',
+  display: 'flex',
+  flexWrap: 'wrap',
+  gap: 15,
+  justifyContent: 'center',
+  marginBottom: 30,
 };
 
 const cardStyle: React.CSSProperties = {
@@ -202,92 +175,92 @@ const cardStyle: React.CSSProperties = {
   borderRadius: 10,
   width: 200,
   height: 400,
+  padding: 10,
   display: 'flex',
   flexDirection: 'column',
-  justifyContent: 'space-between',
   alignItems: 'center',
-  boxShadow: '0 0 12px rgba(0,0,0,0.4)',
-  overflow: 'hidden',
-  transition: 'transform 0.2s ease, box-shadow 0.3s ease',
+  justifyContent: 'space-between',
+  boxShadow: '0 0 10px rgba(0,0,0,0.5)',
 };
 
-const photoStyle: React.CSSProperties = {
+const imgStyle: React.CSSProperties = {
   width: '100%',
   height: 200,
   objectFit: 'cover',
-  cursor: 'pointer',
+  borderRadius: 8,
 };
 
-const infoSection: React.CSSProperties = {
-  flex: 1,
-  display: 'flex',
-  flexDirection: 'column',
-  justifyContent: 'center',
-  alignItems: 'center',
-  padding: 8,
+const textBlock: React.CSSProperties = {
   textAlign: 'center',
 };
 
-const messageStyle: React.CSSProperties = {
+const name: React.CSSProperties = {
+  fontWeight: 700,
   fontSize: 14,
-  color: '#eee',
-  marginBottom: 4,
-  wordBreak: 'break-word',
-};
-
-const nicknameStyle: React.CSSProperties = {
-  fontSize: 16,
-  color: '#66ccff',
-  fontWeight: 'bold',
+  color: '#4fc3f7',
+  marginTop: 6,
   marginBottom: 4,
 };
 
-const buttonRow: React.CSSProperties = {
+const msg: React.CSSProperties = {
+  fontSize: 13,
+  color: '#ddd',
+  lineHeight: 1.2,
+};
+
+const btnRow: React.CSSProperties = {
   display: 'flex',
   justifyContent: 'space-between',
-  width: '90%',
-  marginBottom: 10,
-  gap: 6,
+  width: '100%',
+  marginTop: 8,
 };
 
-const approveBtn = {
+const approveBtn: React.CSSProperties = {
   flex: 1,
   background: '#16a34a',
   border: 'none',
   borderRadius: 6,
   padding: '6px 8px',
   color: '#fff',
-  cursor: 'pointer',
   fontWeight: 600,
+  cursor: 'pointer',
+  marginRight: 5,
 };
 
-const denyBtn = {
+const denyBtn: React.CSSProperties = {
   flex: 1,
   background: '#a33',
   border: 'none',
   borderRadius: 6,
   padding: '6px 8px',
   color: '#fff',
-  cursor: 'pointer',
   fontWeight: 600,
+  cursor: 'pointer',
 };
 
-const deleteBtn = {
-  flex: 1,
-  background: '#555',
+const deleteBtn: React.CSSProperties = {
+  width: '100%',
+  background: '#a33',
   border: 'none',
   borderRadius: 6,
   padding: '6px 8px',
   color: '#fff',
-  cursor: 'pointer',
   fontWeight: 600,
+  cursor: 'pointer',
+  marginTop: 8,
 };
 
-const closeBtn = {
+const emptyText: React.CSSProperties = {
+  color: '#888',
+  textAlign: 'center',
+  width: '100%',
+};
+
+const closeBtn: React.CSSProperties = {
   backgroundColor: '#1e90ff',
   border: 'none',
   borderRadius: 8,
-  padding: '10px 25px',
+  padding: '8px 20px',
   color: '#fff',
   fontWeight: 700,
   cursor: 'pointer',
