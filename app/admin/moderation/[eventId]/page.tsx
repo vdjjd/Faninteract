@@ -19,7 +19,6 @@ export default function ModerationPage() {
   const [subs, setSubs] = useState<Submission[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // 🚀 Load all submissions for this event
   async function loadAll() {
     if (!eventId) return;
     const { data, error } = await supabase
@@ -28,48 +27,38 @@ export default function ModerationPage() {
       .eq('event_id', eventId)
       .order('created_at', { ascending: false });
 
-    if (error) {
-      console.error('❌ Error fetching submissions:', error);
-      return;
-    }
-
+    if (error) return console.error('❌ Error fetching:', error);
     setSubs((data as Submission[]) || []);
     setLoading(false);
   }
 
-  // ✅ Approve
   async function handleApprove(id: string) {
     const { error } = await supabase
       .from('submissions')
       .update({ status: 'approved' })
       .eq('id', id);
-    if (!error) {
+    if (!error)
       setSubs((prev) =>
         prev.map((s) => (s.id === id ? { ...s, status: 'approved' } : s))
       );
-    }
   }
 
-  // 🚫 Reject
   async function handleReject(id: string) {
     const { error } = await supabase
       .from('submissions')
       .update({ status: 'rejected' })
       .eq('id', id);
-    if (!error) {
+    if (!error)
       setSubs((prev) =>
         prev.map((s) => (s.id === id ? { ...s, status: 'rejected' } : s))
       );
-    }
   }
 
-  // 🗑️ Delete
   async function handleDelete(id: string) {
     const { error } = await supabase.from('submissions').delete().eq('id', id);
     if (!error) setSubs((prev) => prev.filter((s) => s.id !== id));
   }
 
-  // 🔁 Realtime listener
   useEffect(() => {
     if (!eventId) return;
     loadAll();
@@ -109,7 +98,6 @@ export default function ModerationPage() {
     };
   }, [eventId]);
 
-  // 🧮 Counters
   const pending = subs.filter((s) => s.status === 'pending');
   const approved = subs.filter((s) => s.status === 'approved');
   const rejected = subs.filter((s) => s.status === 'rejected');
@@ -125,23 +113,11 @@ export default function ModerationPage() {
       }}
     >
       {/* HEADER */}
-      <div
-        style={{
-          textAlign: 'center',
-          marginBottom: 30,
-        }}
-      >
-        <h1
-          style={{
-            fontSize: 32,
-            marginBottom: 10,
-            fontWeight: '600',
-          }}
-        >
+      <div style={{ textAlign: 'center', marginBottom: 30 }}>
+        <h1 style={{ fontSize: 32, fontWeight: 600, marginBottom: 10 }}>
           Moderation Page
         </h1>
 
-        {/* CLOSE BUTTON */}
         <button
           onClick={() => window.close()}
           style={{
@@ -157,7 +133,6 @@ export default function ModerationPage() {
           ✖ Close
         </button>
 
-        {/* COUNTERS */}
         <div
           style={{
             display: 'flex',
@@ -172,12 +147,10 @@ export default function ModerationPage() {
         </div>
       </div>
 
-      {/* CONTENT */}
       {loading ? (
-        <p style={{ textAlign: 'center' }}>Loading submissions...</p>
+        <p style={{ textAlign: 'center' }}>Loading...</p>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 40 }}>
-          {/* PENDING */}
           <Section
             title="Pending Submissions"
             color="#ffd966"
@@ -186,23 +159,19 @@ export default function ModerationPage() {
             onReject={handleReject}
             showDelete={false}
           />
-
-          {/* APPROVED */}
           <Section
-            title="Approved Posts"
+            title="Approved"
             color="#00ff88"
             data={approved}
             onDelete={handleDelete}
-            showDelete={true}
+            showDelete
           />
-
-          {/* REJECTED */}
           <Section
-            title="Rejected Posts"
+            title="Rejected"
             color="#ff4444"
             data={rejected}
             onDelete={handleDelete}
-            showDelete={true}
+            showDelete
           />
         </div>
       )}
@@ -250,7 +219,7 @@ function Section({
         <div
           style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
             gap: 16,
           }}
         >
@@ -258,50 +227,77 @@ function Section({
             <div
               key={s.id}
               style={{
-                background: '#111',
+                display: 'flex',
+                background: '#0b0f19',
                 borderRadius: 8,
                 overflow: 'hidden',
                 border: '1px solid #333',
-                display: 'flex',
-                flexDirection: 'column',
-                height: 300,
+                height: 180,
+                boxShadow: '0 2px 6px rgba(0,0,0,0.3)',
               }}
             >
-              {s.photo_url && (
-                <img
-                  src={s.photo_url}
-                  alt="submission"
-                  style={{
-                    width: '100%',
-                    height: 180,
-                    objectFit: 'cover',
-                  }}
-                />
-              )}
-              <div style={{ padding: 10, flex: 1 }}>
-                <strong>{s.nickname || 'Anonymous'}</strong>
-                <p
-                  style={{
-                    fontSize: 13,
-                    margin: '6px 0 12px',
-                    color: '#ccc',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    lineClamp: 2,
-                  }}
-                >
-                  {s.message || '(no message)'}
-                </p>
-
-                {/* BUTTONS */}
-                {!showDelete ? (
+              {/* Left side image */}
+              <div style={{ flex: '0 0 40%', position: 'relative' }}>
+                {s.photo_url ? (
+                  <img
+                    src={s.photo_url}
+                    alt="submission"
+                    style={{
+                      width: '100%',
+                      height: '100%',
+                      objectFit: 'cover',
+                    }}
+                  />
+                ) : (
                   <div
                     style={{
+                      width: '100%',
+                      height: '100%',
+                      background: '#333',
                       display: 'flex',
-                      gap: 8,
-                      marginTop: 'auto',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: '#777',
+                      fontSize: 12,
                     }}
                   >
+                    No Image
+                  </div>
+                )}
+              </div>
+
+              {/* Right side text + buttons */}
+              <div
+                style={{
+                  flex: '1',
+                  padding: '10px 12px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  justifyContent: 'space-between',
+                }}
+              >
+                <div>
+                  <strong>{s.nickname || 'Anonymous'}</strong>
+                  <p
+                    style={{
+                      fontSize: 13,
+                      color: '#ccc',
+                      margin: '6px 0 12px',
+                      lineHeight: 1.3,
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      display: '-webkit-box',
+                      WebkitLineClamp: 3,
+                      WebkitBoxOrient: 'vertical',
+                    }}
+                  >
+                    {s.message || '(no message)'}
+                  </p>
+                </div>
+
+                {/* Buttons */}
+                {!showDelete ? (
+                  <div style={{ display: 'flex', gap: 8 }}>
                     <button
                       onClick={() => onApprove?.(s.id)}
                       style={{
@@ -310,7 +306,7 @@ function Section({
                         color: 'white',
                         border: 'none',
                         borderRadius: 5,
-                        padding: '6px 0',
+                        padding: '5px 0',
                         cursor: 'pointer',
                       }}
                     >
@@ -324,7 +320,7 @@ function Section({
                         color: 'white',
                         border: 'none',
                         borderRadius: 5,
-                        padding: '6px 0',
+                        padding: '5px 0',
                         cursor: 'pointer',
                       }}
                     >
@@ -340,7 +336,7 @@ function Section({
                       color: '#fff',
                       border: 'none',
                       borderRadius: 5,
-                      padding: '6px 0',
+                      padding: '5px 0',
                       cursor: 'pointer',
                     }}
                   >
