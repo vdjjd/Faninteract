@@ -6,263 +6,162 @@ import { supabase } from '@/lib/supabaseClient';
 
 export default function ModerationPage() {
   const { eventId } = useParams();
-  const [pending, setPending] = useState<any[]>([]);
-  const [approved, setApproved] = useState<any[]>([]);
-  const [rejected, setRejected] = useState<any[]>([]);
+  const [submissions, setSubmissions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // 🧠 Fetch all submissions grouped by status
+  // 🧠 Fetch pending submissions
   async function fetchSubs() {
-    console.log('🧠 Fetching submissions for', eventId);
     const { data, error } = await supabase
       .from('submissions')
       .select('*')
-      .eq('event_id', String(eventId))
+      .eq('event_id', eventId)
+      .eq('status', 'pending')
       .order('created_at', { ascending: false });
 
     if (error) {
-      console.error('❌ Error loading submissions:', error.message);
+      console.error('❌ Error loading submissions:', error);
       return;
     }
-    console.log('📦 Result:', data);
-
-    setPending(data?.filter((s) => s.status === 'pending') || []);
-    setApproved(data?.filter((s) => s.status === 'approved') || []);
-    setRejected(data?.filter((s) => s.status === 'rejected') || []);
+    setSubmissions(data || []);
     setLoading(false);
   }
 
-  // 🔁 Real-time updates (no filter yet for debugging)
-  useEffect(() => {
-    fetchSubs();
-
-    const ch = supabase
-      .channel('submissions_realtime')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'submissions' },
-        () => fetchSubs()
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(ch);
-    };
-  }, []);
-
-  // ✅ Approve post
-  async function handleApprove(id: string) {
+  // ✅ Approve submission
+  async function approvePost(id: string) {
     const { error } = await supabase
       .from('submissions')
       .update({ status: 'approved' })
       .eq('id', id);
-    if (error) console.error('❌ Approve error:', error.message);
-    else fetchSubs();
+
+    if (error) {
+      console.error('❌ Error approving post:', error);
+      return;
+    }
+
+    setSubmissions((prev) => prev.filter((s) => s.id !== id));
+    await supabase.from('events').update({}).eq('id', eventId); // triggers real-time sync
   }
 
-  // ❌ Reject post
-  async function handleReject(id: string) {
+  // 🚫 Reject submission
+  async function rejectPost(id: string) {
     const { error } = await supabase
       .from('submissions')
       .update({ status: 'rejected' })
       .eq('id', id);
-    if (error) console.error('❌ Reject error:', error.message);
-    else fetchSubs();
+
+    if (error) {
+      console.error('❌ Error rejecting post:', error);
+      return;
+    }
+
+    setSubmissions((prev) => prev.filter((s) => s.id !== id));
+    await supabase.from('events').update({}).eq('id', eventId);
   }
 
-  // 🗑 Delete permanently (optional)
-  async function handleDelete(id: string) {
-    const { error } = await supabase
-      .from('submissions')
-      .delete()
-      .eq('id', id);
-    if (error) console.error('❌ Delete error:', error.message);
-    else fetchSubs();
-  }
+  // 🔁 Real-time updates
+  useEffect(() => {
+    fetchSubs();
 
-  function handleClose() {
-    window.close();
-  }
+    const channel = supabase
+      .channel('submissions_realtime')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'submissions',
+          filter: `event_id=eq.${eventId}`,
+        },
+        (payload) => {
+          console.log('🔄 Realtime update:', payload);
 
-  if (loading)
-    return <p style={{ color: '#fff', textAlign: 'center' }}>Loading moderation queue…</p>;
+          if (payload.eventType === 'INSERT' && payload.new.status === 'pending') {
+            setSubmissions((prev) => [payload.new, ...prev]);
+          }
 
-  /* ---------- RENDER ---------- */
+          if (
+            (payload.eventType === 'UPDATE' &&
+              payload.new.status !== 'pending') ||
+            payload.eventType === 'DELETE'
+          ) {
+            setSubmissions((prev) =>
+              prev.filter((s) => s.id !== payload.new.id)
+            );
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [eventId]);
+
+  // 🧩 Render
   return (
-    <div style={pageStyle}>
-      <img src="/faninteractlogo.png" alt="FanInteract Logo" style={{ width: 160, marginBottom: 10 }} />
-      <button style={closeBtn} onClick={handleClose}>✖ Close Moderation</button>
-
-      <h2 style={sectionHeader}>🟡 Pending Submissions ({pending.length})</h2>
-      <div style={gridStyle}>
-        {pending.length === 0 && <p style={emptyText}>No pending posts.</p>}
-        {pending.map((s) => (
-          <div key={s.id} style={cardStyle}>
-            <img src={s.photo_url} alt="" style={imgStyle} />
-            <div style={textBlock}>
-              <p style={name}>{s.nickname}</p>
-              <p style={msg}>{s.message}</p>
+    <div style={{ padding: 24, background: '#0d1117', minHeight: '100vh', color: 'white' }}>
+      <h2 style={{ marginBottom: 20 }}>Pending Submissions</h2>
+      {loading ? (
+        <p>Loading...</p>
+      ) : submissions.length === 0 ? (
+        <p>No pending posts right now.</p>
+      ) : (
+        <div style={{ display: 'grid', gap: 20 }}>
+          {submissions.map((sub) => (
+            <div
+              key={sub.id}
+              style={{
+                background: '#161b22',
+                borderRadius: 8,
+                padding: 16,
+                border: '1px solid #30363d',
+              }}
+            >
+              {sub.image_url && (
+                <img
+                  src={sub.image_url}
+                  alt="submission"
+                  style={{
+                    width: '100%',
+                    borderRadius: 8,
+                    marginBottom: 12,
+                    objectFit: 'cover',
+                  }}
+                />
+              )}
+              <p style={{ marginBottom: 10 }}>{sub.text || '(no text)'}</p>
+              <div style={{ display: 'flex', gap: 10 }}>
+                <button
+                  onClick={() => approvePost(sub.id)}
+                  style={{
+                    background: '#238636',
+                    color: 'white',
+                    border: 'none',
+                    padding: '8px 12px',
+                    borderRadius: 6,
+                    cursor: 'pointer',
+                  }}
+                >
+                  Approve
+                </button>
+                <button
+                  onClick={() => rejectPost(sub.id)}
+                  style={{
+                    background: '#da3633',
+                    color: 'white',
+                    border: 'none',
+                    padding: '8px 12px',
+                    borderRadius: 6,
+                    cursor: 'pointer',
+                  }}
+                >
+                  Reject
+                </button>
+              </div>
             </div>
-            <div style={btnRow}>
-              <button style={approveBtn} onClick={() => handleApprove(s.id)}>✅ Approve</button>
-              <button style={denyBtn} onClick={() => handleReject(s.id)}>❌ Reject</button>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      <h2 style={sectionHeader}>🟢 Approved ({approved.length})</h2>
-      <div style={gridStyle}>
-        {approved.length === 0 && <p style={emptyText}>No approved posts yet.</p>}
-        {approved.map((s) => (
-          <div key={s.id} style={{ ...cardStyle, border: '2px solid #16a34a' }}>
-            <img src={s.photo_url} alt="" style={imgStyle} />
-            <div style={textBlock}>
-              <p style={name}>{s.nickname}</p>
-              <p style={msg}>{s.message}</p>
-            </div>
-            <button style={deleteBtn} onClick={() => handleDelete(s.id)}>🗑 Delete</button>
-          </div>
-        ))}
-      </div>
-
-      <h2 style={sectionHeader}>🔴 Rejected ({rejected.length})</h2>
-      <div style={gridStyle}>
-        {rejected.length === 0 && <p style={emptyText}>No rejected posts.</p>}
-        {rejected.map((s) => (
-          <div key={s.id} style={{ ...cardStyle, border: '2px solid #a33' }}>
-            <img src={s.photo_url} alt="" style={imgStyle} />
-            <div style={textBlock}>
-              <p style={name}>{s.nickname}</p>
-              <p style={msg}>{s.message}</p>
-            </div>
-            <button style={deleteBtn} onClick={() => handleDelete(s.id)}>🗑 Delete</button>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
-
-/* ---------- STYLES ---------- */
-const pageStyle: React.CSSProperties = {
-  display: 'flex',
-  flexDirection: 'column',
-  alignItems: 'center',
-  background: 'linear-gradient(180deg,#0d0d0d,#1a1a1a)',
-  color: '#fff',
-  minHeight: '100vh',
-  padding: '25px 20px',
-  fontFamily: 'system-ui,sans-serif',
-};
-
-const sectionHeader: React.CSSProperties = {
-  marginTop: 20,
-  marginBottom: 10,
-  fontSize: 18,
-};
-
-const gridStyle: React.CSSProperties = {
-  display: 'flex',
-  flexWrap: 'wrap',
-  gap: 15,
-  justifyContent: 'center',
-  marginBottom: 30,
-};
-
-const cardStyle: React.CSSProperties = {
-  background: '#222',
-  borderRadius: 10,
-  width: 200,
-  height: 400,
-  padding: 10,
-  display: 'flex',
-  flexDirection: 'column',
-  alignItems: 'center',
-  justifyContent: 'space-between',
-  boxShadow: '0 0 10px rgba(0,0,0,0.5)',
-};
-
-const imgStyle: React.CSSProperties = {
-  width: '100%',
-  height: 200,
-  objectFit: 'cover',
-  borderRadius: 8,
-};
-
-const textBlock: React.CSSProperties = {
-  textAlign: 'center',
-};
-
-const name: React.CSSProperties = {
-  fontWeight: 700,
-  fontSize: 14,
-  color: '#4fc3f7',
-  marginTop: 6,
-  marginBottom: 4,
-};
-
-const msg: React.CSSProperties = {
-  fontSize: 13,
-  color: '#ddd',
-  lineHeight: 1.2,
-};
-
-const btnRow: React.CSSProperties = {
-  display: 'flex',
-  justifyContent: 'space-between',
-  width: '100%',
-  marginTop: 8,
-};
-
-const approveBtn: React.CSSProperties = {
-  flex: 1,
-  background: '#16a34a',
-  border: 'none',
-  borderRadius: 6,
-  padding: '6px 8px',
-  color: '#fff',
-  fontWeight: 600,
-  cursor: 'pointer',
-  marginRight: 5,
-};
-
-const denyBtn: React.CSSProperties = {
-  flex: 1,
-  background: '#a33',
-  border: 'none',
-  borderRadius: 6,
-  padding: '6px 8px',
-  color: '#fff',
-  fontWeight: 600,
-  cursor: 'pointer',
-};
-
-const deleteBtn: React.CSSProperties = {
-  width: '100%',
-  background: '#a33',
-  border: 'none',
-  borderRadius: 6,
-  padding: '6px 8px',
-  color: '#fff',
-  fontWeight: 600,
-  cursor: 'pointer',
-  marginTop: 8,
-};
-
-const emptyText: React.CSSProperties = {
-  color: '#888',
-  textAlign: 'center',
-  width: '100%',
-};
-
-const closeBtn: React.CSSProperties = {
-  backgroundColor: '#1e90ff',
-  border: 'none',
-  borderRadius: 8,
-  padding: '8px 20px',
-  color: '#fff',
-  fontWeight: 700,
-  cursor: 'pointer',
-  marginBottom: 20,
-};
