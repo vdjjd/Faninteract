@@ -49,6 +49,23 @@ export default function DashboardPage() {
     fetchData();
   }, []);
 
+  /* 🧠 Real-time listener to auto-refresh pending counts */
+  useEffect(() => {
+    if (!host) return;
+    const channel = supabase
+      .channel('submissions_realtime')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'submissions' },
+        async () => {
+          const updated = await getEventsByHost(host.id);
+          setEvents(updated);
+        }
+      )
+      .subscribe();
+    return () => supabase.removeChannel(channel);
+  }, [host]);
+
   /* ---------------- CRUD HANDLERS ---------------- */
   async function handleCreateConfirm() {
     if (!newTitle.trim()) return;
@@ -79,20 +96,7 @@ export default function DashboardPage() {
     const popup = window.open(
       wallUrl,
       '_blank',
-      [
-        'popup=yes',
-        'width=1280',
-        'height=800',
-        'left=100',
-        'top=100',
-        'menubar=no',
-        'toolbar=no',
-        'location=no',
-        'status=no',
-        'resizable=yes',
-        'scrollbars=no',
-        'titlebar=no',
-      ].join(',')
+      'popup=yes,width=1280,height=800,left=100,top=100,menubar=no,toolbar=no,location=no,status=no,resizable=yes,scrollbars=no,titlebar=no'
     );
     popup?.focus();
   }
@@ -120,12 +124,6 @@ export default function DashboardPage() {
       '_blank',
       'width=1200,height=700,left=200,top=120,menubar=no,toolbar=no,location=no,status=no,resizable=yes,scrollbars=yes'
     );
-  }
-
-  async function handleSaveSettings(updatedEvent: any) {
-    await updateEventSettings(updatedEvent.id, updatedEvent);
-    const refreshed = await getEventsByHost(host.id);
-    setEvents(refreshed);
   }
 
   async function handleBackgroundChange(event: any, newValue: string) {
@@ -162,10 +160,16 @@ export default function DashboardPage() {
   return (
     <div style={pageStyle}>
       <h1 style={{ marginBottom: 15 }}>🎛 Host Dashboard</h1>
-      <img src="/faninteractlogo.png" alt="FanInteract Logo" style={{ width: 110, marginBottom: 10 }} />
+      <img
+        src="/faninteractlogo.png"
+        alt="FanInteract Logo"
+        style={{ width: 110, marginBottom: 10 }}
+      />
 
       {!creatingNew ? (
-        <button onClick={() => setCreatingNew(true)} style={buttonStyle}>➕ New Fan Zone Wall</button>
+        <button onClick={() => setCreatingNew(true)} style={buttonStyle}>
+          ➕ New Fan Zone Wall
+        </button>
       ) : (
         <div style={newCardOverlay}>
           <div style={newCardBox}>
@@ -178,8 +182,18 @@ export default function DashboardPage() {
               style={inputStyle}
             />
             <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
-              <button onClick={handleCreateConfirm} style={{ ...smallBtn, backgroundColor: '#16a34a' }}>💾 Create</button>
-              <button onClick={() => setCreatingNew(false)} style={{ ...smallBtn, backgroundColor: '#a33' }}>✖ Cancel</button>
+              <button
+                onClick={handleCreateConfirm}
+                style={{ ...smallBtn, backgroundColor: '#16a34a' }}
+              >
+                💾 Create
+              </button>
+              <button
+                onClick={() => setCreatingNew(false)}
+                style={{ ...smallBtn, backgroundColor: '#a33' }}
+              >
+                ✖ Cancel
+              </button>
             </div>
           </div>
         </div>
@@ -196,47 +210,92 @@ export default function DashboardPage() {
               transition: 'background 2s ease',
             }}
           >
-            <h3 style={{ fontSize: 14 }}>{event.host_title || `${event.title} Fan Zone Wall`}</h3>
+            <h3 style={{ fontSize: 14 }}>
+              {event.host_title || `${event.title} Fan Zone Wall`}
+            </h3>
             <p style={{ fontSize: 12 }}>
               <strong>Status:</strong>{' '}
-              <span style={{
-                color: event.status === 'live' ? 'lime'
-                  : event.status === 'cleared' ? '#00bcd4'
-                  : 'orange'
-              }}>{event.status}</span>
+              <span
+                style={{
+                  color:
+                    event.status === 'live'
+                      ? 'lime'
+                      : event.status === 'cleared'
+                      ? '#00bcd4'
+                      : 'orange',
+                }}
+              >
+                {event.status}
+              </span>
             </p>
 
             <div style={cardButtons}>
-              <button onClick={() => handleLaunch(event.id)} style={launchBtn}>🚀 Launch</button>
-              <button onClick={() => handleStart(event.id)} style={playBtn}>▶️ Play</button>
-              <button onClick={() => handleStop(event.id)} style={stopBtn}>⏹ Stop</button>
+              <button onClick={() => handleLaunch(event.id)} style={launchBtn}>
+                🚀 Launch
+              </button>
+              <button onClick={() => handleStart(event.id)} style={playBtn}>
+                ▶️ Play
+              </button>
+              <button onClick={() => handleStop(event.id)} style={stopBtn}>
+                ⏹ Stop
+              </button>
             </div>
 
             <div style={cardButtons}>
-              <button onClick={() => handleClear(event.id)} style={clearBtn}>🧹 Clear</button>
+              <button onClick={() => handleClear(event.id)} style={clearBtn}>
+                🧹 Clear
+              </button>
               {confirmingDelete === event.id ? (
                 <div style={confirmOverlay}>
                   <p>Confirm delete?</p>
                   <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
-                    <button onClick={() => handleDelete(event.id)} style={{ ...smallBtn, backgroundColor: '#16a34a' }}>✅ Confirm</button>
-                    <button onClick={() => setConfirmingDelete(null)} style={{ ...smallBtn, backgroundColor: '#a33' }}>✖ Cancel</button>
+                    <button
+                      onClick={() => handleDelete(event.id)}
+                      style={{
+                        ...smallBtn,
+                        backgroundColor: '#16a34a',
+                      }}
+                    >
+                      ✅ Confirm
+                    </button>
+                    <button
+                      onClick={() => setConfirmingDelete(null)}
+                      style={{
+                        ...smallBtn,
+                        backgroundColor: '#a33',
+                      }}
+                    >
+                      ✖ Cancel
+                    </button>
                   </div>
                 </div>
               ) : (
-                <button onClick={() => setConfirmingDelete(event.id)} style={deleteBtn}>❌ Delete</button>
+                <button
+                  onClick={() => setConfirmingDelete(event.id)}
+                  style={deleteBtn}
+                >
+                  ❌ Delete
+                </button>
               )}
             </div>
 
             <div style={cardFooter}>
-              <button onClick={() => setSelectedEvent(event)} style={optionsBtn}>⚙ Options</button>
-              <button onClick={() => handleOpenModeration(event.id)} style={pendingBtn}>
+              <button
+                onClick={() => setSelectedEvent(event)}
+                style={optionsBtn}
+              >
+                ⚙ Options
+              </button>
+              <button
+                onClick={() => handleOpenModeration(event.id)}
+                style={pendingBtn}
+              >
                 🔔 Pending ({event.pending_posts ?? 0})
               </button>
             </div>
           </div>
         ))}
       </div>
-
       {selectedEvent && (
         <div
           id="options-modal"
@@ -253,7 +312,9 @@ export default function DashboardPage() {
             type="text"
             value={selectedEvent.host_title || ''}
             style={{ ...inputStyle, width: '88%' }}
-            onChange={(e) => setSelectedEvent({ ...selectedEvent, host_title: e.target.value })}
+            onChange={(e) =>
+              setSelectedEvent({ ...selectedEvent, host_title: e.target.value })
+            }
           />
 
           <label>Public Title:</label>
@@ -261,28 +322,39 @@ export default function DashboardPage() {
             type="text"
             value={selectedEvent.title || ''}
             style={{ ...inputStyle, width: '95%' }}
-            onChange={(e) => setSelectedEvent({ ...selectedEvent, title: e.target.value })}
+            onChange={(e) =>
+              setSelectedEvent({ ...selectedEvent, title: e.target.value })
+            }
           />
 
           <label>Countdown:</label>
           <select
             style={inputStyle}
             value={selectedEvent.countdown || 'none'}
-            onChange={(e) => setSelectedEvent({ ...selectedEvent, countdown: e.target.value === 'none' ? null : e.target.value })}
+            onChange={(e) =>
+              setSelectedEvent({
+                ...selectedEvent,
+                countdown: e.target.value === 'none' ? null : e.target.value,
+              })
+            }
           >
             <option value="none">No Countdown / Start Immediately</option>
             {[
               '30 Seconds','1 Minute','2 Minutes','3 Minutes','4 Minutes','5 Minutes',
               '10 Minutes','15 Minutes','20 Minutes','25 Minutes','30 Minutes',
               '35 Minutes','40 Minutes','45 Minutes','50 Minutes','55 Minutes','60 Minutes',
-            ].map((opt) => <option key={opt}>{opt}</option>)}
+            ].map((opt) => (
+              <option key={opt}>{opt}</option>
+            ))}
           </select>
 
           <label>Layout Type:</label>
           <select
             style={inputStyle}
             value={selectedEvent.layout_type || 'Single Highlight Post'}
-            onChange={(e) => setSelectedEvent({ ...selectedEvent, layout_type: e.target.value })}
+            onChange={(e) =>
+              setSelectedEvent({ ...selectedEvent, layout_type: e.target.value })
+            }
           >
             <option>Single Highlight Post</option>
             <option>2 Column × 2 Row</option>
@@ -296,7 +368,12 @@ export default function DashboardPage() {
               <select
                 style={inputStyle}
                 value={selectedEvent.post_transition || 'Fade In / Fade Out'}
-                onChange={(e) => setSelectedEvent({ ...selectedEvent, post_transition: e.target.value })}
+                onChange={(e) =>
+                  setSelectedEvent({
+                    ...selectedEvent,
+                    post_transition: e.target.value,
+                  })
+                }
               >
                 <option>Fade In / Fade Out</option>
                 <option>Slide Up / Slide Out</option>
@@ -309,7 +386,29 @@ export default function DashboardPage() {
             </>
           )}
 
-          {/* 💾 SAVE CHANGES */}
+          {/* 🧠 NEW: Auto Delete Setting */}
+          <label>Auto Delete Posts After:</label>
+          <select
+            style={inputStyle}
+            value={selectedEvent.auto_delete_minutes ?? 0}
+            onChange={(e) =>
+              setSelectedEvent({
+                ...selectedEvent,
+                auto_delete_minutes: parseInt(e.target.value),
+              })
+            }
+          >
+            <option value={0}>Never (Keep All Posts)</option>
+            <option value={5}>5 Minutes</option>
+            <option value={10}>10 Minutes</option>
+            <option value={15}>15 Minutes</option>
+            <option value={20}>20 Minutes</option>
+            <option value={25}>25 Minutes</option>
+            <option value={30}>30 Minutes</option>
+            <option value={45}>45 Minutes</option>
+            <option value={60}>60 Minutes (1 Hour)</option>
+          </select>
+
           <div style={{ marginTop: 10, textAlign: 'center' }}>
             <button
               disabled={saving}
@@ -321,8 +420,12 @@ export default function DashboardPage() {
                     host_title: selectedEvent.host_title || '',
                     title: selectedEvent.title || '',
                     countdown: selectedEvent.countdown || null,
-                    layout_type: selectedEvent.layout_type || 'Single Highlight Post',
-                    post_transition: selectedEvent.post_transition || 'Fade In / Fade Out',
+                    layout_type:
+                      selectedEvent.layout_type || 'Single Highlight Post',
+                    post_transition:
+                      selectedEvent.post_transition || 'Fade In / Fade Out',
+                    auto_delete_minutes:
+                      selectedEvent.auto_delete_minutes ?? 0,
                     updated_at: new Date().toISOString(),
                   })
                   .eq('id', selectedEvent.id);
@@ -342,7 +445,7 @@ export default function DashboardPage() {
             </button>
           </div>
 
-          {/* COLOR & GRADIENT PICKERS */}
+          {/* 🎨 COLORS */}
           <h4 style={{ marginTop: 10 }}>Solid Colors</h4>
           <div style={colorGrid}>
             {[
