@@ -10,6 +10,7 @@ interface EventData {
   title: string | null;
   status: 'inactive' | 'live';
   countdown: string | null;
+  countdown_active?: boolean;
   background_type: 'gradient' | 'solid' | 'image' | null;
   background_value: string | null;
   logo_url: string | null;
@@ -17,7 +18,16 @@ interface EventData {
   host_id: string;
 }
 
-function CountdownDisplay({ countdown, isLive }: { countdown: string; isLive: boolean }) {
+/* ---------------- COUNTDOWN DISPLAY ---------------- */
+function CountdownDisplay({
+  countdown,
+  isActive,
+  eventId,
+}: {
+  countdown: string;
+  isActive: boolean;
+  eventId: string;
+}) {
   const [timeLeft, setTimeLeft] = useState(0);
 
   useEffect(() => {
@@ -27,25 +37,49 @@ function CountdownDisplay({ countdown, isLive }: { countdown: string; isLive: bo
     const secs = countdown.includes('Second');
     const total = mins ? n * 60 : secs ? n : 0;
     setTimeLeft(total);
-    if (!isLive) return;
-    const t = setInterval(() => setTimeLeft((p) => (p > 0 ? p - 1 : 0)), 1000);
-    return () => clearInterval(t);
-  }, [countdown, isLive]);
+  }, [countdown]);
+
+  useEffect(() => {
+    if (!isActive || timeLeft <= 0) return;
+    const timer = setInterval(() => {
+      setTimeLeft((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          // when hits zero, set event live
+          supabase.from('events').update({ status: 'live' }).eq('id', eventId);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [isActive, eventId, timeLeft]);
+
+  if (timeLeft <= 0) return null;
 
   const m = Math.floor(timeLeft / 60);
   const s = timeLeft % 60;
   return (
-    <div style={{ fontSize: '4vw', fontWeight: 900, lineHeight: 1 }}>
+    <div
+      style={{
+        fontSize: '4vw',
+        fontWeight: 900,
+        lineHeight: 1,
+        textShadow: '0 0 12px rgba(0,0,0,0.6)',
+      }}
+    >
       {m}:{s.toString().padStart(2, '0')}
     </div>
   );
 }
 
+/* ---------------- MAIN WALL PAGE ---------------- */
 export default function FanWallPage() {
   const { eventId } = useParams();
   const [event, setEvent] = useState<EventData | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // Load event
   useEffect(() => {
     async function loadEvent() {
       if (!eventId) return;
@@ -56,19 +90,21 @@ export default function FanWallPage() {
     loadEvent();
   }, [eventId]);
 
+  // Listen for realtime updates
   useEffect(() => {
     if (!eventId) return;
     const ch = supabase
-  .channel('public:events')
-  .on(
-    'postgres_changes',
-    { event: '*', schema: 'public', table: 'events', filter: `id=eq.${eventId}` },
-    (payload) => {
-      const updated = payload.new as Partial<EventData>;
-      setEvent((prev) => (prev ? { ...prev, ...updated } : (updated as EventData)));
-    }
-  )
-  .subscribe();
+      .channel('public:events')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'events', filter: `id=eq.${eventId}` },
+        (payload) => {
+          const updated = payload.new as Partial<EventData>;
+          setEvent((prev) => (prev ? { ...prev, ...updated } : (updated as EventData)));
+        }
+      )
+      .subscribe();
+
     return () => {
       supabase.removeChannel(ch);
     };
@@ -162,24 +198,24 @@ export default function FanWallPage() {
               boxShadow: 'inset 0 0 15px rgba(255,255,255,0.1)',
             }}
           >
-{event ? (
-  <QRCodeCanvas
-    value={`https://faninteract.vercel.app/submit/${event.id}`}
-    size={260}
-    bgColor="#ffffff"
-    fgColor="#000000"
-    level="H"
-    includeMargin={false}
-    style={{
-      borderRadius: 12,
-      width: '75%',
-      height: 'auto',
-      boxShadow: '0 0 10px rgba(0,0,0,0.4)',
-    }}
-  />
-) : (
-  <p style={{ opacity: 0.7 }}>Generating QR...</p>
-)}
+            {event ? (
+              <QRCodeCanvas
+                value={`https://faninteract.vercel.app/submit/${event.id}`}
+                size={260}
+                bgColor="#ffffff"
+                fgColor="#000000"
+                level="H"
+                includeMargin={false}
+                style={{
+                  borderRadius: 12,
+                  width: '75%',
+                  height: 'auto',
+                  boxShadow: '0 0 10px rgba(0,0,0,0.4)',
+                }}
+              />
+            ) : (
+              <p style={{ opacity: 0.7 }}>Generating QR...</p>
+            )}
           </div>
 
           {/* ---------- LOGO ---------- */}
@@ -208,27 +244,11 @@ export default function FanWallPage() {
             />
           </div>
 
-          {/* ---------- GREY BAR ---------- */}
+          {/* ---------- MESSAGE AREA ---------- */}
           <div
             style={{
               position: 'absolute',
-              left: 'calc(45% + 40px)',
-              right: '20px',
-              height: 10,
-              top: '50%',
-              transform: 'translateY(-50%)',
-              borderRadius: 6,
-              background: 'linear-gradient(to right,#000,#444)',
-              boxShadow: '0 0 10px rgba(0,0,0,0.6)',
-              opacity: 0.8,
-            }}
-          ></div>
-
-          {/* ---------- MESSAGE (Lowered Position + Pulse) ---------- */}
-          <div
-            style={{
-              position: 'absolute',
-              top: '68%', // 👈 lowered from 60% to 68%
+              top: '68%',
               left: '72%',
               transform: 'translate(-50%, -50%)',
               width: '46%',
@@ -236,6 +256,7 @@ export default function FanWallPage() {
               color: '#fff',
             }}
           >
+            {/* Show countdown if set */}
             {event.countdown ? (
               <>
                 <h2
@@ -248,7 +269,11 @@ export default function FanWallPage() {
                 >
                   Fan Zone Wall Starting In
                 </h2>
-                <CountdownDisplay countdown={event.countdown} isLive={event.status === 'live'} />
+                <CountdownDisplay
+                  countdown={event.countdown}
+                  isActive={!!event.countdown_active}
+                  eventId={event.id}
+                />
               </>
             ) : (
               <h2
