@@ -19,6 +19,13 @@ export default function ModerationPage() {
   const [subs, setSubs] = useState<Submission[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedImg, setSelectedImg] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ text: string; color: string } | null>(null);
+
+  // ✅ Toast display helper
+  function showToast(text: string, color = '#00ff88') {
+    setToast({ text, color });
+    setTimeout(() => setToast(null), 2500);
+  }
 
   // ✅ Fetch all submissions for this event
   async function loadAll() {
@@ -34,43 +41,50 @@ export default function ModerationPage() {
     setLoading(false);
   }
 
-  // ✅ Approve post
+  // ✅ Approve post (commit + toast)
   async function handleApprove(id: string) {
     const { error } = await supabase
       .from('submissions')
       .update({ status: 'approved' })
-      .eq('id', id);
+      .eq('id', id)
+      .select()
+      .single();
 
     if (error) console.error('❌ Approve error:', error);
     else {
-      console.log('✅ Approved saved to DB');
+      showToast('✅ Post Approved', '#00ff88');
       setSubs((prev) =>
         prev.map((s) => (s.id === id ? { ...s, status: 'approved' } : s))
       );
     }
   }
 
-  // ✅ Reject post
+  // ✅ Reject post (commit + toast)
   async function handleReject(id: string) {
     const { error } = await supabase
       .from('submissions')
       .update({ status: 'rejected' })
-      .eq('id', id);
+      .eq('id', id)
+      .select()
+      .single();
 
     if (error) console.error('❌ Reject error:', error);
     else {
-      console.log('🚫 Rejected saved to DB');
+      showToast('🚫 Post Rejected', '#ff4444');
       setSubs((prev) =>
         prev.map((s) => (s.id === id ? { ...s, status: 'rejected' } : s))
       );
     }
   }
 
-  // ✅ Delete post
+  // ✅ Delete post (commit + toast)
   async function handleDelete(id: string) {
     const { error } = await supabase.from('submissions').delete().eq('id', id);
     if (error) console.error('🗑 Delete error:', error);
-    else setSubs((prev) => prev.filter((s) => s.id !== id));
+    else {
+      showToast('🧹 Post Deleted', '#bbb');
+      setSubs((prev) => prev.filter((s) => s.id !== id));
+    }
   }
 
   // ✅ Listen for realtime changes
@@ -120,6 +134,7 @@ export default function ModerationPage() {
         padding: '30px 20px',
         fontFamily: 'Inter, sans-serif',
         color: '#fff',
+        position: 'relative',
       }}
     >
       {/* HEADER */}
@@ -242,6 +257,39 @@ export default function ModerationPage() {
           </div>
         </div>
       )}
+
+      {/* ✅ TOAST POPUP */}
+      {toast && (
+        <div
+          style={{
+            position: 'fixed',
+            bottom: 20,
+            left: '50%',
+            transform: 'translateX(-50%)',
+            background: toast.color,
+            color: '#000',
+            padding: '10px 20px',
+            borderRadius: 8,
+            fontWeight: 600,
+            boxShadow: '0 2px 10px rgba(0,0,0,0.3)',
+            zIndex: 99999,
+            animation: 'slideUp 0.4s ease, fadeOut 0.4s ease 2.3s forwards',
+          }}
+        >
+          {toast.text}
+        </div>
+      )}
+
+      {/* Toast animation */}
+      <style>{`
+        @keyframes slideUp {
+          from { transform: translate(-50%, 40px); opacity: 0; }
+          to { transform: translate(-50%, 0); opacity: 1; }
+        }
+        @keyframes fadeOut {
+          to { opacity: 0; transform: translate(-50%, 40px); }
+        }
+      `}</style>
     </div>
   );
 }
