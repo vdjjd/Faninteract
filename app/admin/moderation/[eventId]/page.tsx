@@ -78,15 +78,23 @@ export default function ModerationPage() {
   }
 
   // ✅ Delete post (commit + toast)
-  async function handleDelete(id: string) {
-    const { error } = await supabase.from('submissions').delete().eq('id', id);
-    if (error) console.error('🗑 Delete error:', error);
-    else {
-      showToast('🧹 Post Deleted', '#bbb');
-      setSubs((prev) => prev.filter((s) => s.id !== id));
-    }
-  }
+ async function handleDelete(id: string) {
+  const { data, error, count } = await supabase
+    .from('submissions')
+    .delete({ count: 'exact' }) // ✅ force deletion count
+    .eq('id', id)
+    .select()
+    .single();
 
+  if (error) {
+    console.error('🗑 Delete error:', error);
+    showToast('❌ Failed to delete (check RLS)', '#ff4444');
+  } else {
+    showToast('🧹 Post permanently deleted', '#bbb');
+    console.log('✅ Deleted from DB:', data);
+    setSubs((prev) => prev.filter((s) => s.id !== id));
+  }
+}
   // ✅ Listen for realtime changes
   useEffect(() => {
     if (!eventId) return;
