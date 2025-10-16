@@ -244,6 +244,22 @@ export default function FanWallPage() {
             />
           </div>
 
+          {/* ---------- GREY BAR ---------- */}
+          <div
+            style={{
+              position: 'absolute',
+              left: 'calc(45% + 40px)',
+              right: '20px',
+              height: 10,
+              top: '50%',
+              transform: 'translateY(-50%)',
+              borderRadius: 6,
+              background: 'linear-gradient(to right,#000,#444)',
+              boxShadow: '0 0 10px rgba(0,0,0,0.6)',
+              opacity: 0.8,
+            }}
+          ></div>
+
           {/* ---------- MESSAGE AREA ---------- */}
           <div
             style={{
@@ -256,7 +272,6 @@ export default function FanWallPage() {
               color: '#fff',
             }}
           >
-            {/* Show countdown if set */}
             {event.countdown ? (
               <>
                 <h2
