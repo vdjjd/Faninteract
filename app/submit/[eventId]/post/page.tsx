@@ -16,6 +16,7 @@ export default function GuestPostPage() {
   const [croppedAreaPixels, setCroppedAreaPixels] = useState<any>(null);
   const [message, setMessage] = useState('');
   const [nickname, setNickname] = useState('');
+  const [firstName, setFirstName] = useState(''); // ✅ new
   const [submitting, setSubmitting] = useState(false);
 
   /* ---------- File Handling ---------- */
@@ -95,15 +96,21 @@ export default function GuestPostPage() {
     if (uploadError) return alert('Upload failed.');
 
     const { data: publicUrl } = supabase.storage.from('uploads').getPublicUrl(fileName);
+
+    // ✅ Nickname fallback logic
+    const nicknameToSave =
+      nickname.trim() || firstName.trim() || 'Guest';
+
     const { error: insertError } = await supabase.from('submissions').insert([
       {
         event_id: eventId,
         photo_url: publicUrl.publicUrl,
         message: message.trim(),
-        nickname: nickname.trim() || null,
+        nickname: nicknameToSave,
         status: 'pending',
       },
     ]);
+
     if (insertError) return alert('Error submitting post.');
 
     alert('✅ Your photo has been submitted for approval!');
@@ -204,6 +211,26 @@ export default function GuestPostPage() {
             </div>
           )}
         </div>
+
+        {/* First Name */}
+        <input
+          type="text"
+          placeholder="First Name"
+          value={firstName}
+          onChange={(e) => setFirstName(e.target.value)}
+          style={{
+            width: '90%',
+            margin: '0 auto 12px',
+            display: 'block',
+            padding: 10,
+            borderRadius: 8,
+            border: '1px solid #666',
+            background: 'rgba(0,0,0,0.4)',
+            color: '#fff',
+            fontSize: 15,
+            textAlign: 'center',
+          }}
+        />
 
         {/* Message */}
         <textarea
