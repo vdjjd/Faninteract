@@ -17,26 +17,26 @@ export default function LandingPage() {
           initial={{ opacity: 0, y: 25 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 1 }}
-          className="flex flex-col items-center justify-center space-y-10 mt-[-40px]"
+          className="flex flex-col items-center justify-center space-y-12 mt-[-60px]"
         >
-          {/* ✅ Logo */}
+          {/* ✅ Logo with subtle pulse */}
           <motion.div
-            animate={{ scale: [1, 1.04, 1] }}
-            transition={{ duration: 6, repeat: Infinity, ease: 'easeInOut' }}
+            animate={{ scale: [1, 1.06, 1] }}
+            transition={{ duration: 7, repeat: Infinity, ease: 'easeInOut' }}
           >
             <Image
               src="/faninteractlogo.png"
               alt="FanInteract Logo"
-              width={300}
-              height={120}
-              className="w-[220px] md:w-[300px] h-auto object-contain drop-shadow-[0_0_25px_rgba(56,189,248,0.25)]"
+              width={420}
+              height={180}
+              className="w-[300px] md:w-[420px] h-auto object-contain drop-shadow-[0_0_30px_rgba(56,189,248,0.3)]"
               priority
               unoptimized
             />
           </motion.div>
 
           {/* Headline */}
-          <h1 className="text-5xl md:text-7xl font-extrabold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-sky-400 via-blue-500 to-indigo-400 drop-shadow-[0_0_25px_rgba(56,189,248,0.25)]">
+          <h1 className="text-5xl md:text-7xl font-extrabold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-sky-400 via-blue-500 to-indigo-400 drop-shadow-[0_0_30px_rgba(56,189,248,0.25)]">
             Turn Crowds Into Communities
           </h1>
 
