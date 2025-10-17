@@ -6,6 +6,9 @@ import { useRouter } from 'next/navigation'
 
 export default function SignUpPage() {
   const router = useRouter()
+  const [firstName, setFirstName] = useState('')
+  const [lastName, setLastName] = useState('')
+  const [username, setUsername] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
@@ -16,26 +19,73 @@ export default function SignUpPage() {
     setError(null)
     setLoading(true)
 
-    // ✅ Send redirect with signUp so user lands in dashboard after confirmation
-    const { error } = await supabase.auth.signUp({
+    // Step 1: Create Supabase Auth user
+    const { data, error: signUpError } = await supabase.auth.signUp({
       email,
       password,
-      options: {
-        emailRedirectTo: 'https://faninteract.vercel.app/admin/dashboard',
-      },
     })
 
-    setLoading(false)
-    if (error) return setError(error.message)
+    if (signUpError) {
+      setError(signUpError.message)
+      setLoading(false)
+      return
+    }
 
-    alert('✅ Account created! Check your email to confirm your login link.\n\nOnce confirmed, you’ll be redirected to your Host Dashboard.')
-    router.push('/login')
+    // Step 2: Insert into hosts table
+    try {
+      const userId = data.user?.id
+      if (!userId) throw new Error('No user ID returned from Supabase.')
+
+      const { error: insertError } = await supabase.from('hosts').insert([
+        {
+          id: userId,
+          first_name: firstName,
+          last_name: lastName,
+          username,
+          email,
+        },
+      ])
+
+      if (insertError) throw insertError
+
+      // Step 3: Redirect to the host's dashboard
+      router.push(`/admin/dashboard?host_id=${userId}`)
+    } catch (err: any) {
+      console.error('Error creating host profile:', err.message)
+      setError(err.message)
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
     <div style={pageStyle}>
       <h1>Host Sign Up</h1>
       <form onSubmit={handleSignUp} style={formStyle}>
+        <input
+          type="text"
+          placeholder="First Name"
+          value={firstName}
+          onChange={(e) => setFirstName(e.target.value)}
+          style={inputStyle}
+          required
+        />
+        <input
+          type="text"
+          placeholder="Last Name"
+          value={lastName}
+          onChange={(e) => setLastName(e.target.value)}
+          style={inputStyle}
+          required
+        />
+        <input
+          type="text"
+          placeholder="Username"
+          value={username}
+          onChange={(e) => setUsername(e.target.value)}
+          style={inputStyle}
+          required
+        />
         <input
           type="email"
           placeholder="Email"
@@ -57,7 +107,9 @@ export default function SignUpPage() {
         </button>
         {error && <p style={{ color: 'red' }}>{error}</p>}
       </form>
-      <p>Already have an account? <a href="/login">Log in</a></p>
+      <p>
+        Already have an account? <a href="/login">Log in</a>
+      </p>
     </div>
   )
 }
