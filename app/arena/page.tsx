@@ -41,11 +41,12 @@ export default function ArenaPage() {
   const [lasers, setLasers] = useState<Laser[]>([]);
   const asteroidsRef = useRef<Asteroid[]>([]);
 
-  // 🌐 Supabase Realtime
+  // 🌐 Supabase Realtime — fixed to be fully synchronous
   useEffect(() => {
     const gameId = 'demo-room';
     const channel = supabase.channel(gameId);
 
+    // Player input listener
     channel.on('broadcast', { event: 'player-input' }, ({ payload }) => {
       setPlayers((prev) => {
         const player = prev[payload.playerId] || {
@@ -76,7 +77,7 @@ export default function ArenaPage() {
           player.vy += Math.sin(player.angle) * thrustPower;
         }
 
-        // ✨ Hyperspace
+        // ✨ Hyperspace (3 max)
         if (payload.action === 'HYPERSPACE') {
           if (player.hyperCount === undefined) player.hyperCount = 0;
           if (player.hyperCount < 3) {
@@ -88,7 +89,7 @@ export default function ArenaPage() {
           }
         }
 
-        // 🔫 Fire
+        // 🔫 Fire Laser
         if (payload.action === 'FIRE' && player.cooldown <= 0 && player.shield > 0) {
           setLasers((prev) => [
             ...prev,
@@ -108,8 +109,13 @@ export default function ArenaPage() {
       });
     });
 
+    // ✅ Subscribe (no async)
     channel.subscribe();
-    return () => channel.unsubscribe();
+
+    // ✅ Return synchronous cleanup only
+    return () => {
+      channel.unsubscribe();
+    };
   }, []);
 
   // ☄️ Create drifting asteroids once
@@ -135,7 +141,8 @@ export default function ArenaPage() {
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const ctx = canvas.getContext('2d')!; // ✅ Non-null assertion
+    const ctx = canvas.getContext('2d')!;
+    if (!ctx) return;
 
     function loop() {
       ctx.fillStyle = 'black';
@@ -149,13 +156,11 @@ export default function ArenaPage() {
         a.y += a.vy;
         a.rotation += a.spin;
 
-        // Wrap screen edges
         if (a.x < -a.radius) a.x = 1920 + a.radius;
         if (a.x > 1920 + a.radius) a.x = -a.radius;
         if (a.y < -a.radius) a.y = 1080 + a.radius;
         if (a.y > 1080 + a.radius) a.y = -a.radius;
 
-        // Draw asteroid
         ctx.save();
         ctx.translate(a.x, a.y);
         ctx.rotate(a.rotation);
@@ -201,7 +206,6 @@ export default function ArenaPage() {
           p.x += p.vx;
           p.y += p.vy;
 
-          // Wrap edges
           if (p.x < 0) p.x = 1920;
           if (p.x > 1920) p.x = 0;
           if (p.y < 0) p.y = 1080;
@@ -243,6 +247,7 @@ export default function ArenaPage() {
     loop();
   }, [players, lasers]);
 
+  // 🎨 Canvas Layout
   return (
     <main className="flex flex-col items-center justify-center h-screen bg-black text-white">
       <canvas
