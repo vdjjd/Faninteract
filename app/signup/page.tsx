@@ -20,26 +20,21 @@ export default function SignUpPage() {
     setError(null)
     setLoading(true)
 
-    // Step 1: Create Supabase Auth user with redirect to login page
-    const { data, error: signUpError } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        emailRedirectTo: 'https://faninteract.vercel.app/login',
-      },
-    })
-
-    if (signUpError) {
-      setError(signUpError.message)
-      setLoading(false)
-      return
-    }
-
-    // Step 2: Insert into hosts table
     try {
+      // ✅ Step 1: Create Supabase Auth user (creates record in auth.users)
+      const { data, error: signUpError } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          emailRedirectTo: 'https://www.faninteract.com/login', // ✅ real domain
+        },
+      })
+
+      if (signUpError) throw signUpError
       const userId = data.user?.id
       if (!userId) throw new Error('No user ID returned from Supabase.')
 
+      // ✅ Step 2: Insert into hosts table
       const { error: insertError } = await supabase.from('hosts').insert([
         {
           id: userId,
@@ -52,10 +47,10 @@ export default function SignUpPage() {
 
       if (insertError) throw insertError
 
-      // Step 3: Show success popup (stay on page)
+      // ✅ Step 3: Show success popup
       setShowPopup(true)
     } catch (err: any) {
-      console.error('Error creating host profile:', err.message)
+      console.error('Signup error:', err.message)
       setError(err.message)
     } finally {
       setLoading(false)
@@ -84,18 +79,18 @@ export default function SignUpPage() {
           required
         />
         <input
-          type="email"
-          placeholder="Email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          style={inputStyle}
-          required
-        />
-        <input
           type="text"
           placeholder="Username"
           value={username}
           onChange={(e) => setUsername(e.target.value)}
+          style={inputStyle}
+          required
+        />
+        <input
+          type="email"
+          placeholder="Email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
           style={inputStyle}
           required
         />
@@ -110,11 +105,14 @@ export default function SignUpPage() {
         <button disabled={loading} style={buttonStyle}>
           {loading ? 'Creating Account...' : 'Sign Up'}
         </button>
-        {error && <p style={{ color: 'red' }}>{error}</p>}
+        {error && <p style={{ color: 'red', marginTop: '10px' }}>{error}</p>}
       </form>
 
       <p>
-        Already have an account? <a href="/login">Log in</a>
+        Already have an account?{' '}
+        <a href="/login" style={{ color: '#1e90ff' }}>
+          Log in
+        </a>
       </p>
 
       {/* 🔔 Popup for email verification notice */}
@@ -125,8 +123,10 @@ export default function SignUpPage() {
               Verification Sent
             </h2>
             <p style={{ lineHeight: 1.5 }}>
-              A magic link has been sent to <strong>{email}</strong>. <br />
-              Click the link in your email to verify your account.
+              A verification link has been sent to <strong>{email}</strong>.
+              <br />
+              Click the link in your email to verify your account, then log in
+              with your username and password.
             </p>
             <button
               style={{
@@ -134,7 +134,10 @@ export default function SignUpPage() {
                 marginTop: '20px',
                 backgroundColor: '#5cc9ff',
               }}
-              onClick={() => setShowPopup(false)}
+              onClick={() => {
+                setShowPopup(false)
+                router.push('/login')
+              }}
             >
               OK
             </button>
@@ -145,7 +148,7 @@ export default function SignUpPage() {
   )
 }
 
-/* ---------- Inline Styles (unchanged look) ---------- */
+/* ---------- Styles (same theme) ---------- */
 
 const pageStyle: React.CSSProperties = {
   display: 'flex',
