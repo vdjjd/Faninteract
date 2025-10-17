@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { BRAND_LOGO, BRAND_NAME } from '@/lib/constants';
 import { useRouter } from 'next/navigation';
@@ -10,12 +10,21 @@ export default function LoginPage() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [modalMessage, setModalMessage] = useState<string | null>(null);
+
+  // Close modal on ESC key
+  useEffect(() => {
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setModalMessage(null);
+    };
+    window.addEventListener('keydown', handleKey);
+    return () => window.removeEventListener('keydown', handleKey);
+  }, []);
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
-    setError(null);
     setLoading(true);
+    setModalMessage(null);
 
     try {
       // Step 1️⃣ — find host email by username
@@ -38,11 +47,13 @@ export default function LoginPage() {
       // Step 3️⃣ — redirect to dashboard
       router.push(`/admin/dashboard?host_id=${host.id}`);
     } catch (err: any) {
-      setError(err.message);
+      setModalMessage(err.message || 'Login failed. Please try again.');
     } finally {
       setLoading(false);
     }
   }
+
+  /* ---------- Styles ---------- */
 
   const pageStyle: React.CSSProperties = {
     display: 'flex',
@@ -50,9 +61,10 @@ export default function LoginPage() {
     alignItems: 'center',
     justifyContent: 'center',
     minHeight: '100vh',
-    background: 'linear-gradient(180deg, #0d0d0d, #1a1a1a)',
+    background: 'linear-gradient(180deg, #0a2540, #1b2b44, #000000)',
     color: '#fff',
     fontFamily: 'system-ui, sans-serif',
+    position: 'relative',
   };
 
   const formStyle: React.CSSProperties = {
@@ -60,6 +72,7 @@ export default function LoginPage() {
     flexDirection: 'column',
     gap: '10px',
     width: '300px',
+    zIndex: 5,
   };
 
   const inputStyle: React.CSSProperties = {
@@ -80,6 +93,30 @@ export default function LoginPage() {
     cursor: 'pointer',
   };
 
+  const modalOverlay: React.CSSProperties = {
+    position: 'fixed',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 50,
+  };
+
+  const modalBox: React.CSSProperties = {
+    background: 'linear-gradient(145deg, #111b2f, #0c1320)',
+    border: '1px solid #1e90ff',
+    padding: '30px 40px',
+    borderRadius: 16,
+    textAlign: 'center',
+    boxShadow: '0 0 40px rgba(30,144,255,0.3)',
+    maxWidth: 400,
+    color: 'white',
+  };
+
   return (
     <div style={pageStyle}>
       <img
@@ -88,6 +125,7 @@ export default function LoginPage() {
         style={{ width: 160, marginBottom: 20 }}
       />
       <h1 style={{ marginBottom: 10 }}>{BRAND_NAME} Host Login</h1>
+
       <form onSubmit={handleLogin} style={formStyle}>
         <input
           type="text"
@@ -108,11 +146,36 @@ export default function LoginPage() {
         <button type="submit" style={buttonStyle} disabled={loading}>
           {loading ? 'Logging in...' : 'Login'}
         </button>
-        {error && <p style={{ color: 'red', marginTop: 8 }}>{error}</p>}
       </form>
+
       <p style={{ marginTop: 10 }}>
-        Don’t have an account? <a href="/signup" style={{ color: '#1e90ff' }}>Sign up</a>
+        Don’t have an account?{' '}
+        <a href="/signup" style={{ color: '#1e90ff' }}>
+          Sign up
+        </a>
       </p>
+
+      {/* 🔵 Modal Popup */}
+      {modalMessage && (
+        <div
+          style={modalOverlay}
+          onClick={() => setModalMessage(null)}
+        >
+          <div style={modalBox}>
+            <h2 style={{ fontSize: 20, marginBottom: 10 }}>Login Error</h2>
+            <p style={{ marginBottom: 20 }}>{modalMessage}</p>
+            <button
+              onClick={() => setModalMessage(null)}
+              style={{
+                ...buttonStyle,
+                background: 'linear-gradient(90deg, #1e90ff, #0077ff)',
+              }}
+            >
+              OK
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
