@@ -109,9 +109,7 @@ export default function ArenaPage() {
     });
 
     channel.subscribe();
-    return () => {
-      channel.unsubscribe();
-    };
+    return () => channel.unsubscribe();
   }, []);
 
   // ☄️ Create drifting asteroids once
@@ -137,14 +135,11 @@ export default function ArenaPage() {
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    const context = ctx!; // ✅ tells TS “this will not be null”
+    const ctx = canvas.getContext('2d')!; // ✅ Non-null assertion
 
     function loop() {
-      context.fillStyle = 'black';
-      context.fillRect(0, 0, 1920, 1080);
+      ctx.fillStyle = 'black';
+      ctx.fillRect(0, 0, 1920, 1080);
 
       const asteroids = asteroidsRef.current;
 
@@ -161,21 +156,21 @@ export default function ArenaPage() {
         if (a.y > 1080 + a.radius) a.y = -a.radius;
 
         // Draw asteroid
-        context.save();
-        context.translate(a.x, a.y);
-        context.rotate(a.rotation);
-        context.beginPath();
+        ctx.save();
+        ctx.translate(a.x, a.y);
+        ctx.rotate(a.rotation);
+        ctx.beginPath();
         for (let i = 0; i < 10; i++) {
           const angle = (i / 10) * Math.PI * 2;
           const r = a.radius * (0.7 + Math.random() * 0.3);
           const x = Math.cos(angle) * r;
           const y = Math.sin(angle) * r;
-          i === 0 ? context.moveTo(x, y) : context.lineTo(x, y);
+          i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
         }
-        context.closePath();
-        context.fillStyle = '#444';
-        context.fill();
-        context.restore();
+        ctx.closePath();
+        ctx.fillStyle = '#444';
+        ctx.fill();
+        ctx.restore();
       }
 
       // 🔫 Move & Draw Lasers
@@ -189,13 +184,13 @@ export default function ArenaPage() {
           .filter((l) => l.x >= 0 && l.x <= 1920 && l.y >= 0 && l.y <= 1080)
       );
 
-      context.strokeStyle = '#00ffff';
-      context.lineWidth = 2;
+      ctx.strokeStyle = '#00ffff';
+      ctx.lineWidth = 2;
       lasers.forEach((l) => {
-        context.beginPath();
-        context.moveTo(l.x, l.y);
-        context.lineTo(l.x - Math.cos(l.angle) * 10, l.y - Math.sin(l.angle) * 10);
-        context.stroke();
+        ctx.beginPath();
+        ctx.moveTo(l.x, l.y);
+        ctx.lineTo(l.x - Math.cos(l.angle) * 10, l.y - Math.sin(l.angle) * 10);
+        ctx.stroke();
       });
 
       // 🚀 Move Players
@@ -221,25 +216,25 @@ export default function ArenaPage() {
 
       // 🧑‍🚀 Draw Players
       Object.values(players).forEach((p) => {
-        context.save();
-        context.translate(p.x, p.y);
-        context.rotate(p.angle);
-        context.fillStyle = p.shield > 0 ? '#00ffff' : '#ff3333';
-        context.beginPath();
-        context.moveTo(30, 0);
-        context.lineTo(-20, -14);
-        context.lineTo(-20, 14);
-        context.closePath();
-        context.fill();
+        ctx.save();
+        ctx.translate(p.x, p.y);
+        ctx.rotate(p.angle);
+        ctx.fillStyle = p.shield > 0 ? '#00ffff' : '#ff3333';
+        ctx.beginPath();
+        ctx.moveTo(30, 0);
+        ctx.lineTo(-20, -14);
+        ctx.lineTo(-20, 14);
+        ctx.closePath();
+        ctx.fill();
 
         // Shield ring
-        context.beginPath();
-        context.arc(0, 0, 35, 0, Math.PI * 2);
-        context.strokeStyle = `rgba(0,255,255,${p.shield / 100})`;
-        context.lineWidth = 3;
-        context.stroke();
+        ctx.beginPath();
+        ctx.arc(0, 0, 35, 0, Math.PI * 2);
+        ctx.strokeStyle = `rgba(0,255,255,${p.shield / 100})`;
+        ctx.lineWidth = 3;
+        ctx.stroke();
 
-        context.restore();
+        ctx.restore();
       });
 
       requestAnimationFrame(loop);
@@ -248,7 +243,6 @@ export default function ArenaPage() {
     loop();
   }, [players, lasers]);
 
-  // 🎨 Canvas Layout
   return (
     <main className="flex flex-col items-center justify-center h-screen bg-black text-white">
       <canvas
