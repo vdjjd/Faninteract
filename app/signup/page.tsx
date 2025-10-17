@@ -21,12 +21,12 @@ export default function SignUpPage() {
     setLoading(true)
 
     try {
-      // ✅ Step 1: Create Supabase Auth user (creates record in auth.users)
+      // ✅ Step 1: Create Supabase Auth user
       const { data, error: signUpError } = await supabase.auth.signUp({
         email,
         password,
         options: {
-          emailRedirectTo: 'https://www.faninteract.com/login', // ✅ real domain
+          emailRedirectTo: 'https://www.faninteract.com/login', // ✅ live domain
         },
       })
 
@@ -47,7 +47,7 @@ export default function SignUpPage() {
 
       if (insertError) throw insertError
 
-      // ✅ Step 3: Show success popup
+      // ✅ Step 3: Show popup
       setShowPopup(true)
     } catch (err: any) {
       console.error('Signup error:', err.message)
@@ -62,6 +62,7 @@ export default function SignUpPage() {
       <h1>Host Sign Up</h1>
 
       <form onSubmit={handleSignUp} style={formStyle}>
+        {/* ✅ Corrected order */}
         <input
           type="text"
           placeholder="First Name"
@@ -79,18 +80,18 @@ export default function SignUpPage() {
           required
         />
         <input
-          type="text"
-          placeholder="Username"
-          value={username}
-          onChange={(e) => setUsername(e.target.value)}
-          style={inputStyle}
-          required
-        />
-        <input
           type="email"
           placeholder="Email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
+          style={inputStyle}
+          required
+        />
+        <input
+          type="text"
+          placeholder="Username"
+          value={username}
+          onChange={(e) => setUsername(e.target.value)}
           style={inputStyle}
           required
         />
@@ -115,7 +116,7 @@ export default function SignUpPage() {
         </a>
       </p>
 
-      {/* 🔔 Popup for email verification notice */}
+      {/* 🔔 Popup for email verification */}
       {showPopup && (
         <div style={overlayStyle}>
           <div style={popupStyle}>
@@ -148,7 +149,7 @@ export default function SignUpPage() {
   )
 }
 
-/* ---------- Styles (same theme) ---------- */
+/* ---------- Styles ---------- */
 
 const pageStyle: React.CSSProperties = {
   display: 'flex',
