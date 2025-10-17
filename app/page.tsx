@@ -5,41 +5,49 @@ import Link from 'next/link';
 
 export default function LandingPage() {
   return (
-    <main className="relative min-h-screen w-full overflow-x-hidden bg-gradient-to-br from-[#0f172a] via-[#1e293b] to-[#0a0f1a] text-white">
+    <main className="relative min-h-screen w-full overflow-hidden bg-[#0b111d] text-white">
+      {/* Animated gradient background */}
+      <div className="absolute inset-0 bg-gradient-to-br from-[#0a2540] via-[#1b2b44] to-[#000000] animate-gradient-slow" />
+
+      {/* Floating light layer */}
+      <div className="absolute inset-0 opacity-20 bg-[radial-gradient(circle_at_30%_30%,rgba(0,153,255,0.3),transparent_70%)]" />
+
       {/* Hero Section */}
-      <section className="flex flex-col items-center justify-center h-screen text-center px-6">
+      <section className="relative z-10 flex flex-col items-center justify-center text-center min-h-screen px-6">
         <motion.h1
-          initial={{ opacity: 0, y: 20 }}
+          initial={{ opacity: 0, y: 25 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 1 }}
-          className="text-5xl md:text-7xl font-bold mb-6 bg-clip-text text-transparent bg-gradient-to-r from-sky-400 to-blue-600"
+          className="text-6xl md:text-7xl font-extrabold tracking-tight mb-6"
         >
-          Turn Crowds Into Communities
+          <span className="bg-clip-text text-transparent bg-gradient-to-r from-sky-400 via-blue-500 to-indigo-400">
+            Engage Every Fan.
+          </span>
         </motion.h1>
         <motion.p
-          initial={{ opacity: 0, y: 20 }}
+          initial={{ opacity: 0, y: 25 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 1.2 }}
-          className="max-w-2xl text-lg md:text-xl text-gray-300 mb-10"
+          transition={{ delay: 0.3, duration: 1 }}
+          className="text-xl md:text-2xl text-gray-300 max-w-2xl mb-12"
         >
-          FanInteract brings your audience to life — posts, polls, and trivia on one live wall.
+          FanInteract turns your audience into part of the show — Live Fan Walls, Trivia, and Polling.
         </motion.p>
 
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          transition={{ duration: 1.5 }}
-          className="flex gap-4"
+          transition={{ delay: 0.8, duration: 1 }}
+          className="flex flex-wrap justify-center gap-6"
         >
           <Link
             href="/auth/signup"
-            className="px-6 py-3 bg-blue-600 hover:bg-blue-700 rounded-xl font-semibold transition-all duration-300 shadow-lg shadow-blue-600/30"
+            className="px-8 py-4 bg-gradient-to-r from-sky-500 to-blue-600 rounded-2xl font-semibold shadow-lg shadow-blue-600/40 hover:scale-105 hover:shadow-blue-500/60 transition-all duration-300"
           >
             Get Started
           </Link>
           <Link
             href="/auth/login"
-            className="px-6 py-3 border border-blue-500 hover:bg-blue-500/10 rounded-xl font-semibold transition-all duration-300"
+            className="px-8 py-4 border border-sky-400 text-sky-400 hover:bg-sky-400/10 rounded-2xl font-semibold transition-all duration-300"
           >
             Login
           </Link>
@@ -47,30 +55,23 @@ export default function LandingPage() {
       </section>
 
       {/* How It Works */}
-      <section className="py-24 bg-gradient-to-b from-transparent to-[#111827]/70 text-center px-6">
-        <motion.h2
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8 }}
-          viewport={{ once: true }}
-          className="text-3xl md:text-5xl font-semibold mb-12"
-        >
+      <section className="relative z-10 py-28 text-center bg-[#0d1625]/70 backdrop-blur-xl">
+        <h2 className="text-4xl md:text-5xl font-bold mb-14 bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-sky-400">
           How It Works
-        </motion.h2>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-10 max-w-6xl mx-auto">
+        </h2>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-10 max-w-6xl mx-auto px-6">
           {[
             {
-              title: 'Scan the QR Code',
-              desc: 'Fans instantly join your event wall by scanning a unique QR code.',
+              title: 'Scan the QR',
+              desc: 'Fans instantly join your live wall — no downloads, no hassle.',
             },
             {
-              title: 'Post, Vote, or Play',
-              desc: 'Users share photos, shoutouts, or answers — live on screen.',
+              title: 'Share & Vote',
+              desc: 'Posts, reactions, trivia, and polls appear on screen in real time.',
             },
             {
-              title: 'You Control It',
-              desc: 'Approve, moderate, and highlight posts in real-time.',
+              title: 'You Run the Show',
+              desc: 'Control the vibe with moderation tools and real-time updates.',
             },
           ].map((item, i) => (
             <motion.div
@@ -79,40 +80,33 @@ export default function LandingPage() {
               whileInView={{ opacity: 1, y: 0 }}
               transition={{ delay: i * 0.2, duration: 0.8 }}
               viewport={{ once: true }}
-              className="p-6 rounded-2xl bg-[#1e293b]/60 hover:bg-[#1e293b]/80 transition-colors duration-300 backdrop-blur-md shadow-lg shadow-blue-900/20"
+              className="p-8 rounded-3xl bg-gradient-to-br from-[#111b2f] to-[#0c1320] border border-blue-900/40 shadow-lg shadow-black/40 hover:shadow-blue-600/30 hover:scale-[1.03] transition-all duration-300"
             >
-              <h3 className="text-2xl font-bold mb-3 text-blue-400">{item.title}</h3>
-              <p className="text-gray-300">{item.desc}</p>
+              <h3 className="text-2xl font-semibold mb-3 text-blue-400">{item.title}</h3>
+              <p className="text-gray-300 leading-relaxed">{item.desc}</p>
             </motion.div>
           ))}
         </div>
       </section>
 
       {/* Features */}
-      <section className="py-24 text-center px-6 bg-[#0f172a]/60 backdrop-blur-sm">
-        <motion.h2
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8 }}
-          viewport={{ once: true }}
-          className="text-3xl md:text-5xl font-semibold mb-12"
-        >
-          Engage Every Fan
-        </motion.h2>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-10 max-w-6xl mx-auto">
+      <section className="relative z-10 py-28 bg-[#0b111d] text-center">
+        <h2 className="text-4xl md:text-5xl font-bold mb-14 bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-sky-400">
+          FanInteract Experiences
+        </h2>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-10 max-w-6xl mx-auto px-6">
           {[
             {
-              title: 'Fan Wall',
-              desc: 'Real-time audience interaction displayed on your LED wall.',
+              title: '🎉 Fan Wall',
+              desc: 'Turn your crowd into content — every moment, every reaction, live on screen.',
             },
             {
-              title: 'Trivia (Coming Soon)',
-              desc: 'Interactive games that let fans compete live on screen.',
+              title: '🧠 Trivia (Coming Soon)',
+              desc: 'Challenge your audience with interactive, real-time trivia built into your event.',
             },
             {
-              title: 'Polling (Coming Soon)',
-              desc: 'Instant audience feedback with results shown in real-time.',
+              title: '📊 Polling (Coming Soon)',
+              desc: 'Get instant audience insights with live visual polls and feedback loops.',
             },
           ].map((item, i) => (
             <motion.div
@@ -121,26 +115,18 @@ export default function LandingPage() {
               whileInView={{ opacity: 1, y: 0 }}
               transition={{ delay: i * 0.2, duration: 0.8 }}
               viewport={{ once: true }}
-              className="p-6 rounded-2xl bg-[#1e293b]/60 hover:bg-[#1e293b]/80 transition-colors duration-300 backdrop-blur-md shadow-lg shadow-blue-900/20"
+              className="p-8 rounded-3xl bg-gradient-to-br from-[#111b2f] to-[#0c1320] border border-blue-900/40 shadow-lg shadow-black/40 hover:shadow-blue-600/30 hover:scale-[1.03] transition-all duration-300"
             >
-              <h3 className="text-2xl font-bold mb-3 text-blue-400">{item.title}</h3>
-              <p className="text-gray-300">{item.desc}</p>
+              <h3 className="text-2xl font-semibold mb-3 text-blue-400">{item.title}</h3>
+              <p className="text-gray-300 leading-relaxed">{item.desc}</p>
             </motion.div>
           ))}
         </div>
       </section>
 
-      {/* CTA Footer */}
-      <footer className="py-16 text-center bg-[#0a0f1a] border-t border-blue-900/40">
-        <motion.h2
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8 }}
-          viewport={{ once: true }}
-          className="text-2xl md:text-4xl font-semibold mb-6 text-blue-400"
-        >
-          Ready to Engage Your Crowd?
-        </motion.h2>
+      {/* Footer */}
+      <footer className="relative z-10 py-16 text-center bg-gradient-to-b from-[#0b111d] to-black border-t border-blue-900/40">
+        <h2 className="text-2xl font-semibold mb-6 text-blue-400">Ready to Engage Your Crowd?</h2>
         <div className="flex justify-center gap-4 mb-8">
           <Link
             href="/auth/signup"
@@ -155,11 +141,28 @@ export default function LandingPage() {
             Login
           </Link>
         </div>
-
         <p className="text-gray-500 text-sm">
           © {new Date().getFullYear()} FanInteract. All rights reserved.
         </p>
       </footer>
+
+      <style jsx global>{`
+        @keyframes gradient-slow {
+          0% {
+            background-position: 0% 50%;
+          }
+          50% {
+            background-position: 100% 50%;
+          }
+          100% {
+            background-position: 0% 50%;
+          }
+        }
+        .animate-gradient-slow {
+          background-size: 200% 200%;
+          animation: gradient-slow 15s ease infinite;
+        }
+      `}</style>
     </main>
   );
 }
