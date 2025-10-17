@@ -10,6 +10,7 @@ interface Player {
   angle: number;
   shield: number;
   cooldown: number;
+  hyperCount?: number; // ✨ track hyperspace uses
 }
 
 interface Laser {
@@ -50,6 +51,7 @@ export default function ArenaPage() {
           angle: 0,
           shield: 100,
           cooldown: 0,
+          hyperCount: 0,
         };
 
         if (payload.action === 'LEFT') player.angle -= 0.1;
@@ -57,6 +59,16 @@ export default function ArenaPage() {
         if (payload.action === 'THRUST') {
           player.x += Math.cos(player.angle) * 5;
           player.y += Math.sin(player.angle) * 5;
+        }
+
+        // ✨ Hyperspace teleport (max 3 uses)
+        if (payload.action === 'HYPERSPACE') {
+          if (player.hyperCount === undefined) player.hyperCount = 0;
+          if (player.hyperCount < 3) {
+            player.x = Math.random() * 1920;
+            player.y = Math.random() * 1080;
+            player.hyperCount++;
+          }
         }
 
         // 🔫 Firing lasers
@@ -109,7 +121,7 @@ export default function ArenaPage() {
     if (!ctx) return;
 
     function loop() {
-      if (!ctx) return; // ✅ TypeScript safety
+      if (!ctx) return;
 
       // 🪐 Clear Screen
       ctx.fillStyle = 'black';
