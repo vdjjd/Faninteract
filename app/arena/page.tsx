@@ -8,9 +8,11 @@ interface Player {
   x: number;
   y: number;
   angle: number;
+  vx: number;
+  vy: number;
   shield: number;
   cooldown: number;
-  hyperCount?: number; // ✨ track hyperspace uses
+  hyperCount?: number;
 }
 
 interface Laser {
@@ -48,30 +50,38 @@ export default function ArenaPage() {
           id: payload.playerId,
           x: Math.random() * 1920,
           y: Math.random() * 1080,
+          vx: 0,
+          vy: 0,
           angle: 0,
           shield: 100,
           cooldown: 0,
           hyperCount: 0,
         };
 
+        // 🔄 Turning
         if (payload.action === 'LEFT') player.angle -= 0.1;
         if (payload.action === 'RIGHT') player.angle += 0.1;
+
+        // 🚀 Thrust (adds to velocity, not direct movement)
         if (payload.action === 'THRUST') {
-          player.x += Math.cos(player.angle) * 5;
-          player.y += Math.sin(player.angle) * 5;
+          const thrustPower = 0.4;
+          player.vx += Math.cos(player.angle) * thrustPower;
+          player.vy += Math.sin(player.angle) * thrustPower;
         }
 
-        // ✨ Hyperspace teleport (max 3 uses)
+        // ✨ Hyperspace (max 3)
         if (payload.action === 'HYPERSPACE') {
           if (player.hyperCount === undefined) player.hyperCount = 0;
           if (player.hyperCount < 3) {
             player.x = Math.random() * 1920;
             player.y = Math.random() * 1080;
+            player.vx = 0;
+            player.vy = 0;
             player.hyperCount++;
           }
         }
 
-        // 🔫 Firing lasers
+        // 🔫 Fire laser
         if (payload.action === 'FIRE' && player.cooldown <= 0 && player.shield > 0) {
           setLasers((prev) => [
             ...prev,
@@ -83,7 +93,7 @@ export default function ArenaPage() {
               owner: player.id,
             },
           ]);
-          player.cooldown = 20; // rate limiter
+          player.cooldown = 20;
         }
 
         player.cooldown = Math.max(0, player.cooldown - 1);
@@ -93,7 +103,7 @@ export default function ArenaPage() {
 
     channel.subscribe();
 
-    // ☄️ Create Asteroids
+    // ☄️ Create asteroids
     const newAsteroids: Asteroid[] = [];
     for (let i = 0; i < 6; i++) {
       newAsteroids.push({
@@ -113,7 +123,7 @@ export default function ArenaPage() {
     };
   }, []);
 
-  // 🕹️ Main Game Loop
+  // 🕹️ Game Loop
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -123,11 +133,11 @@ export default function ArenaPage() {
     function loop() {
       if (!ctx) return;
 
-      // 🪐 Clear Screen
+      // Clear
       ctx.fillStyle = 'black';
       ctx.fillRect(0, 0, 1920, 1080);
 
-      // ☄️ Move & Draw Asteroids
+      // 🪨 Move asteroids
       setAsteroids((prev) =>
         prev.map((a) => {
           let x = a.x + a.vx;
@@ -135,9 +145,6 @@ export default function ArenaPage() {
 
           if (x < 0 || x > 1920) a.vx *= -1;
           if (y < 0 || y > 1080) a.vy *= -1;
-
-          x = Math.max(0, Math.min(1920, x));
-          y = Math.max(0, Math.min(1080, y));
 
           ctx.beginPath();
           ctx.arc(a.x, a.y, a.radius, 0, Math.PI * 2);
@@ -148,7 +155,7 @@ export default function ArenaPage() {
         })
       );
 
-      // 🔫 Move & Draw Lasers
+      // 🔫 Move lasers
       setLasers((prev) =>
         prev
           .map((l) => ({
@@ -159,6 +166,7 @@ export default function ArenaPage() {
           .filter((l) => l.x >= 0 && l.x <= 1920 && l.y >= 0 && l.y <= 1080)
       );
 
+      // Draw lasers
       ctx.strokeStyle = '#00ffff';
       ctx.lineWidth = 2;
       lasers.forEach((l) => {
@@ -168,7 +176,30 @@ export default function ArenaPage() {
         ctx.stroke();
       });
 
-      // 💥 Laser vs Player Shield Collision
+      // 🧠 Update player positions (inertia physics)
+      setPlayers((prev) => {
+        const updated = { ...prev };
+        for (const id in updated) {
+          const p = updated[id];
+
+          // apply velocity
+          p.x += p.vx;
+          p.y += p.vy;
+
+          // Wrap screen edges
+          if (p.x < 0) p.x = 1920;
+          if (p.x > 1920) p.x = 0;
+          if (p.y < 0) p.y = 1080;
+          if (p.y > 1080) p.y = 0;
+
+          // slow down slightly (space friction)
+          p.vx *= 0.995;
+          p.vy *= 0.995;
+        }
+        return updated;
+      });
+
+      // 💥 Laser hits
       Object.values(players).forEach((p) => {
         Object.values(players).forEach((target) => {
           if (p.id !== target.id) {
@@ -176,7 +207,7 @@ export default function ArenaPage() {
               if (l.owner === p.id) {
                 const dx = l.x - target.x;
                 const dy = l.y - target.y;
-                if (Math.sqrt(dx * dx + dy * dy) < 20) {
+                if (Math.sqrt(dx * dx + dy * dy) < 25) {
                   target.shield = Math.max(0, target.shield - 10);
                 }
               }
@@ -185,22 +216,22 @@ export default function ArenaPage() {
         });
       });
 
-      // 🚀 Draw Players
+      // 🚀 Draw players (2× size)
       Object.values(players).forEach((p) => {
         ctx.save();
         ctx.translate(p.x, p.y);
         ctx.rotate(p.angle);
         ctx.fillStyle = p.shield > 0 ? '#00ffff' : '#ff3333';
         ctx.beginPath();
-        ctx.moveTo(15, 0);
-        ctx.lineTo(-10, -8);
-        ctx.lineTo(-10, 8);
+        ctx.moveTo(30, 0); // 🔺 twice as big
+        ctx.lineTo(-20, -14);
+        ctx.lineTo(-20, 14);
         ctx.closePath();
         ctx.fill();
 
-        // 🛡️ Draw Shield Ring
+        // Shield ring
         ctx.beginPath();
-        ctx.arc(0, 0, 20, 0, Math.PI * 2);
+        ctx.arc(0, 0, 35, 0, Math.PI * 2);
         ctx.strokeStyle = `rgba(0,255,255,${p.shield / 100})`;
         ctx.lineWidth = 3;
         ctx.stroke();
