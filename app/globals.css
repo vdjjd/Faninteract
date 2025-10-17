@@ -3,10 +3,5 @@
 @tailwind utilities;
 
 html, body {
-  @apply min-h-screen bg-[#0b111d] text-white;
-  scroll-behavior: smooth;
-}
-
-* {
-  box-sizing: border-box;
+  @apply h-full w-full overflow-x-hidden bg-[#0b111d] text-white;
 }
