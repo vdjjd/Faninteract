@@ -15,16 +15,24 @@ export default function ControllerPage() {
     });
   }
 
-  return (
-    <main className="flex flex-col items-center justify-center h-screen bg-black text-white space-y-4">
-      <h1 className="text-2xl font-bold mb-4">🚀 FanInteract Battle Controller</h1>
+  const buttonClass =
+    "w-20 h-20 md:w-24 md:h-24 rounded-full flex items-center justify-center text-lg md:text-2xl font-bold text-white shadow-lg transition-transform active:scale-90";
 
-      <div className="flex flex-wrap justify-center gap-4">
-        <button onClick={() => sendInput('THRUST')} className="bg-blue-600 px-6 py-3 rounded-lg">⬆️ Thrust</button>
-        <button onClick={() => sendInput('LEFT')} className="bg-gray-600 px-6 py-3 rounded-lg">⬅️ Left</button>
-        <button onClick={() => sendInput('RIGHT')} className="bg-gray-600 px-6 py-3 rounded-lg">Right ➡️</button>
-        <button onClick={() => sendInput('FIRE')} className="bg-red-600 px-6 py-3 rounded-lg">🔫 Fire</button>
-        <button onClick={() => sendInput('SHIELD')} className="bg-cyan-600 px-6 py-3 rounded-lg">🛡️ Shield</button>
+  return (
+    <main className="flex flex-col items-center justify-center h-screen bg-gradient-to-b from-[#0a2540] to-black text-white space-y-8">
+      <h1 className="text-2xl font-bold mb-2">🚀 FanInteract Controller</h1>
+
+      <div className="flex flex-wrap justify-center gap-6">
+        <button onClick={() => sendInput('LEFT')} className={`${buttonClass} bg-gray-600`}>⬅️</button>
+        <button onClick={() => sendInput('THRUST')} className={`${buttonClass} bg-blue-600`}>⬆️</button>
+        <button onClick={() => sendInput('RIGHT')} className={`${buttonClass} bg-gray-600`}>➡️</button>
+        <button onClick={() => sendInput('FIRE')} className={`${buttonClass} bg-red-600`}>🔫</button>
+      </div>
+
+      <div className="flex justify-center">
+        <button onClick={() => sendInput('SHIELD')} className={`${buttonClass} bg-cyan-600`}>
+          🛡️
+        </button>
       </div>
     </main>
   );
