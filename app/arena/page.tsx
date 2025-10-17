@@ -36,7 +36,7 @@ export default function ArenaPage() {
   const [lasers, setLasers] = useState<Laser[]>([]);
   const [asteroids, setAsteroids] = useState<Asteroid[]>([]);
 
-  // 🌌 Setup Realtime
+  // 🌐 Supabase Realtime
   useEffect(() => {
     const gameId = 'demo-room';
     const channel = supabase.channel(gameId);
@@ -59,6 +59,7 @@ export default function ArenaPage() {
           player.y += Math.sin(player.angle) * 5;
         }
 
+        // 🔫 Firing lasers
         if (payload.action === 'FIRE' && player.cooldown <= 0 && player.shield > 0) {
           setLasers((prev) => [
             ...prev,
@@ -70,7 +71,7 @@ export default function ArenaPage() {
               owner: player.id,
             },
           ]);
-          player.cooldown = 20; // small fire rate limiter
+          player.cooldown = 20; // rate limiter
         }
 
         player.cooldown = Math.max(0, player.cooldown - 1);
@@ -80,10 +81,10 @@ export default function ArenaPage() {
 
     channel.subscribe();
 
-    // Create asteroids
-    const asts: Asteroid[] = [];
+    // ☄️ Create Asteroids
+    const newAsteroids: Asteroid[] = [];
     for (let i = 0; i < 6; i++) {
-      asts.push({
+      newAsteroids.push({
         id: crypto.randomUUID(),
         x: Math.random() * 1920,
         y: Math.random() * 1080,
@@ -93,29 +94,36 @@ export default function ArenaPage() {
         radius: 80 + Math.random() * 60,
       });
     }
-    setAsteroids(asts);
+    setAsteroids(newAsteroids);
 
     return () => {
       channel.unsubscribe();
     };
   }, []);
 
-  // 🪐 Game Loop
+  // 🕹️ Main Game Loop
   useEffect(() => {
-    const ctx = canvasRef.current?.getContext('2d');
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
     function loop() {
+      if (!ctx) return; // ✅ TypeScript safety
+
+      // 🪐 Clear Screen
       ctx.fillStyle = 'black';
       ctx.fillRect(0, 0, 1920, 1080);
 
-      // Draw & move asteroids
+      // ☄️ Move & Draw Asteroids
       setAsteroids((prev) =>
         prev.map((a) => {
           let x = a.x + a.vx;
           let y = a.y + a.vy;
+
           if (x < 0 || x > 1920) a.vx *= -1;
           if (y < 0 || y > 1080) a.vy *= -1;
+
           x = Math.max(0, Math.min(1920, x));
           y = Math.max(0, Math.min(1080, y));
 
@@ -128,7 +136,7 @@ export default function ArenaPage() {
         })
       );
 
-      // Move lasers
+      // 🔫 Move & Draw Lasers
       setLasers((prev) =>
         prev
           .map((l) => ({
@@ -139,7 +147,6 @@ export default function ArenaPage() {
           .filter((l) => l.x >= 0 && l.x <= 1920 && l.y >= 0 && l.y <= 1080)
       );
 
-      // Draw lasers
       ctx.strokeStyle = '#00ffff';
       ctx.lineWidth = 2;
       lasers.forEach((l) => {
@@ -149,7 +156,7 @@ export default function ArenaPage() {
         ctx.stroke();
       });
 
-      // Handle collisions
+      // 💥 Laser vs Player Shield Collision
       Object.values(players).forEach((p) => {
         Object.values(players).forEach((target) => {
           if (p.id !== target.id) {
@@ -166,7 +173,7 @@ export default function ArenaPage() {
         });
       });
 
-      // Draw players
+      // 🚀 Draw Players
       Object.values(players).forEach((p) => {
         ctx.save();
         ctx.translate(p.x, p.y);
@@ -179,7 +186,7 @@ export default function ArenaPage() {
         ctx.closePath();
         ctx.fill();
 
-        // Draw shield ring
+        // 🛡️ Draw Shield Ring
         ctx.beginPath();
         ctx.arc(0, 0, 20, 0, Math.PI * 2);
         ctx.strokeStyle = `rgba(0,255,255,${p.shield / 100})`;
@@ -195,6 +202,7 @@ export default function ArenaPage() {
     loop();
   }, [players, lasers, asteroids]);
 
+  // 🎨 Canvas Layout
   return (
     <main className="flex flex-col items-center justify-center h-screen bg-black text-white">
       <canvas
