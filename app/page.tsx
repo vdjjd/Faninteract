@@ -7,35 +7,45 @@ import Link from 'next/link';
 export default function LandingPage() {
   return (
     <main className="relative flex flex-col items-center justify-center min-h-screen w-full overflow-hidden text-white text-center">
-      {/* Animated gradient background */}
+      {/* 🌌 Animated gradient background */}
       <div className="absolute inset-0 bg-[linear-gradient(135deg,#0a2540,#1b2b44,#000000)] bg-[length:200%_200%] animate-gradient-slow" />
       <div className="absolute inset-0 opacity-25 bg-[radial-gradient(circle_at_30%_30%,rgba(0,153,255,0.4),transparent_70%)]" />
 
-      {/* Hero */}
+      {/* 🎯 Hero Section */}
       <div className="relative z-10 flex flex-col items-center justify-center h-screen w-full px-6">
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
+          initial={{ opacity: 0, y: 25 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 1 }}
-          className="flex flex-col items-center justify-center space-y-8"
+          className="flex flex-col items-center justify-center space-y-10 mt-[-40px]"
         >
-          <Image
-            src="/faninteractlogo.png"
-            alt="FanInteract Logo"
-            width={500}
-            height={500}
-            className="w-56 h-auto drop-shadow-[0_0_25px_rgba(56,189,248,0.3)]"
-            priority
-          />
+          {/* ✅ Logo */}
+          <motion.div
+            animate={{ scale: [1, 1.04, 1] }}
+            transition={{ duration: 6, repeat: Infinity, ease: 'easeInOut' }}
+          >
+            <Image
+              src="/faninteractlogo.png"
+              alt="FanInteract Logo"
+              width={300}
+              height={120}
+              className="w-[220px] md:w-[300px] h-auto object-contain drop-shadow-[0_0_25px_rgba(56,189,248,0.25)]"
+              priority
+              unoptimized
+            />
+          </motion.div>
 
-          <h1 className="text-5xl md:text-7xl font-extrabold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-sky-400 via-blue-500 to-indigo-400">
+          {/* Headline */}
+          <h1 className="text-5xl md:text-7xl font-extrabold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-sky-400 via-blue-500 to-indigo-400 drop-shadow-[0_0_25px_rgba(56,189,248,0.25)]">
             Turn Crowds Into Communities
           </h1>
 
-          <p className="text-lg md:text-2xl text-gray-300 max-w-2xl">
+          {/* Subtext */}
+          <p className="text-lg md:text-2xl text-gray-300 max-w-2xl leading-relaxed">
             FanInteract lets your audience post, vote, and play live — all on one wall.
           </p>
 
+          {/* Buttons */}
           <div className="flex flex-wrap justify-center gap-6 pt-4">
             <Link
               href="/auth/signup"
@@ -53,7 +63,7 @@ export default function LandingPage() {
         </motion.div>
       </div>
 
-      {/* Features */}
+      {/* 💡 Feature Section */}
       <section className="relative z-10 w-full py-28 bg-[#0d1625]/80 backdrop-blur-xl">
         <h2 className="text-4xl md:text-5xl font-bold mb-14 bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-sky-400">
           Built For Live Engagement
@@ -89,14 +99,14 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Footer */}
+      {/* 🦶 Footer */}
       <footer className="relative z-10 w-full py-10 text-center bg-[#0b111d] border-t border-blue-900/40">
         <p className="text-gray-500 text-sm">
           © {new Date().getFullYear()} FanInteract. All rights reserved.
         </p>
       </footer>
 
-      {/* Gradient Animation */}
+      {/* 🎞️ Gradient Animation */}
       <style jsx global>{`
         @keyframes gradient-slow {
           0% {
