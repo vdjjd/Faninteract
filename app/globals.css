@@ -1,4 +1,12 @@
-body {
-  margin: 0;
-  padding: 0;
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html, body {
+  @apply min-h-screen bg-[#0b111d] text-white;
+  scroll-behavior: smooth;
+}
+
+* {
+  box-sizing: border-box;
 }
