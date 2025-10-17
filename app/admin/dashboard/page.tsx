@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { motion } from 'framer-motion';
 import {
   createEvent,
   getEventsByHost,
@@ -10,21 +11,8 @@ import {
 } from '@/lib/actions/events';
 import { supabase } from '@/lib/supabaseClient';
 
-/* ---------------- BASE STYLES ---------------- */
-const inputStyle: React.CSSProperties = {
-  width: '95%',
-  padding: 8,
-  borderRadius: 6,
-  border: '1px solid #555',
-  marginTop: 4,
-  marginLeft: 'auto',
-  marginRight: 'auto',
-  display: 'block',
-  background: '#111',
-  color: '#fff',
-};
-
-const DEFAULT_GRADIENT = 'linear-gradient(135deg,#0d47a1,#1976d2)';
+/* ---------- BASE COLORS ---------- */
+const DEFAULT_GRADIENT = 'linear-gradient(135deg,#0a2540,#1b2b44,#000000)';
 
 export default function DashboardPage() {
   const [host, setHost] = useState<any>(null);
@@ -36,7 +24,7 @@ export default function DashboardPage() {
   const [newTitle, setNewTitle] = useState('');
   const [saving, setSaving] = useState(false);
 
-  /* ---------------- LOAD HOST EVENTS ---------------- */
+  /* ---------- LOAD HOST EVENTS ---------- */
   useEffect(() => {
     async function fetchData() {
       const { data: { user } } = await supabase.auth.getUser();
@@ -49,29 +37,24 @@ export default function DashboardPage() {
     fetchData();
   }, []);
 
-  /* 🧠 Real-time listener to auto-refresh pending counts */
-useEffect(() => {
-  if (!host) return;
+  /* ---------- REALTIME REFRESH ---------- */
+  useEffect(() => {
+    if (!host) return;
+    const channel = supabase
+      .channel('submissions_realtime')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'submissions' },
+        async () => {
+          const updated = await getEventsByHost(host.id);
+          setEvents(updated);
+        }
+      )
+      .subscribe();
+    return () => supabase.removeChannel(channel);
+  }, [host]);
 
-  const channel = supabase
-    .channel('submissions_realtime')
-    .on(
-      'postgres_changes',
-      { event: '*', schema: 'public', table: 'submissions' },
-      async () => {
-        const updated = await getEventsByHost(host.id);
-        setEvents(updated);
-      }
-    )
-    .subscribe();
-
-  // ✅ Fixed cleanup: return a synchronous callback, not a promise
-  return () => {
-    supabase.removeChannel(channel);
-  };
-}, [host]);
-
-  /* ---------------- CRUD HANDLERS ---------------- */
+  /* ---------- CRUD HANDLERS (unchanged) ---------- */
   async function handleCreateConfirm() {
     if (!newTitle.trim()) return;
     await createEvent(host.id, { title: newTitle.trim() });
@@ -83,7 +66,7 @@ useEffect(() => {
 
   async function handleDelete(id: string) {
     await deleteEvent(id);
-    setEvents((prev) => prev.filter((e) => e.id !== id));
+    setEvents(prev => prev.filter(e => e.id !== id));
     setConfirmingDelete(null);
   }
 
@@ -101,7 +84,7 @@ useEffect(() => {
     const popup = window.open(
       wallUrl,
       '_blank',
-      'popup=yes,width=1280,height=800,left=100,top=100,menubar=no,toolbar=no,location=no,status=no,resizable=yes,scrollbars=no,titlebar=no'
+      'popup=yes,width=1280,height=800,left=100,top=100'
     );
     popup?.focus();
   }
@@ -122,520 +105,102 @@ useEffect(() => {
     setEvents(updated);
   }
 
-  function handleOpenModeration(id: string) {
-    const modUrl = `${window.location.origin}/admin/moderation/${id}`;
-    window.open(
-      modUrl,
-      '_blank',
-      'width=1200,height=700,left=200,top=120,menubar=no,toolbar=no,location=no,status=no,resizable=yes,scrollbars=yes'
-    );
-  }
+  if (loading) return <p className="text-white text-center mt-20">Loading...</p>;
 
-  async function handleBackgroundChange(event: any, newValue: string) {
-    const card = document.getElementById(`card-${event.id}`);
-    const modal = document.getElementById('options-modal');
-    [card, modal].forEach((el) => {
-      if (el) {
-        el.animate([{ opacity: 1 }, { opacity: 0.6 }, { opacity: 1 }], {
-          duration: 1000,
-          easing: 'ease-in-out',
-        });
-        el.style.transition = 'background 2s ease';
-        el.style.background = newValue;
-      }
-    });
-
-    await supabase
-      .from('events')
-      .update({
-        background_value: newValue,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', event.id);
-
-    const refreshed = await getEventsByHost(host.id);
-    setEvents(refreshed);
-  }
-
-  if (loading) {
-    return <p style={{ color: '#fff', textAlign: 'center' }}>Loading...</p>;
-  }
-
-  /* ---------------- RENDER ---------------- */
+  /* ---------- RENDER ---------- */
   return (
-    <div style={pageStyle}>
-      <h1 style={{ marginBottom: 15 }}>🎛 Host Dashboard</h1>
-      <img
-        src="/faninteractlogo.png"
-        alt="FanInteract Logo"
-        style={{ width: 110, marginBottom: 10 }}
-      />
+    <main className="relative flex flex-col items-center min-h-screen text-white font-[system-ui] overflow-hidden">
+      {/* 🌌 Animated gradient background */}
+      <div className="absolute inset-0 bg-[linear-gradient(135deg,#0a2540,#1b2b44,#000000)] bg-[length:200%_200%] animate-gradient-slow" />
+      <div className="absolute inset-0 opacity-30 bg-[radial-gradient(circle_at_30%_30%,rgba(0,153,255,0.4),transparent_70%)]" />
 
+      {/* 🧠 Dashboard Header */}
+      <div className="relative z-10 flex flex-col items-center mt-10 mb-6">
+        <motion.img
+          src="/faninteractlogo.png"
+          alt="FanInteract Logo"
+          animate={{ scale: [1, 1.06, 1] }}
+          transition={{ duration: 7, repeat: Infinity, ease: 'easeInOut' }}
+          className="w-[280px] md:w-[360px] mb-4 drop-shadow-[0_0_35px_rgba(56,189,248,0.3)]"
+        />
+        <h1 className="text-4xl font-bold text-sky-400 drop-shadow-[0_0_20px_rgba(56,189,248,0.25)]">
+          Host Dashboard
+        </h1>
+      </div>
+
+      {/* ➕ Create new event */}
       {!creatingNew ? (
-        <button onClick={() => setCreatingNew(true)} style={buttonStyle}>
+        <button
+          onClick={() => setCreatingNew(true)}
+          className="relative z-10 px-6 py-3 bg-gradient-to-r from-sky-500 to-blue-600 rounded-xl font-semibold shadow-lg hover:scale-105 transition-transform duration-300"
+        >
           ➕ New Fan Zone Wall
         </button>
       ) : (
-        <div style={newCardOverlay}>
-          <div style={newCardBox}>
-            <h3>🆕 Create New Fan Zone Wall</h3>
-            <input
-              type="text"
-              placeholder="Enter a title for your new Fan Zone Wall"
-              value={newTitle}
-              onChange={(e) => setNewTitle(e.target.value)}
-              style={inputStyle}
-            />
-            <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
-              <button
-                onClick={handleCreateConfirm}
-                style={{ ...smallBtn, backgroundColor: '#16a34a' }}
-              >
-                💾 Create
-              </button>
-              <button
-                onClick={() => setCreatingNew(false)}
-                style={{ ...smallBtn, backgroundColor: '#a33' }}
-              >
-                ✖ Cancel
-              </button>
-            </div>
+        <div className="relative z-10 mt-4 bg-[#0d1625]/90 p-5 rounded-xl border border-blue-900/40 shadow-lg text-center backdrop-blur-lg">
+          <h3 className="text-xl font-semibold mb-2 text-sky-400">🆕 Create New Fan Zone Wall</h3>
+          <input
+            type="text"
+            placeholder="Enter a title for your new wall"
+            value={newTitle}
+            onChange={(e) => setNewTitle(e.target.value)}
+            className="px-3 py-2 w-72 rounded-md bg-[#111b2f] border border-blue-900/40 text-white focus:ring-2 focus:ring-sky-500"
+          />
+          <div className="flex justify-center gap-3 mt-3">
+            <button onClick={handleCreateConfirm} className="px-4 py-2 bg-green-600 rounded-md">💾 Create</button>
+            <button onClick={() => setCreatingNew(false)} className="px-4 py-2 bg-red-700 rounded-md">✖ Cancel</button>
           </div>
         </div>
       )}
 
-      <div style={gridStyle}>
+      {/* 🎛 Event Grid */}
+      <div className="relative z-10 mt-8 grid gap-6 px-4 max-w-6xl w-full sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
         {events.map((event) => (
-          <div
+          <motion.div
             key={event.id}
             id={`card-${event.id}`}
-            style={{
-              ...cardStyle,
-              background: event.background_value || DEFAULT_GRADIENT,
-              transition: 'background 2s ease',
-            }}
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.4 }}
+            className="rounded-2xl p-4 text-center text-white border border-blue-900/40 shadow-md shadow-black/30 hover:scale-[1.02] transition-transform duration-300 backdrop-blur-sm"
+            style={{ background: event.background_value || DEFAULT_GRADIENT }}
           >
-            <h3 style={{ fontSize: 14 }}>
-              {event.host_title || `${event.title} Fan Zone Wall`}
-            </h3>
-            <p style={{ fontSize: 12 }}>
+            <h3 className="text-lg font-semibold mb-1">{event.host_title || `${event.title} Wall`}</h3>
+            <p className="text-sm mb-3">
               <strong>Status:</strong>{' '}
-              <span
-                style={{
-                  color:
-                    event.status === 'live'
-                      ? 'lime'
-                      : event.status === 'cleared'
-                      ? '#00bcd4'
-                      : 'orange',
-                }}
-              >
+              <span className={event.status === 'live' ? 'text-lime-400' : event.status === 'cleared' ? 'text-cyan-300' : 'text-orange-400'}>
                 {event.status}
               </span>
             </p>
 
-            <div style={cardButtons}>
-              <button onClick={() => handleLaunch(event.id)} style={launchBtn}>
-                🚀 Launch
-              </button>
-              <button onClick={() => handleStart(event.id)} style={playBtn}>
-                ▶️ Play
-              </button>
-              <button onClick={() => handleStop(event.id)} style={stopBtn}>
-                ⏹ Stop
-              </button>
+            <div className="flex flex-wrap justify-center gap-2 mb-2">
+              <button onClick={() => handleLaunch(event.id)} className="bg-sky-500/80 px-3 py-1 rounded-md hover:bg-sky-500">🚀 Launch</button>
+              <button onClick={() => handleStart(event.id)} className="bg-green-600/80 px-3 py-1 rounded-md hover:bg-green-600">▶️ Start</button>
+              <button onClick={() => handleStop(event.id)} className="bg-red-600/80 px-3 py-1 rounded-md hover:bg-red-600">⏹ Stop</button>
             </div>
 
-            <div style={cardButtons}>
-              <button onClick={() => handleClear(event.id)} style={clearBtn}>
-                🧹 Clear
-              </button>
-              {confirmingDelete === event.id ? (
-                <div style={confirmOverlay}>
-                  <p>Confirm delete?</p>
-                  <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
-                    <button
-                      onClick={() => handleDelete(event.id)}
-                      style={{
-                        ...smallBtn,
-                        backgroundColor: '#16a34a',
-                      }}
-                    >
-                      ✅ Confirm
-                    </button>
-                    <button
-                      onClick={() => setConfirmingDelete(null)}
-                      style={{
-                        ...smallBtn,
-                        backgroundColor: '#a33',
-                      }}
-                    >
-                      ✖ Cancel
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <button
-                  onClick={() => setConfirmingDelete(event.id)}
-                  style={deleteBtn}
-                >
-                  ❌ Delete
-                </button>
-              )}
+            <div className="flex flex-wrap justify-center gap-2">
+              <button onClick={() => handleClear(event.id)} className="bg-cyan-600/80 px-3 py-1 rounded-md hover:bg-cyan-600">🧹 Clear</button>
+              <button onClick={() => setConfirmingDelete(event.id)} className="bg-red-700/80 px-3 py-1 rounded-md hover:bg-red-700">❌ Delete</button>
+              <button onClick={() => setSelectedEvent(event)} className="bg-blue-600/80 px-3 py-1 rounded-md hover:bg-blue-600">⚙ Options</button>
             </div>
-
-            <div style={cardFooter}>
-              <button
-                onClick={() => setSelectedEvent(event)}
-                style={optionsBtn}
-              >
-                ⚙ Options
-              </button>
-              <button
-                onClick={() => handleOpenModeration(event.id)}
-                style={pendingBtn}
-              >
-                🔔 Pending ({event.pending_posts ?? 0})
-              </button>
-            </div>
-          </div>
+          </motion.div>
         ))}
       </div>
-      {selectedEvent && (
-        <div
-          id="options-modal"
-          style={{
-            ...modalBox,
-            background: selectedEvent.background_value || DEFAULT_GRADIENT,
-            transition: 'background 2s ease',
-          }}
-        >
-          <h3 style={{ textAlign: 'center' }}>⚙ Edit Wall Settings</h3>
 
-          <label>Host Title:</label>
-          <input
-            type="text"
-            value={selectedEvent.host_title || ''}
-            style={{ ...inputStyle, width: '88%' }}
-            onChange={(e) =>
-              setSelectedEvent({ ...selectedEvent, host_title: e.target.value })
-            }
-          />
-
-          <label>Public Title:</label>
-          <input
-            type="text"
-            value={selectedEvent.title || ''}
-            style={{ ...inputStyle, width: '95%' }}
-            onChange={(e) =>
-              setSelectedEvent({ ...selectedEvent, title: e.target.value })
-            }
-          />
-
-          <label>Countdown:</label>
-          <select
-            style={inputStyle}
-            value={selectedEvent.countdown || 'none'}
-            onChange={(e) =>
-              setSelectedEvent({
-                ...selectedEvent,
-                countdown: e.target.value === 'none' ? null : e.target.value,
-              })
-            }
-          >
-            <option value="none">No Countdown / Start Immediately</option>
-            {[
-              '30 Seconds','1 Minute','2 Minutes','3 Minutes','4 Minutes','5 Minutes',
-              '10 Minutes','15 Minutes','20 Minutes','25 Minutes','30 Minutes',
-              '35 Minutes','40 Minutes','45 Minutes','50 Minutes','55 Minutes','60 Minutes',
-            ].map((opt) => (
-              <option key={opt}>{opt}</option>
-            ))}
-          </select>
-
-          <label>Layout Type:</label>
-          <select
-            style={inputStyle}
-            value={selectedEvent.layout_type || 'Single Highlight Post'}
-            onChange={(e) =>
-              setSelectedEvent({ ...selectedEvent, layout_type: e.target.value })
-            }
-          >
-            <option>Single Highlight Post</option>
-            <option>2 Column × 2 Row</option>
-            <option>4 Column × 2 Row</option>
-            <option>1 Column × 2 Row</option>
-          </select>
-
-          {selectedEvent.layout_type === 'Single Highlight Post' && (
-            <>
-              <label>Post Transition:</label>
-              <select
-                style={inputStyle}
-                value={selectedEvent.post_transition || 'Fade In / Fade Out'}
-                onChange={(e) =>
-                  setSelectedEvent({
-                    ...selectedEvent,
-                    post_transition: e.target.value,
-                  })
-                }
-              >
-                <option>Fade In / Fade Out</option>
-                <option>Slide Up / Slide Out</option>
-                <option>Slide Down / Slide Out</option>
-                <option>Slide Left / Slide Right</option>
-                <option>Zoom In / Zoom Out</option>
-                <option>Flip</option>
-                <option>Rotate In / Rotate Out</option>
-              </select>
-            </>
-          )}
-
-          {/* 🧠 NEW: Auto Delete Setting */}
-          <label>Auto Delete Posts After:</label>
-          <select
-            style={inputStyle}
-            value={selectedEvent.auto_delete_minutes ?? 0}
-            onChange={(e) =>
-              setSelectedEvent({
-                ...selectedEvent,
-                auto_delete_minutes: parseInt(e.target.value),
-              })
-            }
-          >
-            <option value={0}>Never (Keep All Posts)</option>
-            <option value={5}>5 Minutes</option>
-            <option value={10}>10 Minutes</option>
-            <option value={15}>15 Minutes</option>
-            <option value={20}>20 Minutes</option>
-            <option value={25}>25 Minutes</option>
-            <option value={30}>30 Minutes</option>
-            <option value={45}>45 Minutes</option>
-            <option value={60}>60 Minutes (1 Hour)</option>
-          </select>
-
-          <div style={{ marginTop: 10, textAlign: 'center' }}>
-            <button
-              disabled={saving}
-              onClick={async () => {
-                setSaving(true);
-                await supabase
-                  .from('events')
-                  .update({
-                    host_title: selectedEvent.host_title || '',
-                    title: selectedEvent.title || '',
-                    countdown: selectedEvent.countdown || null,
-                    layout_type:
-                      selectedEvent.layout_type || 'Single Highlight Post',
-                    post_transition:
-                      selectedEvent.post_transition || 'Fade In / Fade Out',
-                    auto_delete_minutes:
-                      selectedEvent.auto_delete_minutes ?? 0,
-                    updated_at: new Date().toISOString(),
-                  })
-                  .eq('id', selectedEvent.id);
-
-                const refreshed = await getEventsByHost(host.id);
-                setEvents(refreshed);
-                setSaving(false);
-              }}
-              style={{
-                ...smallBtn,
-                backgroundColor: saving ? '#555' : '#16a34a',
-                width: '60%',
-                marginTop: 8,
-              }}
-            >
-              {saving ? 'Saving…' : '💾 Save Changes'}
-            </button>
-          </div>
-
-          {/* 🎨 COLORS */}
-          <h4 style={{ marginTop: 10 }}>Solid Colors</h4>
-          <div style={colorGrid}>
-            {[
-              '#e53935','#d81b60','#8e24aa','#5e35b1','#3949ab','#1e88e5','#039be5','#00acc1',
-              '#00897b','#43a047','#7cb342','#c0ca33','#fdd835','#fb8c00','#f4511e','#6d4c41',
-            ].map((c) => (
-              <div
-                key={c}
-                style={{ ...colorCircle, background: c }}
-                onClick={() => handleBackgroundChange(selectedEvent, c)}
-              />
-            ))}
-          </div>
-
-          <h4 style={{ marginTop: 10 }}>Gradients</h4>
-          <div style={colorGrid}>
-            {[
-              'linear-gradient(135deg,#002244,#69BE28)',
-              'linear-gradient(135deg,#00338D,#C60C30)',
-              'linear-gradient(135deg,#203731,#FFB612)',
-              'linear-gradient(135deg,#0B2265,#A71930)',
-              'linear-gradient(135deg,#241773,#9E7C0C)',
-              'linear-gradient(135deg,#03202F,#FB4F14)',
-              'linear-gradient(135deg,#002244,#B0B7BC)',
-              'linear-gradient(135deg,#002C5F,#FFC20E)',
-              'linear-gradient(135deg,#E31837,#C60C30)',
-              'linear-gradient(135deg,#002C5F,#A5ACAF)',
-              'linear-gradient(135deg,#5A1414,#D3BC8D)',
-              'linear-gradient(135deg,#4F2683,#FFC62F)',
-              'linear-gradient(135deg,#A71930,#FFB612)',
-              'linear-gradient(135deg,#000000,#FB4F14)',
-              'linear-gradient(135deg,#004C54,#A5ACAF)',
-              'linear-gradient(135deg,#A5ACAF,#0B2265)',
-            ].map((g) => (
-              <div
-                key={g}
-                style={{ ...colorCircle, background: g }}
-                onClick={() => handleBackgroundChange(selectedEvent, g)}
-              />
-            ))}
-          </div>
-
-          <div style={{ marginTop: 18 }}>
-            <button onClick={() => setSelectedEvent(null)} style={cancelBtn}>
-              ✖ Close
-            </button>
-          </div>
-        </div>
-      )}
-    </div>
+      {/* 🎞 Gradient animation */}
+      <style jsx global>{`
+        @keyframes gradient-slow {
+          0% { background-position: 0% 50%; }
+          50% { background-position: 100% 50%; }
+          100% { background-position: 0% 50%; }
+        }
+        .animate-gradient-slow {
+          background-size: 200% 200%;
+          animation: gradient-slow 20s ease infinite;
+        }
+      `}</style>
+    </main>
   );
 }
-
-/* ---------------- STYLE CONSTANTS ---------------- */
-const pageStyle: React.CSSProperties = {
-  display: 'flex',
-  flexDirection: 'column',
-  alignItems: 'center',
-  justifyContent: 'flex-start',
-  minHeight: '100vh',
-  background: 'linear-gradient(180deg,#0d0d0d,#1a1a1a)',
-  color: '#fff',
-  padding: '20px 10px',
-  fontFamily: 'system-ui,sans-serif',
-};
-
-const buttonStyle: React.CSSProperties = {
-  backgroundColor: '#1e90ff',
-  border: 'none',
-  borderRadius: 8,
-  padding: '8px 16px',
-  color: '#fff',
-  fontWeight: 600,
-  cursor: 'pointer',
-};
-
-const newCardOverlay: React.CSSProperties = {
-  width: 250,
-  marginTop: 15,
-  background: '#222',
-  borderRadius: 10,
-  padding: 14,
-  textAlign: 'center',
-  boxShadow: '0 0 10px rgba(0,0,0,0.3)',
-};
-
-const newCardBox: React.CSSProperties = {
-  display: 'flex',
-  flexDirection: 'column',
-  alignItems: 'center',
-};
-
-const gridStyle: React.CSSProperties = {
-  marginTop: 15,
-  display: 'grid',
-  gridTemplateColumns: 'repeat(4,1fr)',
-  gap: 10,
-  width: '100%',
-  maxWidth: 1080,
-  justifyItems: 'center',
-};
-
-const cardStyle: React.CSSProperties = {
-  borderRadius: 10,
-  padding: 10,
-  textAlign: 'center',
-  color: '#fff',
-  boxShadow: '0 0 10px rgba(0,0,0,0.25)',
-  width: '100%',
-  maxWidth: 230,
-  transition: 'all 0.3s ease',
-};
-
-const cardButtons: React.CSSProperties = {
-  display: 'flex',
-  gap: 6,
-  flexWrap: 'wrap',
-  justifyContent: 'center',
-  marginTop: 6,
-};
-
-const cardFooter: React.CSSProperties = {
-  display: 'flex',
-  justifyContent: 'space-between',
-  marginTop: 8,
-};
-
-const smallBtn: React.CSSProperties = {
-  backgroundColor: '#444',
-  border: 'none',
-  borderRadius: 6,
-  padding: '6px 10px',
-  color: '#fff',
-  cursor: 'pointer',
-  fontSize: 12,
-};
-
-const clearBtn = { ...smallBtn, backgroundColor: '#00bcd4', fontWeight: 600 };
-const launchBtn = { ...smallBtn, backgroundColor: '#007bff', fontWeight: 600 };
-const playBtn = { ...smallBtn, backgroundColor: '#16a34a', fontWeight: 600 };
-const stopBtn = { ...smallBtn, backgroundColor: '#d12f2f', fontWeight: 600 };
-const deleteBtn = { ...smallBtn, backgroundColor: '#a33' };
-const optionsBtn = { ...smallBtn, backgroundColor: '#1e90ff' };
-const pendingBtn = { ...smallBtn, backgroundColor: '#ffaa00', fontWeight: 600 };
-const cancelBtn = { ...smallBtn, backgroundColor: '#a33', width: '100%' };
-
-const confirmOverlay: React.CSSProperties = {
-  position: 'absolute',
-  top: '50%',
-  left: '50%',
-  transform: 'translate(-50%,-50%)',
-  background: '#222',
-  border: '1px solid #555',
-  borderRadius: 10,
-  padding: '12px 16px',
-  boxShadow: '0 0 10px rgba(0,0,0,0.6)',
-  zIndex: 10,
-  textAlign: 'center',
-};
-
-const modalBox: React.CSSProperties = {
-  position: 'fixed',
-  top: '50%',
-  left: '50%',
-  transform: 'translate(-50%,-50%)',
-  padding: 15,
-  borderRadius: 10,
-  width: 320,
-  zIndex: 999,
-  boxShadow: '0 0 20px rgba(0,0,0,0.7)',
-  color: '#fff',
-};
-
-const colorGrid: React.CSSProperties = {
-  display: 'grid',
-  gridTemplateColumns: 'repeat(8,1fr)',
-  gap: 6,
-  marginTop: 5,
-};
-
-const colorCircle: React.CSSProperties = {
-  width: 20,
-  height: 20,
-  borderRadius: '50%',
-  cursor: 'pointer',
-  border: '1px solid #555',
-  transition: 'transform 0.2s ease, background 0.5s ease',
-};
