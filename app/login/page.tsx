@@ -1,121 +1,51 @@
-'use client';
+'use client'
 
-import { useState, useEffect } from 'react';
-import { supabase } from '@/lib/supabaseClient';
-import { BRAND_LOGO, BRAND_NAME } from '@/lib/constants';
-import { useRouter } from 'next/navigation';
+import { useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { supabase } from '@/lib/supabaseClient'
+import { BRAND_LOGO, BRAND_NAME } from '@/lib/constants'
 
 export default function LoginPage() {
-  const router = useRouter();
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [modalMessage, setModalMessage] = useState<string | null>(null);
+  const router = useRouter()
+  const [username, setUsername] = useState('')
+  const [password, setPassword] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
-  // Close modal on ESC key
-  useEffect(() => {
-    const handleKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setModalMessage(null);
-    };
-    window.addEventListener('keydown', handleKey);
-    return () => window.removeEventListener('keydown', handleKey);
-  }, []);
-
-  async function handleLogin(e: React.FormEvent) {
-    e.preventDefault();
-    setLoading(true);
-    setModalMessage(null);
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError(null)
+    setLoading(true)
 
     try {
-      // Step 1️⃣ — find host email by username
-      const { data: host, error: hostError } = await supabase
+      // ✅ Step 1: Look up the email from the hosts table using the username
+      const { data: host, error: lookupError } = await supabase
         .from('hosts')
-        .select('email, id')
+        .select('email')
         .eq('username', username)
-        .maybeSingle();
+        .single()
 
-      if (hostError || !host) throw new Error('Invalid username.');
+      if (lookupError || !host) {
+        throw new Error('Invalid username. Please check and try again.')
+      }
 
-      // Step 2️⃣ — try logging in with the host’s email + password
+      // ✅ Step 2: Sign in using the retrieved email and entered password
       const { error: signInError } = await supabase.auth.signInWithPassword({
         email: host.email,
         password,
-      });
+      })
 
-      if (signInError) throw new Error('Invalid password.');
+      if (signInError) throw signInError
 
-      // Step 3️⃣ — redirect to dashboard
-      router.push(`/admin/dashboard?host_id=${host.id}`);
+      // ✅ Step 3: Redirect to the Host Dashboard
+      router.push('/admin/dashboard')
     } catch (err: any) {
-      setModalMessage(err.message || 'Login failed. Please try again.');
+      console.error('Login error:', err.message)
+      setError(err.message)
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
   }
-
-  /* ---------- Styles ---------- */
-
-  const pageStyle: React.CSSProperties = {
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    justifyContent: 'center',
-    minHeight: '100vh',
-    background: 'linear-gradient(180deg, #0a2540, #1b2b44, #000000)',
-    color: '#fff',
-    fontFamily: 'system-ui, sans-serif',
-    position: 'relative',
-  };
-
-  const formStyle: React.CSSProperties = {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '10px',
-    width: '300px',
-    zIndex: 5,
-  };
-
-  const inputStyle: React.CSSProperties = {
-    padding: '10px',
-    borderRadius: 6,
-    border: '1px solid #333',
-    background: '#111',
-    color: '#fff',
-  };
-
-  const buttonStyle: React.CSSProperties = {
-    padding: '10px',
-    borderRadius: 6,
-    border: 'none',
-    background: '#1e90ff',
-    color: '#fff',
-    fontWeight: 600,
-    cursor: 'pointer',
-  };
-
-  const modalOverlay: React.CSSProperties = {
-    position: 'fixed',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    zIndex: 50,
-  };
-
-  const modalBox: React.CSSProperties = {
-    background: 'linear-gradient(145deg, #111b2f, #0c1320)',
-    border: '1px solid #1e90ff',
-    padding: '30px 40px',
-    borderRadius: 16,
-    textAlign: 'center',
-    boxShadow: '0 0 40px rgba(30,144,255,0.3)',
-    maxWidth: 400,
-    color: 'white',
-  };
 
   return (
     <div style={pageStyle}>
@@ -143,39 +73,60 @@ export default function LoginPage() {
           style={inputStyle}
           required
         />
-        <button type="submit" style={buttonStyle} disabled={loading}>
-          {loading ? 'Logging in...' : 'Login'}
+        <button type="submit" disabled={loading} style={buttonStyle}>
+          {loading ? 'Signing In...' : 'Login'}
         </button>
+        {error && (
+          <p style={{ color: 'red', marginTop: 10, textAlign: 'center' }}>
+            {error}
+          </p>
+        )}
       </form>
 
-      <p style={{ marginTop: 10 }}>
+      <p style={{ marginTop: 15 }}>
         Don’t have an account?{' '}
         <a href="/signup" style={{ color: '#1e90ff' }}>
           Sign up
         </a>
       </p>
-
-      {/* 🔵 Modal Popup */}
-      {modalMessage && (
-        <div
-          style={modalOverlay}
-          onClick={() => setModalMessage(null)}
-        >
-          <div style={modalBox}>
-            <h2 style={{ fontSize: 20, marginBottom: 10 }}>Login Error</h2>
-            <p style={{ marginBottom: 20 }}>{modalMessage}</p>
-            <button
-              onClick={() => setModalMessage(null)}
-              style={{
-                ...buttonStyle,
-                background: 'linear-gradient(90deg, #1e90ff, #0077ff)',
-              }}
-            >
-              OK
-            </button>
-          </div>
-        </div>
-      )}
     </div>
-  );
+  )
+}
+
+/* ---------- Styles ---------- */
+
+const pageStyle: React.CSSProperties = {
+  display: 'flex',
+  flexDirection: 'column',
+  alignItems: 'center',
+  justifyContent: 'center',
+  minHeight: '100vh',
+  background: 'linear-gradient(180deg, #0d0d0d, #1a1a1a)',
+  color: '#fff',
+  fontFamily: 'system-ui, sans-serif',
+}
+
+const formStyle: React.CSSProperties = {
+  display: 'flex',
+  flexDirection: 'column',
+  gap: '10px',
+  width: '300px',
+}
+
+const inputStyle: React.CSSProperties = {
+  padding: '10px',
+  borderRadius: 6,
+  border: '1px solid #333',
+  background: '#111',
+  color: '#fff',
+}
+
+const buttonStyle: React.CSSProperties = {
+  padding: '10px',
+  borderRadius: 6,
+  border: 'none',
+  background: '#1e90ff',
+  color: '#fff',
+  fontWeight: 600,
+  cursor: 'pointer',
 }
