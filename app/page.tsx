@@ -11,7 +11,7 @@ export default function LandingPage() {
       <div className="absolute inset-0 bg-[linear-gradient(135deg,#0a2540,#1b2b44,#000000)] bg-[length:200%_200%] animate-gradient-slow" />
       <div className="absolute inset-0 opacity-25 bg-[radial-gradient(circle_at_30%_30%,rgba(0,153,255,0.4),transparent_70%)]" />
 
-      {/* Hero content */}
+      {/* Hero */}
       <div className="relative z-10 flex flex-col items-center justify-center h-screen w-full px-6">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -19,7 +19,6 @@ export default function LandingPage() {
           transition={{ duration: 1 }}
           className="flex flex-col items-center justify-center space-y-8"
         >
-          {/* Logo */}
           <Image
             src="/faninteractlogo.svg"
             alt="FanInteract Logo"
@@ -29,17 +28,14 @@ export default function LandingPage() {
             priority
           />
 
-          {/* Headline */}
           <h1 className="text-5xl md:text-7xl font-extrabold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-sky-400 via-blue-500 to-indigo-400">
             Turn Crowds Into Communities
           </h1>
 
-          {/* Subtext */}
           <p className="text-lg md:text-2xl text-gray-300 max-w-2xl">
             FanInteract lets your audience post, vote, and play live — all on one wall.
           </p>
 
-          {/* Buttons */}
           <div className="flex flex-wrap justify-center gap-6 pt-4">
             <Link
               href="/auth/signup"
@@ -57,7 +53,7 @@ export default function LandingPage() {
         </motion.div>
       </div>
 
-      {/* Info Section */}
+      {/* Features */}
       <section className="relative z-10 w-full py-28 bg-[#0d1625]/80 backdrop-blur-xl">
         <h2 className="text-4xl md:text-5xl font-bold mb-14 bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-sky-400">
           Built For Live Engagement
