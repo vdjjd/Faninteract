@@ -18,6 +18,8 @@ export default function DashboardPage() {
   const [creatingNew, setCreatingNew] = useState(false);
   const [newTitle, setNewTitle] = useState('');
   const [confirmingDelete, setConfirmingDelete] = useState<string | null>(null);
+  const [selectedEvent, setSelectedEvent] = useState<any | null>(null);
+  const [saving, setSaving] = useState(false);
 
   /* ---------- LOAD HOST EVENTS ---------- */
   useEffect(() => {
@@ -48,13 +50,12 @@ export default function DashboardPage() {
       )
       .subscribe();
 
-    // ✅ Correct synchronous cleanup (no async Promise)
     return () => {
       supabase.removeChannel(channel);
     };
   }, [host]);
 
-  /* ---------- CRUD HANDLERS ---------- */
+  /* ---------- CRUD ---------- */
   async function handleCreateConfirm() {
     if (!newTitle.trim()) return;
     await createEvent(host.id, { title: newTitle.trim() });
@@ -121,7 +122,31 @@ export default function DashboardPage() {
     );
   }
 
-  /* ---------- RENDER ---------- */
+  async function handleBackgroundChange(event: any, newValue: string) {
+    const card = document.getElementById(`card-${event.id}`);
+    [card].forEach((el) => {
+      if (el) {
+        el.animate([{ opacity: 1 }, { opacity: 0.6 }, { opacity: 1 }], {
+          duration: 1000,
+          easing: 'ease-in-out',
+        });
+        el.style.transition = 'background 2s ease';
+        el.style.background = newValue;
+      }
+    });
+
+    await supabase
+      .from('events')
+      .update({
+        background_value: newValue,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', event.id);
+
+    const refreshed = await getEventsByHost(host.id);
+    setEvents(refreshed);
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-screen bg-gradient-to-br from-[#0a2540] via-[#1b2b44] to-black text-white">
@@ -132,7 +157,6 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#0a2540] via-[#1b2b44] to-black text-white flex flex-col items-center px-4 py-8 font-sans">
-      {/* 🔹 Logo */}
       <img
         src="/faninteractlogo.png"
         alt="FanInteract Logo"
@@ -140,7 +164,6 @@ export default function DashboardPage() {
       />
       <h1 className="text-2xl font-bold mb-6">🎛 Host Dashboard</h1>
 
-      {/* 🔹 Create New Wall */}
       {!creatingNew ? (
         <button
           onClick={() => setCreatingNew(true)}
@@ -175,7 +198,7 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* 🔹 Events Grid */}
+      {/* ---------- EVENTS GRID ---------- */}
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5 mt-8">
         {events.map((event) => (
           <div
@@ -204,7 +227,6 @@ export default function DashboardPage() {
               </span>
             </p>
 
-            {/* Buttons */}
             <div className="flex flex-wrap justify-center gap-2 mt-3">
               <button
                 onClick={() => handleLaunch(event.id)}
@@ -233,7 +255,12 @@ export default function DashboardPage() {
               >
                 🧹 Clear
               </button>
-
+              <button
+                onClick={() => setSelectedEvent(event)}
+                className="bg-indigo-500 hover:bg-indigo-600 px-2 py-1 rounded text-sm font-semibold"
+              >
+                ⚙ Options
+              </button>
               {confirmingDelete === event.id ? (
                 <div className="mt-2 bg-black/70 p-2 rounded-md border border-gray-500">
                   <p>Confirm delete?</p>
@@ -273,6 +300,161 @@ export default function DashboardPage() {
           </div>
         ))}
       </div>
+
+      {/* ---------- OPTIONS MODAL ---------- */}
+      {selectedEvent && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 backdrop-blur-md">
+          <div
+            className="bg-gradient-to-br from-[#0a2540] to-[#1b2b44] border border-blue-400 p-6 rounded-2xl shadow-2xl w-96 text-white animate-fadeIn"
+            style={{
+              background: selectedEvent.background_value || DEFAULT_GRADIENT,
+            }}
+          >
+            <h3 className="text-center text-xl font-bold mb-3">
+              ⚙ Edit Wall Settings
+            </h3>
+
+            <label className="block mt-2 text-sm">Host Title:</label>
+            <input
+              type="text"
+              value={selectedEvent.host_title || ''}
+              onChange={(e) =>
+                setSelectedEvent({ ...selectedEvent, host_title: e.target.value })
+              }
+              className="w-full p-2 rounded-md text-black mt-1"
+            />
+
+            <label className="block mt-3 text-sm">Public Title:</label>
+            <input
+              type="text"
+              value={selectedEvent.title || ''}
+              onChange={(e) =>
+                setSelectedEvent({ ...selectedEvent, title: e.target.value })
+              }
+              className="w-full p-2 rounded-md text-black mt-1"
+            />
+
+            <label className="block mt-3 text-sm">Countdown:</label>
+            <select
+              className="w-full p-2 rounded-md text-black mt-1"
+              value={selectedEvent.countdown || 'none'}
+              onChange={(e) =>
+                setSelectedEvent({
+                  ...selectedEvent,
+                  countdown:
+                    e.target.value === 'none' ? null : e.target.value,
+                })
+              }
+            >
+              <option value="none">No Countdown</option>
+              {['30 Seconds','1 Minute','2 Minutes','3 Minutes','5 Minutes','10 Minutes'].map(
+                (opt) => (
+                  <option key={opt}>{opt}</option>
+                )
+              )}
+            </select>
+
+            <label className="block mt-3 text-sm">Layout Type:</label>
+            <select
+              className="w-full p-2 rounded-md text-black mt-1"
+              value={selectedEvent.layout_type || 'Single Highlight Post'}
+              onChange={(e) =>
+                setSelectedEvent({
+                  ...selectedEvent,
+                  layout_type: e.target.value,
+                })
+              }
+            >
+              <option>Single Highlight Post</option>
+              <option>2 Column × 2 Row</option>
+              <option>4 Column × 2 Row</option>
+            </select>
+
+            <label className="block mt-3 text-sm">Post Transition:</label>
+            <select
+              className="w-full p-2 rounded-md text-black mt-1"
+              value={selectedEvent.post_transition || 'Fade In / Fade Out'}
+              onChange={(e) =>
+                setSelectedEvent({
+                  ...selectedEvent,
+                  post_transition: e.target.value,
+                })
+              }
+            >
+              <option>Fade In / Fade Out</option>
+              <option>Slide Up / Slide Out</option>
+              <option>Zoom In / Zoom Out</option>
+            </select>
+
+            <label className="block mt-3 text-sm">Auto Delete Posts After:</label>
+            <select
+              className="w-full p-2 rounded-md text-black mt-1"
+              value={selectedEvent.auto_delete_minutes ?? 0}
+              onChange={(e) =>
+                setSelectedEvent({
+                  ...selectedEvent,
+                  auto_delete_minutes: parseInt(e.target.value),
+                })
+              }
+            >
+              <option value={0}>Never</option>
+              <option value={5}>5 Minutes</option>
+              <option value={10}>10 Minutes</option>
+              <option value={30}>30 Minutes</option>
+            </select>
+
+            <h4 className="mt-4 text-sm font-semibold">🎨 Pick Color</h4>
+            <div className="grid grid-cols-8 gap-2 mt-2">
+              {[
+                '#e53935','#8e24aa','#1e88e5','#43a047','#fdd835','#fb8c00',
+                '#f4511e','#00acc1','#7cb342','#3949ab',
+              ].map((c) => (
+                <div
+                  key={c}
+                  className="w-5 h-5 rounded-full cursor-pointer border border-white/30 hover:scale-110 transition"
+                  style={{ background: c }}
+                  onClick={() => handleBackgroundChange(selectedEvent, c)}
+                />
+              ))}
+            </div>
+
+            <div className="text-center mt-5 flex justify-center gap-4">
+              <button
+                disabled={saving}
+                onClick={async () => {
+                  setSaving(true);
+                  await supabase
+                    .from('events')
+                    .update({
+                      host_title: selectedEvent.host_title || '',
+                      title: selectedEvent.title || '',
+                      countdown: selectedEvent.countdown || null,
+                      layout_type: selectedEvent.layout_type || '',
+                      post_transition: selectedEvent.post_transition || '',
+                      auto_delete_minutes:
+                        selectedEvent.auto_delete_minutes ?? 0,
+                      updated_at: new Date().toISOString(),
+                    })
+                    .eq('id', selectedEvent.id);
+                  const refreshed = await getEventsByHost(host.id);
+                  setEvents(refreshed);
+                  setSaving(false);
+                  setSelectedEvent(null);
+                }}
+                className="bg-green-600 hover:bg-green-700 px-4 py-2 rounded font-semibold"
+              >
+                {saving ? 'Saving…' : '💾 Save'}
+              </button>
+              <button
+                onClick={() => setSelectedEvent(null)}
+                className="bg-red-600 hover:bg-red-700 px-4 py-2 rounded font-semibold"
+              >
+                ✖ Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
