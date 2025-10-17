@@ -41,7 +41,7 @@ export default function ArenaPage() {
   const [lasers, setLasers] = useState<Laser[]>([]);
   const asteroidsRef = useRef<Asteroid[]>([]);
 
-  // 🌐 Supabase Realtime (no async/await now)
+  // 🌐 Supabase Realtime
   useEffect(() => {
     const gameId = 'demo-room';
     const channel = supabase.channel(gameId);
@@ -108,9 +108,7 @@ export default function ArenaPage() {
       });
     });
 
-    // ✅ subscribe immediately (no await)
     channel.subscribe();
-
     return () => {
       channel.unsubscribe();
     };
@@ -142,9 +140,11 @@ export default function ArenaPage() {
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
+    const context = ctx!; // ✅ tells TS “this will not be null”
+
     function loop() {
-      ctx.fillStyle = 'black';
-      ctx.fillRect(0, 0, 1920, 1080);
+      context.fillStyle = 'black';
+      context.fillRect(0, 0, 1920, 1080);
 
       const asteroids = asteroidsRef.current;
 
@@ -161,21 +161,21 @@ export default function ArenaPage() {
         if (a.y > 1080 + a.radius) a.y = -a.radius;
 
         // Draw asteroid
-        ctx.save();
-        ctx.translate(a.x, a.y);
-        ctx.rotate(a.rotation);
-        ctx.beginPath();
+        context.save();
+        context.translate(a.x, a.y);
+        context.rotate(a.rotation);
+        context.beginPath();
         for (let i = 0; i < 10; i++) {
           const angle = (i / 10) * Math.PI * 2;
           const r = a.radius * (0.7 + Math.random() * 0.3);
           const x = Math.cos(angle) * r;
           const y = Math.sin(angle) * r;
-          i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+          i === 0 ? context.moveTo(x, y) : context.lineTo(x, y);
         }
-        ctx.closePath();
-        ctx.fillStyle = '#444';
-        ctx.fill();
-        ctx.restore();
+        context.closePath();
+        context.fillStyle = '#444';
+        context.fill();
+        context.restore();
       }
 
       // 🔫 Move & Draw Lasers
@@ -189,13 +189,13 @@ export default function ArenaPage() {
           .filter((l) => l.x >= 0 && l.x <= 1920 && l.y >= 0 && l.y <= 1080)
       );
 
-      ctx.strokeStyle = '#00ffff';
-      ctx.lineWidth = 2;
+      context.strokeStyle = '#00ffff';
+      context.lineWidth = 2;
       lasers.forEach((l) => {
-        ctx.beginPath();
-        ctx.moveTo(l.x, l.y);
-        ctx.lineTo(l.x - Math.cos(l.angle) * 10, l.y - Math.sin(l.angle) * 10);
-        ctx.stroke();
+        context.beginPath();
+        context.moveTo(l.x, l.y);
+        context.lineTo(l.x - Math.cos(l.angle) * 10, l.y - Math.sin(l.angle) * 10);
+        context.stroke();
       });
 
       // 🚀 Move Players
@@ -212,7 +212,7 @@ export default function ArenaPage() {
           if (p.y < 0) p.y = 1080;
           if (p.y > 1080) p.y = 0;
 
-          // Zero-G drift (tiny friction)
+          // Zero-G drift
           p.vx *= 0.995;
           p.vy *= 0.995;
         }
@@ -221,25 +221,25 @@ export default function ArenaPage() {
 
       // 🧑‍🚀 Draw Players
       Object.values(players).forEach((p) => {
-        ctx.save();
-        ctx.translate(p.x, p.y);
-        ctx.rotate(p.angle);
-        ctx.fillStyle = p.shield > 0 ? '#00ffff' : '#ff3333';
-        ctx.beginPath();
-        ctx.moveTo(30, 0);
-        ctx.lineTo(-20, -14);
-        ctx.lineTo(-20, 14);
-        ctx.closePath();
-        ctx.fill();
+        context.save();
+        context.translate(p.x, p.y);
+        context.rotate(p.angle);
+        context.fillStyle = p.shield > 0 ? '#00ffff' : '#ff3333';
+        context.beginPath();
+        context.moveTo(30, 0);
+        context.lineTo(-20, -14);
+        context.lineTo(-20, 14);
+        context.closePath();
+        context.fill();
 
         // Shield ring
-        ctx.beginPath();
-        ctx.arc(0, 0, 35, 0, Math.PI * 2);
-        ctx.strokeStyle = `rgba(0,255,255,${p.shield / 100})`;
-        ctx.lineWidth = 3;
-        ctx.stroke();
+        context.beginPath();
+        context.arc(0, 0, 35, 0, Math.PI * 2);
+        context.strokeStyle = `rgba(0,255,255,${p.shield / 100})`;
+        context.lineWidth = 3;
+        context.stroke();
 
-        ctx.restore();
+        context.restore();
       });
 
       requestAnimationFrame(loop);
