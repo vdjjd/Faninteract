@@ -3,24 +3,45 @@
 import { useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { BRAND_LOGO, BRAND_NAME } from '@/lib/constants';
+import { useRouter } from 'next/navigation';
 
 export default function LoginPage() {
-  const [email, setEmail] = useState('');
+  const router = useRouter();
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
-    if (!email) return alert('Please enter your email.');
+    setError(null);
+    setLoading(true);
 
-    // ✅ Send magic link with redirect directly to Host Dashboard
-    const { error } = await supabase.auth.signInWithOtp({
-      email,
-      options: {
-        emailRedirectTo: 'https://faninteract.vercel.app/admin/dashboard',
-      },
-    });
+    try {
+      // Step 1️⃣ — find host email by username
+      const { data: host, error: hostError } = await supabase
+        .from('hosts')
+        .select('email, id')
+        .eq('username', username)
+        .maybeSingle();
 
-    if (error) return alert('Error: ' + error.message);
-    alert('✅ Check your email for a login link!\n\nOnce you click it, you’ll be redirected to your Host Dashboard.');
+      if (hostError || !host) throw new Error('Invalid username.');
+
+      // Step 2️⃣ — try logging in with the host’s email + password
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: host.email,
+        password,
+      });
+
+      if (signInError) throw new Error('Invalid password.');
+
+      // Step 3️⃣ — redirect to dashboard
+      router.push(`/admin/dashboard?host_id=${host.id}`);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
   }
 
   const pageStyle: React.CSSProperties = {
@@ -69,14 +90,29 @@ export default function LoginPage() {
       <h1 style={{ marginBottom: 10 }}>{BRAND_NAME} Host Login</h1>
       <form onSubmit={handleLogin} style={formStyle}>
         <input
-          type="email"
-          placeholder="Enter your email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
+          type="text"
+          placeholder="Username"
+          value={username}
+          onChange={(e) => setUsername(e.target.value)}
           style={inputStyle}
+          required
         />
-        <button type="submit" style={buttonStyle}>Send Magic Link</button>
+        <input
+          type="password"
+          placeholder="Password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          style={inputStyle}
+          required
+        />
+        <button type="submit" style={buttonStyle} disabled={loading}>
+          {loading ? 'Logging in...' : 'Login'}
+        </button>
+        {error && <p style={{ color: 'red', marginTop: 8 }}>{error}</p>}
       </form>
+      <p style={{ marginTop: 10 }}>
+        Don’t have an account? <a href="/signup" style={{ color: '#1e90ff' }}>Sign up</a>
+      </p>
     </div>
   );
 }
