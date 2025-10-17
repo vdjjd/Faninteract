@@ -22,8 +22,8 @@ export default function LandingPage() {
           <Image
             src="/faninteractlogo.png"
             alt="FanInteract Logo"
-            width={240}
-            height={240}
+            width={500}
+            height={500}
             className="w-56 h-auto drop-shadow-[0_0_25px_rgba(56,189,248,0.3)]"
             priority
           />
