@@ -20,7 +20,7 @@ export default function LandingPage() {
           className="flex flex-col items-center justify-center space-y-8"
         >
           <Image
-            src="/faninteractlogo.svg"
+            src="/faninteractlogo.png"
             alt="FanInteract Logo"
             width={240}
             height={240}
