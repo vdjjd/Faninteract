@@ -1,28 +1,23 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { motion } from 'framer-motion';
 import {
   createEvent,
   getEventsByHost,
   deleteEvent,
   clearEventPosts,
-  updateEventSettings,
 } from '@/lib/actions/events';
 import { supabase } from '@/lib/supabaseClient';
 
-/* ---------- BASE COLORS ---------- */
-const DEFAULT_GRADIENT = 'linear-gradient(135deg,#0a2540,#1b2b44,#000000)';
+const DEFAULT_GRADIENT = 'linear-gradient(135deg,#0d47a1,#1976d2)';
 
 export default function DashboardPage() {
   const [host, setHost] = useState<any>(null);
   const [events, setEvents] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedEvent, setSelectedEvent] = useState<any | null>(null);
-  const [confirmingDelete, setConfirmingDelete] = useState<string | null>(null);
   const [creatingNew, setCreatingNew] = useState(false);
   const [newTitle, setNewTitle] = useState('');
-  const [saving, setSaving] = useState(false);
+  const [confirmingDelete, setConfirmingDelete] = useState<string | null>(null);
 
   /* ---------- LOAD HOST EVENTS ---------- */
   useEffect(() => {
@@ -40,6 +35,7 @@ export default function DashboardPage() {
   /* ---------- REALTIME REFRESH ---------- */
   useEffect(() => {
     if (!host) return;
+
     const channel = supabase
       .channel('submissions_realtime')
       .on(
@@ -51,10 +47,14 @@ export default function DashboardPage() {
         }
       )
       .subscribe();
-    return () => supabase.removeChannel(channel);
+
+    // ✅ Correct synchronous cleanup (no async Promise)
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [host]);
 
-  /* ---------- CRUD HANDLERS (unchanged) ---------- */
+  /* ---------- CRUD HANDLERS ---------- */
   async function handleCreateConfirm() {
     if (!newTitle.trim()) return;
     await createEvent(host.id, { title: newTitle.trim() });
@@ -66,13 +66,14 @@ export default function DashboardPage() {
 
   async function handleDelete(id: string) {
     await deleteEvent(id);
-    setEvents(prev => prev.filter(e => e.id !== id));
+    setEvents((prev) => prev.filter((e) => e.id !== id));
     setConfirmingDelete(null);
   }
 
   async function handleClear(id: string) {
     await clearEventPosts(id);
-    await supabase.from('events')
+    await supabase
+      .from('events')
       .update({ status: 'cleared', updated_at: new Date().toISOString() })
       .eq('id', id);
     const updated = await getEventsByHost(host.id);
@@ -84,13 +85,14 @@ export default function DashboardPage() {
     const popup = window.open(
       wallUrl,
       '_blank',
-      'popup=yes,width=1280,height=800,left=100,top=100'
+      'popup=yes,width=1280,height=800,left=100,top=100,menubar=no,toolbar=no,location=no,status=no,resizable=yes,scrollbars=no,titlebar=no'
     );
     popup?.focus();
   }
 
   async function handleStart(id: string) {
-    await supabase.from('events')
+    await supabase
+      .from('events')
       .update({ status: 'live', updated_at: new Date().toISOString() })
       .eq('id', id);
     const updated = await getEventsByHost(host.id);
@@ -98,109 +100,179 @@ export default function DashboardPage() {
   }
 
   async function handleStop(id: string) {
-    await supabase.from('events')
-      .update({ status: 'inactive', countdown: null, updated_at: new Date().toISOString() })
+    await supabase
+      .from('events')
+      .update({
+        status: 'inactive',
+        countdown: null,
+        updated_at: new Date().toISOString(),
+      })
       .eq('id', id);
     const updated = await getEventsByHost(host.id);
     setEvents(updated);
   }
 
-  if (loading) return <p className="text-white text-center mt-20">Loading...</p>;
+  function handleOpenModeration(id: string) {
+    const modUrl = `${window.location.origin}/admin/moderation/${id}`;
+    window.open(
+      modUrl,
+      '_blank',
+      'width=1200,height=700,left=200,top=120,menubar=no,toolbar=no,location=no,status=no,resizable=yes,scrollbars=yes'
+    );
+  }
 
   /* ---------- RENDER ---------- */
-  return (
-    <main className="relative flex flex-col items-center min-h-screen text-white font-[system-ui] overflow-hidden">
-      {/* 🌌 Animated gradient background */}
-      <div className="absolute inset-0 bg-[linear-gradient(135deg,#0a2540,#1b2b44,#000000)] bg-[length:200%_200%] animate-gradient-slow" />
-      <div className="absolute inset-0 opacity-30 bg-[radial-gradient(circle_at_30%_30%,rgba(0,153,255,0.4),transparent_70%)]" />
-
-      {/* 🧠 Dashboard Header */}
-      <div className="relative z-10 flex flex-col items-center mt-10 mb-6">
-        <motion.img
-          src="/faninteractlogo.png"
-          alt="FanInteract Logo"
-          animate={{ scale: [1, 1.06, 1] }}
-          transition={{ duration: 7, repeat: Infinity, ease: 'easeInOut' }}
-          className="w-[280px] md:w-[360px] mb-4 drop-shadow-[0_0_35px_rgba(56,189,248,0.3)]"
-        />
-        <h1 className="text-4xl font-bold text-sky-400 drop-shadow-[0_0_20px_rgba(56,189,248,0.25)]">
-          Host Dashboard
-        </h1>
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-screen bg-gradient-to-br from-[#0a2540] via-[#1b2b44] to-black text-white">
+        <p>Loading...</p>
       </div>
+    );
+  }
 
-      {/* ➕ Create new event */}
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-[#0a2540] via-[#1b2b44] to-black text-white flex flex-col items-center px-4 py-8 font-sans">
+      {/* 🔹 Logo */}
+      <img
+        src="/faninteractlogo.png"
+        alt="FanInteract Logo"
+        className="w-44 animate-pulse mb-2 drop-shadow-lg"
+      />
+      <h1 className="text-2xl font-bold mb-6">🎛 Host Dashboard</h1>
+
+      {/* 🔹 Create New Wall */}
       {!creatingNew ? (
         <button
           onClick={() => setCreatingNew(true)}
-          className="relative z-10 px-6 py-3 bg-gradient-to-r from-sky-500 to-blue-600 rounded-xl font-semibold shadow-lg hover:scale-105 transition-transform duration-300"
+          className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg font-semibold transition-all"
         >
           ➕ New Fan Zone Wall
         </button>
       ) : (
-        <div className="relative z-10 mt-4 bg-[#0d1625]/90 p-5 rounded-xl border border-blue-900/40 shadow-lg text-center backdrop-blur-lg">
-          <h3 className="text-xl font-semibold mb-2 text-sky-400">🆕 Create New Fan Zone Wall</h3>
+        <div className="bg-black/40 border border-blue-500/50 rounded-xl p-4 mt-4 w-72 text-center backdrop-blur-md">
+          <h3 className="font-semibold text-lg mb-2">🆕 Create New Fan Wall</h3>
           <input
             type="text"
-            placeholder="Enter a title for your new wall"
+            placeholder="Enter title..."
             value={newTitle}
             onChange={(e) => setNewTitle(e.target.value)}
-            className="px-3 py-2 w-72 rounded-md bg-[#111b2f] border border-blue-900/40 text-white focus:ring-2 focus:ring-sky-500"
+            className="w-full p-2 rounded-md text-black"
           />
           <div className="flex justify-center gap-3 mt-3">
-            <button onClick={handleCreateConfirm} className="px-4 py-2 bg-green-600 rounded-md">💾 Create</button>
-            <button onClick={() => setCreatingNew(false)} className="px-4 py-2 bg-red-700 rounded-md">✖ Cancel</button>
+            <button
+              onClick={handleCreateConfirm}
+              className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded"
+            >
+              💾 Create
+            </button>
+            <button
+              onClick={() => setCreatingNew(false)}
+              className="bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded"
+            >
+              ✖ Cancel
+            </button>
           </div>
         </div>
       )}
 
-      {/* 🎛 Event Grid */}
-      <div className="relative z-10 mt-8 grid gap-6 px-4 max-w-6xl w-full sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+      {/* 🔹 Events Grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5 mt-8">
         {events.map((event) => (
-          <motion.div
+          <div
             key={event.id}
             id={`card-${event.id}`}
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.4 }}
-            className="rounded-2xl p-4 text-center text-white border border-blue-900/40 shadow-md shadow-black/30 hover:scale-[1.02] transition-transform duration-300 backdrop-blur-sm"
-            style={{ background: event.background_value || DEFAULT_GRADIENT }}
+            className="rounded-xl p-4 text-center text-white shadow-lg transition-all"
+            style={{
+              background: event.background_value || DEFAULT_GRADIENT,
+            }}
           >
-            <h3 className="text-lg font-semibold mb-1">{event.host_title || `${event.title} Wall`}</h3>
-            <p className="text-sm mb-3">
+            <h3 className="font-bold text-lg">
+              {event.host_title || `${event.title} Fan Zone Wall`}
+            </h3>
+            <p className="text-sm mt-1">
               <strong>Status:</strong>{' '}
-              <span className={event.status === 'live' ? 'text-lime-400' : event.status === 'cleared' ? 'text-cyan-300' : 'text-orange-400'}>
+              <span
+                className={
+                  event.status === 'live'
+                    ? 'text-lime-400'
+                    : event.status === 'cleared'
+                    ? 'text-cyan-400'
+                    : 'text-orange-400'
+                }
+              >
                 {event.status}
               </span>
             </p>
 
-            <div className="flex flex-wrap justify-center gap-2 mb-2">
-              <button onClick={() => handleLaunch(event.id)} className="bg-sky-500/80 px-3 py-1 rounded-md hover:bg-sky-500">🚀 Launch</button>
-              <button onClick={() => handleStart(event.id)} className="bg-green-600/80 px-3 py-1 rounded-md hover:bg-green-600">▶️ Start</button>
-              <button onClick={() => handleStop(event.id)} className="bg-red-600/80 px-3 py-1 rounded-md hover:bg-red-600">⏹ Stop</button>
+            {/* Buttons */}
+            <div className="flex flex-wrap justify-center gap-2 mt-3">
+              <button
+                onClick={() => handleLaunch(event.id)}
+                className="bg-blue-600 hover:bg-blue-700 px-2 py-1 rounded text-sm font-semibold"
+              >
+                🚀 Launch
+              </button>
+              <button
+                onClick={() => handleStart(event.id)}
+                className="bg-green-600 hover:bg-green-700 px-2 py-1 rounded text-sm font-semibold"
+              >
+                ▶️ Play
+              </button>
+              <button
+                onClick={() => handleStop(event.id)}
+                className="bg-red-600 hover:bg-red-700 px-2 py-1 rounded text-sm font-semibold"
+              >
+                ⏹ Stop
+              </button>
             </div>
 
-            <div className="flex flex-wrap justify-center gap-2">
-              <button onClick={() => handleClear(event.id)} className="bg-cyan-600/80 px-3 py-1 rounded-md hover:bg-cyan-600">🧹 Clear</button>
-              <button onClick={() => setConfirmingDelete(event.id)} className="bg-red-700/80 px-3 py-1 rounded-md hover:bg-red-700">❌ Delete</button>
-              <button onClick={() => setSelectedEvent(event)} className="bg-blue-600/80 px-3 py-1 rounded-md hover:bg-blue-600">⚙ Options</button>
+            <div className="flex flex-wrap justify-center gap-2 mt-3">
+              <button
+                onClick={() => handleClear(event.id)}
+                className="bg-cyan-500 hover:bg-cyan-600 px-2 py-1 rounded text-sm font-semibold"
+              >
+                🧹 Clear
+              </button>
+
+              {confirmingDelete === event.id ? (
+                <div className="mt-2 bg-black/70 p-2 rounded-md border border-gray-500">
+                  <p>Confirm delete?</p>
+                  <div className="flex gap-2 mt-2 justify-center">
+                    <button
+                      onClick={() => handleDelete(event.id)}
+                      className="bg-green-600 px-2 py-1 rounded"
+                    >
+                      ✅ Confirm
+                    </button>
+                    <button
+                      onClick={() => setConfirmingDelete(null)}
+                      className="bg-red-600 px-2 py-1 rounded"
+                    >
+                      ✖ Cancel
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  onClick={() => setConfirmingDelete(event.id)}
+                  className="bg-red-700 hover:bg-red-800 px-2 py-1 rounded text-sm font-semibold"
+                >
+                  ❌ Delete
+                </button>
+              )}
             </div>
-          </motion.div>
+
+            <div className="flex justify-between mt-3">
+              <button
+                onClick={() => handleOpenModeration(event.id)}
+                className="bg-yellow-500 hover:bg-yellow-600 px-2 py-1 rounded text-sm font-semibold"
+              >
+                🔔 Pending ({event.pending_posts ?? 0})
+              </button>
+            </div>
+          </div>
         ))}
       </div>
-
-      {/* 🎞 Gradient animation */}
-      <style jsx global>{`
-        @keyframes gradient-slow {
-          0% { background-position: 0% 50%; }
-          50% { background-position: 100% 50%; }
-          100% { background-position: 0% 50%; }
-        }
-        .animate-gradient-slow {
-          background-size: 200% 200%;
-          animation: gradient-slow 20s ease infinite;
-        }
-      `}</style>
-    </main>
+    </div>
   );
 }
