@@ -8,8 +8,9 @@ import {
   clearEventPosts,
 } from '@/lib/actions/events';
 import { supabase } from '@/lib/supabaseClient';
+import OptionsModal from '@/components/OptionsModal';
 
-const DEFAULT_GRADIENT = 'linear-gradient(135deg,#0a2540,#1b2b44)';
+const DEFAULT_GRADIENT = 'linear-gradient(135deg,#0d47a1,#1976d2)';
 
 export default function DashboardPage() {
   const [host, setHost] = useState<any>(null);
@@ -19,7 +20,6 @@ export default function DashboardPage() {
   const [newTitle, setNewTitle] = useState('');
   const [confirmingDelete, setConfirmingDelete] = useState<string | null>(null);
   const [selectedEvent, setSelectedEvent] = useState<any | null>(null);
-  const [saving, setSaving] = useState(false);
 
   /* ---------- LOAD HOST EVENTS ---------- */
   useEffect(() => {
@@ -39,14 +39,19 @@ export default function DashboardPage() {
     if (!host) return;
     const channel = supabase
       .channel('submissions_realtime')
-      .on('postgres_changes',
+      .on(
+        'postgres_changes',
         { event: '*', schema: 'public', table: 'submissions' },
         async () => {
           const updated = await getEventsByHost(host.id);
           setEvents(updated);
-        })
+        }
+      )
       .subscribe();
-    return () => { supabase.removeChannel(channel); };
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [host]);
 
   /* ---------- CRUD ---------- */
@@ -67,7 +72,8 @@ export default function DashboardPage() {
 
   async function handleClear(id: string) {
     await clearEventPosts(id);
-    await supabase.from('events')
+    await supabase
+      .from('events')
       .update({ status: 'cleared', updated_at: new Date().toISOString() })
       .eq('id', id);
     const updated = await getEventsByHost(host.id);
@@ -77,14 +83,16 @@ export default function DashboardPage() {
   async function handleLaunch(id: string) {
     const wallUrl = `${window.location.origin}/wall/${id}`;
     const popup = window.open(
-      wallUrl, '_blank',
+      wallUrl,
+      '_blank',
       'popup=yes,width=1280,height=800,left=100,top=100,menubar=no,toolbar=no,location=no,status=no,resizable=yes,scrollbars=no,titlebar=no'
     );
     popup?.focus();
   }
 
   async function handleStart(id: string) {
-    await supabase.from('events')
+    await supabase
+      .from('events')
       .update({ status: 'live', updated_at: new Date().toISOString() })
       .eq('id', id);
     const updated = await getEventsByHost(host.id);
@@ -92,8 +100,13 @@ export default function DashboardPage() {
   }
 
   async function handleStop(id: string) {
-    await supabase.from('events')
-      .update({ status: 'inactive', countdown: null, updated_at: new Date().toISOString() })
+    await supabase
+      .from('events')
+      .update({
+        status: 'inactive',
+        countdown: null,
+        updated_at: new Date().toISOString(),
+      })
       .eq('id', id);
     const updated = await getEventsByHost(host.id);
     setEvents(updated);
@@ -110,16 +123,32 @@ export default function DashboardPage() {
 
   async function handleBackgroundChange(event: any, newValue: string) {
     const card = document.getElementById(`card-${event.id}`);
-    if (card) {
-      card.animate([{ opacity: 1 }, { opacity: 0.6 }, { opacity: 1 }], { duration: 800 });
-      card.style.transition = 'background 1s ease';
-      card.style.background = newValue;
-    }
-    await supabase.from('events')
-      .update({ background_value: newValue, updated_at: new Date().toISOString() })
+    [card].forEach((el) => {
+      if (el) {
+        el.animate([{ opacity: 1 }, { opacity: 0.6 }, { opacity: 1 }], {
+          duration: 1000,
+          easing: 'ease-in-out',
+        });
+        el.style.transition = 'background 2s ease';
+        el.style.background = newValue;
+      }
+    });
+
+    await supabase
+      .from('events')
+      .update({
+        background_value: newValue,
+        updated_at: new Date().toISOString(),
+      })
       .eq('id', event.id);
+
     const refreshed = await getEventsByHost(host.id);
     setEvents(refreshed);
+  }
+
+  async function refreshEvents() {
+    const updated = await getEventsByHost(host.id);
+    setEvents(updated);
   }
 
   if (loading) {
@@ -182,18 +211,12 @@ export default function DashboardPage() {
             className="rounded-xl p-4 text-center text-white shadow-lg transition-all"
             style={{
               background: event.background_value || DEFAULT_GRADIENT,
-              boxShadow: '0 0 20px rgba(0,0,0,0.4)',
             }}
           >
-            {/* Title */}
-            <h3 className="font-bold text-xl text-center mb-1"
-              style={{ textShadow: '0 0 12px rgba(56,189,248,0.4)' }}>
+            <h3 className="font-bold text-lg text-center">
               {event.host_title || event.title}
             </h3>
-
-            {/* Status */}
-            <p className="text-sm text-center mb-3"
-              style={{ textShadow: '0 0 8px rgba(0,0,0,0.6)' }}>
+            <p className="text-sm mt-1 text-center">
               <strong>Status:</strong>{' '}
               <span
                 className={
@@ -208,60 +231,51 @@ export default function DashboardPage() {
               </span>
             </p>
 
-            {/* Pending */}
-            <div className="flex justify-center mb-3">
+            <div className="flex justify-center mt-2">
               <button
                 onClick={() => handleOpenModeration(event.id)}
-                className={`px-3 py-1 rounded text-sm font-semibold shadow-md ${
-                  (event.pending_posts ?? 0) > 0
-                    ? 'bg-yellow-500 hover:bg-yellow-400 animate-pulse'
-                    : 'bg-yellow-500 hover:bg-yellow-600'
-                }`}
+                className="bg-yellow-500 hover:bg-yellow-600 px-2 py-1 rounded text-sm font-semibold"
               >
                 🔔 Pending ({event.pending_posts ?? 0})
               </button>
             </div>
 
-            {/* Launch / Play / Stop */}
-            <div className="flex justify-center flex-wrap gap-2 mb-3">
+            <div className="flex flex-wrap justify-center gap-2 mt-3">
               <button
                 onClick={() => handleLaunch(event.id)}
-                className="bg-blue-600 hover:bg-blue-700 px-3 py-1 rounded text-sm font-semibold"
+                className="bg-blue-600 hover:bg-blue-700 px-2 py-1 rounded text-sm font-semibold"
               >
                 🚀 Launch
               </button>
               <button
                 onClick={() => handleStart(event.id)}
-                className="bg-green-600 hover:bg-green-700 px-3 py-1 rounded text-sm font-semibold"
+                className="bg-green-600 hover:bg-green-700 px-2 py-1 rounded text-sm font-semibold"
               >
                 ▶️ Play
               </button>
               <button
                 onClick={() => handleStop(event.id)}
-                className="bg-red-600 hover:bg-red-700 px-3 py-1 rounded text-sm font-semibold"
+                className="bg-red-600 hover:bg-red-700 px-2 py-1 rounded text-sm font-semibold"
               >
                 ⏹ Stop
               </button>
             </div>
 
-            {/* Clear / Options / Delete */}
-            <div className="flex justify-center flex-wrap gap-2">
+            <div className="flex flex-wrap justify-center gap-2 mt-3">
               <button
                 onClick={() => handleClear(event.id)}
-                className="bg-cyan-500 hover:bg-cyan-600 px-3 py-1 rounded text-sm font-semibold"
+                className="bg-cyan-500 hover:bg-cyan-600 px-2 py-1 rounded text-sm font-semibold"
               >
                 🧹 Clear
               </button>
-
               <button
                 onClick={() => setSelectedEvent(event)}
-                className="bg-indigo-500 hover:bg-indigo-600 px-3 py-1 rounded text-sm font-semibold"
+                className="bg-indigo-500 hover:bg-indigo-600 px-2 py-1 rounded text-sm font-semibold"
               >
                 ⚙ Options
               </button>
-
               {confirmingDelete === event.id ? (
-                <div className="bg-black/70 p-2 rounded-md border border-gray-500 text-sm">
+                <div className="mt-2 bg-black/70 p-2 rounded-md border border-gray-500">
                   <p>Confirm delete?</p>
                   <div className="flex gap-2 mt-2 justify-center">
                     <button
@@ -281,7 +295,7 @@ export default function DashboardPage() {
               ) : (
                 <button
                   onClick={() => setConfirmingDelete(event.id)}
-                  className="bg-red-700 hover:bg-red-800 px-3 py-1 rounded text-sm font-semibold"
+                  className="bg-red-700 hover:bg-red-800 px-2 py-1 rounded text-sm font-semibold"
                 >
                   ❌ Delete
                 </button>
@@ -293,110 +307,13 @@ export default function DashboardPage() {
 
       {/* ---------- OPTIONS MODAL ---------- */}
       {selectedEvent && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 backdrop-blur-md animate-fadeIn">
-          <div
-            className="border border-blue-400 p-6 rounded-2xl shadow-2xl w-96 text-white"
-            style={{
-              background: selectedEvent.background_value || DEFAULT_GRADIENT,
-              boxShadow: '0 0 25px rgba(56,189,248,0.4)',
-            }}
-          >
-            <h3 className="text-center text-xl font-bold mb-3">
-              ⚙ Edit Wall Settings
-            </h3>
-
-            <label className="block mt-2 text-sm">Host Title:</label>
-            <input
-              type="text"
-              value={selectedEvent.host_title || ''}
-              onChange={(e) =>
-                setSelectedEvent({ ...selectedEvent, host_title: e.target.value })
-              }
-              className="w-full p-2 rounded-md text-black mt-1"
-            />
-
-            <label className="block mt-3 text-sm">Public Title:</label>
-            <input
-              type="text"
-              value={selectedEvent.title || ''}
-              onChange={(e) =>
-                setSelectedEvent({ ...selectedEvent, title: e.target.value })
-              }
-              className="w-full p-2 rounded-md text-black mt-1"
-            />
-
-            <label className="block mt-3 text-sm">Auto Delete Posts After:</label>
-            <select
-              className="w-full p-2 rounded-md text-black mt-1"
-              value={selectedEvent.auto_delete_minutes ?? 0}
-              onChange={(e) =>
-                setSelectedEvent({
-                  ...selectedEvent,
-                  auto_delete_minutes: parseInt(e.target.value),
-                })
-              }
-            >
-              <option value={0}>Never</option>
-              <option value={5}>5 Minutes</option>
-              <option value={10}>10 Minutes</option>
-              <option value={30}>30 Minutes</option>
-            </select>
-
-            {/* 🎨 Gradient grid */}
-            <h4 className="mt-4 text-sm font-semibold">🎨 Pick Gradient</h4>
-            <div className="grid grid-cols-6 gap-2 mt-2">
-              {[
-                'linear-gradient(135deg,#0a2540,#1b2b44,#000000)',
-                'linear-gradient(135deg,#00338D,#C60C30)',
-                'linear-gradient(135deg,#203731,#FFB612)',
-                'linear-gradient(135deg,#03202F,#FB4F14)',
-                'linear-gradient(135deg,#004C54,#A5ACAF)',
-                'linear-gradient(135deg,#1E3A8A,#2563EB)',
-                'linear-gradient(135deg,#241773,#9E7C0C)',
-                'linear-gradient(135deg,#111B2E,#1E90FF)',
-                'linear-gradient(135deg,#1b2b44,#69BE28)',
-                'linear-gradient(135deg,#0B2265,#A71930)',
-              ].map((g) => (
-                <div
-                  key={g}
-                  className="w-6 h-6 rounded-full cursor-pointer border border-white/30 hover:scale-110 transition"
-                  style={{ background: g }}
-                  onClick={() => handleBackgroundChange(selectedEvent, g)}
-                />
-              ))}
-            </div>
-
-            <div className="text-center mt-5 flex justify-center gap-4">
-              <button
-                disabled={saving}
-                onClick={async () => {
-                  setSaving(true);
-                  await supabase.from('events')
-                    .update({
-                      host_title: selectedEvent.host_title || '',
-                      title: selectedEvent.title || '',
-                      auto_delete_minutes: selectedEvent.auto_delete_minutes ?? 0,
-                      updated_at: new Date().toISOString(),
-                    })
-                    .eq('id', selectedEvent.id);
-                  const refreshed = await getEventsByHost(host.id);
-                  setEvents(refreshed);
-                  setSaving(false);
-                  setSelectedEvent(null);
-                }}
-                className="bg-green-600 hover:bg-green-700 px-4 py-2 rounded font-semibold"
-              >
-                {saving ? 'Saving…' : '💾 Save'}
-              </button>
-              <button
-                onClick={() => setSelectedEvent(null)}
-                className="bg-red-600 hover:bg-red-700 px-4 py-2 rounded font-semibold"
-              >
-                ✖ Close
-              </button>
-            </div>
-          </div>
-        </div>
+        <OptionsModal
+          event={selectedEvent}
+          hostId={host.id}
+          onClose={() => setSelectedEvent(null)}
+          onBackgroundChange={handleBackgroundChange}
+          refreshEvents={refreshEvents}
+        />
       )}
     </div>
   );
