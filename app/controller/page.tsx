@@ -5,7 +5,8 @@ import { supabase } from '@/lib/supabaseClient';
 
 export default function ControllerPage() {
   const [isHeld, setIsHeld] = useState(false);
-  const [playerId, setPlayerId] = useState<string>(() => crypto.randomUUID());
+  const [playerId] = useState<string>(() => crypto.randomUUID());
+  const canvasRef = useRef<HTMLCanvasElement>(null);
 
   function sendInput(action: string) {
     supabase.channel('demo-room').send({
@@ -15,7 +16,7 @@ export default function ControllerPage() {
     });
   }
 
-  // Handle thrust hold vs tap
+  // Hold thrust for continuous motion
   useEffect(() => {
     let holdInterval: NodeJS.Timeout | null = null;
     if (isHeld) {
@@ -26,22 +27,22 @@ export default function ControllerPage() {
     };
   }, [isHeld]);
 
-  // 🌌 Basic canvas setup for controller feedback (if you added one)
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+  // 🧠 Visual Feedback Canvas
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const ctx = canvas.getContext('2d')!;
+    const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
     function draw() {
+      if (!canvas || !ctx) return;
       ctx.fillStyle = 'black';
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.fillRect(0, 0, canvas.width!, canvas.height!);
 
       ctx.fillStyle = '#0ff';
       ctx.font = '20px sans-serif';
       ctx.textAlign = 'center';
-      ctx.fillText('Controller Connected', canvas.width / 2, canvas.height / 2);
+      ctx.fillText('Controller Connected', canvas.width! / 2, canvas.height! / 2);
       requestAnimationFrame(draw);
     }
 
