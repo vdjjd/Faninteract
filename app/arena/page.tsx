@@ -37,12 +37,11 @@ interface Asteroid {
 
 export default function ArenaPage() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-
   const [players, setPlayers] = useState<Record<string, Player>>({});
   const [lasers, setLasers] = useState<Laser[]>([]);
   const asteroidsRef = useRef<Asteroid[]>([]);
 
-  // 🌐 Supabase Realtime
+  // 🌐 Supabase Realtime (no async/await now)
   useEffect(() => {
     const gameId = 'demo-room';
     const channel = supabase.channel(gameId);
@@ -61,12 +60,11 @@ export default function ArenaPage() {
           hyperCount: 0,
         };
 
-        // smooth rotation
         const rotSpeed = 0.06;
         if (payload.action === 'LEFT') player.angle -= rotSpeed;
         if (payload.action === 'RIGHT') player.angle += rotSpeed;
 
-        // 🚀 Thrust tap vs hold
+        // 🚀 Tap vs Hold Thrust
         if (payload.action === 'THRUST_TAP') {
           const thrustPower = 0.04;
           player.vx += Math.cos(player.angle) * thrustPower;
@@ -78,7 +76,7 @@ export default function ArenaPage() {
           player.vy += Math.sin(player.angle) * thrustPower;
         }
 
-        // hyperspace
+        // ✨ Hyperspace
         if (payload.action === 'HYPERSPACE') {
           if (player.hyperCount === undefined) player.hyperCount = 0;
           if (player.hyperCount < 3) {
@@ -90,7 +88,7 @@ export default function ArenaPage() {
           }
         }
 
-        // fire
+        // 🔫 Fire
         if (payload.action === 'FIRE' && player.cooldown <= 0 && player.shield > 0) {
           setLasers((prev) => [
             ...prev,
@@ -110,9 +108,16 @@ export default function ArenaPage() {
       });
     });
 
+    // ✅ subscribe immediately (no await)
     channel.subscribe();
 
-    // ☄️ Create drifting asteroids
+    return () => {
+      channel.unsubscribe();
+    };
+  }, []);
+
+  // ☄️ Create drifting asteroids once
+  useEffect(() => {
     const list: Asteroid[] = [];
     for (let i = 0; i < 8; i++) {
       list.push({
@@ -128,11 +133,9 @@ export default function ArenaPage() {
       });
     }
     asteroidsRef.current = list;
-
-    return () => channel.unsubscribe();
   }, []);
 
-  // 🕹️ Game Loop
+  // 🕹️ Main Game Loop
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -145,19 +148,19 @@ export default function ArenaPage() {
 
       const asteroids = asteroidsRef.current;
 
-      // 🌑 Move asteroids
+      // 🌑 Move & Draw Asteroids
       for (const a of asteroids) {
         a.x += a.vx;
         a.y += a.vy;
         a.rotation += a.spin;
 
-        // wrap edges
+        // Wrap screen edges
         if (a.x < -a.radius) a.x = 1920 + a.radius;
         if (a.x > 1920 + a.radius) a.x = -a.radius;
         if (a.y < -a.radius) a.y = 1080 + a.radius;
         if (a.y > 1080 + a.radius) a.y = -a.radius;
 
-        // draw asteroid
+        // Draw asteroid
         ctx.save();
         ctx.translate(a.x, a.y);
         ctx.rotate(a.rotation);
@@ -175,7 +178,7 @@ export default function ArenaPage() {
         ctx.restore();
       }
 
-      // 🔫 move lasers
+      // 🔫 Move & Draw Lasers
       setLasers((prev) =>
         prev
           .map((l) => ({
@@ -186,7 +189,6 @@ export default function ArenaPage() {
           .filter((l) => l.x >= 0 && l.x <= 1920 && l.y >= 0 && l.y <= 1080)
       );
 
-      // draw lasers
       ctx.strokeStyle = '#00ffff';
       ctx.lineWidth = 2;
       lasers.forEach((l) => {
@@ -196,7 +198,7 @@ export default function ArenaPage() {
         ctx.stroke();
       });
 
-      // move players (inertia physics)
+      // 🚀 Move Players
       setPlayers((prev) => {
         const updated = { ...prev };
         for (const id in updated) {
@@ -204,20 +206,20 @@ export default function ArenaPage() {
           p.x += p.vx;
           p.y += p.vy;
 
-          // wrap screen edges
+          // Wrap edges
           if (p.x < 0) p.x = 1920;
           if (p.x > 1920) p.x = 0;
           if (p.y < 0) p.y = 1080;
           if (p.y > 1080) p.y = 0;
 
-          // light space drag
+          // Zero-G drift (tiny friction)
           p.vx *= 0.995;
           p.vy *= 0.995;
         }
         return updated;
       });
 
-      // 🚀 draw players
+      // 🧑‍🚀 Draw Players
       Object.values(players).forEach((p) => {
         ctx.save();
         ctx.translate(p.x, p.y);
@@ -230,7 +232,7 @@ export default function ArenaPage() {
         ctx.closePath();
         ctx.fill();
 
-        // shield ring
+        // Shield ring
         ctx.beginPath();
         ctx.arc(0, 0, 35, 0, Math.PI * 2);
         ctx.strokeStyle = `rgba(0,255,255,${p.shield / 100})`;
@@ -246,6 +248,7 @@ export default function ArenaPage() {
     loop();
   }, [players, lasers]);
 
+  // 🎨 Canvas Layout
   return (
     <main className="flex flex-col items-center justify-center h-screen bg-black text-white">
       <canvas
