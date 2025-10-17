@@ -7,9 +7,9 @@ interface Player {
   id: string;
   x: number;
   y: number;
-  angle: number;
   vx: number;
   vy: number;
+  angle: number;
   shield: number;
   cooldown: number;
   hyperCount?: number;
@@ -29,15 +29,19 @@ interface Asteroid {
   y: number;
   vx: number;
   vy: number;
-  hp: number;
   radius: number;
+  hp: number;
 }
 
 export default function ArenaPage() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  // these useState just track players and lasers (not asteroids)
   const [players, setPlayers] = useState<Record<string, Player>>({});
   const [lasers, setLasers] = useState<Laser[]>([]);
-  const [asteroids, setAsteroids] = useState<Asteroid[]>([]);
+
+  // ref keeps asteroids between frames without triggering React re-render
+  const asteroidsRef = useRef<Asteroid[]>([]);
 
   // 🌐 Supabase Realtime
   useEffect(() => {
@@ -58,18 +62,18 @@ export default function ArenaPage() {
           hyperCount: 0,
         };
 
-        // 🔄 Turning
+        // turning
         if (payload.action === 'LEFT') player.angle -= 0.1;
         if (payload.action === 'RIGHT') player.angle += 0.1;
 
-        // 🚀 Thrust (adds to velocity, not direct movement)
+        // thrust adds velocity
         if (payload.action === 'THRUST') {
           const thrustPower = 0.4;
           player.vx += Math.cos(player.angle) * thrustPower;
           player.vy += Math.sin(player.angle) * thrustPower;
         }
 
-        // ✨ Hyperspace (max 3)
+        // hyperspace (max 3)
         if (payload.action === 'HYPERSPACE') {
           if (player.hyperCount === undefined) player.hyperCount = 0;
           if (player.hyperCount < 3) {
@@ -81,7 +85,7 @@ export default function ArenaPage() {
           }
         }
 
-        // 🔫 Fire laser
+        // fire laser
         if (payload.action === 'FIRE' && player.cooldown <= 0 && player.shield > 0) {
           setLasers((prev) => [
             ...prev,
@@ -103,24 +107,22 @@ export default function ArenaPage() {
 
     channel.subscribe();
 
-    // ☄️ Create asteroids
-    const newAsteroids: Asteroid[] = [];
+    // create asteroids ONCE
+    const list: Asteroid[] = [];
     for (let i = 0; i < 6; i++) {
-      newAsteroids.push({
+      list.push({
         id: crypto.randomUUID(),
         x: Math.random() * 1920,
         y: Math.random() * 1080,
-        vx: (Math.random() - 0.5) * 2,
-        vy: (Math.random() - 0.5) * 2,
-        hp: 10000,
+        vx: (Math.random() - 0.5) * 1.5,
+        vy: (Math.random() - 0.5) * 1.5,
         radius: 80 + Math.random() * 60,
+        hp: 10000,
       });
     }
-    setAsteroids(newAsteroids);
+    asteroidsRef.current = list;
 
-    return () => {
-      channel.unsubscribe();
-    };
+    return () => channel.unsubscribe();
   }, []);
 
   // 🕹️ Game Loop
@@ -131,31 +133,26 @@ export default function ArenaPage() {
     if (!ctx) return;
 
     function loop() {
-      if (!ctx) return;
-
-      // Clear
       ctx.fillStyle = 'black';
       ctx.fillRect(0, 0, 1920, 1080);
 
-      // 🪨 Move asteroids
-      setAsteroids((prev) =>
-        prev.map((a) => {
-          let x = a.x + a.vx;
-          let y = a.y + a.vy;
+      const asteroids = asteroidsRef.current;
 
-          if (x < 0 || x > 1920) a.vx *= -1;
-          if (y < 0 || y > 1080) a.vy *= -1;
+      // 🌑 Move asteroids and bounce off walls
+      for (const a of asteroids) {
+        a.x += a.vx;
+        a.y += a.vy;
 
-          ctx.beginPath();
-          ctx.arc(a.x, a.y, a.radius, 0, Math.PI * 2);
-          ctx.fillStyle = '#333';
-          ctx.fill();
+        if (a.x - a.radius < 0 || a.x + a.radius > 1920) a.vx *= -1;
+        if (a.y - a.radius < 0 || a.y + a.radius > 1080) a.vy *= -1;
 
-          return { ...a, x, y };
-        })
-      );
+        ctx.beginPath();
+        ctx.arc(a.x, a.y, a.radius, 0, Math.PI * 2);
+        ctx.fillStyle = '#444';
+        ctx.fill();
+      }
 
-      // 🔫 Move lasers
+      // 🔫 move lasers
       setLasers((prev) =>
         prev
           .map((l) => ({
@@ -166,7 +163,7 @@ export default function ArenaPage() {
           .filter((l) => l.x >= 0 && l.x <= 1920 && l.y >= 0 && l.y <= 1080)
       );
 
-      // Draw lasers
+      // draw lasers
       ctx.strokeStyle = '#00ffff';
       ctx.lineWidth = 2;
       lasers.forEach((l) => {
@@ -176,60 +173,41 @@ export default function ArenaPage() {
         ctx.stroke();
       });
 
-      // 🧠 Update player positions (inertia physics)
+      // move players
       setPlayers((prev) => {
         const updated = { ...prev };
         for (const id in updated) {
           const p = updated[id];
-
-          // apply velocity
           p.x += p.vx;
           p.y += p.vy;
 
-          // Wrap screen edges
+          // wrap edges
           if (p.x < 0) p.x = 1920;
           if (p.x > 1920) p.x = 0;
           if (p.y < 0) p.y = 1080;
           if (p.y > 1080) p.y = 0;
 
-          // slow down slightly (space friction)
+          // friction
           p.vx *= 0.995;
           p.vy *= 0.995;
         }
         return updated;
       });
 
-      // 💥 Laser hits
-      Object.values(players).forEach((p) => {
-        Object.values(players).forEach((target) => {
-          if (p.id !== target.id) {
-            lasers.forEach((l) => {
-              if (l.owner === p.id) {
-                const dx = l.x - target.x;
-                const dy = l.y - target.y;
-                if (Math.sqrt(dx * dx + dy * dy) < 25) {
-                  target.shield = Math.max(0, target.shield - 10);
-                }
-              }
-            });
-          }
-        });
-      });
-
-      // 🚀 Draw players (2× size)
+      // draw players
       Object.values(players).forEach((p) => {
         ctx.save();
         ctx.translate(p.x, p.y);
         ctx.rotate(p.angle);
         ctx.fillStyle = p.shield > 0 ? '#00ffff' : '#ff3333';
         ctx.beginPath();
-        ctx.moveTo(30, 0); // 🔺 twice as big
+        ctx.moveTo(30, 0);
         ctx.lineTo(-20, -14);
         ctx.lineTo(-20, 14);
         ctx.closePath();
         ctx.fill();
 
-        // Shield ring
+        // shield ring
         ctx.beginPath();
         ctx.arc(0, 0, 35, 0, Math.PI * 2);
         ctx.strokeStyle = `rgba(0,255,255,${p.shield / 100})`;
@@ -243,9 +221,8 @@ export default function ArenaPage() {
     }
 
     loop();
-  }, [players, lasers, asteroids]);
+  }, [players, lasers]);
 
-  // 🎨 Canvas Layout
   return (
     <main className="flex flex-col items-center justify-center h-screen bg-black text-white">
       <canvas
