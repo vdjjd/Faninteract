@@ -1,31 +1,81 @@
 'use client';
 
 import { QRCodeCanvas } from 'qrcode.react';
+import { supabase } from '@/lib/supabaseClient';
+import { useEffect, useState } from 'react';
 
-export default function LiveWall({
-  event,
-  currentPost,
-}: {
+/* ---------- INTERFACES ---------- */
+interface LiveWallProps {
   event: any;
-  currentPost: any;
-}) {
-  if (!event || !currentPost)
+  posts: any[];
+}
+
+interface GuestData {
+  id: string;
+  first_name: string;
+  nickname: string | null;
+}
+
+/* ---------- LIVE WALL ---------- */
+export default function LiveWall({ event, posts }: LiveWallProps) {
+  const [current, setCurrent] = useState(0);
+  const [guestData, setGuestData] = useState<Record<string, GuestData>>({});
+
+  /* ---------- FADE BETWEEN POSTS ---------- */
+  useEffect(() => {
+    if (posts.length === 0) return;
+    const interval = setInterval(() => {
+      setCurrent((prev) => (prev + 1) % posts.length);
+    }, 8000);
+    return () => clearInterval(interval);
+  }, [posts]);
+
+  /* ---------- FETCH GUEST DATA ---------- */
+  useEffect(() => {
+    async function loadGuests() {
+      if (posts.length === 0) return;
+      const ids = posts.map((p) => p.user_id).filter(Boolean);
+      if (ids.length === 0) return;
+
+      const { data } = await supabase
+        .from('guests')
+        .select('id, first_name, nickname')
+        .in('id', ids);
+
+      if (data) {
+        const mapped: Record<string, GuestData> = {};
+        data.forEach((g) => (mapped[g.id] = g));
+        setGuestData(mapped);
+      }
+    }
+    loadGuests();
+  }, [posts]);
+
+  if (!event || posts.length === 0) {
     return (
       <div
         style={{
-          width: '100%',
-          height: '100vh',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
           color: '#fff',
-          fontSize: '2rem',
           textAlign: 'center',
+          fontSize: '2rem',
+          marginTop: '30vh',
         }}
       >
-        Waiting for approved post...
+        Waiting for approved posts…
       </div>
     );
+  }
+
+  const currentPost = posts[current];
+  const guest = currentPost?.user_id
+    ? guestData[currentPost.user_id]
+    : undefined;
+
+  const displayName =
+    currentPost.nickname?.trim() ||
+    guest?.nickname?.trim() ||
+    guest?.first_name ||
+    'Guest';
 
   const bg =
     event?.background_type === 'image'
@@ -36,9 +86,16 @@ export default function LiveWall({
   return (
     <>
       <style>{`
-        @keyframes glowPulse {
-          0%, 100% { text-shadow: 0 0 10px rgba(255,255,255,0.3), 0 0 25px rgba(255,255,255,0.2); }
-          50% { text-shadow: 0 0 25px rgba(255,255,255,0.7), 0 0 45px rgba(255,255,255,0.5); }
+        .fade-container { position: relative; width: 100%; height: 100%; overflow: hidden; }
+        .fade-item {
+          position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+          opacity: 0; transition: opacity 1.5s ease-in-out;
+          display: flex; align-items: center; justify-content: center;
+        }
+        .fade-item.active { opacity: 1; }
+        @keyframes glowText {
+          0%, 100% { text-shadow: 0 0 15px rgba(255,255,255,0.4), 0 0 30px rgba(255,255,255,0.3); }
+          50% { text-shadow: 0 0 25px rgba(255,255,255,0.8), 0 0 50px rgba(255,255,255,0.6); }
         }
       `}</style>
 
@@ -50,9 +107,8 @@ export default function LiveWall({
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
-          justifyContent: 'flex-start',
+          justifyContent: 'center',
           overflow: 'hidden',
-          transition: 'background 0.8s ease',
         }}
       >
         {/* ---------- TITLE ---------- */}
@@ -60,19 +116,16 @@ export default function LiveWall({
           style={{
             color: '#fff',
             textAlign: 'center',
-            textShadow: '0 0 20px rgba(0,0,0,0.6)',
             fontWeight: 900,
-            letterSpacing: '1px',
-            marginTop: '3vh',
-            marginBottom: '1.5vh',
-            fontSize: 'clamp(2.5rem, 4vw, 5rem)',
-            lineHeight: 1.1,
+            marginBottom: '2vh',
+            textShadow: '0 0 20px rgba(0,0,0,0.7)',
+            fontSize: 'clamp(2.2rem, 4vw, 5rem)',
           }}
         >
           {event.title || 'Fan Zone Wall'}
         </h1>
 
-        {/* ---------- DISPLAY AREA ---------- */}
+        {/* ---------- MAIN DISPLAY BOX ---------- */}
         <div
           style={{
             width: '80vw',
@@ -86,120 +139,123 @@ export default function LiveWall({
             overflow: 'hidden',
             display: 'flex',
             alignItems: 'center',
+            justifyContent: 'center',
           }}
         >
-          {/* ---------- GUEST PHOTO ---------- */}
-          <div
-            style={{
-              flexBasis: '45%',
-              height: 'calc(100% - 40px)',
-              marginLeft: '4vw',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
-            <img
-              src={currentPost.image_url || '/faninteractlogo.png'}
-              alt={currentPost.name || 'Guest Photo'}
-              style={{
-                width: '100%',
-                height: '100%',
-                objectFit: 'cover',
-                borderRadius: 16,
-                boxShadow: '0 0 20px rgba(0,0,0,0.6)',
-              }}
-            />
+          {/* ---------- FADE POSTS ---------- */}
+          <div className="fade-container">
+            {posts.map((p, i) => (
+              <div
+                key={p.id}
+                className={`fade-item ${i === current ? 'active' : ''}`}
+              >
+                {/* PHOTO LEFT SIDE */}
+                <div
+                  style={{
+                    flexBasis: '45%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <img
+                    src={p.photo_url || ''}
+                    alt={displayName}
+                    style={{
+                      width: '85%',
+                      height: 'auto',
+                      borderRadius: 18,
+                      objectFit: 'cover',
+                      boxShadow: '0 0 25px rgba(0,0,0,0.7)',
+                    }}
+                  />
+                </div>
+
+                {/* RIGHT SIDE */}
+                <div
+                  style={{
+                    flexGrow: 1,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    transform: 'translateY(-8%)',
+                    textAlign: 'center',
+                    color: '#fff',
+                  }}
+                >
+                  {/* LOGO */}
+                  <div
+                    style={{
+                      width: 'clamp(260px, 26vw, 380px)',
+                      marginBottom: '0.8vh',
+                    }}
+                  >
+                    <img
+                      src={event.logo_url || '/faninteractlogo.png'}
+                      alt="Logo"
+                      style={{
+                        width: '100%',
+                        height: 'auto',
+                        objectFit: 'contain',
+                        filter: 'drop-shadow(0 0 12px rgba(0,0,0,0.85))',
+                      }}
+                    />
+                  </div>
+
+                  {/* GREY BAR */}
+                  <div
+                    style={{
+                      width: '92%',
+                      height: 14,
+                      borderRadius: 6,
+                      background: 'linear-gradient(to right,#000,#444)',
+                      boxShadow: '0 0 12px rgba(0,0,0,0.7)',
+                      opacity: 0.85,
+                      marginTop: '-2vh',
+                      marginBottom: '2vh',
+                    }}
+                  ></div>
+
+                  {/* NAME */}
+                  <h2
+                    style={{
+                      fontWeight: 900,
+                      fontSize: 'clamp(3rem, 4vw, 5rem)',
+                      marginBottom: '1vh',
+                      textShadow: '0 0 25px rgba(0,0,0,0.7)',
+                      animation: 'glowText 2.5s ease-in-out infinite',
+                    }}
+                  >
+                    {displayName}
+                  </h2>
+
+                  {/* MESSAGE */}
+                  <p
+                    style={{
+                      fontSize: 'clamp(1.4rem, 2vw, 2.6rem)',
+                      maxWidth: '65%',
+                      lineHeight: 1.3,
+                      textShadow: '0 0 10px rgba(0,0,0,0.6)',
+                    }}
+                  >
+                    {p.message}
+                  </p>
+                </div>
+              </div>
+            ))}
           </div>
 
-          {/* ---------- RIGHT SIDE ---------- */}
-          <div
-            style={{
-              flexGrow: 1,
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              height: '100%',
-              position: 'relative',
-              transform: 'translateY(-11%)',
-            }}
-          >
-            {/* ---------- LOGO ---------- */}
-            <div
-              style={{
-                width: 'clamp(260px, 26vw, 380px)',
-                marginBottom: '0.8vh',
-                transform: 'translateY(-3vh)',
-              }}
-            >
-              <img
-                src={event.logo_url || '/faninteractlogo.png'}
-                alt="Logo"
-                style={{
-                  width: '100%',
-                  height: 'auto',
-                  objectFit: 'contain',
-                  filter: 'drop-shadow(0 0 12px rgba(0,0,0,0.85))',
-                }}
-              />
-            </div>
-
-            {/* ---------- GREY BAR ---------- */}
-            <div
-              style={{
-                width: '92%',
-                height: 14,
-                borderRadius: 6,
-                background: 'linear-gradient(to right,#000,#444)',
-                boxShadow: '0 0 12px rgba(0,0,0,0.7)',
-                opacity: 0.85,
-                marginTop: '-3vh',
-                marginBottom: '3vh',
-              }}
-            ></div>
-
-            {/* ---------- NAME ---------- */}
-            <h2
-              style={{
-                color: '#fff',
-                fontWeight: 900,
-                fontSize: 'clamp(3rem, 3.5vw, 4.5rem)',
-                textShadow:
-                  '0 0 25px rgba(255,255,255,0.7), 0 0 45px rgba(255,255,255,0.4)',
-                textAlign: 'center',
-                marginBottom: '1.5vh',
-                animation: 'glowPulse 3s ease-in-out infinite',
-              }}
-            >
-              {currentPost.name || 'Guest Name'}
-            </h2>
-
-            {/* ---------- MESSAGE ---------- */}
-            <p
-              style={{
-                color: '#fff',
-                fontSize: 'clamp(1.6rem, 2vw, 2.8rem)',
-                lineHeight: 1.4,
-                textShadow: '0 0 15px rgba(0,0,0,0.6)',
-                textAlign: 'center',
-                maxWidth: '80%',
-              }}
-            >
-              {currentPost.message || ''}
-            </p>
-          </div>
-
-          {/* ---------- SMALL QR (BOTTOM LEFT) ---------- */}
+          {/* ---------- SMALL QR ---------- */}
           <div
             style={{
               position: 'absolute',
-              bottom: 10,
-              left: 10,
-              width: 110,
-              height: 110,
+              bottom: 25,
+              left: 25,
+              width: 140,
+              height: 140,
               background: 'rgba(255,255,255,0.1)',
-              borderRadius: 10,
+              borderRadius: 14,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -209,57 +265,12 @@ export default function LiveWall({
           >
             <QRCodeCanvas
               value={`https://faninteract.vercel.app/submit/${event.id}`}
-              size={90}
+              size={120}
               bgColor="#ffffff"
               fgColor="#000000"
               level="H"
             />
           </div>
-        </div>
-
-        {/* ---------- FULLSCREEN BUTTON ---------- */}
-        <div
-          style={{
-            position: 'fixed',
-            bottom: 10,
-            right: 10,
-            width: 48,
-            height: 48,
-            borderRadius: 10,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            cursor: 'pointer',
-            zIndex: 9999,
-            transition: 'opacity 0.3s ease',
-            opacity: 0.2,
-            background: 'rgba(255,255,255,0.1)',
-            backdropFilter: 'blur(6px)',
-            border: '1px solid rgba(255,255,255,0.2)',
-          }}
-          onMouseEnter={(e) => (e.currentTarget.style.opacity = '1')}
-          onMouseLeave={(e) => (e.currentTarget.style.opacity = '0.2')}
-          onClick={() => {
-            if (!document.fullscreenElement)
-              document.documentElement.requestFullscreen().catch(console.error);
-            else document.exitFullscreen();
-          }}
-          title="Toggle Fullscreen"
-        >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            fill="none"
-            viewBox="0 0 24 24"
-            strokeWidth={1.5}
-            stroke="white"
-            style={{ width: 26, height: 26 }}
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M3 9V4h5M21 9V4h-5M3 15v5h5M21 15v5h-5"
-            />
-          </svg>
         </div>
       </div>
     </>
