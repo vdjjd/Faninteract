@@ -157,15 +157,15 @@ export default function InactiveWall({ event }: { event: any }) {
               justifyContent: 'center',
               height: '100%',
               position: 'relative',
-              transform: 'translateY(-9%)', // ⬆️ moved up a bit more for perfect symmetry
+              transform: 'translateY(-11%)', // ⬆️ moved up slightly more
             }}
           >
             {/* ---------- LOGO ---------- */}
             <div
               style={{
                 width: 'clamp(260px, 26vw, 380px)',
-                marginBottom: '1vh',
-                transform: 'translateY(-2.5vh)', // Slight logo raise
+                marginBottom: '0.8vh',
+                transform: 'translateY(-3vh)', // ⬆️ raise logo with group
               }}
             >
               <img
@@ -189,8 +189,8 @@ export default function InactiveWall({ event }: { event: any }) {
                 background: 'linear-gradient(to right,#000,#444)',
                 boxShadow: '0 0 12px rgba(0,0,0,0.7)',
                 opacity: 0.85,
-                marginTop: '-2.5vh', // ⬆️ raised the grey bar higher
-                marginBottom: '2vh',
+                marginTop: '-3vh', // ⬆️ bar sits higher now
+                marginBottom: '1.5vh',
               }}
             ></div>
 
