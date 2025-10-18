@@ -35,6 +35,13 @@ export default function LiveWall({
 
   return (
     <>
+      <style>{`
+        @keyframes glowPulse {
+          0%, 100% { text-shadow: 0 0 10px rgba(255,255,255,0.3), 0 0 25px rgba(255,255,255,0.2); }
+          50% { text-shadow: 0 0 25px rgba(255,255,255,0.7), 0 0 45px rgba(255,255,255,0.5); }
+        }
+      `}</style>
+
       <div
         style={{
           background: bg,
@@ -81,7 +88,7 @@ export default function LiveWall({
             alignItems: 'center',
           }}
         >
-          {/* ---------- GUEST PHOTO (LEFT SIDE, replaces QR) ---------- */}
+          {/* ---------- GUEST PHOTO ---------- */}
           <div
             style={{
               flexBasis: '45%',
@@ -93,7 +100,7 @@ export default function LiveWall({
             }}
           >
             <img
-              src={currentPost.image_url || '/placeholder.jpg'}
+              src={currentPost.image_url || '/faninteractlogo.png'}
               alt={currentPost.name || 'Guest Photo'}
               style={{
                 width: '100%',
@@ -105,7 +112,7 @@ export default function LiveWall({
             />
           </div>
 
-          {/* ---------- RIGHT SIDE CONTENT ---------- */}
+          {/* ---------- RIGHT SIDE ---------- */}
           <div
             style={{
               flexGrow: 1,
@@ -152,25 +159,29 @@ export default function LiveWall({
               }}
             ></div>
 
-            {/* ---------- NAME & MESSAGE ---------- */}
+            {/* ---------- NAME ---------- */}
             <h2
               style={{
                 color: '#fff',
                 fontWeight: 900,
-                fontSize: 'clamp(2.5rem, 3vw, 4rem)',
-                textShadow: '0 0 20px rgba(0,0,0,0.7)',
+                fontSize: 'clamp(3rem, 3.5vw, 4.5rem)',
+                textShadow:
+                  '0 0 25px rgba(255,255,255,0.7), 0 0 45px rgba(255,255,255,0.4)',
                 textAlign: 'center',
-                marginBottom: '1.2vh',
+                marginBottom: '1.5vh',
+                animation: 'glowPulse 3s ease-in-out infinite',
               }}
             >
               {currentPost.name || 'Guest Name'}
             </h2>
+
+            {/* ---------- MESSAGE ---------- */}
             <p
               style={{
                 color: '#fff',
-                fontSize: 'clamp(1.5rem, 2vw, 2.8rem)',
-                lineHeight: 1.3,
-                textShadow: '0 0 12px rgba(0,0,0,0.6)',
+                fontSize: 'clamp(1.6rem, 2vw, 2.8rem)',
+                lineHeight: 1.4,
+                textShadow: '0 0 15px rgba(0,0,0,0.6)',
                 textAlign: 'center',
                 maxWidth: '80%',
               }}
@@ -183,22 +194,22 @@ export default function LiveWall({
           <div
             style={{
               position: 'absolute',
-              bottom: 20,
-              left: 20,
-              width: 120,
-              height: 120,
+              bottom: 10,
+              left: 10,
+              width: 110,
+              height: 110,
               background: 'rgba(255,255,255,0.1)',
-              borderRadius: 12,
+              borderRadius: 10,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              border: '1px solid rgba(255,255,255,0.2)',
+              border: '1px solid rgba(255,255,255,0.25)',
               backdropFilter: 'blur(6px)',
             }}
           >
             <QRCodeCanvas
               value={`https://faninteract.vercel.app/submit/${event.id}`}
-              size={100}
+              size={90}
               bgColor="#ffffff"
               fgColor="#000000"
               level="H"
