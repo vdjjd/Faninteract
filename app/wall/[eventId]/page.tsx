@@ -22,9 +22,11 @@ interface EventData {
 
 interface SubmissionData {
   id: string;
-  name: string | null;
+  user_id: string | null;
+  event_id: string | null;
+  photo_url: string | null;
   message: string | null;
-  image_url: string | null;
+  nickname: string | null;
   status?: string;
   created_at: string;
 }
@@ -46,7 +48,6 @@ export default function FanWallPage() {
         .select('*')
         .eq('id', eventId)
         .single();
-
       if (data) {
         setEvent(data);
         if (data.status === 'live') setShowLive(true);
@@ -59,7 +60,6 @@ export default function FanWallPage() {
   /* ---------- REALTIME EVENT UPDATES ---------- */
   useEffect(() => {
     if (!eventId) return;
-
     const ch = supabase
       .channel('public:events')
       .on(
@@ -72,7 +72,6 @@ export default function FanWallPage() {
         }
       )
       .subscribe();
-
     return () => {
       supabase.removeChannel(ch);
     };
@@ -81,18 +80,16 @@ export default function FanWallPage() {
   /* ---------- LOAD APPROVED SUBMISSIONS ---------- */
   useEffect(() => {
     if (!eventId) return;
-
-    async function loadSubs() {
+    async function loadSubmissions() {
       const { data } = await supabase
         .from('submissions')
         .select('*')
         .eq('event_id', eventId)
         .eq('status', 'approved')
         .order('created_at', { ascending: true });
-
       if (data) setSubmissions(data);
     }
-    loadSubs();
+    loadSubmissions();
 
     const sub = supabase
       .channel('public:submissions')
@@ -158,12 +155,14 @@ export default function FanWallPage() {
       `}</style>
 
       <div className="fade-wrapper">
+        {/* ---------- INACTIVE WALL ---------- */}
         <div className={`fade-child ${!showLive ? 'active' : ''}`}>
           <InactiveWall event={event} />
         </div>
 
+        {/* ---------- LIVE WALL ---------- */}
         <div className={`fade-child ${showLive ? 'active' : ''}`}>
-          <LiveWall event={event} currentPost={submissions[0]} />
+          <LiveWall event={event} posts={submissions} />
         </div>
       </div>
     </>
