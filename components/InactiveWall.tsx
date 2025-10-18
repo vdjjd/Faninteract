@@ -1,8 +1,8 @@
 'use client';
 
 import { QRCodeCanvas } from 'qrcode.react';
-import { supabase } from '@/lib/supabaseClient';
 import { useEffect, useState } from 'react';
+import { supabase } from '@/lib/supabaseClient';
 
 /* ---------- TYPES ---------- */
 interface EventData {
@@ -57,7 +57,14 @@ function CountdownDisplay({
   const m = Math.floor(timeLeft / 60);
   const s = timeLeft % 60;
   return (
-    <div style={{ fontSize: '4vw', fontWeight: 900, lineHeight: 1 }}>
+    <div
+      style={{
+        fontSize: '4vw',
+        fontWeight: 900,
+        lineHeight: 1,
+        textShadow: '0 0 12px rgba(0,0,0,0.6)',
+      }}
+    >
       {m}:{s.toString().padStart(2, '0')}
     </div>
   );
@@ -68,7 +75,8 @@ export default function InactiveWall({ event }: { event: EventData }) {
   const bg =
     event?.background_type === 'image'
       ? `url(${event.background_value}) center/cover no-repeat`
-      : event?.background_value || 'linear-gradient(to bottom right,#1b2735,#090a0f)';
+      : event?.background_value ||
+        'linear-gradient(to bottom right,#1b2735,#090a0f)';
 
   return (
     <>
@@ -92,7 +100,7 @@ export default function InactiveWall({ event }: { event: EventData }) {
         style={{
           background: bg,
           width: '100%',
-          height: '100%',
+          height: '100vh',
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
@@ -118,7 +126,7 @@ export default function InactiveWall({ event }: { event: EventData }) {
           {event.title || 'Fan Zone Wall'}
         </h1>
 
-        {/* ---------- DISPLAY AREA ---------- */}
+        {/* ---------- MAIN BOX ---------- */}
         <div
           style={{
             width: '80vw',
@@ -132,35 +140,34 @@ export default function InactiveWall({ event }: { event: EventData }) {
             overflow: 'hidden',
           }}
         >
-          {/* ---------- QR CODE (LARGE LEFT SIDE) ---------- */}
+          {/* ---------- QR (BIGGER, LEFT SIDE) ---------- */}
           <div
             style={{
               position: 'absolute',
               left: 40,
               top: '50%',
               transform: 'translateY(-50%)',
-              width: 260,
-              height: 260,
-              background: 'rgba(255,255,255,0.08)',
-              borderRadius: 20,
+              width: 280,
+              height: 280,
+              background: 'rgba(255,255,255,0.1)',
+              borderRadius: 16,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               border: '1px solid rgba(255,255,255,0.2)',
-              backdropFilter: 'blur(10px)',
-              boxShadow: '0 0 25px rgba(0,0,0,0.5)',
+              backdropFilter: 'blur(6px)',
             }}
           >
             <QRCodeCanvas
               value={`https://faninteract.vercel.app/submit/${event.id}`}
-              size={220}
+              size={230}
               bgColor="#ffffff"
               fgColor="#000000"
               level="H"
             />
           </div>
 
-          {/* ---------- GREY BAR ---------- */}
+          {/* ---------- GRAY BAR ---------- */}
           <div
             style={{
               position: 'absolute',
@@ -176,14 +183,15 @@ export default function InactiveWall({ event }: { event: EventData }) {
             }}
           ></div>
 
-          {/* ---------- LOGO ABOVE BAR ---------- */}
+          {/* ---------- LOGO (CENTERED ABOVE BAR) ---------- */}
           <div
             style={{
               position: 'absolute',
-              top: '35%',
-              right: '10%',
-              transform: 'translateY(-50%)',
-              width: 'clamp(180px, 20vw, 320px)',
+              top: '38%',
+              left: '70%',
+              transform: 'translate(-50%, -50%)',
+              width: 'clamp(200px, 18vw, 340px)',
+              textAlign: 'center',
             }}
           >
             <img
@@ -198,11 +206,11 @@ export default function InactiveWall({ event }: { event: EventData }) {
             />
           </div>
 
-          {/* ---------- CENTER MESSAGE ---------- */}
+          {/* ---------- COUNTDOWN / MESSAGE ---------- */}
           <div
             style={{
               position: 'absolute',
-              top: '68%',
+              top: '65%',
               left: '70%',
               transform: 'translate(-50%, -50%)',
               textAlign: 'center',
@@ -243,6 +251,51 @@ export default function InactiveWall({ event }: { event: EventData }) {
                 Starting Soon!!
               </h2>
             )}
+          </div>
+
+          {/* ---------- FULLSCREEN BUTTON ---------- */}
+          <div
+            style={{
+              position: 'fixed',
+              bottom: 10,
+              right: 10,
+              width: 48,
+              height: 48,
+              borderRadius: 10,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              zIndex: 9999,
+              transition: 'opacity 0.3s ease',
+              opacity: 0.15,
+              background: 'rgba(255,255,255,0.1)',
+              backdropFilter: 'blur(6px)',
+              border: '1px solid rgba(255,255,255,0.2)',
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.opacity = '1')}
+            onMouseLeave={(e) => (e.currentTarget.style.opacity = '0.15')}
+            onClick={() => {
+              if (!document.fullscreenElement)
+                document.documentElement.requestFullscreen().catch(console.error);
+              else document.exitFullscreen();
+            }}
+            title="Toggle Fullscreen"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+              strokeWidth={1.5}
+              stroke="white"
+              style={{ width: 26, height: 26 }}
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M3 9V4h5M21 9V4h-5M3 15v5h5M21 15v5h-5"
+              />
+            </svg>
           </div>
         </div>
       </div>
