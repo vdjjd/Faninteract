@@ -92,7 +92,7 @@ export default function InactiveWall({ event }: { event: any }) {
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
-          justifyContent: 'center',
+          justifyContent: 'flex-start',
           overflow: 'hidden',
           transition: 'background 0.8s ease',
         }}
@@ -105,8 +105,9 @@ export default function InactiveWall({ event }: { event: any }) {
             textShadow: '0 0 20px rgba(0,0,0,0.6)',
             fontWeight: 900,
             letterSpacing: '1px',
-            marginBottom: '3vh',
-            fontSize: 'clamp(2.2rem, 4vw, 5rem)',
+            marginTop: '3vh',
+            marginBottom: '1.5vh',
+            fontSize: 'clamp(2.5rem, 4vw, 5rem)',
             lineHeight: 1.1,
           }}
         >
@@ -117,78 +118,79 @@ export default function InactiveWall({ event }: { event: any }) {
         <div
           style={{
             width: '80vw',
-            height: '65vh',
+            height: '70vh',
             backdropFilter: 'blur(18px)',
             background: 'rgba(255,255,255,0.08)',
             borderRadius: 20,
             boxShadow: '10px 10px 30px rgba(0,0,0,0.4)',
             border: '1px solid rgba(255,255,255,0.15)',
+            position: 'relative',
+            overflow: 'hidden',
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'space-between',
-            padding: '0 4vw',
-            position: 'relative',
           }}
         >
-          {/* ---------- BIG QR ---------- */}
-          <div
+          {/* ---------- BIG QR (LEFT SIDE) ---------- */}
+          <QRCodeCanvas
+            value={`https://faninteract.vercel.app/submit/${event.id}`}
+            size={420}
+            bgColor="#ffffff"
+            fgColor="#000000"
+            level="H"
+            includeMargin={false}
             style={{
-              flexBasis: '45%',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
+              borderRadius: 16,
+              marginLeft: '4vw',
+              width: '45%',
+              height: 'auto',
+              boxShadow: '0 0 20px rgba(0,0,0,0.6)',
             }}
-          >
-            <QRCodeCanvas
-              value={`https://faninteract.vercel.app/submit/${event.id}`}
-              size={400} // ⬅️ Larger, fills left side neatly
-              bgColor="#ffffff"
-              fgColor="#000000"
-              level="H"
-              includeMargin={false}
-              style={{
-                borderRadius: 16,
-                width: '90%',
-                height: 'auto',
-                boxShadow: '0 0 25px rgba(0,0,0,0.5)',
-              }}
-            />
-          </div>
+          />
 
-          {/* ---------- RIGHT SIDE (Symmetry Stack) ---------- */}
+          {/* ---------- RIGHT SIDE CONTENT ---------- */}
           <div
             style={{
-              flexBasis: '45%',
+              flexGrow: 1,
               display: 'flex',
               flexDirection: 'column',
               alignItems: 'center',
               justifyContent: 'center',
-              gap: '2vh',
-              transform: 'translateY(-1vh)', // Fine-tune upward for true centering
+              height: '100%',
+              position: 'relative',
+              transform: 'translateY(-6%)', // Moves everything slightly up for symmetry
             }}
           >
             {/* ---------- LOGO ---------- */}
-            <img
-              src={event.logo_url || '/faninteractlogo.png'}
-              alt="Logo"
+            <div
               style={{
-                width: 'clamp(220px, 25vw, 340px)',
-                height: 'auto',
-                objectFit: 'contain',
-                filter: 'drop-shadow(0 0 14px rgba(0,0,0,0.9))',
+                width: 'clamp(260px, 26vw, 380px)',
+                marginBottom: '1.2vh',
+                transform: 'translateY(-2vh)', // Moves logo up slightly
               }}
-            />
+            >
+              <img
+                src={event.logo_url || '/faninteractlogo.png'}
+                alt="Logo"
+                style={{
+                  width: '100%',
+                  height: 'auto',
+                  objectFit: 'contain',
+                  filter: 'drop-shadow(0 0 12px rgba(0,0,0,0.85))',
+                }}
+              />
+            </div>
 
             {/* ---------- GREY BAR ---------- */}
             <div
               style={{
-                width: '85%',
-                height: 12,
+                width: '92%',
+                height: 14, // Slightly thicker
                 borderRadius: 6,
                 background: 'linear-gradient(to right,#000,#444)',
                 boxShadow: '0 0 12px rgba(0,0,0,0.7)',
                 opacity: 0.85,
-                margin: '1.5vh 0',
+                marginTop: '-1vh', // Pulls bar closer up under logo
+                marginBottom: '2.5vh',
               }}
             ></div>
 
@@ -201,7 +203,6 @@ export default function InactiveWall({ event }: { event: any }) {
                     textShadow: '0 0 10px rgba(0,0,0,0.6)',
                     fontSize: 'clamp(1.8rem, 2.4vw, 3rem)',
                     marginBottom: 10,
-                    textAlign: 'center',
                   }}
                 >
                   Fan Zone Wall Starting In
@@ -217,9 +218,9 @@ export default function InactiveWall({ event }: { event: any }) {
                 className="pulse"
                 style={{
                   fontWeight: 850,
-                  textShadow: '0 0 22px rgba(0,0,0,0.85)',
+                  textShadow: '0 0 20px rgba(0,0,0,0.8)',
                   margin: 0,
-                  fontSize: 'clamp(2.2rem, 3.2vw, 4.2rem)',
+                  fontSize: 'clamp(2.5rem, 3.2vw, 4.2rem)',
                   lineHeight: 1.2,
                   whiteSpace: 'normal',
                   textAlign: 'center',
@@ -237,8 +238,8 @@ export default function InactiveWall({ event }: { event: any }) {
         <div
           style={{
             position: 'fixed',
-            bottom: 12,
-            right: 12,
+            bottom: 10,
+            right: 10,
             width: 48,
             height: 48,
             borderRadius: 10,
