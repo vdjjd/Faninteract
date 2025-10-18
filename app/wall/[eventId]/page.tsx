@@ -33,7 +33,7 @@ interface SubmissionData {
 export default function FanWallPage() {
   const { eventId } = useParams();
   const [event, setEvent] = useState<EventData | null>(null);
-  const [posts, setPosts] = useState<SubmissionData[]>([]);
+  const [submissions, setSubmissions] = useState<SubmissionData[]>([]);
   const [loading, setLoading] = useState(true);
   const [showLive, setShowLive] = useState(false);
 
@@ -46,6 +46,7 @@ export default function FanWallPage() {
         .select('*')
         .eq('id', eventId)
         .single();
+
       if (data) {
         setEvent(data);
         if (data.status === 'live') setShowLive(true);
@@ -58,6 +59,7 @@ export default function FanWallPage() {
   /* ---------- REALTIME EVENT UPDATES ---------- */
   useEffect(() => {
     if (!eventId) return;
+
     const ch = supabase
       .channel('public:events')
       .on(
@@ -70,6 +72,7 @@ export default function FanWallPage() {
         }
       )
       .subscribe();
+
     return () => {
       supabase.removeChannel(ch);
     };
@@ -78,16 +81,18 @@ export default function FanWallPage() {
   /* ---------- LOAD APPROVED SUBMISSIONS ---------- */
   useEffect(() => {
     if (!eventId) return;
-    async function loadPosts() {
+
+    async function loadSubs() {
       const { data } = await supabase
         .from('submissions')
         .select('*')
         .eq('event_id', eventId)
         .eq('status', 'approved')
         .order('created_at', { ascending: true });
-      if (data) setPosts(data);
+
+      if (data) setSubmissions(data);
     }
-    loadPosts();
+    loadSubs();
 
     const sub = supabase
       .channel('public:submissions')
@@ -97,7 +102,7 @@ export default function FanWallPage() {
         (payload) => {
           const updated = payload.new as SubmissionData;
           if (updated.status === 'approved') {
-            setPosts((prev) => {
+            setSubmissions((prev) => {
               const existing = prev.find((p) => p.id === updated.id);
               if (existing) {
                 return prev.map((p) => (p.id === updated.id ? updated : p));
@@ -158,7 +163,7 @@ export default function FanWallPage() {
         </div>
 
         <div className={`fade-child ${showLive ? 'active' : ''}`}>
-          <LiveWall event={event} posts={posts} />
+          <LiveWall event={event} currentPost={submissions[0]} />
         </div>
       </div>
     </>
