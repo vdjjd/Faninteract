@@ -2,7 +2,31 @@
 
 import { QRCodeCanvas } from 'qrcode.react';
 
-export default function LiveWall({ event, currentPost }: { event: any; currentPost: any }) {
+export default function LiveWall({
+  event,
+  currentPost,
+}: {
+  event: any;
+  currentPost: any;
+}) {
+  if (!event || !currentPost)
+    return (
+      <div
+        style={{
+          width: '100%',
+          height: '100vh',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          color: '#fff',
+          fontSize: '2rem',
+          textAlign: 'center',
+        }}
+      >
+        Waiting for approved post...
+      </div>
+    );
+
   const bg =
     event?.background_type === 'image'
       ? `url(${event.background_value}) center/cover no-repeat`
@@ -57,22 +81,31 @@ export default function LiveWall({ event, currentPost }: { event: any; currentPo
             alignItems: 'center',
           }}
         >
-          {/* ---------- GUEST PHOTO (LEFT SIDE) ---------- */}
-          <img
-            src={currentPost?.image_url || ''}
-            alt={currentPost?.name || ''}
+          {/* ---------- GUEST PHOTO (LEFT SIDE, replaces QR) ---------- */}
+          <div
             style={{
-              borderRadius: 16,
+              flexBasis: '45%',
+              height: 'calc(100% - 40px)',
               marginLeft: '4vw',
-              width: '45%',
-              height: 'auto',
-              maxHeight: '85%',
-              objectFit: 'cover',
-              boxShadow: '0 0 20px rgba(0,0,0,0.6)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
             }}
-          />
+          >
+            <img
+              src={currentPost.image_url || '/placeholder.jpg'}
+              alt={currentPost.name || 'Guest Photo'}
+              style={{
+                width: '100%',
+                height: '100%',
+                objectFit: 'cover',
+                borderRadius: 16,
+                boxShadow: '0 0 20px rgba(0,0,0,0.6)',
+              }}
+            />
+          </div>
 
-          {/* ---------- RIGHT SIDE ---------- */}
+          {/* ---------- RIGHT SIDE CONTENT ---------- */}
           <div
             style={{
               flexGrow: 1,
@@ -82,14 +115,15 @@ export default function LiveWall({ event, currentPost }: { event: any; currentPo
               justifyContent: 'center',
               height: '100%',
               position: 'relative',
-              transform: 'translateY(-4%)',
+              transform: 'translateY(-11%)',
             }}
           >
             {/* ---------- LOGO ---------- */}
             <div
               style={{
-                width: 'clamp(240px, 24vw, 360px)',
-                marginBottom: '1vh',
+                width: 'clamp(260px, 26vw, 380px)',
+                marginBottom: '0.8vh',
+                transform: 'translateY(-3vh)',
               }}
             >
               <img
@@ -107,13 +141,14 @@ export default function LiveWall({ event, currentPost }: { event: any; currentPo
             {/* ---------- GREY BAR ---------- */}
             <div
               style={{
-                width: '90%',
-                height: 12,
+                width: '92%',
+                height: 14,
                 borderRadius: 6,
                 background: 'linear-gradient(to right,#000,#444)',
-                boxShadow: '0 0 10px rgba(0,0,0,0.6)',
-                opacity: 0.8,
-                marginBottom: '2vh',
+                boxShadow: '0 0 12px rgba(0,0,0,0.7)',
+                opacity: 0.85,
+                marginTop: '-3vh',
+                marginBottom: '3vh',
               }}
             ></div>
 
@@ -122,53 +157,53 @@ export default function LiveWall({ event, currentPost }: { event: any; currentPo
               style={{
                 color: '#fff',
                 fontWeight: 900,
-                fontSize: 'clamp(3rem, 4vw, 5rem)',
-                textAlign: 'center',
+                fontSize: 'clamp(2.5rem, 3vw, 4rem)',
                 textShadow: '0 0 20px rgba(0,0,0,0.7)',
-                marginBottom: '1vh',
+                textAlign: 'center',
+                marginBottom: '1.2vh',
               }}
             >
-              {currentPost?.name || ''}
+              {currentPost.name || 'Guest Name'}
             </h2>
             <p
               style={{
                 color: '#fff',
-                fontWeight: 700,
-                fontSize: 'clamp(1.8rem, 2.2vw, 3rem)',
+                fontSize: 'clamp(1.5rem, 2vw, 2.8rem)',
+                lineHeight: 1.3,
+                textShadow: '0 0 12px rgba(0,0,0,0.6)',
                 textAlign: 'center',
-                textShadow: '0 0 15px rgba(0,0,0,0.6)',
-                maxWidth: '70%',
+                maxWidth: '80%',
               }}
             >
-              {currentPost?.message || ''}
+              {currentPost.message || ''}
             </p>
           </div>
-        </div>
 
-        {/* ---------- SMALL QR (BOTTOM LEFT CORNER OUTSIDE) ---------- */}
-        <div
-          style={{
-            position: 'fixed',
-            bottom: 20,
-            left: 20,
-            width: 120,
-            height: 120,
-            background: 'rgba(255,255,255,0.1)',
-            borderRadius: 12,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            border: '1px solid rgba(255,255,255,0.2)',
-            backdropFilter: 'blur(6px)',
-          }}
-        >
-          <QRCodeCanvas
-            value={`https://faninteract.vercel.app/submit/${event.id}`}
-            size={100}
-            bgColor="#ffffff"
-            fgColor="#000000"
-            level="H"
-          />
+          {/* ---------- SMALL QR (BOTTOM LEFT) ---------- */}
+          <div
+            style={{
+              position: 'absolute',
+              bottom: 20,
+              left: 20,
+              width: 120,
+              height: 120,
+              background: 'rgba(255,255,255,0.1)',
+              borderRadius: 12,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              border: '1px solid rgba(255,255,255,0.2)',
+              backdropFilter: 'blur(6px)',
+            }}
+          >
+            <QRCodeCanvas
+              value={`https://faninteract.vercel.app/submit/${event.id}`}
+              size={100}
+              bgColor="#ffffff"
+              fgColor="#000000"
+              level="H"
+            />
+          </div>
         </div>
 
         {/* ---------- FULLSCREEN BUTTON ---------- */}
