@@ -9,7 +9,7 @@ import { QRCodeCanvas } from 'qrcode.react';
 interface EventData {
   id: string;
   title: string | null;
-  status: 'inactive' | 'live';
+  status: 'inactive' | 'live' | 'cleared';
   countdown: string | null;
   countdown_active?: boolean;
   background_type: 'gradient' | 'solid' | 'image' | null;
@@ -21,9 +21,12 @@ interface EventData {
 
 interface SubmissionData {
   id: string;
+  event_id: string;
+  guest_id?: string;
   name: string | null;
   message: string | null;
   image_url: string | null;
+  status: 'pending' | 'approved' | 'rejected';
   created_at: string;
 }
 
@@ -141,9 +144,7 @@ export default function FanWallPage() {
           if (updated.status === 'approved') {
             setPosts((prev) => {
               const existing = prev.find((p) => p.id === updated.id);
-              if (existing) {
-                return prev.map((p) => (p.id === updated.id ? updated : p));
-              }
+              if (existing) return prev.map((p) => (p.id === updated.id ? updated : p));
               return [...prev, updated];
             });
           }
@@ -244,23 +245,22 @@ export default function FanWallPage() {
           {event.status === 'live' && posts.length > 0 ? (
             <div className="fade-container">
               {posts.map((p, i) => (
-                <div
-                  key={p.id}
-                  className={`fade-item ${i === current ? 'active' : ''}`}
-                >
-                  <img
-                    src={p.image_url || ''}
-                    alt={p.name || ''}
-                    style={{
-                      width: '40%',
-                      height: 'auto',
-                      maxHeight: '50%',
-                      borderRadius: 16,
-                      objectFit: 'cover',
-                      boxShadow: '0 0 30px rgba(0,0,0,0.7)',
-                      marginBottom: '2vh',
-                    }}
-                  />
+                <div key={p.id} className={`fade-item ${i === current ? 'active' : ''}`}>
+                  {p.image_url && (
+                    <img
+                      src={p.image_url}
+                      alt={p.name || ''}
+                      style={{
+                        width: '40%',
+                        height: 'auto',
+                        maxHeight: '50%',
+                        borderRadius: 16,
+                        objectFit: 'cover',
+                        boxShadow: '0 0 30px rgba(0,0,0,0.7)',
+                        marginBottom: '2vh',
+                      }}
+                    />
+                  )}
                   <h2
                     style={{
                       color: '#fff',
