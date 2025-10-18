@@ -105,9 +105,9 @@ export default function InactiveWall({ event }: { event: any }) {
             textShadow: '0 0 20px rgba(0,0,0,0.6)',
             fontWeight: 900,
             letterSpacing: '1px',
-            marginTop: '4vh',
-            marginBottom: '2vh',
-            fontSize: 'clamp(2.2rem, 4vw, 5rem)',
+            marginTop: '3vh',
+            marginBottom: '1.5vh',
+            fontSize: 'clamp(2.5rem, 4vw, 5rem)',
             lineHeight: 1.1,
           }}
         >
@@ -133,7 +133,7 @@ export default function InactiveWall({ event }: { event: any }) {
           {/* ---------- BIG QR (LEFT SIDE) ---------- */}
           <QRCodeCanvas
             value={`https://faninteract.vercel.app/submit/${event.id}`}
-            size={400} // Bigger now
+            size={420} // Bigger now
             bgColor="#ffffff"
             fgColor="#000000"
             level="H"
@@ -157,13 +157,14 @@ export default function InactiveWall({ event }: { event: any }) {
               justifyContent: 'center',
               height: '100%',
               position: 'relative',
+              transform: 'translateY(-4%)', // Move up slightly
             }}
           >
             {/* ---------- LOGO ---------- */}
             <div
               style={{
-                width: 'clamp(180px, 20vw, 320px)',
-                marginBottom: '2vh',
+                width: 'clamp(240px, 24vw, 360px)', // Larger logo
+                marginBottom: '1vh',
               }}
             >
               <img
@@ -181,8 +182,8 @@ export default function InactiveWall({ event }: { event: any }) {
             {/* ---------- GREY BAR ---------- */}
             <div
               style={{
-                width: '80%',
-                height: 10,
+                width: '90%', // Wider bar
+                height: 12,
                 borderRadius: 6,
                 background: 'linear-gradient(to right,#000,#444)',
                 boxShadow: '0 0 10px rgba(0,0,0,0.6)',
@@ -217,7 +218,7 @@ export default function InactiveWall({ event }: { event: any }) {
                   fontWeight: 850,
                   textShadow: '0 0 20px rgba(0,0,0,0.8)',
                   margin: 0,
-                  fontSize: 'clamp(2.2rem, 3.2vw, 4.2rem)',
+                  fontSize: 'clamp(2.5rem, 3.2vw, 4.2rem)',
                   lineHeight: 1.2,
                   whiteSpace: 'normal',
                   textAlign: 'center',
