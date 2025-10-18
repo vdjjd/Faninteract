@@ -1,20 +1,8 @@
 'use client';
 
 import { QRCodeCanvas } from 'qrcode.react';
-import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
-
-/* ---------- TYPES ---------- */
-interface EventData {
-  id: string;
-  title: string | null;
-  status: 'inactive' | 'live';
-  countdown: string | null;
-  countdown_active?: boolean;
-  background_type: 'gradient' | 'solid' | 'image' | null;
-  background_value: string | null;
-  logo_url: string | null;
-}
+import { useEffect, useState } from 'react';
 
 /* ---------- COUNTDOWN ---------- */
 function CountdownDisplay({
@@ -71,7 +59,7 @@ function CountdownDisplay({
 }
 
 /* ---------- INACTIVE WALL ---------- */
-export default function InactiveWall({ event }: { event: EventData }) {
+export default function InactiveWall({ event }: { event: any }) {
   const bg =
     event?.background_type === 'image'
       ? `url(${event.background_value}) center/cover no-repeat`
@@ -126,7 +114,7 @@ export default function InactiveWall({ event }: { event: EventData }) {
           {event.title || 'Fan Zone Wall'}
         </h1>
 
-        {/* ---------- MAIN BOX ---------- */}
+        {/* ---------- DISPLAY AREA ---------- */}
         <div
           style={{
             width: '80vw',
@@ -138,85 +126,90 @@ export default function InactiveWall({ event }: { event: EventData }) {
             border: '1px solid rgba(255,255,255,0.15)',
             position: 'relative',
             overflow: 'hidden',
+            display: 'flex',
+            alignItems: 'center',
           }}
         >
-          {/* ---------- QR (BIGGER, LEFT SIDE) ---------- */}
+          {/* ---------- BIG QR (LEFT SIDE) ---------- */}
           <div
             style={{
-              position: 'absolute',
-              left: 40,
-              top: '50%',
-              transform: 'translateY(-50%)',
-              width: 280,
-              height: 280,
-              background: 'rgba(255,255,255,0.1)',
+              flexBasis: '45%',
+              height: 'calc(100% - 40px)',
+              margin: '20px',
               borderRadius: 16,
+              border: '1px solid rgba(255,255,255,0.2)',
+              background: 'rgba(255,255,255,0.05)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              border: '1px solid rgba(255,255,255,0.2)',
-              backdropFilter: 'blur(6px)',
+              boxShadow: 'inset 0 0 15px rgba(255,255,255,0.1)',
             }}
           >
-            <QRCodeCanvas
-              value={`https://faninteract.vercel.app/submit/${event.id}`}
-              size={230}
-              bgColor="#ffffff"
-              fgColor="#000000"
-              level="H"
-            />
+            {event ? (
+              <QRCodeCanvas
+                value={`https://faninteract.vercel.app/submit/${event.id}`}
+                size={360} // ⬅️ Bigger now
+                bgColor="#ffffff"
+                fgColor="#000000"
+                level="H"
+                includeMargin={false}
+                style={{
+                  borderRadius: 12,
+                  width: '90%',
+                  height: 'auto',
+                  boxShadow: '0 0 10px rgba(0,0,0,0.4)',
+                }}
+              />
+            ) : (
+              <p style={{ opacity: 0.7 }}>Generating QR...</p>
+            )}
           </div>
 
-          {/* ---------- GRAY BAR ---------- */}
+          {/* ---------- RIGHT SIDE CONTENT ---------- */}
           <div
             style={{
-              position: 'absolute',
-              left: '45%',
-              right: '10%',
-              height: 10,
-              top: '50%',
-              transform: 'translateY(-50%)',
-              borderRadius: 6,
-              background: 'linear-gradient(to right,#000,#444)',
-              boxShadow: '0 0 10px rgba(0,0,0,0.6)',
-              opacity: 0.8,
-            }}
-          ></div>
-
-          {/* ---------- LOGO (CENTERED ABOVE BAR) ---------- */}
-          <div
-            style={{
-              position: 'absolute',
-              top: '38%',
-              left: '70%',
-              transform: 'translate(-50%, -50%)',
-              width: 'clamp(200px, 18vw, 340px)',
-              textAlign: 'center',
+              flexGrow: 1,
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              height: '100%',
+              position: 'relative',
             }}
           >
-            <img
-              src={event.logo_url || '/faninteractlogo.png'}
-              alt="Logo"
+            {/* ---------- LOGO ---------- */}
+            <div
               style={{
-                width: '100%',
-                height: 'auto',
-                objectFit: 'contain',
-                filter: 'drop-shadow(0 0 12px rgba(0,0,0,0.85))',
+                width: 'clamp(180px, 20vw, 320px)',
+                marginBottom: '2vh',
               }}
-            />
-          </div>
+            >
+              <img
+                src={event.logo_url || '/faninteractlogo.png'}
+                alt="Logo"
+                style={{
+                  width: '100%',
+                  height: 'auto',
+                  objectFit: 'contain',
+                  filter: 'drop-shadow(0 0 12px rgba(0,0,0,0.85))',
+                }}
+              />
+            </div>
 
-          {/* ---------- COUNTDOWN / MESSAGE ---------- */}
-          <div
-            style={{
-              position: 'absolute',
-              top: '65%',
-              left: '70%',
-              transform: 'translate(-50%, -50%)',
-              textAlign: 'center',
-              color: '#fff',
-            }}
-          >
+            {/* ---------- GREY BAR ---------- */}
+            <div
+              style={{
+                width: '80%',
+                height: 10,
+                borderRadius: 6,
+                background: 'linear-gradient(to right,#000,#444)',
+                boxShadow: '0 0 10px rgba(0,0,0,0.6)',
+                opacity: 0.8,
+                marginBottom: '3vh',
+              }}
+            ></div>
+
+            {/* ---------- TEXT / COUNTDOWN ---------- */}
             {event.countdown ? (
               <>
                 <h2
@@ -244,6 +237,8 @@ export default function InactiveWall({ event }: { event: EventData }) {
                   margin: 0,
                   fontSize: 'clamp(2.2rem, 3.2vw, 4.2rem)',
                   lineHeight: 1.2,
+                  whiteSpace: 'normal',
+                  textAlign: 'center',
                 }}
               >
                 Fan Zone Wall
@@ -252,51 +247,51 @@ export default function InactiveWall({ event }: { event: EventData }) {
               </h2>
             )}
           </div>
+        </div>
 
-          {/* ---------- FULLSCREEN BUTTON ---------- */}
-          <div
-            style={{
-              position: 'fixed',
-              bottom: 10,
-              right: 10,
-              width: 48,
-              height: 48,
-              borderRadius: 10,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              cursor: 'pointer',
-              zIndex: 9999,
-              transition: 'opacity 0.3s ease',
-              opacity: 0.15,
-              background: 'rgba(255,255,255,0.1)',
-              backdropFilter: 'blur(6px)',
-              border: '1px solid rgba(255,255,255,0.2)',
-            }}
-            onMouseEnter={(e) => (e.currentTarget.style.opacity = '1')}
-            onMouseLeave={(e) => (e.currentTarget.style.opacity = '0.15')}
-            onClick={() => {
-              if (!document.fullscreenElement)
-                document.documentElement.requestFullscreen().catch(console.error);
-              else document.exitFullscreen();
-            }}
-            title="Toggle Fullscreen"
+        {/* ---------- FULLSCREEN BUTTON ---------- */}
+        <div
+          style={{
+            position: 'fixed',
+            bottom: 10,
+            right: 10,
+            width: 48,
+            height: 48,
+            borderRadius: 10,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: 'pointer',
+            zIndex: 9999,
+            transition: 'opacity 0.3s ease',
+            opacity: 0.2,
+            background: 'rgba(255,255,255,0.1)',
+            backdropFilter: 'blur(6px)',
+            border: '1px solid rgba(255,255,255,0.2)',
+          }}
+          onMouseEnter={(e) => (e.currentTarget.style.opacity = '1')}
+          onMouseLeave={(e) => (e.currentTarget.style.opacity = '0.2')}
+          onClick={() => {
+            if (!document.fullscreenElement)
+              document.documentElement.requestFullscreen().catch(console.error);
+            else document.exitFullscreen();
+          }}
+          title="Toggle Fullscreen"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            fill="none"
+            viewBox="0 0 24 24"
+            strokeWidth={1.5}
+            stroke="white"
+            style={{ width: 26, height: 26 }}
           >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              fill="none"
-              viewBox="0 0 24 24"
-              strokeWidth={1.5}
-              stroke="white"
-              style={{ width: 26, height: 26 }}
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M3 9V4h5M21 9V4h-5M3 15v5h5M21 15v5h-5"
-              />
-            </svg>
-          </div>
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M3 9V4h5M21 9V4h-5M3 15v5h5M21 15v5h-5"
+            />
+          </svg>
         </div>
       </div>
     </>
