@@ -130,36 +130,22 @@ export default function InactiveWall({ event }: { event: any }) {
             alignItems: 'center',
           }}
         >
-          {/* ---------- BIG QR (LEFT SIDE - NO CONTAINER) ---------- */}
-          <div
+          {/* ---------- BIG QR (LEFT SIDE) ---------- */}
+          <QRCodeCanvas
+            value={`https://faninteract.vercel.app/submit/${event.id}`}
+            size={400} // Bigger now
+            bgColor="#ffffff"
+            fgColor="#000000"
+            level="H"
+            includeMargin={false}
             style={{
-              flexBasis: '45%',
-              height: 'calc(100% - 40px)',
-              margin: '20px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
+              borderRadius: 16,
+              marginLeft: '4vw',
+              width: '45%',
+              height: 'auto',
+              boxShadow: '0 0 20px rgba(0,0,0,0.6)',
             }}
-          >
-            {event ? (
-              <QRCodeCanvas
-                value={`https://faninteract.vercel.app/submit/${event.id}`}
-                size={460}
-                bgColor="#ffffff"
-                fgColor="#000000"
-                level="H"
-                includeMargin={false}
-                style={{
-                  borderRadius: 16,
-                  width: '100%',
-                  height: 'auto',
-                  boxShadow: '0 0 20px rgba(0,0,0,0.5)',
-                }}
-              />
-            ) : (
-              <p style={{ opacity: 0.7 }}>Generating QR...</p>
-            )}
-          </div>
+          />
 
           {/* ---------- RIGHT SIDE CONTENT ---------- */}
           <div
@@ -245,11 +231,11 @@ export default function InactiveWall({ event }: { event: any }) {
           </div>
         </div>
 
-        {/* ---------- FULLSCREEN BUTTON ---------- */}
+        {/* ---------- FULLSCREEN BUTTON (BOTTOM-RIGHT ALWAYS) ---------- */}
         <div
           style={{
             position: 'fixed',
-            top: 10,
+            bottom: 10,
             right: 10,
             width: 48,
             height: 48,
@@ -260,13 +246,13 @@ export default function InactiveWall({ event }: { event: any }) {
             cursor: 'pointer',
             zIndex: 9999,
             transition: 'opacity 0.3s ease',
-            opacity: 0.3,
+            opacity: 0.2,
             background: 'rgba(255,255,255,0.1)',
             backdropFilter: 'blur(6px)',
             border: '1px solid rgba(255,255,255,0.2)',
           }}
           onMouseEnter={(e) => (e.currentTarget.style.opacity = '1')}
-          onMouseLeave={(e) => (e.currentTarget.style.opacity = '0.3')}
+          onMouseLeave={(e) => (e.currentTarget.style.opacity = '0.2')}
           onClick={() => {
             if (!document.fullscreenElement)
               document.documentElement.requestFullscreen().catch(console.error);
