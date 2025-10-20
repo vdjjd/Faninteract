@@ -70,6 +70,7 @@ export default function LiveWall({ event, posts }: LiveWallProps) {
         justifyContent: 'flex-start',
         overflow: 'hidden',
         transition: 'background 0.8s ease',
+        position: 'relative',
       }}
     >
       {/* ---------- TITLE ---------- */}
@@ -224,28 +225,40 @@ export default function LiveWall({ event, posts }: LiveWallProps) {
             </p>
           )}
         </div>
+      </div>
 
-        {/* ---------- SMALL QR (BOTTOM-LEFT) ---------- */}
-        <div
+      {/* ---------- QR SECTION OUTSIDE CONTAINER ---------- */}
+      <div
+        style={{
+          position: 'absolute',
+          bottom: '6vh',
+          left: 'calc(10vw - 20px)', // visually aligns with container’s corner
+          textAlign: 'center',
+        }}
+      >
+        <p
           style={{
-            position: 'absolute',
-            bottom: 10,
-            left: 10,
+            color: '#fff',
+            textShadow: '0 0 10px rgba(0,0,0,0.6)',
+            fontWeight: 700,
+            fontSize: 'clamp(1.2rem, 1.8vw, 2rem)',
+            marginBottom: '0.5vh',
           }}
         >
-          <QRCodeCanvas
-            value={`https://faninteract.vercel.app/submit/${event.id}`}
-            size={120}
-            bgColor="#ffffff"
-            fgColor="#000000"
-            level="H"
-            includeMargin={false}
-            style={{
-              borderRadius: 8,
-              boxShadow: '0 0 10px rgba(0,0,0,0.5)',
-            }}
-          />
-        </div>
+          Scan Me to Join
+        </p>
+        <QRCodeCanvas
+          value={`https://faninteract.vercel.app/submit/${event.id}`}
+          size={180}
+          bgColor="#ffffff"
+          fgColor="#000000"
+          level="H"
+          includeMargin={false}
+          style={{
+            borderRadius: 12,
+            boxShadow: '0 0 18px rgba(0,0,0,0.6)',
+          }}
+        />
       </div>
 
       {/* ---------- FULLSCREEN BUTTON ---------- */}
