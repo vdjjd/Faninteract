@@ -231,8 +231,9 @@ export default function LiveWall({ event, posts }: LiveWallProps) {
       <div
         style={{
           position: 'absolute',
-          bottom: '6vh',
-          left: 'calc(10vw - 20px)', // visually aligns with container’s corner
+          // Align QR code center with lower-left of main container
+          bottom: 'calc(15vh - 90px)', // main 70vh + offset; QR half height = 90px
+          left: 'calc(10vw - 90px)',   // main 80vw width → 10vw margin; QR half width = 90px
           textAlign: 'center',
         }}
       >
