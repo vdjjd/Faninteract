@@ -6,7 +6,6 @@ import { supabase } from '@/lib/supabaseClient';
 import InactiveWall from '@/components/InactiveWall';
 import LiveWall from '@/components/LiveWall';
 
-/* ---------- INTERFACES ---------- */
 interface EventData {
   id: string;
   title: string | null;
@@ -31,7 +30,6 @@ interface SubmissionData {
   created_at: string;
 }
 
-/* ---------- MAIN PAGE ---------- */
 export default function FanWallPage() {
   const { eventId } = useParams();
   const [event, setEvent] = useState<EventData | null>(null);
@@ -43,14 +41,17 @@ export default function FanWallPage() {
   useEffect(() => {
     async function loadEvent() {
       if (!eventId) return;
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('events')
         .select('*')
         .eq('id', eventId)
         .single();
+
+      if (error) console.error('Error loading event:', error);
+
       if (data) {
         setEvent(data);
-        if (data.status === 'live') setShowLive(true);
+        setShowLive(data.status === 'live');
       }
       setLoading(false);
     }
@@ -60,48 +61,64 @@ export default function FanWallPage() {
   /* ---------- REALTIME EVENT UPDATES ---------- */
   useEffect(() => {
     if (!eventId) return;
-    const ch = supabase
-      .channel('public:events')
+
+    const channel = supabase
+      .channel('events-status-updates')
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: 'events', filter: `id=eq.${eventId}` },
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'events',
+          filter: `id=eq.${eventId}`,
+        },
         (payload) => {
-          const updated = payload.new as Partial<EventData>;
-          setEvent((prev) => (prev ? { ...prev, ...updated } : (updated as EventData)));
-          if (updated.status === 'live') setShowLive(true);
+          const updated = payload.new as EventData;
+          setEvent(updated);
+          setShowLive(updated.status === 'live');
         }
       )
       .subscribe();
+
     return () => {
-      supabase.removeChannel(ch);
+      supabase.removeChannel(channel);
     };
   }, [eventId]);
 
   /* ---------- LOAD APPROVED SUBMISSIONS ---------- */
   useEffect(() => {
     if (!eventId) return;
-    async function loadSubmissions() {
-      const { data } = await supabase
+
+    async function loadSubs() {
+      const { data, error } = await supabase
         .from('submissions')
         .select('*')
         .eq('event_id', eventId)
         .eq('status', 'approved')
         .order('created_at', { ascending: true });
+
+      if (error) console.error('Error loading submissions:', error);
       if (data) setSubmissions(data);
     }
-    loadSubmissions();
 
-    const sub = supabase
-      .channel('public:submissions')
+    loadSubs();
+
+    const subsChannel = supabase
+      .channel('submissions-realtime')
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: 'submissions', filter: `event_id=eq.${eventId}` },
+        {
+          event: '*',
+          schema: 'public',
+          table: 'submissions',
+          filter: `event_id=eq.${eventId}`,
+        },
         (payload) => {
           const updated = payload.new as SubmissionData;
           if (updated.status === 'approved') {
             setSubmissions((prev) => {
-              const existing = prev.find((p) => p.id === updated.id);
-              if (existing) {
+              const exists = prev.find((p) => p.id === updated.id);
+              if (exists) {
                 return prev.map((p) => (p.id === updated.id ? updated : p));
               }
               return [...prev, updated];
@@ -112,23 +129,21 @@ export default function FanWallPage() {
       .subscribe();
 
     return () => {
-      supabase.removeChannel(sub);
+      supabase.removeChannel(subsChannel);
     };
   }, [eventId]);
 
-  /* ---------- BACKGROUND ---------- */
   const bg =
     event?.background_type === 'image'
       ? `url(${event.background_value}) center/cover no-repeat`
-      : event?.background_value || 'linear-gradient(to bottom right,#1b2735,#090a0f)';
+      : event?.background_value ||
+        'linear-gradient(to bottom right,#1b2735,#090a0f)';
 
-  /* ---------- LOADING STATE ---------- */
   if (loading)
     return <p className="text-white text-center mt-20">Loading Wall …</p>;
   if (!event)
     return <p className="text-white text-center mt-20">Event not found.</p>;
 
-  /* ---------- FADE TRANSITION ---------- */
   return (
     <>
       <style>{`
@@ -146,7 +161,7 @@ export default function FanWallPage() {
           top: 0;
           left: 0;
           opacity: 0;
-          transition: opacity 1.2s ease-in-out;
+          transition: opacity 1s ease-in-out;
         }
         .fade-child.active {
           opacity: 1;
@@ -155,12 +170,12 @@ export default function FanWallPage() {
       `}</style>
 
       <div className="fade-wrapper">
-        {/* ---------- INACTIVE WALL ---------- */}
+        {/* ---------- INACTIVE ---------- */}
         <div className={`fade-child ${!showLive ? 'active' : ''}`}>
           <InactiveWall event={event} />
         </div>
 
-        {/* ---------- LIVE WALL ---------- */}
+        {/* ---------- LIVE ---------- */}
         <div className={`fade-child ${showLive ? 'active' : ''}`}>
           <LiveWall event={event} posts={submissions} />
         </div>
