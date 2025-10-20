@@ -11,17 +11,46 @@ interface LiveWallProps {
 
 /* ---------- LIVE WALL ---------- */
 export default function LiveWall({ event, posts }: LiveWallProps) {
+  const [livePosts, setLivePosts] = useState(posts || []);
   const [currentIndex, setCurrentIndex] = useState(0);
-  const current = posts[currentIndex];
+  const current = livePosts[currentIndex];
 
-  // Cycle through approved submissions
+  /* ---------- REALTIME SUBSCRIPTIONS ---------- */
   useEffect(() => {
-    if (!posts || posts.length === 0) return;
+    const channel = supabase
+      .channel('submissions-changes')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'submissions' },
+        (payload) => {
+          if (payload.eventType === 'INSERT' && payload.new.status === 'approved') {
+            setLivePosts((prev) => [payload.new, ...prev]);
+          }
+          if (payload.eventType === 'UPDATE') {
+            setLivePosts((prev) =>
+              prev.map((p) => (p.id === payload.new.id ? payload.new : p))
+            );
+          }
+          if (payload.eventType === 'DELETE') {
+            setLivePosts((prev) => prev.filter((p) => p.id !== payload.old.id));
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
+
+  /* ---------- CYCLE THROUGH APPROVED POSTS ---------- */
+  useEffect(() => {
+    if (!livePosts || livePosts.length === 0) return;
     const interval = setInterval(() => {
-      setCurrentIndex((i) => (i + 1) % posts.length);
+      setCurrentIndex((i) => (i + 1) % livePosts.length);
     }, 8000);
     return () => clearInterval(interval);
-  }, [posts]);
+  }, [livePosts]);
 
   const bg =
     event?.background_type === 'image'
@@ -219,7 +248,7 @@ export default function LiveWall({ event, posts }: LiveWallProps) {
         </div>
       </div>
 
-      {/* ---------- FULLSCREEN BUTTON (BOTTOM-RIGHT ALWAYS) ---------- */}
+      {/* ---------- FULLSCREEN BUTTON ---------- */}
       <div
         style={{
           position: 'fixed',
