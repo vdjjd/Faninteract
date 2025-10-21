@@ -33,29 +33,32 @@ export default function LiveWall({ event, posts }: LiveWallProps) {
             setLivePosts((prev) => prev.filter((p) => p.id !== payload.old.id));
           }
         }
-      )
-      .subscribe();
+      );
 
-    return () => supabase.removeChannel(channel);
+    // Subscribe without returning a promise to React
+    channel.subscribe();
+
+    // ✅ Cleanup safely (void to ignore Promise return)
+    return () => {
+      void supabase.removeChannel(channel);
+    };
   }, [event.id]);
 
-  /* ---------- POST ROTATION ---------- */
+  /* ---------- CYCLE THROUGH APPROVED POSTS ---------- */
   useEffect(() => {
-    if (livePosts.length === 0) return;
+    if (!livePosts || livePosts.length === 0) return;
     const interval = setInterval(() => {
       setCurrentIndex((i) => (i + 1) % livePosts.length);
     }, 8000);
     return () => clearInterval(interval);
   }, [livePosts]);
 
-  /* ---------- BACKGROUND ---------- */
   const bg =
     event?.background_type === 'image'
       ? `url(${event.background_value}) center/cover no-repeat`
       : event?.background_value ||
         'linear-gradient(to bottom right,#1b2735,#090a0f)';
 
-  /* ---------- RENDER ---------- */
   return (
     <div
       style={{
@@ -81,14 +84,14 @@ export default function LiveWall({ event, posts }: LiveWallProps) {
           letterSpacing: '1px',
           marginTop: '3vh',
           marginBottom: '1.5vh',
-          fontSize: 'clamp(2.5rem,4vw,5rem)',
+          fontSize: 'clamp(2.5rem, 4vw, 5rem)',
           lineHeight: 1.1,
         }}
       >
         {event.title || 'Fan Zone Wall'}
       </h1>
 
-      {/* ---------- DISPLAY CONTAINER ---------- */}
+      {/* ---------- DISPLAY AREA ---------- */}
       <div
         style={{
           width: '80vw',
@@ -98,13 +101,13 @@ export default function LiveWall({ event, posts }: LiveWallProps) {
           borderRadius: 20,
           boxShadow: '10px 10px 30px rgba(0,0,0,0.4)',
           border: '1px solid rgba(255,255,255,0.15)',
+          position: 'relative',
+          overflow: 'hidden',
           display: 'flex',
           alignItems: 'center',
-          overflow: 'hidden',
-          position: 'relative',
         }}
       >
-        {/* ---------- PHOTO ---------- */}
+        {/* ---------- LEFT SIDE PHOTO ---------- */}
         {current?.photo_url ? (
           <img
             src={current.photo_url}
@@ -114,8 +117,8 @@ export default function LiveWall({ event, posts }: LiveWallProps) {
               marginLeft: '4vw',
               width: '45%',
               height: 'auto',
-              objectFit: 'cover',
               boxShadow: '0 0 20px rgba(0,0,0,0.6)',
+              objectFit: 'cover',
               transition: 'opacity 0.8s ease',
             }}
           />
@@ -132,11 +135,11 @@ export default function LiveWall({ event, posts }: LiveWallProps) {
               fontSize: '2rem',
             }}
           >
-            No photo
+            {/* Blank placeholder */}
           </div>
         )}
 
-        {/* ---------- RIGHT SIDE ---------- */}
+        {/* ---------- RIGHT SIDE CONTENT ---------- */}
         <div
           style={{
             flexGrow: 1,
@@ -144,13 +147,15 @@ export default function LiveWall({ event, posts }: LiveWallProps) {
             flexDirection: 'column',
             alignItems: 'center',
             justifyContent: 'center',
+            height: '100%',
+            position: 'relative',
             transform: 'translateY(-11%)',
           }}
         >
           {/* ---------- LOGO ---------- */}
           <div
             style={{
-              width: 'clamp(260px,26vw,380px)',
+              width: 'clamp(260px, 26vw, 380px)',
               marginBottom: '0.8vh',
               transform: 'translateY(-3vh)',
             }}
@@ -179,28 +184,28 @@ export default function LiveWall({ event, posts }: LiveWallProps) {
               marginTop: '-3vh',
               marginBottom: '1.5vh',
             }}
-          />
+          ></div>
 
-          {/* ---------- NAME / MESSAGE ---------- */}
-          {current ? (
+          {/* ---------- NAME + MESSAGE ---------- */}
+          {current && (
             <>
               <h2
                 style={{
                   fontWeight: 900,
                   color: '#fff',
                   textShadow: '0 0 15px rgba(0,0,0,0.7)',
-                  fontSize: 'clamp(2rem,3vw,4rem)',
+                  fontSize: 'clamp(2rem, 3vw, 4rem)',
                   margin: 0,
                 }}
               >
-                {current.nickname || 'Guest Name'}
+                {current.nickname || ''}
               </h2>
               <p
                 style={{
                   fontWeight: 600,
                   color: '#eee',
                   textShadow: '0 0 10px rgba(0,0,0,0.5)',
-                  fontSize: 'clamp(1.4rem,2vw,2.8rem)',
+                  fontSize: 'clamp(1.4rem, 2vw, 2.8rem)',
                   textAlign: 'center',
                   maxWidth: '80%',
                   marginTop: '1vh',
@@ -209,21 +214,11 @@ export default function LiveWall({ event, posts }: LiveWallProps) {
                 {current.message || ''}
               </p>
             </>
-          ) : (
-            <p
-              style={{
-                color: 'rgba(255,255,255,0.6)',
-                fontSize: '1.5rem',
-                textAlign: 'center',
-              }}
-            >
-              Waiting for approved submissions…
-            </p>
           )}
         </div>
       </div>
 
-      {/* ---------- SMALL QR ---------- */}
+      {/* ---------- QR SECTION ---------- */}
       <div
         style={{
           position: 'absolute',
@@ -232,14 +227,17 @@ export default function LiveWall({ event, posts }: LiveWallProps) {
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
+          justifyContent: 'center',
+          textAlign: 'center',
         }}
       >
         <p
           style={{
             color: '#fff',
+            textAlign: 'center',
             textShadow: '0 0 10px rgba(0,0,0,0.6)',
             fontWeight: 700,
-            fontSize: 'clamp(1.2rem,1.8vw,2rem)',
+            fontSize: 'clamp(1.2rem, 1.8vw, 2rem)',
             marginBottom: '0.8vh',
           }}
         >
@@ -252,7 +250,10 @@ export default function LiveWall({ event, posts }: LiveWallProps) {
           fgColor="#000000"
           level="H"
           includeMargin={false}
-          style={{ borderRadius: 12, boxShadow: '0 0 18px rgba(0,0,0,0.6)' }}
+          style={{
+            borderRadius: 12,
+            boxShadow: '0 0 18px rgba(0,0,0,0.6)',
+          }}
         />
       </div>
 
