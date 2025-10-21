@@ -76,10 +76,12 @@ export default function Grid2x2Wall({ event, posts }: Grid2x2WallProps) {
           height: '100%',
           display: 'flex',
           flexDirection: 'row',
-          background: '#000',
           borderRadius: 12,
           overflow: 'hidden',
           position: 'relative',
+          background: 'rgba(255,255,255,0.06)',
+          backdropFilter: 'blur(10px)',
+          border: '1px solid rgba(255,255,255,0.15)',
         }}
       >
         {/* LEFT: PHOTO */}
@@ -93,6 +95,7 @@ export default function Grid2x2Wall({ event, posts }: Grid2x2WallProps) {
                 height: '100%',
                 objectFit: 'cover',
                 display: 'block',
+                opacity: 0.85,
               }}
             />
           ) : (
@@ -120,9 +123,9 @@ export default function Grid2x2Wall({ event, posts }: Grid2x2WallProps) {
             display: 'flex',
             flexDirection: 'column',
             justifyContent: 'space-between',
-            background: 'rgba(0,0,0,0.55)',
-            backdropFilter: 'blur(8px)',
             padding: '12px 18px',
+            background: 'rgba(0,0,0,0.45)',
+            backdropFilter: 'blur(8px)',
           }}
         >
           <div
@@ -237,7 +240,7 @@ export default function Grid2x2Wall({ event, posts }: Grid2x2WallProps) {
           overflow: 'hidden',
           boxShadow: '10px 10px 30px rgba(0,0,0,0.4)',
           border: '1px solid rgba(255,255,255,0.15)',
-          background: 'rgba(255,255,255,0.06)',
+          background: 'rgba(255,255,255,0.04)',
           backdropFilter: 'blur(14px)',
         }}
       >
@@ -312,13 +315,13 @@ export default function Grid2x2Wall({ event, posts }: Grid2x2WallProps) {
           cursor: 'pointer',
           zIndex: 9999,
           transition: 'opacity 0.3s ease',
-          opacity: 0.2,
-          background: 'rgba(255,255,255,0.1)',
+          opacity: 0.25,
+          background: 'rgba(255,255,255,0.08)',
           backdropFilter: 'blur(6px)',
           border: '1px solid rgba(255,255,255,0.2)',
         }}
         onMouseEnter={(e) => (e.currentTarget.style.opacity = '1')}
-        onMouseLeave={(e) => (e.currentTarget.style.opacity = '0.2')}
+        onMouseLeave={(e) => (e.currentTarget.style.opacity = '0.25')}
         onClick={() => {
           if (!document.fullscreenElement)
             document.documentElement.requestFullscreen().catch(console.error);
