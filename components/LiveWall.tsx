@@ -174,117 +174,141 @@ export default function LiveWall({ event, posts }: LiveWallProps) {
           justifyContent: 'center',
         }}
       >
-        <AnimatePresence mode="wait">
-          {current ? (
-            <motion.div
-              key={current.id}
-              {...transitionStyle}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                width: '100%',
-                justifyContent: 'space-between',
-              }}
-            >
-              {/* ---------- LEFT PHOTO ---------- */}
-              <img
-                src={current.photo_url}
-                alt="Guest Submission"
+        {/* ---------- STATIC LEFT PHOTO + LOGO LAYOUT ---------- */}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            width: '100%',
+            justifyContent: 'space-between',
+          }}
+        >
+          {/* LEFT PHOTO + CONTENT AREA (ANIMATES) */}
+          <AnimatePresence mode="wait">
+            {current ? (
+              <motion.div
+                key={current.id}
+                {...transitionStyle}
                 style={{
-                  borderRadius: 16,
-                  marginLeft: '4vw',
-                  width: '45%',
-                  height: 'auto',
-                  boxShadow: '0 0 20px rgba(0,0,0,0.6)',
-                  objectFit: 'cover',
-                }}
-              />
-
-              {/* ---------- RIGHT CONTENT ---------- */}
-              <div
-                style={{
-                  flexGrow: 1,
                   display: 'flex',
-                  flexDirection: 'column',
                   alignItems: 'center',
-                  justifyContent: 'center',
-                  height: '100%',
-                  position: 'relative',
-                  transform: 'translateY(-11%)',
+                  width: '100%',
+                  justifyContent: 'space-between',
                 }}
               >
+                {/* PHOTO */}
+                <img
+                  src={current.photo_url}
+                  alt="Guest Submission"
+                  style={{
+                    borderRadius: 16,
+                    marginLeft: '4vw',
+                    width: '45%',
+                    height: 'auto',
+                    boxShadow: '0 0 20px rgba(0,0,0,0.6)',
+                    objectFit: 'cover',
+                  }}
+                />
+
+                {/* RIGHT SIDE TEXT CONTENT ONLY (no logo here) */}
                 <div
                   style={{
-                    width: 'clamp(260px, 26vw, 380px)',
-                    marginBottom: '0.8vh',
-                    transform: 'translateY(-3vh)',
+                    flexGrow: 1,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    height: '100%',
+                    position: 'relative',
+                    transform: 'translateY(-11%)',
                   }}
                 >
-                  <img
-                    src={event.logo_url || '/faninteractlogo.png'}
-                    alt="Logo"
+                  <h2
                     style={{
-                      width: '100%',
-                      height: 'auto',
-                      objectFit: 'contain',
-                      filter: 'drop-shadow(0 0 12px rgba(0,0,0,0.85))',
+                      fontWeight: 900,
+                      color: '#fff',
+                      textShadow: '0 0 15px rgba(0,0,0,0.7)',
+                      fontSize: 'clamp(2rem, 3vw, 4rem)',
+                      margin: 0,
                     }}
-                  />
+                  >
+                    {current.nickname || ''}
+                  </h2>
+                  <p
+                    style={{
+                      fontWeight: 600,
+                      color: '#eee',
+                      textShadow: '0 0 10px rgba(0,0,0,0.5)',
+                      fontSize: 'clamp(1.4rem, 2vw, 2.8rem)',
+                      textAlign: 'center',
+                      maxWidth: '80%',
+                      marginTop: '1vh',
+                    }}
+                  >
+                    {current.message || ''}
+                  </p>
                 </div>
+              </motion.div>
+            ) : (
+              <motion.div
+                key="no-posts"
+                {...transitions['Fade In / Fade Out']}
+                style={{
+                  color: 'rgba(255,255,255,0.7)',
+                  fontSize: '2rem',
+                  textAlign: 'center',
+                  width: '100%',
+                }}
+              >
+                No Approved Submissions Yet
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
 
-                <div
-                  style={{
-                    width: '92%',
-                    height: 14,
-                    borderRadius: 6,
-                    background: 'linear-gradient(to right,#000,#444)',
-                    boxShadow: '0 0 12px rgba(0,0,0,0.7)',
-                    opacity: 0.85,
-                    marginTop: '-3vh',
-                    marginBottom: '1.5vh',
-                  }}
-                ></div>
-
-                <h2
-                  style={{
-                    fontWeight: 900,
-                    color: '#fff',
-                    textShadow: '0 0 15px rgba(0,0,0,0.7)',
-                    fontSize: 'clamp(2rem, 3vw, 4rem)',
-                    margin: 0,
-                  }}
-                >
-                  {current.nickname || ''}
-                </h2>
-                <p
-                  style={{
-                    fontWeight: 600,
-                    color: '#eee',
-                    textShadow: '0 0 10px rgba(0,0,0,0.5)',
-                    fontSize: 'clamp(1.4rem, 2vw, 2.8rem)',
-                    textAlign: 'center',
-                    maxWidth: '80%',
-                    marginTop: '1vh',
-                  }}
-                >
-                  {current.message || ''}
-                </p>
-              </div>
-            </motion.div>
-          ) : (
-            <motion.div
-              key="no-posts"
-              {...transitions['Fade In / Fade Out']}
+        {/* ---------- STATIC OVERLAY: LOGO + GREY BAR ---------- */}
+        <div
+          style={{
+            position: 'absolute',
+            top: '50%',
+            right: '10%',
+            transform: 'translateY(-50%)',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            pointerEvents: 'none',
+          }}
+        >
+          <div
+            style={{
+              width: 'clamp(260px, 26vw, 380px)',
+              marginBottom: '0.8vh',
+            }}
+          >
+            <img
+              src={event.logo_url || '/faninteractlogo.png'}
+              alt="Logo"
               style={{
-                color: 'rgba(255,255,255,0.7)',
-                fontSize: '2rem',
-                textAlign: 'center',
+                width: '100%',
+                height: 'auto',
+                objectFit: 'contain',
+                filter: 'drop-shadow(0 0 12px rgba(0,0,0,0.85))',
               }}
-            >
-              No Approved Submissions Yet
-            </motion.div>
-          )}
-        </AnimatePresence>
+            />
+          </div>
+
+          <div
+            style={{
+              width: '100%',
+              height: 14,
+              borderRadius: 6,
+              background: 'linear-gradient(to right,#000,#444)',
+              boxShadow: '0 0 12px rgba(0,0,0,0.7)',
+              opacity: 0.85,
+              marginBottom: '1.5vh',
+            }}
+          ></div>
+        </div>
       </div>
 
       {/* ---------- QR SECTION ---------- */}
