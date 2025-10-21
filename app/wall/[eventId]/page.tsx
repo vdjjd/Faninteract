@@ -31,7 +31,7 @@ interface SubmissionData {
   created_at: string;
 }
 
-/* ---------- MAIN WALL PAGE ---------- */
+/* ---------- MAIN PAGE ---------- */
 export default function FanWallPage() {
   const { eventId } = useParams();
   const [event, setEvent] = useState<EventData | null>(null);
@@ -43,7 +43,12 @@ export default function FanWallPage() {
   useEffect(() => {
     async function loadEvent() {
       if (!eventId) return;
-      const { data, error } = await supabase.from('events').select('*').eq('id', eventId).single();
+      const { data, error } = await supabase
+        .from('events')
+        .select('*')
+        .eq('id', eventId)
+        .single();
+
       if (error) console.error('❌ Error loading event:', error);
       if (data) {
         setEvent(data);
@@ -54,37 +59,49 @@ export default function FanWallPage() {
     loadEvent();
   }, [eventId]);
 
-  /* ---------- REALTIME EVENT UPDATES ---------- */
+  /* ---------- REALTIME EVENT UPDATES + ULTRA-FAST POLL ---------- */
   useEffect(() => {
     if (!eventId) return;
+    let isMounted = true;
+
+    async function refreshEvent() {
+      const { data, error } = await supabase
+        .from('events')
+        .select('*')
+        .eq('id', eventId)
+        .single();
+
+      if (!error && data && isMounted) {
+        setEvent((prev) => ({ ...prev, ...data }));
+        setShowLive(data.status === 'live');
+      }
+    }
 
     const channel = supabase
-      .channel(`events-realtime-${eventId}`)
+      .channel(`events-live-${eventId}`)
       .on(
         'postgres_changes',
         {
-          event: '*',
+          event: 'UPDATE',
           schema: 'public',
           table: 'events',
           filter: `id=eq.${eventId}`,
         },
         (payload) => {
           const updated = payload.new as EventData;
-          console.log('🔄 Event realtime update:', updated);
-
-          setEvent((prev) => ({
-            ...prev,
-            ...updated,
-          }));
-
-          // auto-switch wall state
+          setEvent((prev) => ({ ...prev, ...updated }));
           setShowLive(updated.status === 'live');
         }
       )
       .subscribe();
 
+    // ⚡ Fast poll every 0.5 seconds
+    const interval = setInterval(refreshEvent, 500);
+
     return () => {
+      isMounted = false;
       supabase.removeChannel(channel);
+      clearInterval(interval);
     };
   }, [eventId]);
 
@@ -147,8 +164,10 @@ export default function FanWallPage() {
       : event?.background_value || 'linear-gradient(to bottom right,#1b2735,#090a0f)';
 
   /* ---------- LOADING ---------- */
-  if (loading) return <p className="text-white text-center mt-20">Loading Wall …</p>;
-  if (!event) return <p className="text-white text-center mt-20">Event not found.</p>;
+  if (loading)
+    return <p className="text-white text-center mt-20">Loading Wall …</p>;
+  if (!event)
+    return <p className="text-white text-center mt-20">Event not found.</p>;
 
   /* ---------- RENDER ---------- */
   return (
