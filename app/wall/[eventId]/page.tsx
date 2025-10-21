@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabaseClient';
 import InactiveWall from '@/components/InactiveWall';
 import LiveWall from '@/components/LiveWall';
 
+/* ---------- TYPES ---------- */
 interface EventData {
   id: string;
   title: string | null;
@@ -30,6 +31,7 @@ interface SubmissionData {
   created_at: string;
 }
 
+/* ---------- MAIN PAGE ---------- */
 export default function FanWallPage() {
   const { eventId } = useParams();
   const [event, setEvent] = useState<EventData | null>(null);
@@ -37,7 +39,7 @@ export default function FanWallPage() {
   const [loading, setLoading] = useState(true);
   const [showLive, setShowLive] = useState(false);
 
-  /* ---------- LOAD EVENT ---------- */
+  /* ---------- LOAD EVENT INITIALLY ---------- */
   useEffect(() => {
     async function loadEvent() {
       if (!eventId) return;
@@ -47,8 +49,7 @@ export default function FanWallPage() {
         .eq('id', eventId)
         .single();
 
-      if (error) console.error('Error loading event:', error);
-
+      if (error) console.error('❌ Error loading event:', error);
       if (data) {
         setEvent(data);
         setShowLive(data.status === 'live');
@@ -58,22 +59,23 @@ export default function FanWallPage() {
     loadEvent();
   }, [eventId]);
 
-  /* ---------- REALTIME EVENT UPDATES ---------- */
+  /* ---------- REALTIME EVENT STATUS UPDATES ---------- */
   useEffect(() => {
     if (!eventId) return;
 
     const channel = supabase
-      .channel('events-status-updates')
+      .channel(`events-status-${eventId}`)
       .on(
         'postgres_changes',
         {
-          event: 'UPDATE',
+          event: '*', // catches INSERT & UPDATE
           schema: 'public',
           table: 'events',
           filter: `id=eq.${eventId}`,
         },
         (payload) => {
           const updated = payload.new as EventData;
+          console.log('🔄 Event status updated →', updated.status);
           setEvent(updated);
           setShowLive(updated.status === 'live');
         }
@@ -85,7 +87,7 @@ export default function FanWallPage() {
     };
   }, [eventId]);
 
-  /* ---------- LOAD APPROVED SUBMISSIONS ---------- */
+  /* ---------- REALTIME SUBMISSIONS ---------- */
   useEffect(() => {
     if (!eventId) return;
 
@@ -97,14 +99,14 @@ export default function FanWallPage() {
         .eq('status', 'approved')
         .order('created_at', { ascending: true });
 
-      if (error) console.error('Error loading submissions:', error);
+      if (error) console.error('❌ Error loading submissions:', error);
       if (data) setSubmissions(data);
     }
 
     loadSubs();
 
     const subsChannel = supabase
-      .channel('submissions-realtime')
+      .channel(`submissions-${eventId}`)
       .on(
         'postgres_changes',
         {
@@ -133,17 +135,20 @@ export default function FanWallPage() {
     };
   }, [eventId]);
 
+  /* ---------- BACKGROUND ---------- */
   const bg =
     event?.background_type === 'image'
       ? `url(${event.background_value}) center/cover no-repeat`
       : event?.background_value ||
         'linear-gradient(to bottom right,#1b2735,#090a0f)';
 
+  /* ---------- LOADING STATES ---------- */
   if (loading)
     return <p className="text-white text-center mt-20">Loading Wall …</p>;
   if (!event)
     return <p className="text-white text-center mt-20">Event not found.</p>;
 
+  /* ---------- PAGE OUTPUT ---------- */
   return (
     <>
       <style>{`
@@ -170,12 +175,12 @@ export default function FanWallPage() {
       `}</style>
 
       <div className="fade-wrapper">
-        {/* ---------- INACTIVE ---------- */}
+        {/* ---------- INACTIVE WALL ---------- */}
         <div className={`fade-child ${!showLive ? 'active' : ''}`}>
           <InactiveWall event={event} />
         </div>
 
-        {/* ---------- LIVE ---------- */}
+        {/* ---------- LIVE WALL ---------- */}
         <div className={`fade-child ${showLive ? 'active' : ''}`}>
           <LiveWall event={event} posts={submissions} />
         </div>
