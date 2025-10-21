@@ -147,7 +147,7 @@ export default function OptionsModal({
           <option>1 Column × 2 Row</option>
         </select>
 
-        {/* ---- TRANSITION ---- */}
+        {/* ---- POST TRANSITION ---- */}
         {localEvent.layout_type === 'Single Highlight Post' && (
           <>
             <label className="block mt-3 text-sm">Post Transition:</label>
@@ -169,25 +169,25 @@ export default function OptionsModal({
               <option>Flip</option>
               <option>Rotate In / Rotate Out</option>
             </select>
-
-            {/* 🆕 TRANSITION SPEED */}
-            <label className="block mt-3 text-sm">Transition Speed:</label>
-            <select
-              className="w-full p-2 rounded-md text-black mt-1"
-              value={localEvent.transition_speed || 'Medium'}
-              onChange={(e) =>
-                setLocalEvent({
-                  ...localEvent,
-                  transition_speed: e.target.value,
-                })
-              }
-            >
-              <option>Slow</option>
-              <option>Medium</option>
-              <option>Fast</option>
-            </select>
           </>
         )}
+
+        {/* 🕒 TRANSITION SPEED — always visible */}
+        <label className="block mt-3 text-sm">Transition Speed:</label>
+        <select
+          className="w-full p-2 rounded-md text-black mt-1"
+          value={localEvent.transition_speed || 'Medium'}
+          onChange={(e) =>
+            setLocalEvent({
+              ...localEvent,
+              transition_speed: e.target.value,
+            })
+          }
+        >
+          <option>Slow</option>
+          <option>Medium</option>
+          <option>Fast</option>
+        </select>
 
         {/* ---- AUTO DELETE ---- */}
         <label className="block mt-3 text-sm">Auto Delete Posts After:</label>
