@@ -5,7 +5,7 @@ import { useParams } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
 import InactiveWall from '@/components/InactiveWall';
 import SingleHighlightWall from '@/components/layouts/SingleHighlightWall';
-import Grid2x2Wall from '@/components/layouts/Grid2x2Wall'; // ✅ new import
+import Grid2x2Wall from '@/components/layouts/Grid2x2Wall'; // ✅ new layout import
 
 /* ---------- TYPES ---------- */
 interface EventData {
@@ -19,7 +19,7 @@ interface EventData {
   logo_url: string | null;
   qr_url: string | null;
   host_id: string;
-  layout_type?: string | null; // ✅ added for layout switching
+  layout_type?: string | null; // ✅ layout selector
 }
 
 interface SubmissionData {
@@ -97,7 +97,7 @@ export default function FanWallPage() {
       )
       .subscribe();
 
-    // ⚡ Fast poll every 0.5 seconds
+    // ⚡ fast poll (0.5s)
     const interval = setInterval(refreshEvent, 500);
 
     return () => {
@@ -163,7 +163,8 @@ export default function FanWallPage() {
   const bg =
     event?.background_type === 'image'
       ? `url(${event.background_value}) center/cover no-repeat`
-      : event?.background_value || 'linear-gradient(to bottom right,#1b2735,#090a0f)';
+      : event?.background_value ||
+        'linear-gradient(to bottom right,#1b2735,#090a0f)';
 
   /* ---------- LOADING ---------- */
   if (loading)
