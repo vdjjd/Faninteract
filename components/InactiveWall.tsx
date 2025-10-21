@@ -36,11 +36,19 @@ function CountdownDisplay({
       setTimeLeft((prev) => {
         if (prev <= 1) {
           clearInterval(timer);
-          // When timer hits zero, set wall live
-          supabase
-            .from('events')
-            .update({ status: 'live', countdown_active: false })
-            .eq('id', eventId);
+          // 🟢 When timer hits zero, set wall live
+          (async () => {
+            const { error } = await supabase
+              .from('events')
+              .update({ status: 'live', countdown_active: false })
+              .eq('id', eventId);
+
+            if (error) {
+              console.error('❌ Error setting wall live:', error);
+            } else {
+              console.log('✅ Countdown finished — wall set live');
+            }
+          })();
           return 0;
         }
         return prev - 1;
@@ -229,7 +237,7 @@ export default function InactiveWall({ event }: { event: any }) {
               Starting Soon!!
             </h2>
 
-            {/* Countdown is ALWAYS visible if set */}
+            {/* Countdown always visible if set */}
             {event.countdown && (
               <CountdownDisplay
                 countdown={event.countdown}
