@@ -232,7 +232,7 @@ export default function LiveWall({ event, posts }: LiveWallProps) {
         style={{
           position: 'absolute',
           bottom: 'calc(15vh - 90px)',
-          left: 'calc(7vw - 90px)', // ⬅️ moved farther left
+          left: 'calc(4.5vw - 90px)', // ⬅️ moved even farther left
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
@@ -247,7 +247,7 @@ export default function LiveWall({ event, posts }: LiveWallProps) {
             textShadow: '0 0 10px rgba(0,0,0,0.6)',
             fontWeight: 700,
             fontSize: 'clamp(1.2rem, 1.8vw, 2rem)',
-            marginBottom: '0.8vh', // fine-tuned spacing
+            marginBottom: '0.8vh',
           }}
         >
           Scan Me to Join
