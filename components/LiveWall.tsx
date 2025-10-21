@@ -250,7 +250,7 @@ export default function LiveWall({ event, posts }: LiveWallProps) {
             marginBottom: '0.8vh',
           }}
         >
-          Scan Me to Join
+          Scan Me To Join
         </p>
         <QRCodeCanvas
           value={`https://faninteract.vercel.app/submit/${event.id}`}
