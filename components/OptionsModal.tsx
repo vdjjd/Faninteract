@@ -36,10 +36,11 @@ export default function OptionsModal({
     const updates = {
       host_title: localEvent.host_title || '',
       title: localEvent.title || '',
-      countdown: countdownValue, // <-- force string
+      countdown: countdownValue,
       countdown_active: false,
       layout_type: localEvent.layout_type || '',
       post_transition: localEvent.post_transition || '',
+      transition_speed: localEvent.transition_speed || 'Medium', // 🆕 added field
       auto_delete_minutes: localEvent.auto_delete_minutes ?? 0,
       updated_at: new Date().toISOString(),
     };
@@ -54,7 +55,7 @@ export default function OptionsModal({
     if (error) {
       console.error('❌ Supabase update error:', error);
     } else {
-      console.log('✅ Countdown saved successfully');
+      console.log('✅ Event saved successfully');
     }
 
     await refreshEvents();
@@ -167,6 +168,23 @@ export default function OptionsModal({
               <option>Zoom In / Zoom Out</option>
               <option>Flip</option>
               <option>Rotate In / Rotate Out</option>
+            </select>
+
+            {/* 🆕 TRANSITION SPEED */}
+            <label className="block mt-3 text-sm">Transition Speed:</label>
+            <select
+              className="w-full p-2 rounded-md text-black mt-1"
+              value={localEvent.transition_speed || 'Medium'}
+              onChange={(e) =>
+                setLocalEvent({
+                  ...localEvent,
+                  transition_speed: e.target.value,
+                })
+              }
+            >
+              <option>Slow</option>
+              <option>Medium</option>
+              <option>Fast</option>
             </select>
           </>
         )}

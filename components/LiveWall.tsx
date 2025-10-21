@@ -56,19 +56,24 @@ const transitions: Record<string, any> = {
   },
 };
 
+/* ---------- SPEED MAP ---------- */
+const speedMap: Record<string, number> = {
+  Slow: 12000,
+  Medium: 8000,
+  Fast: 4000,
+};
+
 /* ---------- LIVE WALL ---------- */
 export default function LiveWall({ event, posts }: LiveWallProps) {
   const [livePosts, setLivePosts] = useState(posts || []);
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [transitionStyle, setTransitionStyle] = useState(
-    transitions[event?.post_transition || 'Fade In / Fade Out']
-  );
   const current = livePosts[currentIndex];
+  const transitionStyle =
+    transitions[event?.post_transition || 'Fade In / Fade Out'];
 
-  /* ---------- WATCH FOR TRANSITION UPDATES ---------- */
-  useEffect(() => {
-    setTransitionStyle(transitions[event?.post_transition || 'Fade In / Fade Out']);
-  }, [event?.post_transition]);
+  /* 🕒 Determine transition duration from event */
+  const displayDuration =
+    speedMap[event?.transition_speed || 'Medium'] || 8000;
 
   /* ---------- INITIAL FETCH ---------- */
   useEffect(() => {
@@ -120,9 +125,9 @@ export default function LiveWall({ event, posts }: LiveWallProps) {
     if (!livePosts || livePosts.length === 0) return;
     const interval = setInterval(() => {
       setCurrentIndex((i) => (i + 1) % livePosts.length);
-    }, 8000);
+    }, displayDuration); // ⏱️ Now uses selected speed
     return () => clearInterval(interval);
-  }, [livePosts]);
+  }, [livePosts, displayDuration]);
 
   /* ---------- BACKGROUND ---------- */
   const bg =
@@ -180,7 +185,7 @@ export default function LiveWall({ event, posts }: LiveWallProps) {
           position: 'relative',
         }}
       >
-        {/* ---------- LEFT SIDE (ANIMATED PHOTO) ---------- */}
+        {/* ---------- LEFT SIDE PHOTO ---------- */}
         <div style={{ width: '45%', marginLeft: '4vw' }}>
           <AnimatePresence mode="wait">
             {current?.photo_url ? (
@@ -200,7 +205,10 @@ export default function LiveWall({ event, posts }: LiveWallProps) {
             ) : (
               <motion.div
                 key="no-photo"
-                {...transitionStyle}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.6 }}
                 style={{
                   width: '100%',
                   height: 'auto',
@@ -217,7 +225,7 @@ export default function LiveWall({ event, posts }: LiveWallProps) {
           </AnimatePresence>
         </div>
 
-        {/* ---------- RIGHT SIDE (STATIC LOGO + BAR + ANIMATED TEXT) ---------- */}
+        {/* ---------- RIGHT SIDE ---------- */}
         <div
           style={{
             flexGrow: 1,
@@ -264,7 +272,7 @@ export default function LiveWall({ event, posts }: LiveWallProps) {
             }}
           ></div>
 
-          {/* ---------- ANIMATED TEXT ONLY ---------- */}
+          {/* ---------- ANIMATED TEXT ---------- */}
           <AnimatePresence mode="wait">
             {current ? (
               <motion.div
@@ -304,7 +312,10 @@ export default function LiveWall({ event, posts }: LiveWallProps) {
             ) : (
               <motion.div
                 key="no-posts"
-                {...transitionStyle}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.6 }}
                 style={{
                   color: 'rgba(255,255,255,0.7)',
                   fontSize: '2rem',
