@@ -26,12 +26,15 @@ export default function OptionsModal({
 
   async function handleSave() {
     setSaving(true);
+
+    // ✅ Save all user fields + reset countdown_active
     await supabase
       .from('events')
       .update({
         host_title: localEvent.host_title || '',
         title: localEvent.title || '',
         countdown: localEvent.countdown || null,
+        countdown_active: false, // 🧠 always reset countdown when saving
         layout_type: localEvent.layout_type || '',
         post_transition: localEvent.post_transition || '',
         auto_delete_minutes: localEvent.auto_delete_minutes ?? 0,
@@ -39,6 +42,7 @@ export default function OptionsModal({
       })
       .eq('id', localEvent.id);
 
+    // Refresh and close modal
     await refreshEvents();
     setSaving(false);
     onClose();

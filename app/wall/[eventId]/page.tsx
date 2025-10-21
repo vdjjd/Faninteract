@@ -13,7 +13,6 @@ interface EventData {
   status: 'inactive' | 'live';
   countdown: string | null;
   countdown_active?: boolean;
-  countdown_remaining?: number | null;
   background_type: 'gradient' | 'solid' | 'image' | null;
   background_value: string | null;
   logo_url: string | null;
@@ -32,7 +31,7 @@ interface SubmissionData {
   created_at: string;
 }
 
-/* ---------- MAIN PAGE ---------- */
+/* ---------- MAIN WALL PAGE ---------- */
 export default function FanWallPage() {
   const { eventId } = useParams();
   const [event, setEvent] = useState<EventData | null>(null);
@@ -44,12 +43,7 @@ export default function FanWallPage() {
   useEffect(() => {
     async function loadEvent() {
       if (!eventId) return;
-      const { data, error } = await supabase
-        .from('events')
-        .select('*')
-        .eq('id', eventId)
-        .single();
-
+      const { data, error } = await supabase.from('events').select('*').eq('id', eventId).single();
       if (error) console.error('❌ Error loading event:', error);
       if (data) {
         setEvent(data);
@@ -60,7 +54,7 @@ export default function FanWallPage() {
     loadEvent();
   }, [eventId]);
 
-  /* ---------- REALTIME EVENT UPDATES (STATUS + BACKGROUND + COUNTDOWN) ---------- */
+  /* ---------- REALTIME EVENT UPDATES ---------- */
   useEffect(() => {
     if (!eventId) return;
 
@@ -76,13 +70,14 @@ export default function FanWallPage() {
         },
         (payload) => {
           const updated = payload.new as EventData;
-          console.log('🔄 Event updated:', updated);
+          console.log('🔄 Event realtime update:', updated);
 
           setEvent((prev) => ({
             ...prev,
             ...updated,
           }));
 
+          // auto-switch wall state
           setShowLive(updated.status === 'live');
         }
       )
@@ -152,10 +147,8 @@ export default function FanWallPage() {
       : event?.background_value || 'linear-gradient(to bottom right,#1b2735,#090a0f)';
 
   /* ---------- LOADING ---------- */
-  if (loading)
-    return <p className="text-white text-center mt-20">Loading Wall …</p>;
-  if (!event)
-    return <p className="text-white text-center mt-20">Event not found.</p>;
+  if (loading) return <p className="text-white text-center mt-20">Loading Wall …</p>;
+  if (!event) return <p className="text-white text-center mt-20">Event not found.</p>;
 
   /* ---------- RENDER ---------- */
   return (

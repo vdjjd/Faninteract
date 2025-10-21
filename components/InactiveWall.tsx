@@ -7,11 +7,11 @@ import { useEffect, useState } from 'react';
 /* ---------- COUNTDOWN DISPLAY ---------- */
 function CountdownDisplay({
   countdown,
-  isActive,
+  countdownActive,
   eventId,
 }: {
   countdown: string;
-  isActive: boolean;
+  countdownActive: boolean;
   eventId: string;
 }) {
   const [timeLeft, setTimeLeft] = useState<number>(0);
@@ -28,9 +28,9 @@ function CountdownDisplay({
     setOriginalTime(total);
   }, [countdown]);
 
-  // Countdown logic — starts only if isActive is true
+  // When Play clicked → countdown_active = true → start timer
   useEffect(() => {
-    if (!isActive || timeLeft <= 0) return;
+    if (!countdownActive || timeLeft <= 0) return;
 
     const timer = setInterval(() => {
       setTimeLeft((prev) => {
@@ -48,12 +48,12 @@ function CountdownDisplay({
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [isActive, timeLeft, eventId]);
+  }, [countdownActive, eventId, timeLeft]);
 
-  // If countdown not active → reset to original
+  // Reset timer if countdown_active set to false (Stop clicked)
   useEffect(() => {
-    if (!isActive) setTimeLeft(originalTime);
-  }, [isActive, originalTime]);
+    if (!countdownActive) setTimeLeft(originalTime);
+  }, [countdownActive, originalTime]);
 
   if (!countdown) return null;
 
@@ -131,7 +131,7 @@ export default function InactiveWall({ event }: { event: any }) {
           {event.title || 'Fan Zone Wall'}
         </h1>
 
-        {/* ---------- MAIN DISPLAY ---------- */}
+        {/* ---------- DISPLAY AREA ---------- */}
         <div
           style={{
             width: '80vw',
@@ -147,7 +147,7 @@ export default function InactiveWall({ event }: { event: any }) {
             alignItems: 'center',
           }}
         >
-          {/* ---------- LEFT SIDE: QR ---------- */}
+          {/* ---------- BIG QR (LEFT SIDE) ---------- */}
           <QRCodeCanvas
             value={`https://faninteract.vercel.app/submit/${event.id}`}
             size={420}
@@ -164,7 +164,7 @@ export default function InactiveWall({ event }: { event: any }) {
             }}
           />
 
-          {/* ---------- RIGHT SIDE CONTENT ---------- */}
+          {/* ---------- RIGHT SIDE ---------- */}
           <div
             style={{
               flexGrow: 1,
@@ -211,7 +211,7 @@ export default function InactiveWall({ event }: { event: any }) {
               }}
             ></div>
 
-            {/* ---------- TEXT + COUNTDOWN ---------- */}
+            {/* ---------- TITLE + COUNTDOWN ---------- */}
             <h2
               className="pulse"
               style={{
@@ -229,11 +229,11 @@ export default function InactiveWall({ event }: { event: any }) {
               Starting Soon!!
             </h2>
 
-            {/* Countdown appears directly below this */}
+            {/* Countdown is ALWAYS visible if set */}
             {event.countdown && (
               <CountdownDisplay
                 countdown={event.countdown}
-                isActive={!!event.countdown_active}
+                countdownActive={!!event.countdown_active}
                 eventId={event.id}
               />
             )}
