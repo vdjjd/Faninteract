@@ -15,49 +15,47 @@ export default function LiveWall({ event, posts }: LiveWallProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const current = livePosts[currentIndex];
 
-  /* ---------- REALTIME SUBSCRIPTIONS ---------- */
+  /* ---------- REALTIME SUBMISSIONS ---------- */
   useEffect(() => {
     const channel = supabase
-      .channel('submissions-changes')
+      .channel(`submissions-live-${event.id}`)
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'submissions' },
         (payload) => {
           if (payload.eventType === 'INSERT' && payload.new.status === 'approved') {
             setLivePosts((prev) => [payload.new, ...prev]);
-          }
-          if (payload.eventType === 'UPDATE') {
+          } else if (payload.eventType === 'UPDATE') {
             setLivePosts((prev) =>
               prev.map((p) => (p.id === payload.new.id ? payload.new : p))
             );
-          }
-          if (payload.eventType === 'DELETE') {
+          } else if (payload.eventType === 'DELETE') {
             setLivePosts((prev) => prev.filter((p) => p.id !== payload.old.id));
           }
         }
       )
       .subscribe();
 
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, []);
+    return () => supabase.removeChannel(channel);
+  }, [event.id]);
 
-  /* ---------- CYCLE THROUGH APPROVED POSTS ---------- */
+  /* ---------- POST ROTATION ---------- */
   useEffect(() => {
-    if (!livePosts || livePosts.length === 0) return;
+    if (livePosts.length === 0) return;
     const interval = setInterval(() => {
       setCurrentIndex((i) => (i + 1) % livePosts.length);
     }, 8000);
     return () => clearInterval(interval);
   }, [livePosts]);
 
+  /* ---------- BACKGROUND ---------- */
   const bg =
     event?.background_type === 'image'
       ? `url(${event.background_value}) center/cover no-repeat`
       : event?.background_value ||
         'linear-gradient(to bottom right,#1b2735,#090a0f)';
 
+  /* ---------- RENDER ---------- */
   return (
     <div
       style={{
@@ -83,14 +81,14 @@ export default function LiveWall({ event, posts }: LiveWallProps) {
           letterSpacing: '1px',
           marginTop: '3vh',
           marginBottom: '1.5vh',
-          fontSize: 'clamp(2.5rem, 4vw, 5rem)',
+          fontSize: 'clamp(2.5rem,4vw,5rem)',
           lineHeight: 1.1,
         }}
       >
         {event.title || 'Fan Zone Wall'}
       </h1>
 
-      {/* ---------- DISPLAY AREA ---------- */}
+      {/* ---------- DISPLAY CONTAINER ---------- */}
       <div
         style={{
           width: '80vw',
@@ -100,13 +98,13 @@ export default function LiveWall({ event, posts }: LiveWallProps) {
           borderRadius: 20,
           boxShadow: '10px 10px 30px rgba(0,0,0,0.4)',
           border: '1px solid rgba(255,255,255,0.15)',
-          position: 'relative',
-          overflow: 'hidden',
           display: 'flex',
           alignItems: 'center',
+          overflow: 'hidden',
+          position: 'relative',
         }}
       >
-        {/* ---------- GUEST PHOTO ---------- */}
+        {/* ---------- PHOTO ---------- */}
         {current?.photo_url ? (
           <img
             src={current.photo_url}
@@ -116,8 +114,8 @@ export default function LiveWall({ event, posts }: LiveWallProps) {
               marginLeft: '4vw',
               width: '45%',
               height: 'auto',
-              boxShadow: '0 0 20px rgba(0,0,0,0.6)',
               objectFit: 'cover',
+              boxShadow: '0 0 20px rgba(0,0,0,0.6)',
               transition: 'opacity 0.8s ease',
             }}
           />
@@ -138,7 +136,7 @@ export default function LiveWall({ event, posts }: LiveWallProps) {
           </div>
         )}
 
-        {/* ---------- RIGHT SIDE CONTENT ---------- */}
+        {/* ---------- RIGHT SIDE ---------- */}
         <div
           style={{
             flexGrow: 1,
@@ -146,15 +144,13 @@ export default function LiveWall({ event, posts }: LiveWallProps) {
             flexDirection: 'column',
             alignItems: 'center',
             justifyContent: 'center',
-            height: '100%',
-            position: 'relative',
             transform: 'translateY(-11%)',
           }}
         >
           {/* ---------- LOGO ---------- */}
           <div
             style={{
-              width: 'clamp(260px, 26vw, 380px)',
+              width: 'clamp(260px,26vw,380px)',
               marginBottom: '0.8vh',
               transform: 'translateY(-3vh)',
             }}
@@ -183,9 +179,9 @@ export default function LiveWall({ event, posts }: LiveWallProps) {
               marginTop: '-3vh',
               marginBottom: '1.5vh',
             }}
-          ></div>
+          />
 
-          {/* ---------- NAME + MESSAGE ---------- */}
+          {/* ---------- NAME / MESSAGE ---------- */}
           {current ? (
             <>
               <h2
@@ -193,7 +189,7 @@ export default function LiveWall({ event, posts }: LiveWallProps) {
                   fontWeight: 900,
                   color: '#fff',
                   textShadow: '0 0 15px rgba(0,0,0,0.7)',
-                  fontSize: 'clamp(2rem, 3vw, 4rem)',
+                  fontSize: 'clamp(2rem,3vw,4rem)',
                   margin: 0,
                 }}
               >
@@ -204,7 +200,7 @@ export default function LiveWall({ event, posts }: LiveWallProps) {
                   fontWeight: 600,
                   color: '#eee',
                   textShadow: '0 0 10px rgba(0,0,0,0.5)',
-                  fontSize: 'clamp(1.4rem, 2vw, 2.8rem)',
+                  fontSize: 'clamp(1.4rem,2vw,2.8rem)',
                   textAlign: 'center',
                   maxWidth: '80%',
                   marginTop: '1vh',
@@ -227,26 +223,23 @@ export default function LiveWall({ event, posts }: LiveWallProps) {
         </div>
       </div>
 
-      {/* ---------- QR SECTION OUTSIDE CONTAINER ---------- */}
+      {/* ---------- SMALL QR ---------- */}
       <div
         style={{
           position: 'absolute',
           bottom: 'calc(17vh - 90px)',
-          left: 'calc(9vw - 90px)', // ⬅️ moved even farther left
+          left: 'calc(9vw - 90px)',
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
-          justifyContent: 'center',
-          textAlign: 'center',
         }}
       >
         <p
           style={{
             color: '#fff',
-            textAlign: 'center',
             textShadow: '0 0 10px rgba(0,0,0,0.6)',
             fontWeight: 700,
-            fontSize: 'clamp(1.2rem, 1.8vw, 2rem)',
+            fontSize: 'clamp(1.2rem,1.8vw,2rem)',
             marginBottom: '0.8vh',
           }}
         >
@@ -259,10 +252,7 @@ export default function LiveWall({ event, posts }: LiveWallProps) {
           fgColor="#000000"
           level="H"
           includeMargin={false}
-          style={{
-            borderRadius: 12,
-            boxShadow: '0 0 18px rgba(0,0,0,0.6)',
-          }}
+          style={{ borderRadius: 12, boxShadow: '0 0 18px rgba(0,0,0,0.6)' }}
         />
       </div>
 

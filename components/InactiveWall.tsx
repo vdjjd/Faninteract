@@ -2,48 +2,76 @@
 
 import { QRCodeCanvas } from 'qrcode.react';
 import { supabase } from '@/lib/supabaseClient';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 
 /* ---------- COUNTDOWN ---------- */
 function CountdownDisplay({
-  countdown,
-  isActive,
-  eventId,
+  event,
 }: {
-  countdown: string;
-  isActive: boolean;
-  eventId: string;
+  event: any;
 }) {
-  const [timeLeft, setTimeLeft] = useState(0);
+  const [remaining, setRemaining] = useState<number | null>(null);
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
 
+  /* --- Initialize countdown from DB --- */
   useEffect(() => {
-    if (!countdown) return;
-    const n = parseInt(countdown.split(' ')[0]);
-    const mins = countdown.includes('Minute');
-    const secs = countdown.includes('Second');
-    const total = mins ? n * 60 : secs ? n : 0;
-    setTimeLeft(total);
-  }, [countdown]);
+    if (!event) return;
+    if (event.countdown_active && event.countdown_remaining) {
+      setRemaining(event.countdown_remaining);
+    } else if (event.countdown) {
+      const n = parseInt(event.countdown.split(' ')[0]);
+      const mins = event.countdown.includes('Minute');
+      const secs = event.countdown.includes('Second');
+      setRemaining(mins ? n * 60 : secs ? n : 0);
+    }
+  }, [event]);
 
+  /* --- Handle ticking --- */
   useEffect(() => {
-    if (!isActive || timeLeft <= 0) return;
-    const timer = setInterval(() => {
-      setTimeLeft((prev) => {
-        if (prev <= 1) {
-          clearInterval(timer);
-          supabase.from('events').update({ status: 'live' }).eq('id', eventId);
+    if (!event?.countdown_active || remaining == null) return;
+
+    timerRef.current = setInterval(async () => {
+      setRemaining((prev) => {
+        if (prev === null) return prev;
+        const next = prev - 1;
+
+        if (next <= 0) {
+          clearInterval(timerRef.current!);
+          supabase
+            .from('events')
+            .update({
+              status: 'live',
+              countdown_active: false,
+              countdown_remaining: null,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', event.id);
           return 0;
         }
-        return prev - 1;
+
+        // Save remaining to DB for resume-on-refresh
+        supabase
+          .from('events')
+          .update({
+            countdown_remaining: next,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', event.id);
+
+        return next;
       });
     }, 1000);
-    return () => clearInterval(timer);
-  }, [isActive, eventId, timeLeft]);
 
-  if (timeLeft <= 0) return null;
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
+  }, [event?.countdown_active]);
 
-  const m = Math.floor(timeLeft / 60);
-  const s = timeLeft % 60;
+  if (remaining == null || remaining <= 0) return null;
+
+  const m = Math.floor(remaining / 60);
+  const s = remaining % 60;
+
   return (
     <div
       style={{
@@ -157,7 +185,7 @@ export default function InactiveWall({ event }: { event: any }) {
               justifyContent: 'center',
               height: '100%',
               position: 'relative',
-              transform: 'translateY(-11%)', // ⬆️ moved up slightly more
+              transform: 'translateY(-11%)',
             }}
           >
             {/* ---------- LOGO ---------- */}
@@ -165,7 +193,7 @@ export default function InactiveWall({ event }: { event: any }) {
               style={{
                 width: 'clamp(260px, 26vw, 380px)',
                 marginBottom: '0.8vh',
-                transform: 'translateY(-3vh)', // ⬆️ raise logo with group
+                transform: 'translateY(-3vh)',
               }}
             >
               <img
@@ -189,7 +217,7 @@ export default function InactiveWall({ event }: { event: any }) {
                 background: 'linear-gradient(to right,#000,#444)',
                 boxShadow: '0 0 12px rgba(0,0,0,0.7)',
                 opacity: 0.85,
-                marginTop: '-3vh', // ⬆️ bar sits higher now
+                marginTop: '-3vh',
                 marginBottom: '1.5vh',
               }}
             ></div>
@@ -207,11 +235,7 @@ export default function InactiveWall({ event }: { event: any }) {
                 >
                   Fan Zone Wall Starting In
                 </h2>
-                <CountdownDisplay
-                  countdown={event.countdown}
-                  isActive={!!event.countdown_active}
-                  eventId={event.id}
-                />
+                <CountdownDisplay event={event} />
               </>
             ) : (
               <h2

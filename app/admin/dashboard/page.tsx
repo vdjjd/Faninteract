@@ -40,10 +40,10 @@ export default function DashboardPage() {
   useEffect(() => {
     if (!host) return;
     const channel = supabase
-      .channel('submissions_realtime')
+      .channel('events_realtime_dashboard')
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: 'submissions' },
+        { event: '*', schema: 'public', table: 'events' },
         async () => {
           const updated = await getEventsByHost(host.id);
           setEvents(updated);
@@ -56,7 +56,7 @@ export default function DashboardPage() {
     };
   }, [host]);
 
-  /* ---------- CRUD ---------- */
+  /* ---------- CREATE / DELETE / CLEAR ---------- */
   async function handleCreateConfirm() {
     if (!newTitle.trim()) return;
     await createEvent(host.id, { title: newTitle.trim() });
@@ -76,12 +76,18 @@ export default function DashboardPage() {
     await clearEventPosts(id);
     await supabase
       .from('events')
-      .update({ status: 'cleared', updated_at: new Date().toISOString() })
+      .update({
+        status: 'inactive',
+        countdown: null,
+        countdown_active: false,
+        countdown_remaining: null,
+      })
       .eq('id', id);
     const updated = await getEventsByHost(host.id);
     setEvents(updated);
   }
 
+  /* ---------- LAUNCH WALL ---------- */
   async function handleLaunch(id: string) {
     const wallUrl = `${window.location.origin}/wall/${id}`;
     const popup = window.open(
@@ -92,24 +98,66 @@ export default function DashboardPage() {
     popup?.focus();
   }
 
-  async function handleStart(id: string) {
+  /* ---------- PLAY / STOP CONTROLS ---------- */
+  async function handlePlay(id: string) {
+    const { data: event } = await supabase
+      .from('events')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (!event) return;
+
+    let totalSeconds = 0;
+    if (event.countdown) {
+      const n = parseInt(event.countdown.split(' ')[0]);
+      const mins = event.countdown.includes('Minute');
+      const secs = event.countdown.includes('Second');
+      totalSeconds = mins ? n * 60 : secs ? n : 0;
+    }
+
     await supabase
       .from('events')
-      .update({ status: 'live', updated_at: new Date().toISOString() })
+      .update({
+        status: 'inactive',
+        countdown_active: !!event.countdown,
+        countdown_remaining: totalSeconds || null,
+        updated_at: new Date().toISOString(),
+      })
       .eq('id', id);
+
     const updated = await getEventsByHost(host.id);
     setEvents(updated);
   }
 
   async function handleStop(id: string) {
+    const { data: event } = await supabase
+      .from('events')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (!event) return;
+
+    // Reset timer back to full countdown
+    let totalSeconds = 0;
+    if (event.countdown) {
+      const n = parseInt(event.countdown.split(' ')[0]);
+      const mins = event.countdown.includes('Minute');
+      const secs = event.countdown.includes('Second');
+      totalSeconds = mins ? n * 60 : secs ? n : 0;
+    }
+
     await supabase
       .from('events')
       .update({
         status: 'inactive',
-        countdown: null,
+        countdown_active: false,
+        countdown_remaining: totalSeconds || null,
         updated_at: new Date().toISOString(),
       })
       .eq('id', id);
+
     const updated = await getEventsByHost(host.id);
     setEvents(updated);
   }
@@ -123,6 +171,7 @@ export default function DashboardPage() {
     );
   }
 
+  /* ---------- BACKGROUND CHANGE ---------- */
   async function handleBackgroundChange(event: any, newValue: string) {
     const card = document.getElementById(`card-${event.id}`);
     [card].forEach((el) => {
@@ -162,7 +211,7 @@ export default function DashboardPage() {
     );
   }
 
-  /* ---------- MAIN PAGE ---------- */
+  /* ---------- RENDER ---------- */
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#0a2540] via-[#1b2b44] to-black text-white flex flex-col items-center px-4 py-8 font-sans">
       <img
@@ -207,28 +256,22 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* ---------- EVENTS GRID ---------- */}
+      {/* ---------- EVENT CARDS ---------- */}
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5 mt-8">
         {events.map((event) => (
           <div
             key={event.id}
             id={`card-${event.id}`}
             className="rounded-xl p-4 text-center text-white shadow-lg transition-all"
-            style={{
-              background: event.background_value || DEFAULT_GRADIENT,
-            }}
+            style={{ background: event.background_value || DEFAULT_GRADIENT }}
           >
-            <h3 className="font-bold text-lg text-center">
-              {event.host_title || event.title}
-            </h3>
-            <p className="text-sm mt-1 text-center">
+            <h3 className="font-bold text-lg">{event.title}</h3>
+            <p className="text-sm mt-1">
               <strong>Status:</strong>{' '}
               <span
                 className={
                   event.status === 'live'
                     ? 'text-lime-400'
-                    : event.status === 'cleared'
-                    ? 'text-cyan-400'
                     : 'text-orange-400'
                 }
               >
@@ -253,7 +296,7 @@ export default function DashboardPage() {
                 🚀 Launch
               </button>
               <button
-                onClick={() => handleStart(event.id)}
+                onClick={() => handlePlay(event.id)}
                 className="bg-green-600 hover:bg-green-700 px-2 py-1 rounded text-sm font-semibold"
               >
                 ▶️ Play
@@ -290,32 +333,6 @@ export default function DashboardPage() {
         ))}
       </div>
 
-      {/* ---------- DELETE CONFIRMATION OVERLAY ---------- */}
-      {confirmingDelete && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 animate-fadeIn">
-          <div className="bg-[#111] border border-gray-500 rounded-xl p-6 text-center text-white shadow-2xl w-80">
-            <h3 className="text-xl font-semibold mb-3">Confirm Deletion</h3>
-            <p className="text-sm mb-4">
-              Are you sure you want to delete this event?
-            </p>
-            <div className="flex justify-center gap-4">
-              <button
-                onClick={() => handleDelete(confirmingDelete)}
-                className="bg-green-600 hover:bg-green-700 px-4 py-2 rounded-lg font-semibold"
-              >
-                ✅ Yes, Delete
-              </button>
-              <button
-                onClick={() => setConfirmingDelete(null)}
-                className="bg-red-600 hover:bg-red-700 px-4 py-2 rounded-lg font-semibold"
-              >
-                ✖ Cancel
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* ---------- OPTIONS MODAL ---------- */}
       {selectedEvent && (
         <OptionsModal
@@ -326,16 +343,6 @@ export default function DashboardPage() {
           refreshEvents={refreshEvents}
         />
       )}
-
-      <style>{`
-        @keyframes fadeIn {
-          from { opacity: 0; transform: scale(0.98); }
-          to { opacity: 1; transform: scale(1); }
-        }
-        .animate-fadeIn {
-          animation: fadeIn 0.25s ease-out;
-        }
-      `}</style>
     </div>
   );
 }

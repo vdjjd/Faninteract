@@ -9,6 +9,7 @@ interface ModalProps {
   children: ReactNode;
 }
 
+/* ---------- UNIVERSAL MODAL COMPONENT ---------- */
 export default function Modal({ isOpen, onClose, children }: ModalProps) {
   return (
     <AnimatePresence>
@@ -18,6 +19,7 @@ export default function Modal({ isOpen, onClose, children }: ModalProps) {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
+          transition={{ duration: 0.25 }}
           onClick={onClose}
         >
           <motion.div
@@ -31,6 +33,7 @@ export default function Modal({ isOpen, onClose, children }: ModalProps) {
             <button
               onClick={onClose}
               className="absolute top-3 right-3 text-gray-400 hover:text-white text-2xl leading-none"
+              title="Close"
             >
               ×
             </button>

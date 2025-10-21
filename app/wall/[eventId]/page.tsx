@@ -13,6 +13,7 @@ interface EventData {
   status: 'inactive' | 'live';
   countdown: string | null;
   countdown_active?: boolean;
+  countdown_remaining?: number | null;
   background_type: 'gradient' | 'solid' | 'image' | null;
   background_value: string | null;
   logo_url: string | null;
@@ -59,7 +60,7 @@ export default function FanWallPage() {
     loadEvent();
   }, [eventId]);
 
-  /* ---------- REALTIME EVENT UPDATES (STATUS + BACKGROUND) ---------- */
+  /* ---------- REALTIME EVENT UPDATES (STATUS + BACKGROUND + COUNTDOWN) ---------- */
   useEffect(() => {
     if (!eventId) return;
 
