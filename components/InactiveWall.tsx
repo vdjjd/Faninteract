@@ -280,3 +280,5 @@ export default function InactiveWall({ event }: { event: any }) {
         </div>
       </div>
     </>
+  );
+}
