@@ -59,24 +59,29 @@ export default function FanWallPage() {
     loadEvent();
   }, [eventId]);
 
-  /* ---------- REALTIME EVENT STATUS ---------- */
+  /* ---------- REALTIME EVENT UPDATES (STATUS + BACKGROUND) ---------- */
   useEffect(() => {
     if (!eventId) return;
 
     const channel = supabase
-      .channel(`events-status-${eventId}`)
+      .channel(`events-realtime-${eventId}`)
       .on(
         'postgres_changes',
         {
-          event: 'UPDATE',
+          event: '*',
           schema: 'public',
           table: 'events',
           filter: `id=eq.${eventId}`,
         },
         (payload) => {
           const updated = payload.new as EventData;
-          console.log('🔄 Event status changed to:', updated.status);
-          setEvent(updated);
+          console.log('🔄 Event updated:', updated);
+
+          setEvent((prev) => ({
+            ...prev,
+            ...updated,
+          }));
+
           setShowLive(updated.status === 'live');
         }
       )
@@ -106,7 +111,7 @@ export default function FanWallPage() {
     loadSubs();
 
     const subsChannel = supabase
-      .channel(`submissions-${eventId}`)
+      .channel(`submissions-realtime-${eventId}`)
       .on(
         'postgres_changes',
         {
@@ -121,10 +126,9 @@ export default function FanWallPage() {
           if (updated.status === 'approved') {
             setSubmissions((prev) => {
               const exists = prev.find((p) => p.id === updated.id);
-              if (exists) {
-                return prev.map((p) => (p.id === updated.id ? updated : p));
-              }
-              return [...prev, updated];
+              return exists
+                ? prev.map((p) => (p.id === updated.id ? updated : p))
+                : [...prev, updated];
             });
           }
 
@@ -144,16 +148,15 @@ export default function FanWallPage() {
   const bg =
     event?.background_type === 'image'
       ? `url(${event.background_value}) center/cover no-repeat`
-      : event?.background_value ||
-        'linear-gradient(to bottom right,#1b2735,#090a0f)';
+      : event?.background_value || 'linear-gradient(to bottom right,#1b2735,#090a0f)';
 
-  /* ---------- LOADING STATES ---------- */
+  /* ---------- LOADING ---------- */
   if (loading)
     return <p className="text-white text-center mt-20">Loading Wall …</p>;
   if (!event)
     return <p className="text-white text-center mt-20">Event not found.</p>;
 
-  /* ---------- PAGE OUTPUT ---------- */
+  /* ---------- RENDER ---------- */
   return (
     <>
       <style>{`
@@ -163,6 +166,7 @@ export default function FanWallPage() {
           height: 100vh;
           background: ${bg};
           overflow: hidden;
+          transition: background 0.6s ease-in-out;
         }
         .fade-child {
           position: absolute;
