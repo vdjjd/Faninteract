@@ -17,7 +17,7 @@ function CountdownDisplay({
   const [timeLeft, setTimeLeft] = useState<number>(0);
   const [originalTime, setOriginalTime] = useState<number>(0);
 
-  // Convert countdown string → seconds
+  // Convert countdown string ("5 Minutes", "30 Seconds") → seconds
   useEffect(() => {
     if (!countdown) return;
     const num = parseInt(countdown.split(' ')[0]);
@@ -28,29 +28,36 @@ function CountdownDisplay({
     setOriginalTime(total);
   }, [countdown]);
 
-  // Start countdown when active
+  // When Play clicked → countdown_active = true → start timer
   useEffect(() => {
     if (!countdownActive || timeLeft <= 0) return;
+
     const timer = setInterval(() => {
       setTimeLeft((prev) => {
         if (prev <= 1) {
           clearInterval(timer);
+          // 🟢 When timer hits zero, set wall live
           (async () => {
             const { error } = await supabase
               .from('events')
               .update({ status: 'live', countdown_active: false })
               .eq('id', eventId);
-            if (error) console.error('❌ Error setting wall live:', error);
+            if (error) {
+              console.error('❌ Error setting wall live:', error);
+            } else {
+              console.log('✅ Countdown finished — wall set live');
+            }
           })();
           return 0;
         }
         return prev - 1;
       });
     }, 1000);
+
     return () => clearInterval(timer);
   }, [countdownActive, eventId, timeLeft]);
 
-  // Reset on stop
+  // Reset timer if countdown_active set to false (Stop clicked)
   useEffect(() => {
     if (!countdownActive) setTimeLeft(originalTime);
   }, [countdownActive, originalTime]);
@@ -62,15 +69,12 @@ function CountdownDisplay({
 
   return (
     <div
-      className="pulse"
       style={{
-        fontSize: 'clamp(5rem, 9vw, 12rem)',
+        fontSize: '4vw',
         fontWeight: 900,
         color: '#fff',
-        textShadow:
-          '0 0 25px rgba(255,255,255,0.9), 0 0 60px rgba(255,255,255,0.6)',
-        marginTop: '2vh',
-        lineHeight: 1,
+        textShadow: '0 0 15px rgba(0,0,0,0.6)',
+        marginTop: '1vh',
       }}
     >
       {m}:{s.toString().padStart(2, '0')}
@@ -100,7 +104,7 @@ export default function InactiveWall({ event }: { event: any }) {
           }
         }
         .pulse {
-          animation: pulseGlow 2.2s ease-in-out infinite;
+          animation: pulseGlow 2.5s ease-in-out infinite;
         }
       `}</style>
 
@@ -150,7 +154,7 @@ export default function InactiveWall({ event }: { event: any }) {
             alignItems: 'center',
           }}
         >
-          {/* ---------- BIG QR ---------- */}
+          {/* ---------- BIG QR (LEFT SIDE) ---------- */}
           <QRCodeCanvas
             value={`https://faninteract.vercel.app/submit/${event.id}`}
             size={420}
@@ -161,10 +165,9 @@ export default function InactiveWall({ event }: { event: any }) {
             style={{
               borderRadius: 16,
               marginLeft: '4vw',
-              width: '420px',
-              height: '420px',
+              width: '45%',
+              height: 'auto',
               boxShadow: '0 0 20px rgba(0,0,0,0.6)',
-              flexShrink: 0,
             }}
           />
 
@@ -215,41 +218,32 @@ export default function InactiveWall({ event }: { event: any }) {
               }}
             ></div>
 
-            {/* ---------- STARTING SOON + TIMER ---------- */}
-            <div
+            {/* ---------- TITLE + COUNTDOWN ---------- */}
+            <h2
+              className="pulse"
               style={{
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                justifyContent: 'center',
-                marginTop: '1vh',
+                fontWeight: 850,
+                textShadow: '0 0 20px rgba(0,0,0,0.8)',
+                margin: 0,
+                fontSize: 'clamp(2.5rem, 3.2vw, 4.2rem)',
+                lineHeight: 1.2,
+                whiteSpace: 'normal',
+                textAlign: 'center',
               }}
             >
-              <h2
-                className="pulse"
-                style={{
-                  fontWeight: 850,
-                  textShadow: '0 0 20px rgba(0,0,0,0.8)',
-                  margin: 0,
-                  fontSize: 'clamp(2.5rem, 3.2vw, 4.2rem)',
-                  lineHeight: 1.2,
-                  textAlign: 'center',
-                }}
-              >
-                Fan Zone Wall
-                <br />
-                Starting Soon!!
-              </h2>
+              Fan Zone Wall
+              <br />
+              Starting Soon!!
+            </h2>
 
-              {/* Countdown directly below */}
-              {event.countdown && (
-                <CountdownDisplay
-                  countdown={event.countdown}
-                  countdownActive={!!event.countdown_active}
-                  eventId={event.id}
-                />
-              )}
-            </div>
+            {/* Countdown always visible if set */}
+            {event.countdown && (
+              <CountdownDisplay
+                countdown={event.countdown}
+                countdownActive={!!event.countdown_active}
+                eventId={event.id}
+              />
+            )}
           </div>
         </div>
 
@@ -267,11 +261,11 @@ export default function InactiveWall({ event }: { event: any }) {
             justifyContent: 'center',
             cursor: 'pointer',
             zIndex: 9999,
+            transition: 'opacity 0.3s ease',
             opacity: 0.2,
             background: 'rgba(255,255,255,0.1)',
             backdropFilter: 'blur(6px)',
             border: '1px solid rgba(255,255,255,0.2)',
-            transition: 'opacity 0.3s ease',
           }}
           onMouseEnter={(e) => (e.currentTarget.style.opacity = '1')}
           onMouseLeave={(e) => (e.currentTarget.style.opacity = '0.2')}
