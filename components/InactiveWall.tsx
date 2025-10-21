@@ -2,75 +2,60 @@
 
 import { QRCodeCanvas } from 'qrcode.react';
 import { supabase } from '@/lib/supabaseClient';
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState } from 'react';
 
 /* ---------- COUNTDOWN ---------- */
 function CountdownDisplay({
-  event,
+  countdown,
+  isActive,
+  eventId,
 }: {
-  event: any;
+  countdown: string;
+  isActive: boolean;
+  eventId: string;
 }) {
-  const [remaining, setRemaining] = useState<number | null>(null);
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const [timeLeft, setTimeLeft] = useState(0);
+  const [initialTime, setInitialTime] = useState(0);
 
-  /* --- Initialize countdown from DB --- */
+  // Convert text like "5 Minutes" or "30 Seconds" into seconds
   useEffect(() => {
-    if (!event) return;
-    if (event.countdown_active && event.countdown_remaining) {
-      setRemaining(event.countdown_remaining);
-    } else if (event.countdown) {
-      const n = parseInt(event.countdown.split(' ')[0]);
-      const mins = event.countdown.includes('Minute');
-      const secs = event.countdown.includes('Second');
-      setRemaining(mins ? n * 60 : secs ? n : 0);
-    }
-  }, [event]);
+    if (!countdown) return;
+    const n = parseInt(countdown.split(' ')[0]);
+    const mins = countdown.includes('Minute');
+    const secs = countdown.includes('Second');
+    const total = mins ? n * 60 : secs ? n : 0;
+    setTimeLeft(total);
+    setInitialTime(total);
+  }, [countdown]);
 
-  /* --- Handle ticking --- */
+  // Handle countdown logic
   useEffect(() => {
-    if (!event?.countdown_active || remaining == null) return;
+    if (!isActive || timeLeft <= 0) return;
 
-    timerRef.current = setInterval(async () => {
-      setRemaining((prev) => {
-        if (prev === null) return prev;
-        const next = prev - 1;
-
-        if (next <= 0) {
-          clearInterval(timerRef.current!);
-          supabase
-            .from('events')
-            .update({
-              status: 'live',
-              countdown_active: false,
-              countdown_remaining: null,
-              updated_at: new Date().toISOString(),
-            })
-            .eq('id', event.id);
+    const timer = setInterval(() => {
+      setTimeLeft((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          // when time hits zero → wall goes live
+          supabase.from('events').update({ status: 'live', countdown_active: false }).eq('id', eventId);
           return 0;
         }
-
-        // Save remaining to DB for resume-on-refresh
-        supabase
-          .from('events')
-          .update({
-            countdown_remaining: next,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', event.id);
-
-        return next;
+        return prev - 1;
       });
     }, 1000);
 
-    return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
-    };
-  }, [event?.countdown_active]);
+    return () => clearInterval(timer);
+  }, [isActive, eventId, timeLeft]);
 
-  if (remaining == null || remaining <= 0) return null;
+  // If timer inactive, reset back to original when Stop pressed
+  useEffect(() => {
+    if (!isActive) setTimeLeft(initialTime);
+  }, [isActive, initialTime]);
 
-  const m = Math.floor(remaining / 60);
-  const s = remaining % 60;
+  if (!countdown) return null;
+
+  const m = Math.floor(timeLeft / 60);
+  const s = timeLeft % 60;
 
   return (
     <div
@@ -79,6 +64,7 @@ function CountdownDisplay({
         fontWeight: 900,
         lineHeight: 1,
         textShadow: '0 0 12px rgba(0,0,0,0.6)',
+        marginTop: '1vh',
       }}
     >
       {m}:{s.toString().padStart(2, '0')}
@@ -93,6 +79,8 @@ export default function InactiveWall({ event }: { event: any }) {
       ? `url(${event.background_value}) center/cover no-repeat`
       : event?.background_value ||
         'linear-gradient(to bottom right,#1b2735,#090a0f)';
+
+  const hasCountdown = !!event.countdown;
 
   return (
     <>
@@ -158,7 +146,7 @@ export default function InactiveWall({ event }: { event: any }) {
             alignItems: 'center',
           }}
         >
-          {/* ---------- BIG QR (LEFT SIDE) ---------- */}
+          {/* ---------- BIG QR ---------- */}
           <QRCodeCanvas
             value={`https://faninteract.vercel.app/submit/${event.id}`}
             size={420}
@@ -222,38 +210,31 @@ export default function InactiveWall({ event }: { event: any }) {
               }}
             ></div>
 
-            {/* ---------- TEXT / COUNTDOWN ---------- */}
-            {event.countdown ? (
-              <>
-                <h2
-                  style={{
-                    fontWeight: 600,
-                    textShadow: '0 0 10px rgba(0,0,0,0.6)',
-                    fontSize: 'clamp(1.8rem, 2.4vw, 3rem)',
-                    marginBottom: 10,
-                  }}
-                >
-                  Fan Zone Wall Starting In
-                </h2>
-                <CountdownDisplay event={event} />
-              </>
-            ) : (
-              <h2
-                className="pulse"
-                style={{
-                  fontWeight: 850,
-                  textShadow: '0 0 20px rgba(0,0,0,0.8)',
-                  margin: 0,
-                  fontSize: 'clamp(2.5rem, 3.2vw, 4.2rem)',
-                  lineHeight: 1.2,
-                  whiteSpace: 'normal',
-                  textAlign: 'center',
-                }}
-              >
-                Fan Zone Wall
-                <br />
-                Starting Soon!!
-              </h2>
+            {/* ---------- TEXT ---------- */}
+            <h2
+              className="pulse"
+              style={{
+                fontWeight: 850,
+                textShadow: '0 0 20px rgba(0,0,0,0.8)',
+                margin: 0,
+                fontSize: 'clamp(2.5rem, 3.2vw, 4.2rem)',
+                lineHeight: 1.2,
+                whiteSpace: 'normal',
+                textAlign: 'center',
+              }}
+            >
+              Fan Zone Wall
+              <br />
+              Starting Soon!!
+            </h2>
+
+            {/* ---------- TIMER (only if countdown selected) ---------- */}
+            {hasCountdown && (
+              <CountdownDisplay
+                countdown={event.countdown}
+                isActive={!!event.countdown_active}
+                eventId={event.id}
+              />
             )}
           </div>
         </div>
