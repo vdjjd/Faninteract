@@ -28,7 +28,7 @@ function CountdownDisplay({
     setOriginalTime(total);
   }, [countdown]);
 
-  // When Play clicked → countdown_active = true → start timer
+  // Countdown timer
   useEffect(() => {
     if (!countdownActive || timeLeft <= 0) return;
 
@@ -36,18 +36,13 @@ function CountdownDisplay({
       setTimeLeft((prev) => {
         if (prev <= 1) {
           clearInterval(timer);
-          // 🟢 When timer hits zero, set wall live
           (async () => {
             const { error } = await supabase
               .from('events')
               .update({ status: 'live', countdown_active: false })
               .eq('id', eventId);
-
-            if (error) {
-              console.error('❌ Error setting wall live:', error);
-            } else {
-              console.log('✅ Countdown finished — wall set live');
-            }
+            if (error) console.error('❌ Error setting wall live:', error);
+            else console.log('✅ Countdown finished — wall set live');
           })();
           return 0;
         }
@@ -58,7 +53,7 @@ function CountdownDisplay({
     return () => clearInterval(timer);
   }, [countdownActive, eventId, timeLeft]);
 
-  // Reset timer if countdown_active set to false (Stop clicked)
+  // Reset timer when stopped
   useEffect(() => {
     if (!countdownActive) setTimeLeft(originalTime);
   }, [countdownActive, originalTime]);
@@ -70,12 +65,15 @@ function CountdownDisplay({
 
   return (
     <div
+      className="pulse-timer"
       style={{
-        fontSize: '4vw',
+        fontSize: 'clamp(6rem, 10vw, 12rem)',
         fontWeight: 900,
         color: '#fff',
-        textShadow: '0 0 15px rgba(0,0,0,0.6)',
-        marginTop: '1vh',
+        textShadow:
+          '0 0 25px rgba(255,255,255,0.5), 0 0 55px rgba(0,150,255,0.4)',
+        marginTop: '2vh',
+        letterSpacing: '0.05em',
       }}
     >
       {m}:{s.toString().padStart(2, '0')}
@@ -96,15 +94,19 @@ export default function InactiveWall({ event }: { event: any }) {
       <style>{`
         @keyframes pulseGlow {
           0%, 100% {
-            text-shadow: 0 0 18px rgba(255,255,255,0.3), 0 0 36px rgba(255,255,255,0.2);
-            opacity: 0.95;
+            text-shadow:
+              0 0 25px rgba(255,255,255,0.4),
+              0 0 55px rgba(0,150,255,0.3);
+            opacity: 0.9;
           }
           50% {
-            text-shadow: 0 0 28px rgba(255,255,255,0.8), 0 0 60px rgba(255,255,255,0.5);
+            text-shadow:
+              0 0 35px rgba(255,255,255,0.9),
+              0 0 90px rgba(0,150,255,0.6);
             opacity: 1;
           }
         }
-        .pulse {
+        .pulse, .pulse-timer {
           animation: pulseGlow 2.5s ease-in-out infinite;
         }
       `}</style>
@@ -237,7 +239,6 @@ export default function InactiveWall({ event }: { event: any }) {
               Starting Soon!!
             </h2>
 
-            {/* Countdown always visible if set */}
             {event.countdown && (
               <CountdownDisplay
                 countdown={event.countdown}
