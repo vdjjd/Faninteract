@@ -24,7 +24,9 @@ export default function DashboardPage() {
   /* ---------- LOAD HOST EVENTS ---------- */
   useEffect(() => {
     async function fetchData() {
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       if (!user) return;
       setHost(user);
       const fetched = await getEventsByHost(user.id);
@@ -151,6 +153,7 @@ export default function DashboardPage() {
     setEvents(updated);
   }
 
+  /* ---------- LOADING STATE ---------- */
   if (loading) {
     return (
       <div className="flex items-center justify-center h-screen bg-gradient-to-br from-[#0a2540] via-[#1b2b44] to-black text-white">
@@ -159,6 +162,7 @@ export default function DashboardPage() {
     );
   }
 
+  /* ---------- MAIN PAGE ---------- */
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#0a2540] via-[#1b2b44] to-black text-white flex flex-col items-center px-4 py-8 font-sans">
       <img
@@ -168,6 +172,7 @@ export default function DashboardPage() {
       />
       <h1 className="text-2xl font-bold mb-6">🎛 Host Dashboard</h1>
 
+      {/* ---------- CREATE NEW EVENT ---------- */}
       {!creatingNew ? (
         <button
           onClick={() => setCreatingNew(true)}
@@ -274,36 +279,42 @@ export default function DashboardPage() {
               >
                 ⚙ Options
               </button>
-              {confirmingDelete === event.id ? (
-                <div className="mt-2 bg-black/70 p-2 rounded-md border border-gray-500">
-                  <p>Confirm delete?</p>
-                  <div className="flex gap-2 mt-2 justify-center">
-                    <button
-                      onClick={() => handleDelete(event.id)}
-                      className="bg-green-600 px-2 py-1 rounded"
-                    >
-                      ✅ Confirm
-                    </button>
-                    <button
-                      onClick={() => setConfirmingDelete(null)}
-                      className="bg-red-600 px-2 py-1 rounded"
-                    >
-                      ✖ Cancel
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <button
-                  onClick={() => setConfirmingDelete(event.id)}
-                  className="bg-red-700 hover:bg-red-800 px-2 py-1 rounded text-sm font-semibold"
-                >
-                  ❌ Delete
-                </button>
-              )}
+              <button
+                onClick={() => setConfirmingDelete(event.id)}
+                className="bg-red-700 hover:bg-red-800 px-2 py-1 rounded text-sm font-semibold"
+              >
+                ❌ Delete
+              </button>
             </div>
           </div>
         ))}
       </div>
+
+      {/* ---------- DELETE CONFIRMATION OVERLAY ---------- */}
+      {confirmingDelete && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 animate-fadeIn">
+          <div className="bg-[#111] border border-gray-500 rounded-xl p-6 text-center text-white shadow-2xl w-80">
+            <h3 className="text-xl font-semibold mb-3">Confirm Deletion</h3>
+            <p className="text-sm mb-4">
+              Are you sure you want to delete this event?
+            </p>
+            <div className="flex justify-center gap-4">
+              <button
+                onClick={() => handleDelete(confirmingDelete)}
+                className="bg-green-600 hover:bg-green-700 px-4 py-2 rounded-lg font-semibold"
+              >
+                ✅ Yes, Delete
+              </button>
+              <button
+                onClick={() => setConfirmingDelete(null)}
+                className="bg-red-600 hover:bg-red-700 px-4 py-2 rounded-lg font-semibold"
+              >
+                ✖ Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ---------- OPTIONS MODAL ---------- */}
       {selectedEvent && (
@@ -315,6 +326,16 @@ export default function DashboardPage() {
           refreshEvents={refreshEvents}
         />
       )}
+
+      <style>{`
+        @keyframes fadeIn {
+          from { opacity: 0; transform: scale(0.98); }
+          to { opacity: 1; transform: scale(1); }
+        }
+        .animate-fadeIn {
+          animation: fadeIn 0.25s ease-out;
+        }
+      `}</style>
     </div>
   );
 }
