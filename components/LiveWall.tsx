@@ -231,8 +231,8 @@ export default function LiveWall({ event, posts }: LiveWallProps) {
       <div
         style={{
           position: 'absolute',
-          bottom: 'calc(15vh - 90px)',
-          left: 'calc(8vw - 90px)', // ⬅️ moved even farther left
+          bottom: 'calc(17vh - 90px)',
+          left: 'calc(9vw - 90px)', // ⬅️ moved even farther left
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
