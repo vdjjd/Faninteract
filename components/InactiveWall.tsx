@@ -17,6 +17,7 @@ function CountdownDisplay({
   const [timeLeft, setTimeLeft] = useState<number>(0);
   const [originalTime, setOriginalTime] = useState<number>(0);
 
+  // Convert countdown string → seconds
   useEffect(() => {
     if (!countdown) return;
     const num = parseInt(countdown.split(' ')[0]);
@@ -27,13 +28,14 @@ function CountdownDisplay({
     setOriginalTime(total);
   }, [countdown]);
 
+  // Start countdown when active
   useEffect(() => {
     if (!countdownActive || timeLeft <= 0) return;
-
     const timer = setInterval(() => {
       setTimeLeft((prev) => {
         if (prev <= 1) {
           clearInterval(timer);
+          // When timer hits zero → make wall live
           (async () => {
             const { error } = await supabase
               .from('events')
@@ -47,10 +49,10 @@ function CountdownDisplay({
         return prev - 1;
       });
     }, 1000);
-
     return () => clearInterval(timer);
   }, [countdownActive, eventId, timeLeft]);
 
+  // Reset on stop
   useEffect(() => {
     if (!countdownActive) setTimeLeft(originalTime);
   }, [countdownActive, originalTime]);
@@ -64,13 +66,12 @@ function CountdownDisplay({
     <div
       className="pulse"
       style={{
-        fontSize: 'clamp(6rem, 9vw, 12rem)', // 🧠 much bigger
+        fontSize: 'clamp(5rem, 9vw, 12rem)',
         fontWeight: 900,
         color: '#fff',
         textShadow:
-          '0 0 25px rgba(255,255,255,0.7), 0 0 70px rgba(0,150,255,0.5)',
-        marginTop: '3.5vh', // 🟢 slightly lower to fill space
-        letterSpacing: '0.06em',
+          '0 0 25px rgba(255,255,255,0.9), 0 0 60px rgba(255,255,255,0.6)',
+        marginTop: '2.5vh',
         lineHeight: 1,
       }}
     >
@@ -92,20 +93,16 @@ export default function InactiveWall({ event }: { event: any }) {
       <style>{`
         @keyframes pulseGlow {
           0%, 100% {
-            text-shadow:
-              0 0 25px rgba(255,255,255,0.3),
-              0 0 55px rgba(0,150,255,0.25);
-            opacity: 0.9;
+            text-shadow: 0 0 18px rgba(255,255,255,0.3), 0 0 36px rgba(255,255,255,0.2);
+            opacity: 0.95;
           }
           50% {
-            text-shadow:
-              0 0 45px rgba(255,255,255,0.9),
-              0 0 95px rgba(0,150,255,0.7);
+            text-shadow: 0 0 28px rgba(255,255,255,0.8), 0 0 60px rgba(255,255,255,0.5);
             opacity: 1;
           }
         }
         .pulse {
-          animation: pulseGlow 2.5s ease-in-out infinite;
+          animation: pulseGlow 2.2s ease-in-out infinite;
         }
       `}</style>
 
@@ -139,7 +136,7 @@ export default function InactiveWall({ event }: { event: any }) {
           {event.title || 'Fan Zone Wall'}
         </h1>
 
-        {/* ---------- DISPLAY AREA ---------- */}
+        {/* ---------- DISPLAY CONTAINER ---------- */}
         <div
           style={{
             width: '80vw',
@@ -149,10 +146,12 @@ export default function InactiveWall({ event }: { event: any }) {
             borderRadius: 20,
             boxShadow: '10px 10px 30px rgba(0,0,0,0.4)',
             border: '1px solid rgba(255,255,255,0.15)',
-            position: 'relative',
-            overflow: 'hidden',
             display: 'flex',
             alignItems: 'center',
+            justifyContent: 'space-between',
+            overflow: 'hidden',
+            position: 'relative',
+            padding: '0 3vw',
           }}
         >
           {/* ---------- BIG QR ---------- */}
@@ -165,47 +164,36 @@ export default function InactiveWall({ event }: { event: any }) {
             includeMargin={false}
             style={{
               borderRadius: 16,
-              marginLeft: '4vw',
-              width: '45%',
-              height: 'auto',
               boxShadow: '0 0 20px rgba(0,0,0,0.6)',
             }}
           />
 
-          {/* ---------- RIGHT SIDE ---------- */}
+          {/* ---------- RIGHT SIDE STACK ---------- */}
           <div
             style={{
-              flexGrow: 1,
               display: 'flex',
               flexDirection: 'column',
               alignItems: 'center',
-              justifyContent: 'center',
+              justifyContent: 'flex-start',
+              width: '50%',
               height: '100%',
-              position: 'relative',
-              transform: 'translateY(-11%)', // 👈 nothing else moved
+              paddingTop: '3vh',
             }}
           >
-            {/* ---------- LOGO ---------- */}
-            <div
+            {/* Logo */}
+            <img
+              src={event.logo_url || '/faninteractlogo.png'}
+              alt="Logo"
               style={{
                 width: 'clamp(260px, 26vw, 380px)',
-                marginBottom: '0.8vh',
-                transform: 'translateY(-3vh)',
+                height: 'auto',
+                objectFit: 'contain',
+                filter: 'drop-shadow(0 0 12px rgba(0,0,0,0.85))',
+                marginBottom: '1vh',
               }}
-            >
-              <img
-                src={event.logo_url || '/faninteractlogo.png'}
-                alt="Logo"
-                style={{
-                  width: '100%',
-                  height: 'auto',
-                  objectFit: 'contain',
-                  filter: 'drop-shadow(0 0 12px rgba(0,0,0,0.85))',
-                }}
-              />
-            </div>
+            />
 
-            {/* ---------- GREY BAR ---------- */}
+            {/* Grey bar */}
             <div
               style={{
                 width: '92%',
@@ -214,12 +202,11 @@ export default function InactiveWall({ event }: { event: any }) {
                 background: 'linear-gradient(to right,#000,#444)',
                 boxShadow: '0 0 12px rgba(0,0,0,0.7)',
                 opacity: 0.85,
-                marginTop: '-3vh',
                 marginBottom: '1.5vh',
               }}
             ></div>
 
-            {/* ---------- TITLE ---------- */}
+            {/* “Starting Soon!!” text */}
             <h2
               className="pulse"
               style={{
@@ -227,9 +214,8 @@ export default function InactiveWall({ event }: { event: any }) {
                 textShadow: '0 0 20px rgba(0,0,0,0.8)',
                 margin: 0,
                 fontSize: 'clamp(2.5rem, 3.2vw, 4.2rem)',
-                lineHeight: 1.2,
-                whiteSpace: 'normal',
                 textAlign: 'center',
+                lineHeight: 1.2,
               }}
             >
               Fan Zone Wall
@@ -237,7 +223,7 @@ export default function InactiveWall({ event }: { event: any }) {
               Starting Soon!!
             </h2>
 
-            {/* ---------- COUNTDOWN ---------- */}
+            {/* Countdown below text */}
             {event.countdown && (
               <CountdownDisplay
                 countdown={event.countdown}
@@ -248,7 +234,7 @@ export default function InactiveWall({ event }: { event: any }) {
           </div>
         </div>
 
-        {/* ---------- FULLSCREEN ---------- */}
+        {/* ---------- FULLSCREEN BUTTON ---------- */}
         <div
           style={{
             position: 'fixed',
@@ -262,11 +248,11 @@ export default function InactiveWall({ event }: { event: any }) {
             justifyContent: 'center',
             cursor: 'pointer',
             zIndex: 9999,
-            transition: 'opacity 0.3s ease',
             opacity: 0.2,
             background: 'rgba(255,255,255,0.1)',
             backdropFilter: 'blur(6px)',
             border: '1px solid rgba(255,255,255,0.2)',
+            transition: 'opacity 0.3s ease',
           }}
           onMouseEnter={(e) => (e.currentTarget.style.opacity = '1')}
           onMouseLeave={(e) => (e.currentTarget.style.opacity = '0.2')}
@@ -294,5 +280,3 @@ export default function InactiveWall({ event }: { event: any }) {
         </div>
       </div>
     </>
-  );
-}
