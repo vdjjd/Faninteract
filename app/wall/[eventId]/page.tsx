@@ -39,7 +39,7 @@ export default function FanWallPage() {
   const [loading, setLoading] = useState(true);
   const [showLive, setShowLive] = useState(false);
 
-  /* ---------- LOAD EVENT INITIALLY ---------- */
+  /* ---------- INITIAL LOAD ---------- */
   useEffect(() => {
     async function loadEvent() {
       if (!eventId) return;
@@ -59,7 +59,7 @@ export default function FanWallPage() {
     loadEvent();
   }, [eventId]);
 
-  /* ---------- REALTIME EVENT STATUS UPDATES ---------- */
+  /* ---------- REALTIME EVENT STATUS ---------- */
   useEffect(() => {
     if (!eventId) return;
 
@@ -68,14 +68,14 @@ export default function FanWallPage() {
       .on(
         'postgres_changes',
         {
-          event: '*', // catches INSERT & UPDATE
+          event: '*',
           schema: 'public',
           table: 'events',
           filter: `id=eq.${eventId}`,
         },
         (payload) => {
           const updated = payload.new as EventData;
-          console.log('🔄 Event status updated →', updated.status);
+          console.log('🔄 Event status update →', updated.status);
           setEvent(updated);
           setShowLive(updated.status === 'live');
         }
@@ -117,6 +117,7 @@ export default function FanWallPage() {
         },
         (payload) => {
           const updated = payload.new as SubmissionData;
+
           if (updated.status === 'approved') {
             setSubmissions((prev) => {
               const exists = prev.find((p) => p.id === updated.id);
@@ -125,6 +126,10 @@ export default function FanWallPage() {
               }
               return [...prev, updated];
             });
+          }
+          // remove if unapproved or deleted
+          if (payload.eventType === 'DELETE' || updated.status !== 'approved') {
+            setSubmissions((prev) => prev.filter((p) => p.id !== updated.id));
           }
         }
       )
@@ -182,7 +187,28 @@ export default function FanWallPage() {
 
         {/* ---------- LIVE WALL ---------- */}
         <div className={`fade-child ${showLive ? 'active' : ''}`}>
-          <LiveWall event={event} posts={submissions} />
+          <LiveWall
+            event={event}
+            posts={submissions.length > 0 ? submissions : []}
+          />
+          {showLive && submissions.length === 0 && (
+            <div
+              style={{
+                position: 'absolute',
+                top: '50%',
+                left: '50%',
+                transform: 'translate(-50%, -50%)',
+                textAlign: 'center',
+                color: '#fff',
+                fontSize: 'clamp(2rem, 3vw, 4rem)',
+                fontWeight: 800,
+                textShadow: '0 0 20px rgba(0,0,0,0.7)',
+                opacity: 0.8,
+              }}
+            >
+              Awaiting Submissions…
+            </div>
+          )}
         </div>
       </div>
     </>
