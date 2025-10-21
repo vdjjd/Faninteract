@@ -60,8 +60,15 @@ const transitions: Record<string, any> = {
 export default function LiveWall({ event, posts }: LiveWallProps) {
   const [livePosts, setLivePosts] = useState(posts || []);
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [transitionStyle, setTransitionStyle] = useState(
+    transitions[event?.post_transition || 'Fade In / Fade Out']
+  );
   const current = livePosts[currentIndex];
-  const transitionStyle = transitions[event?.post_transition || 'Fade In / Fade Out'];
+
+  /* ---------- WATCH FOR TRANSITION UPDATES ---------- */
+  useEffect(() => {
+    setTransitionStyle(transitions[event?.post_transition || 'Fade In / Fade Out']);
+  }, [event?.post_transition]);
 
   /* ---------- INITIAL FETCH ---------- */
   useEffect(() => {
@@ -157,171 +164,159 @@ export default function LiveWall({ event, posts }: LiveWallProps) {
         {event.title || 'Fan Zone Wall'}
       </h1>
 
-{/* ---------- DISPLAY AREA ---------- */}
-<div
-  style={{
-    width: '80vw',
-    height: '70vh',
-    backdropFilter: 'blur(18px)',
-    background: 'rgba(255,255,255,0.08)',
-    borderRadius: 20,
-    boxShadow: '10px 10px 30px rgba(0,0,0,0.4)',
-    border: '1px solid rgba(255,255,255,0.15)',
-    display: 'flex',
-    alignItems: 'center',
-    overflow: 'hidden',
-    position: 'relative',
-  }}
->
-  {/* ---------- LEFT SIDE (ANIMATED PHOTO) ---------- */}
-  <div style={{ width: '45%', marginLeft: '4vw' }}>
-    <AnimatePresence mode="wait">
-      {current?.photo_url ? (
-        <motion.img
-          key={current.id}
-          src={current.photo_url}
-          alt="Guest Submission"
-          initial={{ opacity: 0, y: 40 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -40 }}
-          transition={{ duration: 0.6 }}
-          style={{
-            borderRadius: 16,
-            width: '100%',
-            height: 'auto',
-            boxShadow: '0 0 20px rgba(0,0,0,0.6)',
-            objectFit: 'cover',
-          }}
-        />
-      ) : (
-        <motion.div
-          key="no-photo"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.6 }}
-          style={{
-            width: '100%',
-            height: 'auto',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            color: 'rgba(255,255,255,0.5)',
-            fontSize: '2rem',
-          }}
-        >
-          No Photo
-        </motion.div>
-      )}
-    </AnimatePresence>
-  </div>
-
-  {/* ---------- RIGHT SIDE (STATIC LOGO + BAR + ANIMATED TEXT) ---------- */}
-  <div
-    style={{
-      flexGrow: 1,
-      display: 'flex',
-      flexDirection: 'column',
-      alignItems: 'center',
-      justifyContent: 'center',
-      height: '100%',
-      transform: 'translateY(-11%)',
-      position: 'relative',
-    }}
-  >
-    {/* STATIC LOGO */}
-    <div
-      style={{
-        width: 'clamp(260px, 26vw, 380px)',
-        marginBottom: '0.8vh',
-        transform: 'translateY(-3vh)',
-      }}
-    >
-      <img
-        src={event.logo_url || '/faninteractlogo.png'}
-        alt="Logo"
+      {/* ---------- DISPLAY AREA ---------- */}
+      <div
         style={{
-          width: '100%',
-          height: 'auto',
-          objectFit: 'contain',
-          filter: 'drop-shadow(0 0 12px rgba(0,0,0,0.85))',
+          width: '80vw',
+          height: '70vh',
+          backdropFilter: 'blur(18px)',
+          background: 'rgba(255,255,255,0.08)',
+          borderRadius: 20,
+          boxShadow: '10px 10px 30px rgba(0,0,0,0.4)',
+          border: '1px solid rgba(255,255,255,0.15)',
+          display: 'flex',
+          alignItems: 'center',
+          overflow: 'hidden',
+          position: 'relative',
         }}
-      />
-    </div>
+      >
+        {/* ---------- LEFT SIDE (ANIMATED PHOTO) ---------- */}
+        <div style={{ width: '45%', marginLeft: '4vw' }}>
+          <AnimatePresence mode="wait">
+            {current?.photo_url ? (
+              <motion.img
+                key={current.id}
+                src={current.photo_url}
+                alt="Guest Submission"
+                {...transitionStyle}
+                style={{
+                  borderRadius: 16,
+                  width: '100%',
+                  height: 'auto',
+                  boxShadow: '0 0 20px rgba(0,0,0,0.6)',
+                  objectFit: 'cover',
+                }}
+              />
+            ) : (
+              <motion.div
+                key="no-photo"
+                {...transitionStyle}
+                style={{
+                  width: '100%',
+                  height: 'auto',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: 'rgba(255,255,255,0.5)',
+                  fontSize: '2rem',
+                }}
+              >
+                No Photo
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
 
-    {/* STATIC GREY BAR */}
-    <div
-      style={{
-        width: '92%',
-        height: 14,
-        borderRadius: 6,
-        background: 'linear-gradient(to right,#000,#444)',
-        boxShadow: '0 0 12px rgba(0,0,0,0.7)',
-        opacity: 0.85,
-        marginTop: '-3vh',
-        marginBottom: '1.5vh',
-      }}
-    ></div>
-
-    {/* ---------- ANIMATED TEXT ONLY ---------- */}
-    <AnimatePresence mode="wait">
-      {current ? (
-        <motion.div
-          key={current.id}
-          initial={{ opacity: 0, y: 40 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -40 }}
-          transition={{ duration: 0.6 }}
+        {/* ---------- RIGHT SIDE (STATIC LOGO + BAR + ANIMATED TEXT) ---------- */}
+        <div
           style={{
+            flexGrow: 1,
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
+            justifyContent: 'center',
+            height: '100%',
+            transform: 'translateY(-11%)',
+            position: 'relative',
           }}
         >
-          <h2
+          {/* STATIC LOGO */}
+          <div
             style={{
-              fontWeight: 900,
-              color: '#fff',
-              textShadow: '0 0 15px rgba(0,0,0,0.7)',
-              fontSize: 'clamp(2rem, 3vw, 4rem)',
-              margin: 0,
+              width: 'clamp(260px, 26vw, 380px)',
+              marginBottom: '0.8vh',
+              transform: 'translateY(-3vh)',
             }}
           >
-            {current.nickname || ''}
-          </h2>
-          <p
+            <img
+              src={event.logo_url || '/faninteractlogo.png'}
+              alt="Logo"
+              style={{
+                width: '100%',
+                height: 'auto',
+                objectFit: 'contain',
+                filter: 'drop-shadow(0 0 12px rgba(0,0,0,0.85))',
+              }}
+            />
+          </div>
+
+          {/* STATIC GREY BAR */}
+          <div
             style={{
-              fontWeight: 600,
-              color: '#eee',
-              textShadow: '0 0 10px rgba(0,0,0,0.5)',
-              fontSize: 'clamp(1.4rem, 2vw, 2.8rem)',
-              textAlign: 'center',
-              maxWidth: '80%',
-              marginTop: '1vh',
+              width: '92%',
+              height: 14,
+              borderRadius: 6,
+              background: 'linear-gradient(to right,#000,#444)',
+              boxShadow: '0 0 12px rgba(0,0,0,0.7)',
+              opacity: 0.85,
+              marginTop: '-3vh',
+              marginBottom: '1.5vh',
             }}
-          >
-            {current.message || ''}
-          </p>
-        </motion.div>
-      ) : (
-        <motion.div
-          key="no-posts"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.6 }}
-          style={{
-            color: 'rgba(255,255,255,0.7)',
-            fontSize: '2rem',
-            textAlign: 'center',
-          }}
-        >
-          No Approved Submissions Yet
-        </motion.div>
-      )}
-    </AnimatePresence>
-  </div>
-</div>
+          ></div>
+
+          {/* ---------- ANIMATED TEXT ONLY ---------- */}
+          <AnimatePresence mode="wait">
+            {current ? (
+              <motion.div
+                key={current.id}
+                {...transitionStyle}
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                }}
+              >
+                <h2
+                  style={{
+                    fontWeight: 900,
+                    color: '#fff',
+                    textShadow: '0 0 15px rgba(0,0,0,0.7)',
+                    fontSize: 'clamp(2rem, 3vw, 4rem)',
+                    margin: 0,
+                  }}
+                >
+                  {current.nickname || ''}
+                </h2>
+                <p
+                  style={{
+                    fontWeight: 600,
+                    color: '#eee',
+                    textShadow: '0 0 10px rgba(0,0,0,0.5)',
+                    fontSize: 'clamp(1.4rem, 2vw, 2.8rem)',
+                    textAlign: 'center',
+                    maxWidth: '80%',
+                    marginTop: '1vh',
+                  }}
+                >
+                  {current.message || ''}
+                </p>
+              </motion.div>
+            ) : (
+              <motion.div
+                key="no-posts"
+                {...transitionStyle}
+                style={{
+                  color: 'rgba(255,255,255,0.7)',
+                  fontSize: '2rem',
+                  textAlign: 'center',
+                }}
+              >
+                No Approved Submissions Yet
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+      </div>
 
       {/* ---------- QR SECTION ---------- */}
       <div
