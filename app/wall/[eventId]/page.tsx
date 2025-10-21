@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
 import InactiveWall from '@/components/InactiveWall';
-import LiveWall from '@/components/LiveWall';
+import SingleHighlightWall from '@/components/layouts/SingleHighlightWall'; // ✅ updated import
 
 /* ---------- TYPES ---------- */
 interface EventData {
@@ -204,7 +204,7 @@ export default function FanWallPage() {
 
         {/* ---------- LIVE WALL ---------- */}
         <div className={`fade-child ${showLive ? 'active' : ''}`}>
-          <LiveWall event={event} posts={submissions} />
+          <SingleHighlightWall event={event} posts={submissions} /> {/* ✅ updated usage */}
         </div>
       </div>
     </>
