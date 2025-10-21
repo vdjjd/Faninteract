@@ -164,6 +164,10 @@ export default function InactiveWall({ event }: { event: any }) {
             includeMargin={false}
             style={{
               borderRadius: 16,
+              marginLeft: '4vw',
+              width: '420px',
+              height: '420px',
+              flexShrink: 0,
               boxShadow: '0 0 20px rgba(0,0,0,0.6)',
             }}
           />
