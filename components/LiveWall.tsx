@@ -125,15 +125,29 @@ export default function LiveWall({ event, posts }: LiveWallProps) {
     };
   }, [event?.id]);
 
-  /* ---------- 🧹 AUTO DELETE FILTER ---------- */
-  const filteredPosts = livePosts.filter((post) => {
+/* ---------- 🧹 AUTO DELETE FILTER (stable for transitions) ---------- */
+const [filteredPosts, setFilteredPosts] = useState(livePosts);
+
+useEffect(() => {
+  const applyFilter = () => {
     const limit = event?.auto_delete_minutes || 0;
-    if (limit === 0) return true; // no auto-delete
-    const createdAt = new Date(post.created_at).getTime();
+    if (limit === 0) {
+      setFilteredPosts(livePosts);
+      return;
+    }
     const now = Date.now();
-    const diffMinutes = (now - createdAt) / 1000 / 60;
-    return diffMinutes <= limit;
-  });
+    const filtered = livePosts.filter((p) => {
+      const createdAt = new Date(p.created_at).getTime();
+      const diffMinutes = (now - createdAt) / 1000 / 60;
+      return diffMinutes <= limit;
+    });
+    setFilteredPosts(filtered);
+  };
+
+  applyFilter();                    // run immediately
+  const timer = setInterval(applyFilter, 60000); // re-check once per minute
+  return () => clearInterval(timer);
+}, [livePosts, event?.auto_delete_minutes]);
 
   /* ---------- CYCLE THROUGH POSTS ---------- */
   useEffect(() => {
