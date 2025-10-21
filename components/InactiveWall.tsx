@@ -4,7 +4,7 @@ import { QRCodeCanvas } from 'qrcode.react';
 import { supabase } from '@/lib/supabaseClient';
 import { useEffect, useState } from 'react';
 
-/* ---------- COUNTDOWN ---------- */
+/* ---------- COUNTDOWN DISPLAY ---------- */
 function CountdownDisplay({
   countdown,
   isActive,
@@ -14,21 +14,21 @@ function CountdownDisplay({
   isActive: boolean;
   eventId: string;
 }) {
-  const [timeLeft, setTimeLeft] = useState(0);
-  const [initialTime, setInitialTime] = useState(0);
+  const [timeLeft, setTimeLeft] = useState<number>(0);
+  const [originalTime, setOriginalTime] = useState<number>(0);
 
-  // Convert text like "5 Minutes" or "30 Seconds" into seconds
+  // Convert countdown string ("5 Minutes", "30 Seconds") → seconds
   useEffect(() => {
     if (!countdown) return;
-    const n = parseInt(countdown.split(' ')[0]);
-    const mins = countdown.includes('Minute');
-    const secs = countdown.includes('Second');
-    const total = mins ? n * 60 : secs ? n : 0;
+    const num = parseInt(countdown.split(' ')[0]);
+    const mins = countdown.toLowerCase().includes('minute');
+    const secs = countdown.toLowerCase().includes('second');
+    const total = mins ? num * 60 : secs ? num : 0;
     setTimeLeft(total);
-    setInitialTime(total);
+    setOriginalTime(total);
   }, [countdown]);
 
-  // Handle countdown logic
+  // Countdown logic — starts only if isActive is true
   useEffect(() => {
     if (!isActive || timeLeft <= 0) return;
 
@@ -36,8 +36,11 @@ function CountdownDisplay({
       setTimeLeft((prev) => {
         if (prev <= 1) {
           clearInterval(timer);
-          // when time hits zero → wall goes live
-          supabase.from('events').update({ status: 'live', countdown_active: false }).eq('id', eventId);
+          // When timer hits zero, set wall live
+          supabase
+            .from('events')
+            .update({ status: 'live', countdown_active: false })
+            .eq('id', eventId);
           return 0;
         }
         return prev - 1;
@@ -45,12 +48,12 @@ function CountdownDisplay({
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [isActive, eventId, timeLeft]);
+  }, [isActive, timeLeft, eventId]);
 
-  // If timer inactive, reset back to original when Stop pressed
+  // If countdown not active → reset to original
   useEffect(() => {
-    if (!isActive) setTimeLeft(initialTime);
-  }, [isActive, initialTime]);
+    if (!isActive) setTimeLeft(originalTime);
+  }, [isActive, originalTime]);
 
   if (!countdown) return null;
 
@@ -62,8 +65,8 @@ function CountdownDisplay({
       style={{
         fontSize: '4vw',
         fontWeight: 900,
-        lineHeight: 1,
-        textShadow: '0 0 12px rgba(0,0,0,0.6)',
+        color: '#fff',
+        textShadow: '0 0 15px rgba(0,0,0,0.6)',
         marginTop: '1vh',
       }}
     >
@@ -79,8 +82,6 @@ export default function InactiveWall({ event }: { event: any }) {
       ? `url(${event.background_value}) center/cover no-repeat`
       : event?.background_value ||
         'linear-gradient(to bottom right,#1b2735,#090a0f)';
-
-  const hasCountdown = !!event.countdown;
 
   return (
     <>
@@ -130,7 +131,7 @@ export default function InactiveWall({ event }: { event: any }) {
           {event.title || 'Fan Zone Wall'}
         </h1>
 
-        {/* ---------- DISPLAY AREA ---------- */}
+        {/* ---------- MAIN DISPLAY ---------- */}
         <div
           style={{
             width: '80vw',
@@ -146,7 +147,7 @@ export default function InactiveWall({ event }: { event: any }) {
             alignItems: 'center',
           }}
         >
-          {/* ---------- BIG QR ---------- */}
+          {/* ---------- LEFT SIDE: QR ---------- */}
           <QRCodeCanvas
             value={`https://faninteract.vercel.app/submit/${event.id}`}
             size={420}
@@ -210,7 +211,7 @@ export default function InactiveWall({ event }: { event: any }) {
               }}
             ></div>
 
-            {/* ---------- TEXT ---------- */}
+            {/* ---------- TEXT + COUNTDOWN ---------- */}
             <h2
               className="pulse"
               style={{
@@ -228,8 +229,8 @@ export default function InactiveWall({ event }: { event: any }) {
               Starting Soon!!
             </h2>
 
-            {/* ---------- TIMER (only if countdown selected) ---------- */}
-            {hasCountdown && (
+            {/* Countdown appears directly below this */}
+            {event.countdown && (
               <CountdownDisplay
                 countdown={event.countdown}
                 isActive={!!event.countdown_active}

@@ -93,34 +93,33 @@ export default function DashboardPage() {
   }
 
   /* ---------- PLAY / STOP LOGIC ---------- */
-  async function handleStart(id: string) {
-    await supabase
-      .from('events')
-      .update({
-        countdown_active: true,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', id);
+  async function handleStart(event: any) {
+    const update: any = {
+      updated_at: new Date().toISOString(),
+      countdown_active: !!event.countdown, // start countdown only if timer selected
+      status: event.countdown ? 'inactive' : 'live', // if no timer, go live immediately
+    };
 
-    const updated = await getEventsByHost(host.id);
-    setEvents(updated);
+    await supabase.from('events').update(update).eq('id', event.id);
+    const refreshed = await getEventsByHost(host.id);
+    setEvents(refreshed);
   }
 
-  async function handleStop(id: string) {
+  async function handleStop(event: any) {
+    // Stop cancels countdown and resets wall to inactive, keeping same countdown time
     await supabase
       .from('events')
       .update({
-        countdown_active: false,
         status: 'inactive',
+        countdown_active: false,
         updated_at: new Date().toISOString(),
       })
-      .eq('id', id);
+      .eq('id', event.id);
 
-    const updated = await getEventsByHost(host.id);
-    setEvents(updated);
+    const refreshed = await getEventsByHost(host.id);
+    setEvents(refreshed);
   }
 
-  /* ---------- OPEN MODERATION ---------- */
   function handleOpenModeration(id: string) {
     const modUrl = `${window.location.origin}/admin/moderation/${id}`;
     window.open(
@@ -130,7 +129,6 @@ export default function DashboardPage() {
     );
   }
 
-  /* ---------- BACKGROUND CHANGE ---------- */
   async function handleBackgroundChange(event: any, newValue: string) {
     const card = document.getElementById(`card-${event.id}`);
     if (card) {
@@ -159,7 +157,7 @@ export default function DashboardPage() {
     setEvents(updated);
   }
 
-  /* ---------- LOADING ---------- */
+  /* ---------- LOADING STATE ---------- */
   if (loading) {
     return (
       <div className="flex items-center justify-center h-screen bg-gradient-to-br from-[#0a2540] via-[#1b2b44] to-black text-white">
@@ -178,7 +176,7 @@ export default function DashboardPage() {
       />
       <h1 className="text-2xl font-bold mb-6">🎛 Host Dashboard</h1>
 
-      {/* ---------- CREATE NEW ---------- */}
+      {/* ---------- CREATE NEW EVENT ---------- */}
       {!creatingNew ? (
         <button
           onClick={() => setCreatingNew(true)}
@@ -259,13 +257,13 @@ export default function DashboardPage() {
                 🚀 Launch
               </button>
               <button
-                onClick={() => handleStart(event.id)}
+                onClick={() => handleStart(event)}
                 className="bg-green-600 hover:bg-green-700 px-2 py-1 rounded text-sm font-semibold"
               >
                 ▶️ Play
               </button>
               <button
-                onClick={() => handleStop(event.id)}
+                onClick={() => handleStop(event)}
                 className="bg-red-600 hover:bg-red-700 px-2 py-1 rounded text-sm font-semibold"
               >
                 ⏹ Stop
@@ -296,14 +294,12 @@ export default function DashboardPage() {
         ))}
       </div>
 
-      {/* ---------- DELETE CONFIRM ---------- */}
+      {/* ---------- DELETE CONFIRMATION ---------- */}
       {confirmingDelete && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 animate-fadeIn">
           <div className="bg-[#111] border border-gray-500 rounded-xl p-6 text-center text-white shadow-2xl w-80">
             <h3 className="text-xl font-semibold mb-3">Confirm Deletion</h3>
-            <p className="text-sm mb-4">
-              Are you sure you want to delete this event?
-            </p>
+            <p className="text-sm mb-4">Are you sure you want to delete this event?</p>
             <div className="flex justify-center gap-4">
               <button
                 onClick={() => handleDelete(confirmingDelete)}
