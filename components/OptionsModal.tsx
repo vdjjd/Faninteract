@@ -24,24 +24,25 @@ export default function OptionsModal({
   const [saving, setSaving] = useState(false);
   const [localEvent, setLocalEvent] = useState<any>({ ...event });
 
-  /* ---------- SAVE ---------- */
   async function handleSave() {
     setSaving(true);
 
-    const updateData = {
+    // Always ensure countdown_active is false when saving new countdown value
+    const updates = {
       host_title: localEvent.host_title || '',
       title: localEvent.title || '',
       countdown: localEvent.countdown || null,
-      countdown_active: false, // reset until Play is clicked
+      countdown_active: false,
       layout_type: localEvent.layout_type || '',
       post_transition: localEvent.post_transition || '',
       auto_delete_minutes: localEvent.auto_delete_minutes ?? 0,
       updated_at: new Date().toISOString(),
     };
 
-    const { error } = await supabase.from('events').update(updateData).eq('id', localEvent.id);
-    if (error) console.error('❌ Error saving event:', error);
-    else console.log('✅ Event saved:', updateData);
+    const { error } = await supabase.from('events').update(updates).eq('id', localEvent.id);
+
+    if (error) console.error('❌ Error updating event:', error);
+    else console.log('✅ Countdown saved successfully');
 
     await refreshEvents();
     setSaving(false);
