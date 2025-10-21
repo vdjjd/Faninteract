@@ -15,6 +15,28 @@ export default function LiveWall({ event, posts }: LiveWallProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const current = livePosts[currentIndex];
 
+  /* ---------- INITIAL FETCH (existing approved posts) ---------- */
+  useEffect(() => {
+    async function fetchApproved() {
+      if (!event?.id) return;
+      const { data, error } = await supabase
+        .from('submissions')
+        .select('*')
+        .eq('event_id', event.id)
+        .eq('status', 'approved')
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('❌ Error fetching approved posts:', error);
+      } else if (data) {
+        console.log('📸 Loaded approved posts:', data.length);
+        setLivePosts(data);
+      }
+    }
+
+    fetchApproved();
+  }, [event?.id]);
+
   /* ---------- REALTIME SUBMISSIONS ---------- */
   useEffect(() => {
     if (!event?.id) return;
@@ -61,12 +83,14 @@ export default function LiveWall({ event, posts }: LiveWallProps) {
     return () => clearInterval(interval);
   }, [livePosts]);
 
+  /* ---------- BACKGROUND ---------- */
   const bg =
     event?.background_type === 'image'
       ? `url(${event.background_value}) center/cover no-repeat`
       : event?.background_value ||
         'linear-gradient(to bottom right,#1b2735,#090a0f)';
 
+  /* ---------- RENDER ---------- */
   return (
     <div
       style={{
