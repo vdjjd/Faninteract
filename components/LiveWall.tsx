@@ -17,32 +17,40 @@ export default function LiveWall({ event, posts }: LiveWallProps) {
 
   /* ---------- REALTIME SUBMISSIONS ---------- */
   useEffect(() => {
+    if (!event?.id) return;
+
     const channel = supabase
-      .channel(`submissions-live-${event.id}`)
+      .channel(`live-submissions-${event.id}`)
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: 'submissions' },
+        {
+          event: '*',
+          schema: 'public',
+          table: 'submissions',
+          filter: `event_id=eq.${event.id}`,
+        },
         (payload) => {
+          console.log('🔔 Realtime payload:', payload);
+
           if (payload.eventType === 'INSERT' && payload.new.status === 'approved') {
             setLivePosts((prev) => [payload.new, ...prev]);
-          } else if (payload.eventType === 'UPDATE') {
-            setLivePosts((prev) =>
-              prev.map((p) => (p.id === payload.new.id ? payload.new : p))
-            );
+          } else if (payload.eventType === 'UPDATE' && payload.new.status === 'approved') {
+            setLivePosts((prev) => {
+              const exists = prev.find((p) => p.id === payload.new.id);
+              if (exists) return prev;
+              return [payload.new, ...prev];
+            });
           } else if (payload.eventType === 'DELETE') {
             setLivePosts((prev) => prev.filter((p) => p.id !== payload.old.id));
           }
         }
-      );
+      )
+      .subscribe();
 
-    // Subscribe without returning a promise to React
-    channel.subscribe();
-
-    // ✅ Cleanup safely (void to ignore Promise return)
     return () => {
-      void supabase.removeChannel(channel);
+      supabase.removeChannel(channel);
     };
-  }, [event.id]);
+  }, [event?.id]);
 
   /* ---------- CYCLE THROUGH APPROVED POSTS ---------- */
   useEffect(() => {
@@ -135,7 +143,7 @@ export default function LiveWall({ event, posts }: LiveWallProps) {
               fontSize: '2rem',
             }}
           >
-            {/* Blank placeholder */}
+            No Approved Submissions Yet
           </div>
         )}
 
