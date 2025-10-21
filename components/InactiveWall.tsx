@@ -17,7 +17,6 @@ function CountdownDisplay({
   const [timeLeft, setTimeLeft] = useState<number>(0);
   const [originalTime, setOriginalTime] = useState<number>(0);
 
-  // Convert countdown string ("5 Minutes", "30 Seconds") → seconds
   useEffect(() => {
     if (!countdown) return;
     const num = parseInt(countdown.split(' ')[0]);
@@ -28,7 +27,6 @@ function CountdownDisplay({
     setOriginalTime(total);
   }, [countdown]);
 
-  // When Play clicked → countdown_active = true → start timer
   useEffect(() => {
     if (!countdownActive || timeLeft <= 0) return;
 
@@ -36,18 +34,13 @@ function CountdownDisplay({
       setTimeLeft((prev) => {
         if (prev <= 1) {
           clearInterval(timer);
-          // 🟢 When timer hits zero, set wall live
           (async () => {
             const { error } = await supabase
               .from('events')
               .update({ status: 'live', countdown_active: false })
               .eq('id', eventId);
-
-            if (error) {
-              console.error('❌ Error setting wall live:', error);
-            } else {
-              console.log('✅ Countdown finished — wall set live');
-            }
+            if (error) console.error('❌ Error setting wall live:', error);
+            else console.log('✅ Countdown finished — wall set live');
           })();
           return 0;
         }
@@ -58,7 +51,6 @@ function CountdownDisplay({
     return () => clearInterval(timer);
   }, [countdownActive, eventId, timeLeft]);
 
-  // Reset timer if countdown_active set to false (Stop clicked)
   useEffect(() => {
     if (!countdownActive) setTimeLeft(originalTime);
   }, [countdownActive, originalTime]);
@@ -70,12 +62,16 @@ function CountdownDisplay({
 
   return (
     <div
+      className="pulse"
       style={{
-        fontSize: '4vw',
+        fontSize: 'clamp(6rem, 9vw, 12rem)', // 🧠 much bigger
         fontWeight: 900,
         color: '#fff',
-        textShadow: '0 0 15px rgba(0,0,0,0.6)',
-        marginTop: '1vh',
+        textShadow:
+          '0 0 25px rgba(255,255,255,0.7), 0 0 70px rgba(0,150,255,0.5)',
+        marginTop: '3.5vh', // 🟢 slightly lower to fill space
+        letterSpacing: '0.06em',
+        lineHeight: 1,
       }}
     >
       {m}:{s.toString().padStart(2, '0')}
@@ -96,11 +92,15 @@ export default function InactiveWall({ event }: { event: any }) {
       <style>{`
         @keyframes pulseGlow {
           0%, 100% {
-            text-shadow: 0 0 18px rgba(255,255,255,0.3), 0 0 36px rgba(255,255,255,0.2);
-            opacity: 0.95;
+            text-shadow:
+              0 0 25px rgba(255,255,255,0.3),
+              0 0 55px rgba(0,150,255,0.25);
+            opacity: 0.9;
           }
           50% {
-            text-shadow: 0 0 28px rgba(255,255,255,0.8), 0 0 60px rgba(255,255,255,0.5);
+            text-shadow:
+              0 0 45px rgba(255,255,255,0.9),
+              0 0 95px rgba(0,150,255,0.7);
             opacity: 1;
           }
         }
@@ -155,7 +155,7 @@ export default function InactiveWall({ event }: { event: any }) {
             alignItems: 'center',
           }}
         >
-          {/* ---------- BIG QR (LEFT SIDE) ---------- */}
+          {/* ---------- BIG QR ---------- */}
           <QRCodeCanvas
             value={`https://faninteract.vercel.app/submit/${event.id}`}
             size={420}
@@ -182,7 +182,7 @@ export default function InactiveWall({ event }: { event: any }) {
               justifyContent: 'center',
               height: '100%',
               position: 'relative',
-              transform: 'translateY(-11%)',
+              transform: 'translateY(-11%)', // 👈 nothing else moved
             }}
           >
             {/* ---------- LOGO ---------- */}
@@ -219,7 +219,7 @@ export default function InactiveWall({ event }: { event: any }) {
               }}
             ></div>
 
-            {/* ---------- TITLE + COUNTDOWN ---------- */}
+            {/* ---------- TITLE ---------- */}
             <h2
               className="pulse"
               style={{
@@ -237,7 +237,7 @@ export default function InactiveWall({ event }: { event: any }) {
               Starting Soon!!
             </h2>
 
-            {/* Countdown always visible if set */}
+            {/* ---------- COUNTDOWN ---------- */}
             {event.countdown && (
               <CountdownDisplay
                 countdown={event.countdown}
@@ -248,7 +248,7 @@ export default function InactiveWall({ event }: { event: any }) {
           </div>
         </div>
 
-        {/* ---------- FULLSCREEN BUTTON ---------- */}
+        {/* ---------- FULLSCREEN ---------- */}
         <div
           style={{
             position: 'fixed',
