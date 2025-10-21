@@ -68,6 +68,32 @@ export default function LiveWall({ event, posts }: LiveWallProps) {
   const [livePosts, setLivePosts] = useState(posts || []);
   const [currentIndex, setCurrentIndex] = useState(0);
 
+  // 🧭 Layout Type Safety Check
+  if (event?.layout_type && event.layout_type !== 'Single Highlight Post') {
+    return (
+      <div
+        style={{
+          background: event?.background_value || 'black',
+          width: '100%',
+          height: '100vh',
+          color: '#fff',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          textAlign: 'center',
+        }}
+      >
+        <h1 style={{ fontSize: 'clamp(2rem, 4vw, 4rem)' }}>
+          {event.layout_type}
+        </h1>
+        <p style={{ fontSize: 'clamp(1rem, 2vw, 2rem)', opacity: 0.8 }}>
+          Layout coming soon…
+        </p>
+      </div>
+    );
+  }
+
   const transitionStyle =
     transitions[event?.post_transition || 'Fade In / Fade Out'];
 
@@ -125,29 +151,29 @@ export default function LiveWall({ event, posts }: LiveWallProps) {
     };
   }, [event?.id]);
 
-/* ---------- 🧹 AUTO DELETE FILTER (stable for transitions) ---------- */
-const [filteredPosts, setFilteredPosts] = useState(livePosts);
+  /* ---------- 🧹 AUTO DELETE FILTER ---------- */
+  const [filteredPosts, setFilteredPosts] = useState(livePosts);
 
-useEffect(() => {
-  const applyFilter = () => {
-    const limit = event?.auto_delete_minutes || 0;
-    if (limit === 0) {
-      setFilteredPosts(livePosts);
-      return;
-    }
-    const now = Date.now();
-    const filtered = livePosts.filter((p) => {
-      const createdAt = new Date(p.created_at).getTime();
-      const diffMinutes = (now - createdAt) / 1000 / 60;
-      return diffMinutes <= limit;
-    });
-    setFilteredPosts(filtered);
-  };
+  useEffect(() => {
+    const applyFilter = () => {
+      const limit = event?.auto_delete_minutes || 0;
+      if (limit === 0) {
+        setFilteredPosts(livePosts);
+        return;
+      }
+      const now = Date.now();
+      const filtered = livePosts.filter((p) => {
+        const createdAt = new Date(p.created_at).getTime();
+        const diffMinutes = (now - createdAt) / 1000 / 60;
+        return diffMinutes <= limit;
+      });
+      setFilteredPosts(filtered);
+    };
 
-  applyFilter();                    // run immediately
-  const timer = setInterval(applyFilter, 60000); // re-check once per minute
-  return () => clearInterval(timer);
-}, [livePosts, event?.auto_delete_minutes]);
+    applyFilter();
+    const timer = setInterval(applyFilter, 60000);
+    return () => clearInterval(timer);
+  }, [livePosts, event?.auto_delete_minutes]);
 
   /* ---------- CYCLE THROUGH POSTS ---------- */
   useEffect(() => {
