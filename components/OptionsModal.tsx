@@ -27,11 +27,16 @@ export default function OptionsModal({
   async function handleSave() {
     setSaving(true);
 
-    // Always ensure countdown_active is false when saving new countdown value
+    // Normalize countdown value to always be a string or null
+    const countdownValue =
+      localEvent.countdown && localEvent.countdown !== 'none'
+        ? String(localEvent.countdown)
+        : null;
+
     const updates = {
       host_title: localEvent.host_title || '',
       title: localEvent.title || '',
-      countdown: localEvent.countdown || null,
+      countdown: countdownValue, // <-- force string
       countdown_active: false,
       layout_type: localEvent.layout_type || '',
       post_transition: localEvent.post_transition || '',
@@ -39,10 +44,18 @@ export default function OptionsModal({
       updated_at: new Date().toISOString(),
     };
 
-    const { error } = await supabase.from('events').update(updates).eq('id', localEvent.id);
+    console.log('🧾 SAVING EVENT UPDATES:', updates);
 
-    if (error) console.error('❌ Error updating event:', error);
-    else console.log('✅ Countdown saved successfully');
+    const { error } = await supabase
+      .from('events')
+      .update(updates)
+      .eq('id', localEvent.id);
+
+    if (error) {
+      console.error('❌ Supabase update error:', error);
+    } else {
+      console.log('✅ Countdown saved successfully');
+    }
 
     await refreshEvents();
     setSaving(false);
