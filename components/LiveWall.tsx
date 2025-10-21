@@ -232,7 +232,7 @@ export default function LiveWall({ event, posts }: LiveWallProps) {
         style={{
           position: 'absolute',
           bottom: 'calc(15vh - 90px)',
-          left: 'calc(6vw - 90px)', // ⬅️ moved even farther left
+          left: 'calc(8vw - 90px)', // ⬅️ moved even farther left
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
