@@ -17,9 +17,6 @@ const speedMap: Record<string, number> = {
   Fast: 4000,
 };
 
-/* ---------- EASING ---------- */
-const dropEase = [0.175, 0.885, 0.32, 1.275]; // easeOutBack
-
 export default function Grid2x2Wall({ event, posts }: Grid2x2WallProps) {
   const [leftPosts, setLeftPosts] = useState<any[]>([]);
   const [rightPosts, setRightPosts] = useState<any[]>([]);
@@ -77,62 +74,84 @@ export default function Grid2x2Wall({ event, posts }: Grid2x2WallProps) {
         style={{
           width: '100%',
           height: '100%',
+          display: 'flex',
+          flexDirection: 'row',
+          background: '#000',
           borderRadius: 12,
           overflow: 'hidden',
-          display: 'flex',
-          flexDirection: 'column',
-          justifyContent: 'flex-end',
-          background: '#000',
           position: 'relative',
         }}
       >
-        {post.photo_url && (
-          <img
-            src={post.photo_url}
-            alt="Guest submission"
-            style={{
-              position: 'absolute',
-              width: '100%',
-              height: '100%',
-              objectFit: 'cover',
-              top: 0,
-              left: 0,
-              zIndex: 1,
-              opacity: 0.9,
-            }}
-          />
-        )}
+        {/* LEFT: PHOTO */}
+        <div style={{ flex: 1, position: 'relative' }}>
+          {post.photo_url ? (
+            <img
+              src={post.photo_url}
+              alt="Guest submission"
+              style={{
+                width: '100%',
+                height: '100%',
+                objectFit: 'cover',
+                display: 'block',
+              }}
+            />
+          ) : (
+            <div
+              style={{
+                width: '100%',
+                height: '100%',
+                background: 'rgba(255,255,255,0.05)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#999',
+                fontSize: '1rem',
+              }}
+            >
+              No photo
+            </div>
+          )}
+        </div>
+
+        {/* RIGHT: NAME + MESSAGE */}
         <div
           style={{
-            position: 'relative',
-            zIndex: 2,
+            flex: 1,
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'space-between',
             background: 'rgba(0,0,0,0.55)',
-            backdropFilter: 'blur(6px)',
-            padding: '10px 14px',
+            backdropFilter: 'blur(8px)',
+            padding: '12px 18px',
           }}
         >
-          <h3
+          <div
             style={{
               color: '#fff',
               fontWeight: 800,
-              fontSize: '1.5rem',
-              marginBottom: 4,
+              fontSize: '1.6rem',
               textShadow: '0 0 10px rgba(0,0,0,0.7)',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
             }}
           >
             {post.nickname || ''}
-          </h3>
-          <p
+          </div>
+
+          <div
             style={{
-              color: '#eee',
+              color: '#ddd',
               fontSize: '1.1rem',
               fontWeight: 500,
               lineHeight: 1.3,
-              textShadow: '0 0 8px rgba(0,0,0,0.5)',
+              marginTop: 8,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
             }}
           >
             {post.message || ''}
-          </p>
+          </div>
         </div>
       </div>
     );
@@ -144,7 +163,7 @@ export default function Grid2x2Wall({ event, posts }: Grid2x2WallProps) {
     center: {
       y: 0,
       opacity: 1,
-      transition: { duration: 0.8, ease: dropEase },
+      transition: { duration: 0.8, ease: 'easeOut' },
     },
     exit: {
       y: 100,
@@ -222,7 +241,6 @@ export default function Grid2x2Wall({ event, posts }: Grid2x2WallProps) {
           backdropFilter: 'blur(14px)',
         }}
       >
-        {/* Each grid cell = ¼ of container */}
         {[leftPosts[0], rightPosts[0], leftPosts[1], rightPosts[1]].map(
           (post, i) => (
             <AnimatePresence key={i} initial={false}>
@@ -232,10 +250,7 @@ export default function Grid2x2Wall({ event, posts }: Grid2x2WallProps) {
                 initial="enter"
                 animate="center"
                 exit="exit"
-                style={{
-                  width: '100%',
-                  height: '100%',
-                }}
+                style={{ width: '100%', height: '100%' }}
               >
                 <PostCard post={post} />
               </motion.div>
@@ -280,6 +295,51 @@ export default function Grid2x2Wall({ event, posts }: Grid2x2WallProps) {
             boxShadow: '0 0 18px rgba(0,0,0,0.6)',
           }}
         />
+      </div>
+
+      {/* ---------- FULLSCREEN BUTTON ---------- */}
+      <div
+        style={{
+          position: 'fixed',
+          bottom: 10,
+          right: 10,
+          width: 48,
+          height: 48,
+          borderRadius: 10,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          cursor: 'pointer',
+          zIndex: 9999,
+          transition: 'opacity 0.3s ease',
+          opacity: 0.2,
+          background: 'rgba(255,255,255,0.1)',
+          backdropFilter: 'blur(6px)',
+          border: '1px solid rgba(255,255,255,0.2)',
+        }}
+        onMouseEnter={(e) => (e.currentTarget.style.opacity = '1')}
+        onMouseLeave={(e) => (e.currentTarget.style.opacity = '0.2')}
+        onClick={() => {
+          if (!document.fullscreenElement)
+            document.documentElement.requestFullscreen().catch(console.error);
+          else document.exitFullscreen();
+        }}
+        title="Toggle Fullscreen"
+      >
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          fill="none"
+          viewBox="0 0 24 24"
+          strokeWidth={1.5}
+          stroke="white"
+          style={{ width: 26, height: 26 }}
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M3 9V4h5M21 9V4h-5M3 15v5h5M21 15v5h-5"
+          />
+        </svg>
       </div>
     </div>
   );
