@@ -26,13 +26,11 @@ export default function Grid2x2Wall({ event, posts }: Grid2x2WallProps) {
   const [postIndex, setPostIndex] = useState(0);
   const [isLeftTurn, setIsLeftTurn] = useState(true);
 
-  const displayDuration =
-    speedMap[event?.transition_speed || 'Medium'] || 8000;
+  const displayDuration = speedMap[event?.transition_speed || 'Medium'] || 8000;
 
   /* ---------- INITIAL POPULATION ---------- */
   useEffect(() => {
     if (!posts || posts.length === 0) return;
-    // Fill 2 per column initially (4 total)
     setLeftPosts(posts.slice(0, 2));
     setRightPosts(posts.slice(2, 4));
     setPostIndex(4 % posts.length);
@@ -41,20 +39,15 @@ export default function Grid2x2Wall({ event, posts }: Grid2x2WallProps) {
   /* ---------- CYCLIC UPDATES ---------- */
   useEffect(() => {
     if (!posts || posts.length === 0) return;
+
     const interval = setInterval(() => {
       const nextPost = posts[postIndex % posts.length];
       setPostIndex((prev) => (prev + 1) % posts.length);
 
       if (isLeftTurn) {
-        setLeftPosts((prev) => {
-          const newList = [nextPost, ...prev].slice(0, 2);
-          return newList;
-        });
+        setLeftPosts((prev) => [nextPost, ...prev].slice(0, 2));
       } else {
-        setRightPosts((prev) => {
-          const newList = [nextPost, ...prev].slice(0, 2);
-          return newList;
-        });
+        setRightPosts((prev) => [nextPost, ...prev].slice(0, 2));
       }
 
       setIsLeftTurn((prev) => !prev);
@@ -84,14 +77,13 @@ export default function Grid2x2Wall({ event, posts }: Grid2x2WallProps) {
         style={{
           width: '100%',
           height: '100%',
-          borderRadius: 16,
+          borderRadius: 12,
           overflow: 'hidden',
           display: 'flex',
           flexDirection: 'column',
           justifyContent: 'flex-end',
           background: '#000',
           position: 'relative',
-          boxShadow: '0 0 20px rgba(0,0,0,0.5)',
         }}
       >
         {post.photo_url && (
@@ -123,7 +115,7 @@ export default function Grid2x2Wall({ event, posts }: Grid2x2WallProps) {
             style={{
               color: '#fff',
               fontWeight: 800,
-              fontSize: '1.6rem',
+              fontSize: '1.5rem',
               marginBottom: 4,
               textShadow: '0 0 10px rgba(0,0,0,0.7)',
             }}
@@ -133,7 +125,7 @@ export default function Grid2x2Wall({ event, posts }: Grid2x2WallProps) {
           <p
             style={{
               color: '#eee',
-              fontSize: '1.2rem',
+              fontSize: '1.1rem',
               fontWeight: 500,
               lineHeight: 1.3,
               textShadow: '0 0 8px rgba(0,0,0,0.5)',
@@ -146,8 +138,8 @@ export default function Grid2x2Wall({ event, posts }: Grid2x2WallProps) {
     );
   }
 
-  /* ---------- COLUMN ANIMATION ---------- */
-  const columnVariants = {
+  /* ---------- ANIMATION ---------- */
+  const cardVariants = {
     enter: { y: -100, opacity: 0 },
     center: {
       y: 0,
@@ -173,7 +165,6 @@ export default function Grid2x2Wall({ event, posts }: Grid2x2WallProps) {
         alignItems: 'center',
         justifyContent: 'flex-start',
         overflow: 'hidden',
-        transition: 'background 0.8s ease',
       }}
     >
       {/* ---------- LOGO TOP RIGHT ---------- */}
@@ -215,57 +206,42 @@ export default function Grid2x2Wall({ event, posts }: Grid2x2WallProps) {
         {event.title || 'Fan Zone Wall'}
       </h1>
 
-      {/* ---------- MEDIA CONTAINER ---------- */}
+      {/* ---------- 2×2 GRID ---------- */}
       <div
         style={{
           width: '80vw',
           height: '70vh',
           display: 'grid',
-          gridTemplateColumns: '1fr 1fr',
-          gridTemplateRows: '1fr 1fr',
+          gridTemplateColumns: 'repeat(2, 1fr)',
+          gridTemplateRows: 'repeat(2, 1fr)',
           borderRadius: 20,
           overflow: 'hidden',
           boxShadow: '10px 10px 30px rgba(0,0,0,0.4)',
           border: '1px solid rgba(255,255,255,0.15)',
-          backdropFilter: 'blur(14px)',
           background: 'rgba(255,255,255,0.06)',
+          backdropFilter: 'blur(14px)',
         }}
       >
-        {/* LEFT COLUMN */}
-        <div style={{ display: 'flex', flexDirection: 'column' }}>
-          <AnimatePresence initial={false}>
-            {leftPosts.map((post, i) => (
+        {/* Each grid cell = ¼ of container */}
+        {[leftPosts[0], rightPosts[0], leftPosts[1], rightPosts[1]].map(
+          (post, i) => (
+            <AnimatePresence key={i} initial={false}>
               <motion.div
-                key={post.id + '-left-' + i}
-                variants={columnVariants}
+                key={(post?.id || 'empty') + '-' + i}
+                variants={cardVariants}
                 initial="enter"
                 animate="center"
                 exit="exit"
-                style={{ flex: 1 }}
+                style={{
+                  width: '100%',
+                  height: '100%',
+                }}
               >
                 <PostCard post={post} />
               </motion.div>
-            ))}
-          </AnimatePresence>
-        </div>
-
-        {/* RIGHT COLUMN */}
-        <div style={{ display: 'flex', flexDirection: 'column' }}>
-          <AnimatePresence initial={false}>
-            {rightPosts.map((post, i) => (
-              <motion.div
-                key={post.id + '-right-' + i}
-                variants={columnVariants}
-                initial="enter"
-                animate="center"
-                exit="exit"
-                style={{ flex: 1 }}
-              >
-                <PostCard post={post} />
-              </motion.div>
-            ))}
-          </AnimatePresence>
-        </div>
+            </AnimatePresence>
+          )
+        )}
       </div>
 
       {/* ---------- QR SECTION ---------- */}
@@ -278,7 +254,6 @@ export default function Grid2x2Wall({ event, posts }: Grid2x2WallProps) {
           flexDirection: 'column',
           alignItems: 'center',
           justifyContent: 'center',
-          textAlign: 'center',
         }}
       >
         <p
