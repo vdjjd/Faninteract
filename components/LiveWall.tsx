@@ -67,7 +67,7 @@ const speedMap: Record<string, number> = {
 export default function LiveWall({ event, posts }: LiveWallProps) {
   const [livePosts, setLivePosts] = useState(posts || []);
   const [currentIndex, setCurrentIndex] = useState(0);
-  const current = livePosts[currentIndex];
+
   const transitionStyle =
     transitions[event?.post_transition || 'Fade In / Fade Out'];
 
@@ -98,7 +98,12 @@ export default function LiveWall({ event, posts }: LiveWallProps) {
       .channel(`live-submissions-${event.id}`)
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: 'submissions', filter: `event_id=eq.${event.id}` },
+        {
+          event: '*',
+          schema: 'public',
+          table: 'submissions',
+          filter: `event_id=eq.${event.id}`,
+        },
         (payload) => {
           if (payload.eventType === 'INSERT' && payload.new.status === 'approved') {
             setLivePosts((prev) => [payload.new, ...prev]);
@@ -120,14 +125,26 @@ export default function LiveWall({ event, posts }: LiveWallProps) {
     };
   }, [event?.id]);
 
+  /* ---------- 🧹 AUTO DELETE FILTER ---------- */
+  const filteredPosts = livePosts.filter((post) => {
+    const limit = event?.auto_delete_minutes || 0;
+    if (limit === 0) return true; // no auto-delete
+    const createdAt = new Date(post.created_at).getTime();
+    const now = Date.now();
+    const diffMinutes = (now - createdAt) / 1000 / 60;
+    return diffMinutes <= limit;
+  });
+
   /* ---------- CYCLE THROUGH POSTS ---------- */
   useEffect(() => {
-    if (!livePosts || livePosts.length === 0) return;
+    if (!filteredPosts || filteredPosts.length === 0) return;
     const interval = setInterval(() => {
-      setCurrentIndex((i) => (i + 1) % livePosts.length);
-    }, displayDuration); // ⏱️ Now uses selected speed
+      setCurrentIndex((i) => (i + 1) % filteredPosts.length);
+    }, displayDuration);
     return () => clearInterval(interval);
-  }, [livePosts, displayDuration]);
+  }, [filteredPosts, displayDuration]);
+
+  const current = filteredPosts[currentIndex % (filteredPosts.length || 1)];
 
   /* ---------- BACKGROUND ---------- */
   const bg =
