@@ -46,11 +46,15 @@ export default function OptionsModalPoll({
 
   /* ---------- UPDATE OPTION ---------- */
   function handleTextChange(idx: number, text: string) {
-    setPollOptions((prev) => prev.map((opt, i) => (i === idx ? { ...opt, text } : opt)));
+    setPollOptions((prev) =>
+      prev.map((opt, i) => (i === idx ? { ...opt, text } : opt))
+    );
   }
 
   function handleColorChange(idx: number, color: string) {
-    setPollOptions((prev) => prev.map((opt, i) => (i === idx ? { ...opt, color } : opt)));
+    setPollOptions((prev) =>
+      prev.map((opt, i) => (i === idx ? { ...opt, color } : opt))
+    );
   }
 
   /* ---------- SAVE POLL ---------- */
@@ -62,9 +66,10 @@ export default function OptionsModalPoll({
         ? String(localEvent.countdown)
         : null;
 
+    // 🟢 separate private (host_title) and public (title)
     const updates = {
-      host_title: localEvent.host_title || '',
-      title: localEvent.title || '',
+      host_title: localEvent.host_title?.trim() || event.host_title || 'Untitled Poll',
+      title: localEvent.title?.trim() || event.title || 'Untitled Question',
       countdown: countdownValue,
       countdown_active: false,
       duration: localEvent.duration || null,
@@ -72,9 +77,17 @@ export default function OptionsModalPoll({
       updated_at: new Date().toISOString(),
     };
 
-    const { error } = await supabase.from('polls').update(updates).eq('id', localEvent.id);
-    if (error) console.error('❌ Supabase update error:', error);
-    else console.log('✅ Poll saved successfully');
+    const { error } = await supabase
+      .from('polls')
+      .update(updates)
+      .eq('id', localEvent.id);
+
+    if (error) {
+      console.error('❌ Supabase update error:', error);
+      alert('Error saving poll settings.');
+    } else {
+      console.log('✅ Poll saved successfully');
+    }
 
     await refreshEvents();
     setSaving(false);
@@ -106,7 +119,10 @@ export default function OptionsModalPoll({
         .upload(filePath, compressed, { upsert: true });
       if (uploadError) throw uploadError;
 
-      const { data: publicUrl } = supabase.storage.from('wall-backgrounds').getPublicUrl(filePath);
+      const { data: publicUrl } = supabase.storage
+        .from('wall-backgrounds')
+        .getPublicUrl(filePath);
+
       await supabase
         .from('polls')
         .update({
@@ -130,13 +146,21 @@ export default function OptionsModalPoll({
   }
 
   /* ---------- BACKGROUND ---------- */
-  async function handleBackgroundChange(type: 'solid' | 'gradient', value: string) {
+  async function handleBackgroundChange(
+    type: 'solid' | 'gradient',
+    value: string
+  ) {
     localEvent.background_type = type;
     await onBackgroundChange(localEvent, value);
     await refreshEvents();
-    setLocalEvent({ ...localEvent, background_type: type, background_value: value });
+    setLocalEvent({
+      ...localEvent,
+      background_type: type,
+      background_value: value,
+    });
   }
 
+  /* ---------- UI ---------- */
   return (
     <>
       <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 backdrop-blur-md">
@@ -151,7 +175,9 @@ export default function OptionsModalPoll({
           <input
             type="text"
             value={localEvent.host_title || ''}
-            onChange={(e) => setLocalEvent({ ...localEvent, host_title: e.target.value })}
+            onChange={(e) =>
+              setLocalEvent({ ...localEvent, host_title: e.target.value })
+            }
             className="w-full p-2 rounded-md text-black mt-1"
           />
 
@@ -159,12 +185,16 @@ export default function OptionsModalPoll({
           <input
             type="text"
             value={localEvent.title || ''}
-            onChange={(e) => setLocalEvent({ ...localEvent, title: e.target.value })}
+            onChange={(e) =>
+              setLocalEvent({ ...localEvent, title: e.target.value })
+            }
             className="w-full p-2 rounded-md text-black mt-1"
           />
 
           {/* ---- Countdown ---- */}
-          <label className="block mt-3 text-sm">Countdown (Before Poll Starts):</label>
+          <label className="block mt-3 text-sm">
+            Countdown (Before Poll Starts):
+          </label>
           <select
             className="w-full p-2 rounded-md text-black mt-1"
             value={localEvent.countdown || 'none'}
@@ -177,9 +207,19 @@ export default function OptionsModalPoll({
           >
             <option value="none">No Countdown / Start Immediately</option>
             {[
-              '30 Seconds','1 Minute','2 Minutes','3 Minutes','4 Minutes','5 Minutes',
-              '10 Minutes','15 Minutes','20 Minutes','25 Minutes','30 Minutes',
-              '45 Minutes','60 Minutes',
+              '30 Seconds',
+              '1 Minute',
+              '2 Minutes',
+              '3 Minutes',
+              '4 Minutes',
+              '5 Minutes',
+              '10 Minutes',
+              '15 Minutes',
+              '20 Minutes',
+              '25 Minutes',
+              '30 Minutes',
+              '45 Minutes',
+              '60 Minutes',
             ].map((opt) => (
               <option key={opt}>{opt}</option>
             ))}
@@ -199,8 +239,14 @@ export default function OptionsModalPoll({
           >
             <option value="none">Manual Stop (Host Controlled)</option>
             {[
-              '5 Minutes','10 Minutes','15 Minutes','20 Minutes',
-              '25 Minutes','30 Minutes','45 Minutes','60 Minutes',
+              '5 Minutes',
+              '10 Minutes',
+              '15 Minutes',
+              '20 Minutes',
+              '25 Minutes',
+              '30 Minutes',
+              '45 Minutes',
+              '60 Minutes',
             ].map((opt) => (
               <option key={opt}>{opt}</option>
             ))}
@@ -237,8 +283,14 @@ export default function OptionsModalPoll({
           <h4 className="mt-5 text-sm font-semibold">🎨 Background Colors</h4>
           <div className="grid grid-cols-8 gap-2 mt-2">
             {[
-              '#e53935','#8e24aa','#1e88e5','#43a047','#fb8c00',
-              '#fdd835','#6d4c41','#00acc1'
+              '#e53935',
+              '#8e24aa',
+              '#1e88e5',
+              '#43a047',
+              '#fb8c00',
+              '#fdd835',
+              '#6d4c41',
+              '#00acc1',
             ].map((c) => (
               <div
                 key={c}
@@ -272,14 +324,20 @@ export default function OptionsModalPoll({
 
           {/* ---- Upload Image ---- */}
           <div className="mt-6 text-center">
-            <p className="text-sm font-semibold mb-2">Upload Custom Background</p>
+            <p className="text-sm font-semibold mb-2">
+              Upload Custom Background
+            </p>
             <input
               type="file"
               accept="image/jpeg,image/png,image/webp"
               onChange={handleImageUpload}
               className="text-sm text-center"
             />
-            {uploading && <p className="text-yellow-400 text-xs mt-2 animate-pulse">Uploading...</p>}
+            {uploading && (
+              <p className="text-yellow-400 text-xs mt-2 animate-pulse">
+                Uploading...
+              </p>
+            )}
           </div>
 
           {/* ---- Buttons ---- */}
@@ -287,11 +345,18 @@ export default function OptionsModalPoll({
             <button
               disabled={saving}
               onClick={handleSave}
-              className={`${saving ? 'bg-gray-500' : 'bg-green-600 hover:bg-green-700'} px-4 py-2 rounded font-semibold`}
+              className={`${
+                saving
+                  ? 'bg-gray-500'
+                  : 'bg-green-600 hover:bg-green-700'
+              } px-4 py-2 rounded font-semibold`}
             >
               {saving ? 'Saving…' : '💾 Save'}
             </button>
-            <button onClick={onClose} className="bg-red-600 hover:bg-red-700 px-4 py-2 rounded font-semibold">
+            <button
+              onClick={onClose}
+              className="bg-red-600 hover:bg-red-700 px-4 py-2 rounded font-semibold"
+            >
               ✖ Close
             </button>
           </div>
