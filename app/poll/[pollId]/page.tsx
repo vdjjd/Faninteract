@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
 import { motion, AnimatePresence } from 'framer-motion';
-import InactivePollWall from '@/components/InactivePollWall'; // 👈 NEW COMPONENT
+import InactivePollWall from '@/components/InactivePollWall'; // ✅ custom inactive layout
 
 interface PollOption {
   id?: string;
@@ -14,19 +14,19 @@ interface PollOption {
 }
 
 export default function PollWallPage() {
-  const { eventId } = useParams(); // pollId alias
+  const { pollId } = useParams(); // ✅ correct param
   const [poll, setPoll] = useState<any>(null);
   const [options, setOptions] = useState<PollOption[]>([]);
 
   /* ---------- LOAD POLL ---------- */
   useEffect(() => {
-    if (!eventId) return;
+    if (!pollId) return;
 
     async function fetchPoll() {
       const { data, error } = await supabase
         .from('polls')
         .select('*')
-        .eq('id', eventId)
+        .eq('id', pollId)
         .single();
 
       if (error) {
@@ -45,7 +45,7 @@ export default function PollWallPage() {
       .channel('poll_realtime')
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: 'polls', filter: `id=eq.${eventId}` },
+        { event: '*', schema: 'public', table: 'polls', filter: `id=eq.${pollId}` },
         (payload: any) => {
           if (payload.new) {
             setPoll(payload.new);
@@ -58,7 +58,7 @@ export default function PollWallPage() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [eventId]);
+  }, [pollId]);
 
   /* ---------- RENDER STATES ---------- */
   if (!poll)
