@@ -24,11 +24,11 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
 
   const displayDuration = speedMap[event?.transition_speed || 'Medium'] || 8000;
 
-  /* ---------- INITIAL FILL (EMPTY FIRST) ---------- */
+  /* ---------- INITIAL FILL ---------- */
   useEffect(() => {
     if (!posts || posts.length === 0) return;
     const repeated = [...posts];
-    while (repeated.length < 8) repeated.push(...posts); // ensure enough
+    while (repeated.length < 8) repeated.push(...posts);
     const filledCols = [[], [], [], []].map((_, i) =>
       repeated.slice(i * 2, i * 2 + 2)
     );
@@ -36,27 +36,35 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
     setPostIndex(repeated.length % posts.length);
   }, [posts]);
 
-  /* ---------- COLUMN-BY-COLUMN CYCLIC UPDATE ---------- */
+  /* ---------- COLUMN-BY-COLUMN UPDATE (sequential) ---------- */
   useEffect(() => {
     if (!posts || posts.length === 0) return;
 
-    const interval = setInterval(() => {
+    const tick = () => {
       const nextPost = posts[postIndex % posts.length];
       setPostIndex((prev) => (prev + 1) % posts.length);
 
       setColumns((prevCols) => {
         const updated = [...prevCols];
-        const newCol = [...updated[activeColumn]];
-        newCol.unshift(nextPost); // add new at top
-        if (newCol.length > 2) newCol.pop(); // keep 2 rows
-        updated[activeColumn] = newCol;
+        const col = [...updated[activeColumn]];
+        col.unshift(nextPost);
+        if (col.length > 2) col.pop();
+        updated[activeColumn] = col;
         return updated;
       });
 
+      // move to next column (one at a time)
       setActiveColumn((prev) => (prev + 1) % 4);
-    }, displayDuration);
+    };
 
-    return () => clearInterval(interval);
+    // use a timeout chain so columns trigger sequentially
+    const schedule = () => {
+      tick();
+      setTimeout(schedule, displayDuration);
+    };
+
+    const timeout = setTimeout(schedule, displayDuration);
+    return () => clearTimeout(timeout);
   }, [posts, activeColumn, displayDuration, postIndex]);
 
   /* ---------- BACKGROUND ---------- */
@@ -184,10 +192,14 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
     );
   }
 
-  /* ---------- ANIMATION ---------- */
+  /* ---------- SLIDE ANIMATION ---------- */
   const slideVariants = {
     enter: { y: '-100%', opacity: 1 },
-    center: { y: 0, opacity: 1, transition: { duration: 0.8, ease: 'easeOut' } },
+    center: {
+      y: 0,
+      opacity: 1,
+      transition: { duration: 0.9, ease: 'easeOut' },
+    },
   };
 
   return (
