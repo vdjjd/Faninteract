@@ -12,6 +12,7 @@ export async function createPoll(hostId: string, data: any) {
   const newPoll = {
     host_id: hostId,
     title: title || 'Untitled Poll',
+    host_title: title || 'Untitled Poll', // ✅ this line ensures the card title works
     status: 'inactive',
     background_type: 'gradient',
     background_value: 'linear-gradient(135deg,#0d47a1,#1976d2)',
@@ -59,9 +60,16 @@ export async function getPollsByHost(hostId: string) {
 /* 🔵 UPDATE POLL SETTINGS                                                    */
 /* -------------------------------------------------------------------------- */
 export async function updatePoll(pollId: string, updates: any) {
+  // ✅ Make sure host_title gets updated when saving from the options modal
+  const updatedData = {
+    ...updates,
+    host_title: updates.host_title ?? updates.title ?? 'Untitled Poll',
+    updated_at: new Date().toISOString(),
+  };
+
   const { data, error } = await supabase
     .from('polls')
-    .update({ ...updates, updated_at: new Date().toISOString() })
+    .update(updatedData)
     .eq('id', pollId)
     .select()
     .single();
