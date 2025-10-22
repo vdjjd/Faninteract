@@ -21,43 +21,57 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
   const [columns, setColumns] = useState<any[][]>([[], [], [], []]);
   const [postIndex, setPostIndex] = useState(0);
   const [activeColumn, setActiveColumn] = useState(0);
+  const [fadeTrigger, setFadeTrigger] = useState(0); // re-renders animation
 
   const displayDuration = speedMap[event?.transition_speed || 'Medium'] || 8000;
 
-  /* ---------- INITIAL FILL ---------- */
+  /* ---------- INITIAL POPULATION ---------- */
   useEffect(() => {
     if (!posts || posts.length === 0) return;
     const repeated = [...posts];
     while (repeated.length < 8) repeated.push(...posts);
-    const filledCols = [[], [], [], []].map((_, i) =>
+    const filled = [[], [], [], []].map((_, i) =>
       repeated.slice(i * 2, i * 2 + 2)
     );
-    setColumns(filledCols);
+    setColumns(filled);
     setPostIndex(repeated.length % posts.length);
   }, [posts]);
 
-  /* ---------- SLOT MACHINE UPDATE: ONE COLUMN AT A TIME ---------- */
+  /* ---------- COLUMN-BY-COLUMN FADE SEQUENCE ---------- */
   useEffect(() => {
     if (!posts || posts.length === 0) return;
 
-    const cycle = setInterval(() => {
+    const timer = setTimeout(() => {
       const nextPost = posts[postIndex % posts.length];
       setPostIndex((prev) => (prev + 1) % posts.length);
 
       setColumns((prevCols) => {
         const updated = [...prevCols];
         const col = [...updated[activeColumn]];
-        col.unshift(nextPost);
-        if (col.length > 2) col.pop();
+        const oldTop = col[0];
+        // Fade new post into top
+        col[0] = nextPost;
+        // After fade completes, push old top to bottom
+        setTimeout(() => {
+          setColumns((latest) => {
+            const now = [...latest];
+            const target = [...now[activeColumn]];
+            target[1] = oldTop;
+            now[activeColumn] = target;
+            return now;
+          });
+        }, 1000); // fade duration
+
         updated[activeColumn] = col;
         return updated;
       });
 
+      setFadeTrigger((n) => n + 1); // triggers re-animation
       setActiveColumn((prev) => (prev + 1) % 4);
     }, displayDuration);
 
-    return () => clearInterval(cycle);
-  }, [posts, activeColumn, displayDuration, postIndex]);
+    return () => clearTimeout(timer);
+  }, [posts, postIndex, activeColumn, displayDuration, fadeTrigger]);
 
   /* ---------- BACKGROUND ---------- */
   const bg =
@@ -71,7 +85,7 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
     if (!post)
       return (
         <div className="flex items-center justify-center text-white text-lg opacity-60">
-          Fan posts will appear here soon!
+          Waiting for posts…
         </div>
       );
 
@@ -81,6 +95,7 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
           width: '100%',
           height: '100%',
           display: 'flex',
+          flexDirection: 'row',
           alignItems: 'center',
           justifyContent: 'flex-start',
           borderRadius: 14,
@@ -88,18 +103,18 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
           background: 'rgba(255,255,255,0.08)',
           backdropFilter: 'blur(6px)',
           border: '1px solid rgba(255,255,255,0.1)',
-          padding: '12px',
+          padding: '14px',
           boxSizing: 'border-box',
-          gap: '10px',
         }}
       >
-        {/* LEFT: PHOTO (square, not stretched) */}
+        {/* PHOTO */}
         <div
           style={{
             flex: '0 0 60%',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
+            paddingRight: '10px',
           }}
         >
           {post.photo_url ? (
@@ -111,7 +126,7 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
                 aspectRatio: '1 / 1',
                 objectFit: 'cover',
                 borderRadius: 12,
-                boxShadow: '0 0 16px rgba(0,0,0,0.4)',
+                boxShadow: '0 0 16px rgba(0,0,0,0.5)',
               }}
             />
           ) : (
@@ -133,21 +148,24 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
           )}
         </div>
 
-        {/* RIGHT: NAME + MESSAGE */}
+        {/* TEXT */}
         <div
           style={{
             flex: 1,
             display: 'flex',
             flexDirection: 'column',
             justifyContent: 'center',
+            alignItems: 'center',
             textAlign: 'center',
+            gap: '8px',
+            paddingLeft: '8px',
           }}
         >
           <h3
             style={{
               color: '#fff',
               fontWeight: 700,
-              fontSize: '1.3rem',
+              fontSize: '1.2rem',
               margin: 0,
               textShadow: '0 0 10px rgba(0,0,0,0.6)',
             }}
@@ -159,8 +177,8 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
               color: '#f1f1f1',
               fontSize: '1rem',
               fontWeight: 400,
-              lineHeight: 1.3,
-              marginTop: '4px',
+              lineHeight: 1.4,
+              margin: 0,
               textShadow: '0 0 6px rgba(0,0,0,0.5)',
             }}
           >
@@ -171,18 +189,12 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
     );
   }
 
-  /* ---------- SMOOTH SLIDE ANIMATION ---------- */
-  const slideVariants = {
-    hidden: { y: '-100%', opacity: 0 },
+  /* ---------- FADE VARIANTS ---------- */
+  const fadeVariants = {
+    hidden: { opacity: 0 },
     visible: {
-      y: 0,
       opacity: 1,
-      transition: { duration: 1.2, ease: 'easeInOut' },
-    },
-    exit: {
-      y: '100%',
-      opacity: 0,
-      transition: { duration: 1.2, ease: 'easeInOut' },
+      transition: { duration: 1.0, ease: 'easeInOut' },
     },
   };
 
@@ -197,33 +209,27 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
-        justifyContent: 'flex-start',
         overflow: 'hidden',
       }}
     >
-      {/* ---------- LOGO ---------- */}
+      {/* LOGO */}
       <div
         style={{
           position: 'absolute',
           top: '3vh',
           right: '3vw',
-          width: 'clamp(160px, 18vw, 220px)',
+          width: 'clamp(160px,18vw,220px)',
           zIndex: 20,
         }}
       >
         <img
           src={event.logo_url || '/faninteractlogo.png'}
           alt="Logo"
-          style={{
-            width: '100%',
-            height: 'auto',
-            objectFit: 'contain',
-            filter: 'drop-shadow(0 0 12px rgba(0,0,0,0.85))',
-          }}
+          style={{ width: '100%', height: 'auto', objectFit: 'contain' }}
         />
       </div>
 
-      {/* ---------- TITLE ---------- */}
+      {/* TITLE */}
       <h1
         style={{
           color: '#fff',
@@ -233,20 +239,20 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
           letterSpacing: '1px',
           marginTop: '3vh',
           marginBottom: '2vh',
-          fontSize: 'clamp(2.5rem, 4vw, 5rem)',
+          fontSize: 'clamp(2.5rem,4vw,5rem)',
         }}
       >
         {event.title || 'Fan Zone Wall'}
       </h1>
 
-      {/* ---------- GRID ---------- */}
+      {/* GRID */}
       <div
         style={{
           width: '90vw',
           height: '70vh',
           display: 'grid',
-          gridTemplateColumns: 'repeat(4, 1fr)',
-          gridTemplateRows: 'repeat(2, 1fr)',
+          gridTemplateColumns: 'repeat(4,1fr)',
+          gridTemplateRows: 'repeat(2,1fr)',
           borderRadius: 20,
           overflow: 'hidden',
           boxShadow: '10px 10px 30px rgba(0,0,0,0.4)',
@@ -258,11 +264,10 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
         {columns.flat().map((post, i) => (
           <AnimatePresence key={i}>
             <motion.div
-              key={(post?.id || 'empty') + '-' + i}
-              variants={slideVariants}
+              key={(post?.id || 'empty') + '-' + i + '-' + fadeTrigger}
+              variants={fadeVariants}
               initial="hidden"
               animate="visible"
-              exit="exit"
               style={{ width: '100%', height: '100%' }}
             >
               <PostCard post={post} />
@@ -271,7 +276,7 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
         ))}
       </div>
 
-      {/* ---------- QR ---------- */}
+      {/* QR */}
       <div
         style={{
           position: 'absolute',
@@ -280,16 +285,14 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
-          justifyContent: 'center',
         }}
       >
         <p
           style={{
             color: '#fff',
             textAlign: 'center',
-            textShadow: '0 0 10px rgba(0,0,0,0.6)',
             fontWeight: 700,
-            fontSize: 'clamp(1.2rem, 1.8vw, 2rem)',
+            fontSize: 'clamp(1.2rem,1.8vw,2rem)',
             marginBottom: '0.8vh',
           }}
         >
@@ -308,7 +311,7 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
         />
       </div>
 
-      {/* ---------- FULLSCREEN ---------- */}
+      {/* FULLSCREEN BUTTON */}
       <div
         style={{
           position: 'fixed',
@@ -335,7 +338,6 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
             document.documentElement.requestFullscreen().catch(console.error);
           else document.exitFullscreen();
         }}
-        title="Toggle Fullscreen"
       >
         <svg
           xmlns="http://www.w3.org/2000/svg"
