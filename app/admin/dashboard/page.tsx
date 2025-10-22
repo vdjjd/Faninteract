@@ -223,49 +223,6 @@ export default function DashboardPage() {
         </button>
       </div>
 
-      {/* ---------- CREATE MODALS ---------- */}
-      {creatingNew === 'fanwall' && (
-        <div className="bg-black/40 border border-blue-500/50 rounded-xl p-4 mt-4 w-72 text-center backdrop-blur-md">
-          <h3 className="font-semibold text-lg mb-2">🆕 Create New Fan Wall</h3>
-          <input
-            type="text"
-            placeholder="Enter title..."
-            value={newTitle}
-            onChange={(e) => setNewTitle(e.target.value)}
-            className="w-full p-2 rounded-md text-black"
-          />
-          <div className="flex justify-center gap-3 mt-3">
-            <button onClick={handleCreateEvent} className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded">
-              💾 Create
-            </button>
-            <button onClick={() => setCreatingNew(null)} className="bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded">
-              ✖ Cancel
-            </button>
-          </div>
-        </div>
-      )}
-
-      {creatingNew === 'poll' && (
-        <div className="bg-black/40 border border-green-500/50 rounded-xl p-4 mt-4 w-72 text-center backdrop-blur-md">
-          <h3 className="font-semibold text-lg mb-2">🆕 Create New Poll Wall</h3>
-          <input
-            type="text"
-            placeholder="Enter question..."
-            value={newTitle}
-            onChange={(e) => setNewTitle(e.target.value)}
-            className="w-full p-2 rounded-md text-black"
-          />
-          <div className="flex justify-center gap-3 mt-3">
-            <button onClick={handleCreatePoll} className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded">
-              💾 Create
-            </button>
-            <button onClick={() => setCreatingNew(null)} className="bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded">
-              ✖ Cancel
-            </button>
-          </div>
-        </div>
-      )}
-
       {/* ---------- FAN WALLS GRID ---------- */}
       <h2 className="text-xl font-semibold mt-8 mb-2">🎤 Fan Zone Walls</h2>
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
@@ -310,6 +267,9 @@ export default function DashboardPage() {
               </button>
               <button onClick={() => handleClearEvent(event.id)} className="bg-cyan-500 hover:bg-cyan-600 px-2 py-1 rounded text-sm font-semibold">
                 🧹 Clear
+              </button>
+              <button onClick={() => setSelectedEvent(event)} className="bg-indigo-500 hover:bg-indigo-600 px-2 py-1 rounded text-sm font-semibold">
+                ⚙ Options
               </button>
               <button onClick={() => setConfirmingDelete({ type: 'event', id: event.id })} className="bg-red-700 hover:bg-red-800 px-2 py-1 rounded text-sm font-semibold">
                 ❌ Delete
@@ -357,6 +317,9 @@ export default function DashboardPage() {
               </button>
               <button onClick={() => handleClearPoll(poll.id)} className="bg-cyan-500 hover:bg-cyan-600 px-2 py-1 rounded text-sm font-semibold">
                 🧹 Clear
+              </button>
+              <button onClick={() => setSelectedEvent(poll)} className="bg-indigo-500 hover:bg-indigo-600 px-2 py-1 rounded text-sm font-semibold">
+                ⚙ Options
               </button>
               <button onClick={() => setConfirmingDelete({ type: 'poll', id: poll.id })} className="bg-red-700 hover:bg-red-800 px-2 py-1 rounded text-sm font-semibold">
                 ❌ Delete
