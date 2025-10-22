@@ -7,6 +7,12 @@ import {
   deleteEvent,
   clearEventPosts,
 } from '@/lib/actions/events';
+import {
+  createPoll,
+  getPollsByHost,
+  deletePoll,
+  clearPoll,
+} from '@/lib/actions/polls';
 import { supabase } from '@/lib/supabaseClient';
 import OptionsModal from '@/components/OptionsModal';
 
@@ -15,21 +21,28 @@ const DEFAULT_GRADIENT = 'linear-gradient(135deg,#0d47a1,#1976d2)';
 export default function DashboardPage() {
   const [host, setHost] = useState<any>(null);
   const [events, setEvents] = useState<any[]>([]);
+  const [polls, setPolls] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [creatingNew, setCreatingNew] = useState(false);
+  const [creatingNew, setCreatingNew] = useState<string | null>(null);
   const [newTitle, setNewTitle] = useState('');
-  const [confirmingDelete, setConfirmingDelete] = useState<string | null>(null);
+  const [confirmingDelete, setConfirmingDelete] = useState<{ type: string; id: string } | null>(null);
   const [selectedEvent, setSelectedEvent] = useState<any | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-  /* ---------- LOAD HOST EVENTS ---------- */
+  /* ---------- LOAD HOST EVENTS + POLLS ---------- */
   useEffect(() => {
     async function fetchData() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
       setHost(user);
-      const fetched = await getEventsByHost(user.id);
-      setEvents(fetched);
+
+      const [fetchedEvents, fetchedPolls] = await Promise.all([
+        getEventsByHost(user.id),
+        getPollsByHost(user.id),
+      ]);
+
+      setEvents(fetchedEvents);
+      setPolls(fetchedPolls);
       setLoading(false);
     }
     fetchData();
@@ -38,16 +51,17 @@ export default function DashboardPage() {
   /* ---------- REALTIME REFRESH ---------- */
   useEffect(() => {
     if (!host) return;
+
     const channel = supabase
-      .channel('events_realtime')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'events' },
-        async () => {
-          const updated = await getEventsByHost(host.id);
-          setEvents(updated);
-        }
-      )
+      .channel('dashboard_realtime')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'events' }, async () => {
+        const updatedEvents = await getEventsByHost(host.id);
+        setEvents(updatedEvents);
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'polls' }, async () => {
+        const updatedPolls = await getPollsByHost(host.id);
+        setPolls(updatedPolls);
+      })
       .subscribe();
 
     return () => {
@@ -55,121 +69,100 @@ export default function DashboardPage() {
     };
   }, [host]);
 
-  /* ---------- CRUD ---------- */
-  async function handleCreateConfirm() {
+  /* ---------- FAN WALL CRUD ---------- */
+  async function handleCreateEvent() {
     if (!newTitle.trim()) return;
     await createEvent(host.id, { title: newTitle.trim() });
     const updated = await getEventsByHost(host.id);
     setEvents(updated);
-    setCreatingNew(false);
+    setCreatingNew(null);
     setNewTitle('');
   }
 
-  async function handleDelete(id: string) {
+  async function handleDeleteEvent(id: string) {
     await deleteEvent(id);
     setEvents((prev) => prev.filter((e) => e.id !== id));
     setConfirmingDelete(null);
   }
 
-  async function handleClear(id: string) {
+  async function handleClearEvent(id: string) {
     await clearEventPosts(id);
-    await supabase
-      .from('events')
-      .update({
-        status: 'cleared',
-        countdown_active: false,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', id);
     const updated = await getEventsByHost(host.id);
     setEvents(updated);
   }
 
-  async function handleLaunch(id: string) {
+  /* ---------- POLL CRUD ---------- */
+  async function handleCreatePoll() {
+    if (!newTitle.trim()) return;
+    await createPoll(host.id, { title: newTitle.trim() });
+    const updated = await getPollsByHost(host.id);
+    setPolls(updated);
+    setCreatingNew(null);
+    setNewTitle('');
+  }
+
+  async function handleDeletePoll(id: string) {
+    await deletePoll(id);
+    setPolls((prev) => prev.filter((p) => p.id !== id));
+    setConfirmingDelete(null);
+  }
+
+  async function handleClearPoll(id: string) {
+    await clearPoll(id);
+    const updated = await getPollsByHost(host.id);
+    setPolls(updated);
+  }
+
+  /* ---------- FAN WALL CONTROL ---------- */
+  async function handleLaunchWall(id: string) {
     const wallUrl = `${window.location.origin}/wall/${id}`;
     const popup = window.open(
       wallUrl,
       '_blank',
-      'popup=yes,width=1280,height=800,left=100,top=100,menubar=no,toolbar=no,location=no,status=no,resizable=yes,scrollbars=no,titlebar=no'
+      'width=1280,height=800,left=100,top=100,menubar=no,toolbar=no,location=no,status=no,resizable=yes,scrollbars=no'
     );
     popup?.focus();
   }
 
-  /* ---------- PLAY BUTTON ---------- */
-  async function handleStart(id: string) {
+  async function handleStartWall(id: string) {
     const { data: event } = await supabase.from('events').select('*').eq('id', id).single();
-
     if (!event) return;
 
-    if (event.countdown) {
-      await supabase
-        .from('events')
-        .update({
-          countdown_active: true,
-          status: 'inactive',
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', id);
-    } else {
-      await supabase
-        .from('events')
-        .update({
-          status: 'live',
-          countdown_active: false,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', id);
-    }
+    const update = event.countdown
+      ? { countdown_active: true, status: 'inactive' }
+      : { status: 'live', countdown_active: false };
 
+    await supabase.from('events').update({ ...update, updated_at: new Date().toISOString() }).eq('id', id);
     const updated = await getEventsByHost(host.id);
     setEvents(updated);
   }
 
-  /* ---------- STOP BUTTON ---------- */
-  async function handleStop(id: string) {
-    const { data: event } = await supabase.from('events').select('*').eq('id', id).single();
-    if (!event) return;
-
+  async function handleStopWall(id: string) {
     await supabase
       .from('events')
-      .update({
-        status: 'inactive',
-        countdown_active: false,
-        updated_at: new Date().toISOString(),
-      })
+      .update({ status: 'inactive', countdown_active: false, updated_at: new Date().toISOString() })
       .eq('id', id);
-
     const updated = await getEventsByHost(host.id);
     setEvents(updated);
   }
 
-  /* ---------- MODERATION WINDOW ---------- */
-  function handleOpenModeration(id: string) {
-    const modUrl = `${window.location.origin}/admin/moderation/${id}`;
-    window.open(
-      modUrl,
+  /* ---------- POLL CONTROL ---------- */
+  async function handleLaunchPoll(id: string) {
+    const pollUrl = `${window.location.origin}/poll/${id}`;
+    const popup = window.open(
+      pollUrl,
       '_blank',
-      'width=1200,height=700,left=200,top=120,menubar=no,toolbar=no,location=no,status=no,resizable=yes,scrollbars=yes'
+      'width=1280,height=800,left=100,top=100,menubar=no,toolbar=no,location=no,status=no,resizable=yes,scrollbars=no'
     );
+    popup?.focus();
   }
 
   /* ---------- BACKGROUND CHANGE ---------- */
   async function handleBackgroundChange(event: any, newValue: string) {
     try {
-      const card = document.getElementById(`card-${event.id}`);
-      if (card) {
-        card.animate([{ opacity: 1 }, { opacity: 0.6 }, { opacity: 1 }], {
-          duration: 1000,
-          easing: 'ease-in-out',
-        });
-        card.style.transition = 'background 1s ease';
-        card.style.background = newValue;
-      }
-
       const type =
         newValue.startsWith('linear-gradient') ? 'gradient' :
-        newValue.startsWith('#') ? 'solid' :
-        'image';
+        newValue.startsWith('#') ? 'solid' : 'image';
 
       const { error } = await supabase
         .from('events')
@@ -182,9 +175,7 @@ export default function DashboardPage() {
 
       if (error) throw error;
 
-      console.log('✅ Background updated to:', type, newValue);
       showToast('✅ Background updated successfully!');
-
       const refreshed = await getEventsByHost(host.id);
       setEvents(refreshed);
     } catch (err) {
@@ -193,19 +184,13 @@ export default function DashboardPage() {
     }
   }
 
-  /* ---------- REFRESH ---------- */
-  async function refreshEvents() {
-    const updated = await getEventsByHost(host.id);
-    setEvents(updated);
-  }
-
   /* ---------- TOAST HANDLER ---------- */
   function showToast(message: string) {
     setToastMessage(message);
     setTimeout(() => setToastMessage(null), 3000);
   }
 
-  /* ---------- LOADING ---------- */
+  /* ---------- PAGE ---------- */
   if (loading)
     return (
       <div className="flex items-center justify-center h-screen bg-gradient-to-br from-[#0a2540] via-[#1b2b44] to-black text-white">
@@ -213,7 +198,6 @@ export default function DashboardPage() {
       </div>
     );
 
-  /* ---------- PAGE ---------- */
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#0a2540] via-[#1b2b44] to-black text-white flex flex-col items-center px-4 py-8 font-sans">
       <img
@@ -223,15 +207,24 @@ export default function DashboardPage() {
       />
       <h1 className="text-2xl font-bold mb-6">🎛 Host Dashboard</h1>
 
-      {/* ---------- CREATE NEW ---------- */}
-      {!creatingNew ? (
+      {/* ---------- CREATE BUTTONS ---------- */}
+      <div className="flex gap-4 mb-4">
         <button
-          onClick={() => setCreatingNew(true)}
+          onClick={() => setCreatingNew('fanwall')}
           className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg font-semibold transition-all"
         >
           ➕ New Fan Zone Wall
         </button>
-      ) : (
+        <button
+          onClick={() => setCreatingNew('poll')}
+          className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg font-semibold transition-all"
+        >
+          📊 New Live Poll Wall
+        </button>
+      </div>
+
+      {/* ---------- CREATE MODALS ---------- */}
+      {creatingNew === 'fanwall' && (
         <div className="bg-black/40 border border-blue-500/50 rounded-xl p-4 mt-4 w-72 text-center backdrop-blur-md">
           <h3 className="font-semibold text-lg mb-2">🆕 Create New Fan Wall</h3>
           <input
@@ -242,29 +235,44 @@ export default function DashboardPage() {
             className="w-full p-2 rounded-md text-black"
           />
           <div className="flex justify-center gap-3 mt-3">
-            <button
-              onClick={handleCreateConfirm}
-              className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded"
-            >
+            <button onClick={handleCreateEvent} className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded">
               💾 Create
             </button>
-            <button
-              onClick={() => setCreatingNew(false)}
-              className="bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded"
-            >
+            <button onClick={() => setCreatingNew(null)} className="bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded">
               ✖ Cancel
             </button>
           </div>
         </div>
       )}
 
-      {/* ---------- EVENTS GRID ---------- */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5 mt-8">
+      {creatingNew === 'poll' && (
+        <div className="bg-black/40 border border-green-500/50 rounded-xl p-4 mt-4 w-72 text-center backdrop-blur-md">
+          <h3 className="font-semibold text-lg mb-2">🆕 Create New Poll Wall</h3>
+          <input
+            type="text"
+            placeholder="Enter question..."
+            value={newTitle}
+            onChange={(e) => setNewTitle(e.target.value)}
+            className="w-full p-2 rounded-md text-black"
+          />
+          <div className="flex justify-center gap-3 mt-3">
+            <button onClick={handleCreatePoll} className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded">
+              💾 Create
+            </button>
+            <button onClick={() => setCreatingNew(null)} className="bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded">
+              ✖ Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ---------- FAN WALLS GRID ---------- */}
+      <h2 className="text-xl font-semibold mt-8 mb-2">🎤 Fan Zone Walls</h2>
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
         {events.map((event) => (
           <div
             key={event.id}
-            id={`card-${event.id}`}
-            className="rounded-xl p-4 text-center text-white shadow-lg transition-all bg-cover bg-center"
+            className="rounded-xl p-4 text-center shadow-lg bg-cover bg-center"
             style={{
               background:
                 event.background_type === 'image'
@@ -275,7 +283,7 @@ export default function DashboardPage() {
             <h3 className="font-bold text-lg text-center drop-shadow-md">
               {event.host_title || event.title}
             </h3>
-            <p className="text-sm mt-1 text-center drop-shadow-md">
+            <p className="text-sm mt-1">
               <strong>Status:</strong>{' '}
               <span
                 className={
@@ -290,53 +298,67 @@ export default function DashboardPage() {
               </span>
             </p>
 
-            <div className="flex justify-center mt-2">
-              <button
-                onClick={() => handleOpenModeration(event.id)}
-                className="bg-yellow-500 hover:bg-yellow-600 px-2 py-1 rounded text-sm font-semibold"
-              >
-                🔔 Pending ({event.pending_posts ?? 0})
-              </button>
-            </div>
-
             <div className="flex flex-wrap justify-center gap-2 mt-3">
-              <button
-                onClick={() => handleLaunch(event.id)}
-                className="bg-blue-600 hover:bg-blue-700 px-2 py-1 rounded text-sm font-semibold"
-              >
+              <button onClick={() => handleLaunchWall(event.id)} className="bg-blue-600 hover:bg-blue-700 px-2 py-1 rounded text-sm font-semibold">
                 🚀 Launch
               </button>
-              <button
-                onClick={() => handleStart(event.id)}
-                className="bg-green-600 hover:bg-green-700 px-2 py-1 rounded text-sm font-semibold"
-              >
+              <button onClick={() => handleStartWall(event.id)} className="bg-green-600 hover:bg-green-700 px-2 py-1 rounded text-sm font-semibold">
                 ▶️ Play
               </button>
-              <button
-                onClick={() => handleStop(event.id)}
-                className="bg-red-600 hover:bg-red-700 px-2 py-1 rounded text-sm font-semibold"
-              >
+              <button onClick={() => handleStopWall(event.id)} className="bg-red-600 hover:bg-red-700 px-2 py-1 rounded text-sm font-semibold">
                 ⏹ Stop
               </button>
-            </div>
-
-            <div className="flex flex-wrap justify-center gap-2 mt-3">
-              <button
-                onClick={() => handleClear(event.id)}
-                className="bg-cyan-500 hover:bg-cyan-600 px-2 py-1 rounded text-sm font-semibold"
-              >
+              <button onClick={() => handleClearEvent(event.id)} className="bg-cyan-500 hover:bg-cyan-600 px-2 py-1 rounded text-sm font-semibold">
                 🧹 Clear
               </button>
-              <button
-                onClick={() => setSelectedEvent(event)}
-                className="bg-indigo-500 hover:bg-indigo-600 px-2 py-1 rounded text-sm font-semibold"
-              >
-                ⚙ Options
+              <button onClick={() => setConfirmingDelete({ type: 'event', id: event.id })} className="bg-red-700 hover:bg-red-800 px-2 py-1 rounded text-sm font-semibold">
+                ❌ Delete
               </button>
-              <button
-                onClick={() => setConfirmingDelete(event.id)}
-                className="bg-red-700 hover:bg-red-800 px-2 py-1 rounded text-sm font-semibold"
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* ---------- POLL WALLS GRID ---------- */}
+      <h2 className="text-xl font-semibold mt-10 mb-2">📊 Live Poll Walls</h2>
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
+        {polls.map((poll) => (
+          <div
+            key={poll.id}
+            className="rounded-xl p-4 text-center shadow-lg bg-cover bg-center"
+            style={{
+              background:
+                poll.background_type === 'image'
+                  ? `url(${poll.background_value}) center/cover no-repeat`
+                  : poll.background_value || DEFAULT_GRADIENT,
+            }}
+          >
+            <h3 className="font-bold text-lg text-center drop-shadow-md">
+              {poll.title}
+            </h3>
+            <p className="text-sm mt-1">
+              <strong>Status:</strong>{' '}
+              <span
+                className={
+                  poll.status === 'live'
+                    ? 'text-lime-400'
+                    : poll.status === 'cleared'
+                    ? 'text-cyan-400'
+                    : 'text-orange-400'
+                }
               >
+                {poll.status}
+              </span>
+            </p>
+
+            <div className="flex flex-wrap justify-center gap-2 mt-3">
+              <button onClick={() => handleLaunchPoll(poll.id)} className="bg-blue-600 hover:bg-blue-700 px-2 py-1 rounded text-sm font-semibold">
+                🚀 Launch
+              </button>
+              <button onClick={() => handleClearPoll(poll.id)} className="bg-cyan-500 hover:bg-cyan-600 px-2 py-1 rounded text-sm font-semibold">
+                🧹 Clear
+              </button>
+              <button onClick={() => setConfirmingDelete({ type: 'poll', id: poll.id })} className="bg-red-700 hover:bg-red-800 px-2 py-1 rounded text-sm font-semibold">
                 ❌ Delete
               </button>
             </div>
@@ -349,12 +371,14 @@ export default function DashboardPage() {
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 animate-fadeIn">
           <div className="bg-[#111] border border-gray-500 rounded-xl p-6 text-center text-white shadow-2xl w-80">
             <h3 className="text-xl font-semibold mb-3">Confirm Deletion</h3>
-            <p className="text-sm mb-4">
-              Are you sure you want to delete this event?
-            </p>
+            <p className="text-sm mb-4">Are you sure you want to delete this {confirmingDelete.type}?</p>
             <div className="flex justify-center gap-4">
               <button
-                onClick={() => handleDelete(confirmingDelete)}
+                onClick={() =>
+                  confirmingDelete.type === 'poll'
+                    ? handleDeletePoll(confirmingDelete.id)
+                    : handleDeleteEvent(confirmingDelete.id)
+                }
                 className="bg-green-600 hover:bg-green-700 px-4 py-2 rounded-lg font-semibold"
               >
                 ✅ Yes, Delete
@@ -377,7 +401,10 @@ export default function DashboardPage() {
           hostId={host.id}
           onClose={() => setSelectedEvent(null)}
           onBackgroundChange={handleBackgroundChange}
-          refreshEvents={refreshEvents}
+          refreshEvents={async () => {
+            const updated = await getEventsByHost(host.id);
+            setEvents(updated);
+          }}
         />
       )}
 
