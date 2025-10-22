@@ -6,7 +6,7 @@ import { supabase } from '@/lib/supabaseClient';
 import InactiveWall from '@/components/InactiveWall';
 import SingleHighlightWall from '@/components/layouts/SingleHighlightWall';
 import Grid2x2Wall from '@/components/layouts/Grid2x2Wall';
-import Grid4x2Wall from '@/components/layouts/Grid4x2Wall'; // ✅ new layout import
+import Grid4x2Wall from '@/components/layouts/Grid4x2Wall';
 
 /* ---------- TYPES ---------- */
 interface EventData {
@@ -159,12 +159,16 @@ export default function FanWallPage() {
     };
   }, [eventId]);
 
-  /* ---------- BACKGROUND ---------- */
-  const bg =
-    event?.background_type === 'image'
-      ? `url(${event.background_value}) center/cover no-repeat`
-      : event?.background_value ||
-        'linear-gradient(to bottom right,#1b2735,#090a0f)';
+  /* ---------- BACKGROUND FIX ---------- */
+  let bg = 'linear-gradient(to bottom right,#1b2735,#090a0f)';
+
+  if (event?.background_type === 'image' && event?.background_value) {
+    bg = `url(${event.background_value}) center/cover no-repeat`;
+  } else if (event?.background_type === 'gradient' && event?.background_value) {
+    bg = `${event.background_value}`;
+  } else if (event?.background_type === 'solid' && event?.background_value) {
+    bg = `${event.background_value}`;
+  }
 
   /* ---------- LOADING ---------- */
   if (loading)
