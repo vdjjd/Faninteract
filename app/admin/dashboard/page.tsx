@@ -162,6 +162,24 @@ export default function DashboardPage() {
     popup?.focus();
   }
 
+  async function handleStartPoll(id: string) {
+    await supabase
+      .from('polls')
+      .update({ status: 'live', countdown_active: false, updated_at: new Date().toISOString() })
+      .eq('id', id);
+    const updated = await getPollsByHost(host.id);
+    setPolls(updated);
+  }
+
+  async function handleStopPoll(id: string) {
+    await supabase
+      .from('polls')
+      .update({ status: 'inactive', countdown_active: false, updated_at: new Date().toISOString() })
+      .eq('id', id);
+    const updated = await getPollsByHost(host.id);
+    setPolls(updated);
+  }
+
   /* ---------- BACKGROUND CHANGE ---------- */
   async function handleBackgroundChange(event: any, newValue: string) {
     try {
@@ -320,7 +338,6 @@ export default function DashboardPage() {
                   : poll.background_value || DEFAULT_GRADIENT,
             }}
           >
-            {/* ✅ FIXED LINE */}
             <h3 className="font-bold text-lg text-center drop-shadow-md">
               {poll.host_title || poll.title || 'Untitled Poll'}
             </h3>
@@ -344,6 +361,12 @@ export default function DashboardPage() {
               <button onClick={() => handleLaunchPoll(poll.id)} className="bg-blue-600 hover:bg-blue-700 px-2 py-1 rounded text-sm font-semibold">
                 🚀 Launch
               </button>
+              <button onClick={() => handleStartPoll(poll.id)} className="bg-green-600 hover:bg-green-700 px-2 py-1 rounded text-sm font-semibold">
+                ▶️ Play
+              </button>
+              <button onClick={() => handleStopPoll(poll.id)} className="bg-red-600 hover:bg-red-700 px-2 py-1 rounded text-sm font-semibold">
+                ⏹ Stop
+              </button>
               <button onClick={() => handleClearPoll(poll.id)} className="bg-cyan-500 hover:bg-cyan-600 px-2 py-1 rounded text-sm font-semibold">
                 🧹 Clear
               </button>
@@ -364,14 +387,13 @@ export default function DashboardPage() {
         ))}
       </div>
 
-      {/* ---------- REST UNCHANGED ---------- */}
+      {/* ---------- CREATE / DELETE / OPTIONS / TOAST ---------- */}
       {creatingNew && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 animate-fadeIn">
           <div className="bg-[#111] border border-gray-600 rounded-xl p-6 text-center text-white shadow-2xl w-96">
             <h3 className="text-xl font-semibold mb-3">
               {creatingNew === 'poll' ? '📊 New Live Poll Wall' : '🎤 New Fan Zone Wall'}
             </h3>
-
             <input
               type="text"
               placeholder="Enter title..."
@@ -379,7 +401,6 @@ export default function DashboardPage() {
               onChange={(e) => setNewTitle(e.target.value)}
               className="w-full px-3 py-2 mb-4 rounded-md bg-gray-800 text-white border border-gray-500 focus:outline-none focus:border-blue-400"
             />
-
             <div className="flex justify-center gap-4">
               <button
                 onClick={() =>
@@ -426,6 +447,9 @@ export default function DashboardPage() {
                 className="bg-red-600 hover:bg-red-700 px-4 py-2 rounded-lg font-semibold"
               >
                 ✖ Cancel
+              </button>
+            </div>
+…Delete
               </button>
             </div>
           </div>
