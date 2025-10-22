@@ -5,9 +5,21 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { QRCodeCanvas } from 'qrcode.react';
 import { supabase } from '@/lib/supabaseClient';
 
+/* ---------- TYPES ---------- */
+interface Post {
+  id: string;
+  user_id?: string | null;
+  event_id?: string | null;
+  photo_url?: string | null;
+  message?: string | null;
+  nickname?: string | null;
+  status?: string;
+  created_at?: string;
+}
+
 interface Grid4x2WallProps {
   event: any;
-  posts: any[];
+  posts: Post[];
 }
 
 /* ---------- SPEED MAP ---------- */
@@ -18,7 +30,7 @@ const speedMap: Record<string, number> = {
 };
 
 export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
-  const [columns, setColumns] = useState<any[][]>([[], [], [], []]);
+  const [columns, setColumns] = useState<Post[][]>([[], [], [], []]);
   const [postIndex, setPostIndex] = useState(0);
   const [columnTurn, setColumnTurn] = useState(0); // 0–3 = col1–col4
 
@@ -27,7 +39,7 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
   /* ---------- INITIAL POPULATION ---------- */
   useEffect(() => {
     if (!posts || posts.length === 0) return;
-    const newCols = [[], [], [], []];
+    const newCols: Post[][] = [[], [], [], []];
     for (let i = 0; i < 4; i++) {
       newCols[i] = posts.slice(i * 2, i * 2 + 2);
     }
@@ -63,7 +75,7 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
         'linear-gradient(to bottom right,#1b2735,#090a0f)';
 
   /* ---------- POST CARD ---------- */
-  function PostCard({ post }: { post: any }) {
+  function PostCard({ post }: { post: Post | null }) {
     if (!post)
       return (
         <div className="flex items-center justify-center text-white text-lg opacity-60">
@@ -181,7 +193,6 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
     },
   };
 
-  // per-column 0.2s cascade delay
   const getColumnDelay = (index: number) => (index % 4) * 0.2;
 
   /* ---------- RENDER ---------- */
@@ -270,10 +281,7 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
                   duration: 0.8,
                   ease: 'easeOut',
                 }}
-                style={{
-                  width: '100%',
-                  height: '100%',
-                }}
+                style={{ width: '100%', height: '100%' }}
               >
                 <PostCard post={post} />
               </motion.div>
