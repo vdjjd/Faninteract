@@ -44,7 +44,7 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
   /* ---------- CYCLIC ORDER UPDATES ---------- */
   useEffect(() => {
     if (!posts || posts.length === 0) return;
-    const order = [0, 1, 2, 3, 4, 5, 6, 7]; // 8 cells in sequence
+    const order = [0, 1, 2, 3, 4, 5, 6, 7];
     const interval = setInterval(() => {
       const next = posts[postIndex % posts.length];
       const cellToUpdate = order[cellIndex % order.length];
@@ -92,33 +92,46 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
             '0 0 20px rgba(255,255,255,0.1), 0 0 30px rgba(100,180,255,0.15)',
         }}
       >
-        {/* LEFT: PHOTO */}
+        {/* LEFT: PHOTO (4:3) */}
         <div
           style={{
-            flex: 1.3, // wider photo ratio
+            flex: 1,
             position: 'relative',
             padding: '2px 0 2px 2px',
             boxSizing: 'border-box',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
           }}
         >
           {post.photo_url ? (
-            <img
-              src={post.photo_url}
-              alt="Guest submission"
+            <div
               style={{
                 width: '100%',
                 height: '100%',
-                objectFit: 'cover',
-                display: 'block',
-                opacity: 0.9,
+                aspectRatio: '4 / 3',
+                overflow: 'hidden',
                 borderRadius: 10,
               }}
-            />
+            >
+              <img
+                src={post.photo_url}
+                alt="Guest submission"
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  objectFit: 'cover',
+                  display: 'block',
+                  opacity: 0.9,
+                }}
+              />
+            </div>
           ) : (
             <div
               style={{
                 width: '100%',
                 height: '100%',
+                aspectRatio: '4 / 3',
                 background: 'rgba(255,255,255,0.05)',
                 display: 'flex',
                 alignItems: 'center',
@@ -136,11 +149,11 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
         {/* RIGHT: NAME + MESSAGE */}
         <div
           style={{
-            flex: 0.7, // smaller text side
+            flex: 1,
             display: 'flex',
             flexDirection: 'column',
             justifyContent: 'space-between',
-            background: 'rgba(0,0,0,0.25)', // glass-lite
+            background: 'rgba(0,0,0,0.25)',
             backdropFilter: 'blur(12px)',
             borderLeft: '1px solid rgba(255,255,255,0.15)',
             boxShadow: 'inset 0 0 12px rgba(255,255,255,0.08)',
@@ -413,6 +426,7 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
     </>
   );
 }
+
 
 
 
