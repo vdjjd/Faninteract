@@ -331,16 +331,28 @@ export default function OptionsModal({
         </div>
 
         {/* ---- UPLOAD IMAGE ---- */}
-        <label className="block mt-6 text-sm font-semibold">
-          🖼 Upload Custom Background (1920×1080 JPG/PNG/WEBP)
-        </label>
-        <input
-          type="file"
-          accept="image/jpeg,image/png,image/webp"
-          onChange={handleImageUpload}
-          className="w-full mt-2 text-sm"
-        />
-        {uploading && <p className="text-yellow-400 text-xs mt-1">Uploading...</p>}
+        <div className="mt-6 text-center">
+          <p className="text-sm font-semibold leading-tight mb-2">
+            Upload Custom Background
+            <br />
+            <span className="text-xs text-gray-300">
+              (1920×1080 JPG, PNG, or WEBP)
+            </span>
+          </p>
+          <div className="flex justify-center">
+            <input
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              onChange={handleImageUpload}
+              className="text-sm text-center"
+            />
+          </div>
+          {uploading && (
+            <p className="text-yellow-400 text-xs mt-2 animate-pulse">
+              Uploading...
+            </p>
+          )}
+        </div>
 
         {/* ---- BUTTONS ---- */}
         <div className="text-center mt-5 flex justify-center gap-4">
