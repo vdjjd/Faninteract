@@ -42,6 +42,10 @@ export default function FanWallPage() {
   const [loading, setLoading] = useState(true);
   const [showLive, setShowLive] = useState(false);
 
+  /* 🆕 Countdown State */
+  const [countdownActive, setCountdownActive] = useState(false);
+  const [timeLeft, setTimeLeft] = useState<number | null>(null);
+
   /* ---------- INITIAL LOAD ---------- */
   useEffect(() => {
     async function loadEvent() {
@@ -62,7 +66,7 @@ export default function FanWallPage() {
     loadEvent();
   }, [eventId]);
 
-  /* ---------- REALTIME EVENT UPDATES + FAST POLL ---------- */
+  /* ---------- REALTIME EVENT UPDATES ---------- */
   useEffect(() => {
     if (!eventId) return;
     let isMounted = true;
@@ -106,6 +110,43 @@ export default function FanWallPage() {
       clearInterval(interval);
     };
   }, [eventId]);
+
+  /* ---------- 🧠 COUNTDOWN HANDLER ---------- */
+  useEffect(() => {
+    if (!event?.countdown_active || !event?.countdown) return;
+
+    // Parse duration (supports seconds or minutes)
+    const seconds = event.countdown.includes('Minute')
+      ? parseInt(event.countdown) * 60
+      : parseInt(event.countdown);
+
+    setCountdownActive(true);
+    setTimeLeft(seconds);
+
+    const interval = setInterval(async () => {
+      setTimeLeft((prev) => {
+        if (prev === null) return null;
+        if (prev <= 1) {
+          clearInterval(interval);
+          // When countdown ends -> mark live
+          supabase
+            .from('events')
+            .update({
+              status: 'live',
+              countdown_active: false,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', event.id);
+          setCountdownActive(false);
+          setShowLive(true);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [event?.countdown_active, event?.countdown]);
 
   /* ---------- REALTIME SUBMISSIONS ---------- */
   useEffect(() => {
@@ -207,6 +248,16 @@ export default function FanWallPage() {
         {/* ---------- INACTIVE WALL ---------- */}
         <div className={`fade-child ${!showLive ? 'active' : ''}`}>
           <InactiveWall event={event} />
+
+          {/* 🕒 Countdown Overlay */}
+          {countdownActive && timeLeft !== null && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/70 text-white text-center">
+              <p className="text-2xl font-semibold mb-2">
+                Wall goes live in...
+              </p>
+              <h1 className="text-6xl font-bold">{timeLeft}s</h1>
+            </div>
+          )}
         </div>
 
         {/* ---------- LIVE WALL ---------- */}
