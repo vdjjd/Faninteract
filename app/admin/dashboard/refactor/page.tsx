@@ -4,22 +4,15 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import {
   getEventsByHost,
-  createEvent,
-  deleteEvent,
-  clearEventPosts,
 } from '@/lib/actions/events';
 import {
   getPollsByHost,
-  createPoll,
-  deletePoll,
-  clearPoll,
 } from '@/lib/actions/polls';
-import OptionsModal from '@/components/OptionsModal';
 import DashboardHeader from './components/DashboardHeader';
 import CreateFanWallModal from '@/components/CreateFanWallModal';
 import CreatePollModal from '@/components/CreatePollModal';
-
-const DEFAULT_GRADIENT = 'linear-gradient(135deg,#0d47a1,#1976d2)';
+import FanWallGrid from './components/FanWallGrid';
+import PollGrid from './components/PollGrid';
 
 export default function DashboardRefactor() {
   const [host, setHost] = useState<any>(null);
@@ -49,12 +42,24 @@ export default function DashboardRefactor() {
     load();
   }, []);
 
-  /* ---------- CREATE FAN WALL ---------- */
+  /* ---------- RELOAD HELPERS ---------- */
+  async function refreshEvents() {
+    if (!host) return;
+    const updated = await getEventsByHost(host.id);
+    setEvents(updated);
+  }
+
+  async function refreshPolls() {
+    if (!host) return;
+    const updated = await getPollsByHost(host.id);
+    setPolls(updated);
+  }
+
+  /* ---------- OPEN MODALS ---------- */
   function handleCreateFanWall() {
     setFanWallModalOpen(true);
   }
 
-  /* ---------- CREATE POLL ---------- */
   function handleCreatePoll() {
     setPollModalOpen(true);
   }
@@ -99,37 +104,39 @@ export default function DashboardRefactor() {
         </div>
       </div>
 
-      {/* CREATE FAN WALL MODAL */}
+      {/* ---------- GRIDS ---------- */}
+      <FanWallGrid events={events} host={host} refreshEvents={refreshEvents} />
+      <PollGrid polls={polls} host={host} refreshPolls={refreshPolls} />
+
+      {/* ---------- MODALS ---------- */}
       <CreateFanWallModal
         isOpen={isFanWallModalOpen}
         onClose={() => setFanWallModalOpen(false)}
         hostId={host?.id}
         refreshEvents={async () => {
-          const updated = await getEventsByHost(host.id);
-          setEvents(updated);
+          await refreshEvents();
           showToast('✅ Fan Zone Wall created!');
         }}
       />
 
-      {/* CREATE POLL MODAL */}
       <CreatePollModal
         isOpen={isPollModalOpen}
         onClose={() => setPollModalOpen(false)}
         hostId={host?.id}
         refreshPolls={async () => {
-          const updated = await getPollsByHost(host.id);
-          setPolls(updated);
+          await refreshPolls();
           showToast('✅ Live Poll created!');
         }}
       />
 
-      {/* TOAST */}
+      {/* ---------- TOAST ---------- */}
       {toast && (
         <div className="fixed bottom-6 right-6 bg-green-600/90 text-white px-4 py-2 rounded-lg shadow-lg animate-fadeIn z-50">
           {toast}
         </div>
       )}
 
+      {/* ---------- STYLE ---------- */}
       <style jsx>{`
         @keyframes fadeIn {
           from { opacity: 0; transform: translateY(8px); }
@@ -142,4 +149,3 @@ export default function DashboardRefactor() {
     </div>
   );
 }
-
