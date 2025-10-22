@@ -43,17 +43,17 @@ export default function OptionsModal({
     }))
   );
 
-  function handleColorChange(idx: number, color: string) {
-    setPollOptions((prev) =>
-      prev.map((opt, i) => (i === idx ? { ...opt, color } : opt))
-    );
-  }
+ function handleColorChange(idx: number, color: string) {
+  setPollOptions((prev: { id: number; text: string; color: string }[]) =>
+    prev.map((opt, i) => (i === idx ? { ...opt, color } : opt))
+  );
+}
 
-  function handleTextChange(idx: number, text: string) {
-    setPollOptions((prev) =>
-      prev.map((opt, i) => (i === idx ? { ...opt, text } : opt))
-    );
-  }
+function handleTextChange(idx: number, text: string) {
+  setPollOptions((prev: { id: number; text: string; color: string }[]) =>
+    prev.map((opt, i) => (i === idx ? { ...opt, text } : opt))
+  );
+}
 
   /* ---------- SAVE ---------- */
   async function handleSave() {
