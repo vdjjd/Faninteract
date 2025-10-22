@@ -278,12 +278,12 @@ export default function Grid2x2Wall({ event, posts }: Grid2x2WallProps) {
         ))}
       </div>
 
-     {/* ---------- QR SECTION ---------- */}
+{/* ---------- QR SECTION ---------- */}
 <div
   style={{
     position: 'absolute',
-    bottom: '4vh',         // moved closer to bottom
-    left: '4vw',           // tucked further left
+    bottom: '4vh',
+    left: '4vw',
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
@@ -296,26 +296,35 @@ export default function Grid2x2Wall({ event, posts }: Grid2x2WallProps) {
       textAlign: 'center',
       textShadow: '0 0 10px rgba(0,0,0,0.6)',
       fontWeight: 700,
-      fontSize: 'clamp(1rem, 1.5vw, 1.6rem)',   // proportional to new QR size
+      fontSize: 'clamp(1rem, 1.5vw, 1.6rem)',
       marginBottom: '0.6vh',
     }}
   >
     Scan Me To Join
   </p>
-  <QRCodeCanvas
-    value={`https://faninteract.vercel.app/submit/${event.id}`}
-    size={140}                               // smaller QR
-    bgColor="#ffffff"
-    fgColor="#000000"
-    level="H"
-    includeMargin={false}
+  <div
     style={{
-      borderRadius: 10,
-      boxShadow: '0 0 14px rgba(0,0,0,0.5)',
+      padding: 8,
+      borderRadius: 16,
+      background: 'rgba(255,255,255,0.05)',
+      boxShadow:
+        '0 0 25px rgba(255,255,255,0.6), 0 0 40px rgba(255,255,255,0.3), inset 0 0 10px rgba(0,0,0,0.4)',
     }}
-  />
+  >
+    <QRCodeCanvas
+      value={`https://faninteract.vercel.app/submit/${event.id}`}
+      size={140}
+      bgColor="#ffffff"
+      fgColor="#000000"
+      level="H"
+      includeMargin={false}
+      style={{
+        borderRadius: 10,
+        display: 'block',
+      }}
+    />
+  </div>
 </div>
-
 
       {/* FULLSCREEN BUTTON */}
       <div
