@@ -1,9 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { motion } from 'framer-motion';
 import { QRCodeCanvas } from 'qrcode.react';
-import { supabase } from '@/lib/supabaseClient';
 
 interface Grid4x2WallProps {
   event: any;
@@ -17,14 +15,15 @@ const speedMap: Record<string, number> = {
 };
 
 export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
-  const [columns, setColumns] = useState<any[][]>([[], [], [], []]);
+  const [grid, setGrid] = useState<any[][]>([[], [], [], []]); // 4 columns × 2 rows
   const [postIndex, setPostIndex] = useState(0);
+  const [activeCell, setActiveCell] = useState(0);
+  const [fading, setFading] = useState<number | null>(null);
 
   const displayDuration = speedMap[event?.transition_speed || 'Medium'] || 8000;
-  const fadeDuration = 2000;
-  const pauseBetween = 500;
+  const fadeDuration = 1000;
 
-  // Fill first 8 slots
+  // ---------- INITIAL SETUP ----------
   useEffect(() => {
     if (!posts?.length) return;
     const repeated = [...posts];
@@ -32,109 +31,92 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
     const filled = [[], [], [], []].map((_, i) =>
       repeated.slice(i * 2, i * 2 + 2)
     );
-    setColumns(filled);
-    setPostIndex(8 % posts.length);
+    setGrid(filled);
+    setPostIndex(repeated.length % posts.length);
   }, [posts]);
 
-  // Sequential async loop
+  // ---------- ONE CELL AT A TIME UPDATE ----------
   useEffect(() => {
     if (!posts?.length) return;
+    let cancel = false;
 
-    let cancelled = false;
+    async function cycle() {
+      while (!cancel) {
+        const next = posts[postIndex % posts.length];
+        const c = activeCell; // which column is updating
 
-    async function animateLoop() {
-      let activeColumn = 0;
+        // Fade out the top cell
+        setFading(c);
+        await wait(fadeDuration);
 
-      while (!cancelled) {
-        const nextPost = posts[postIndex % posts.length];
-
-        // fade top (ghost)
-        setColumns((prev) => {
+        // Move top → bottom
+        setGrid((prev) => {
           const updated = [...prev];
-          const col = [...updated[activeColumn]];
-          if (col[0]) col[0] = { ...col[0], state: 'ghost' };
-          updated[activeColumn] = col;
+          const col = [...updated[c]];
+          col[1] = col[0]; // move old top to bottom
+          updated[c] = col;
           return updated;
         });
 
-        await delay(fadeDuration);
+        // Reset fade
+        setFading(null);
 
-        // fade bottom to old top
-        setColumns((prev) => {
+        // Small pause before fade-in
+        await wait(300);
+
+        // Fade-in new top post
+        setGrid((prev) => {
           const updated = [...prev];
-          const col = [...updated[activeColumn]];
-          if (col[0]) col[1] = { ...col[0], state: 'ghost' };
-          updated[activeColumn] = col;
-          return updated;
-        });
-
-        await delay(pauseBetween);
-
-        // fade new post into top
-        setColumns((prev) => {
-          const updated = [...prev];
-          const col = [...updated[activeColumn]];
-          col[0] = { ...nextPost, state: 'fadein' };
-          updated[activeColumn] = col;
+          const col = [...updated[c]];
+          col[0] = next;
+          updated[c] = col;
           return updated;
         });
 
         setPostIndex((p) => (p + 1) % posts.length);
-        await delay(displayDuration);
 
-        activeColumn = (activeColumn + 1) % 4;
+        // Wait full display time before next column
+        await wait(displayDuration);
+        setActiveCell((prev) => (prev + 1) % 4);
       }
     }
 
-    animateLoop();
+    cycle();
     return () => {
-      cancelled = true;
+      cancel = true;
     };
-  }, [posts]);
+  }, [posts, postIndex, activeCell]);
 
-  const delay = (ms: number) => new Promise((res) => setTimeout(res, ms));
+  const wait = (ms: number) => new Promise((res) => setTimeout(res, ms));
 
-  /* ---------- Background ---------- */
+  // ---------- BACKGROUND ----------
   const bg =
     event?.background_type === 'image'
       ? `url(${event.background_value}) center/cover no-repeat`
       : event?.background_value ||
         'linear-gradient(to bottom right,#1b2735,#090a0f)';
 
-  /* ---------- Post Card ---------- */
-  function PostCard({ post }: { post: any }) {
+  // ---------- POST CARD ----------
+  function PostCard({ post, faded }: { post: any; faded?: boolean }) {
     if (!post)
       return (
         <div
           style={{
             width: '100%',
             height: '100%',
+            color: '#aaa',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            color: '#fff',
-            opacity: 0.3,
+            fontSize: '1.2rem',
           }}
         >
           Waiting for posts…
         </div>
       );
 
-    let opacity = 1;
-    if (post.state === 'ghost') opacity = 0.25;
-
     return (
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{
-          opacity:
-            post.state === 'fadein'
-              ? [0, 1]
-              : post.state === 'ghost'
-              ? [1, 0.25]
-              : 1,
-        }}
-        transition={{ duration: 1.5, ease: 'easeInOut' }}
+      <div
         style={{
           width: '100%',
           height: '100%',
@@ -142,6 +124,8 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
           flexDirection: 'row',
           alignItems: 'center',
           justifyContent: 'flex-start',
+          opacity: faded ? 0 : 1,
+          transition: 'opacity 1s ease-in-out',
           borderRadius: 14,
           overflow: 'hidden',
           background: 'rgba(255,255,255,0.08)',
@@ -151,6 +135,7 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
           boxSizing: 'border-box',
         }}
       >
+        {/* PHOTO */}
         <div
           style={{
             flex: '0 0 60%',
@@ -163,10 +148,10 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
           {post.photo_url ? (
             <img
               src={post.photo_url}
-              alt=""
+              alt="Guest submission"
               style={{
                 width: '100%',
-                aspectRatio: '1/1',
+                aspectRatio: '1 / 1',
                 objectFit: 'cover',
                 borderRadius: 12,
                 boxShadow: '0 0 16px rgba(0,0,0,0.5)',
@@ -176,7 +161,7 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
             <div
               style={{
                 width: '100%',
-                aspectRatio: '1/1',
+                aspectRatio: '1 / 1',
                 background: 'rgba(255,255,255,0.05)',
                 display: 'flex',
                 alignItems: 'center',
@@ -190,6 +175,8 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
             </div>
           )}
         </div>
+
+        {/* TEXT */}
         <div
           style={{
             flex: 1,
@@ -198,7 +185,7 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
             justifyContent: 'center',
             alignItems: 'center',
             textAlign: 'center',
-            gap: '8px',
+            gap: '6px',
           }}
         >
           <h3
@@ -221,24 +208,25 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
             {post.message || ''}
           </p>
         </div>
-      </motion.div>
+      </div>
     );
   }
 
-  /* ---------- Render ---------- */
+  // ---------- RENDER ----------
   return (
     <div
       style={{
         background: bg,
         width: '100%',
         height: '100vh',
+        position: 'relative',
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
         overflow: 'hidden',
       }}
     >
-      {/* Title */}
+      {/* TITLE */}
       <h1
         style={{
           color: '#fff',
@@ -252,14 +240,14 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
         {event.title || 'Fan Zone Wall'}
       </h1>
 
-      {/* Grid */}
+      {/* GRID */}
       <div
         style={{
           width: '90vw',
           height: '70vh',
           display: 'grid',
-          gridTemplateColumns: 'repeat(4, 1fr)',
-          gridTemplateRows: 'repeat(2, 1fr)',
+          gridTemplateColumns: 'repeat(4,1fr)',
+          gridTemplateRows: 'repeat(2,1fr)',
           borderRadius: 20,
           overflow: 'hidden',
           boxShadow: '10px 10px 30px rgba(0,0,0,0.4)',
@@ -268,9 +256,15 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
           backdropFilter: 'blur(14px)',
         }}
       >
-        {columns.flat().map((post, i) => (
-          <PostCard key={(post?.id || 'empty') + '-' + i} post={post} />
-        ))}
+        {grid.map((col, ci) =>
+          col.map((post, ri) => (
+            <PostCard
+              key={(post?.id || 'empty') + '-' + ci + '-' + ri}
+              post={post}
+              faded={fading === ci && ri === 0}
+            />
+          ))
+        )}
       </div>
 
       {/* QR */}
@@ -307,9 +301,55 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
           }}
         />
       </div>
+
+      {/* FULLSCREEN BUTTON */}
+      <div
+        style={{
+          position: 'fixed',
+          bottom: 10,
+          right: 10,
+          width: 48,
+          height: 48,
+          borderRadius: 10,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          cursor: 'pointer',
+          zIndex: 9999,
+          opacity: 0.25,
+          transition: 'opacity 0.3s ease',
+          background: 'rgba(255,255,255,0.08)',
+          backdropFilter: 'blur(6px)',
+          border: '1px solid rgba(255,255,255,0.2)',
+        }}
+        onMouseEnter={(e) => (e.currentTarget.style.opacity = '1')}
+        onMouseLeave={(e) => (e.currentTarget.style.opacity = '0.25')}
+        onClick={() => {
+          if (!document.fullscreenElement)
+            document.documentElement.requestFullscreen().catch(console.error);
+          else document.exitFullscreen();
+        }}
+        title="Toggle Fullscreen"
+      >
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          fill="none"
+          viewBox="0 0 24 24"
+          strokeWidth={1.5}
+          stroke="white"
+          style={{ width: 26, height: 26 }}
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M3 9V4h5M21 9V4h-5M3 15v5h5M21 15v5h-5"
+          />
+        </svg>
+      </div>
     </div>
   );
 }
+
 
 
 
