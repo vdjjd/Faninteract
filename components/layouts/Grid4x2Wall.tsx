@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { QRCodeCanvas } from 'qrcode.react';
 import { supabase } from '@/lib/supabaseClient';
 
@@ -20,12 +20,11 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
   const [columns, setColumns] = useState<any[][]>([[], [], [], []]);
   const [postIndex, setPostIndex] = useState(0);
   const [activeColumn, setActiveColumn] = useState(0);
-  const [fadeKey, setFadeKey] = useState(0);
 
   const displayDuration = speedMap[event?.transition_speed || 'Medium'] || 8000;
   const fadeDuration = 1000;
 
-  // Initial fill
+  // ---------- INITIAL POPULATION ----------
   useEffect(() => {
     if (!posts || posts.length === 0) return;
     const repeated = [...posts];
@@ -37,57 +36,51 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
     setPostIndex(repeated.length % posts.length);
   }, [posts]);
 
-  // Sequential fade + push down logic
+  // ---------- FADE + REPLACE ONE COLUMN AT A TIME ----------
   useEffect(() => {
     if (!posts || posts.length === 0) return;
 
-    const cycle = setTimeout(() => {
+    const timer = setInterval(() => {
       const nextPost = posts[postIndex % posts.length];
       setPostIndex((prev) => (prev + 1) % posts.length);
 
+      // Fade in new post on active column
       setColumns((prev) => {
         const updated = [...prev];
-        const newCols = [...updated[activeColumn]];
-        const oldTop = newCols[0];
-        newCols[0] = nextPost;
-        updated[activeColumn] = newCols;
+        const col = [...updated[activeColumn]];
+        const oldTop = col[0];
+        col[0] = { ...nextPost, _fade: true };
+        updated[activeColumn] = col;
         return updated;
       });
 
-      setFadeKey((prev) => prev + 1);
-
-      // Move top to bottom after fade
+      // After fade, move top to bottom
       setTimeout(() => {
         setColumns((prev) => {
           const updated = [...prev];
           const col = [...updated[activeColumn]];
-          const oldTop = col[0];
-          col[1] = oldTop;
+          const newTop = { ...col[0], _fade: false };
+          col[1] = newTop;
           updated[activeColumn] = col;
           return updated;
         });
       }, fadeDuration);
 
+      // Move to next column
       setActiveColumn((prev) => (prev + 1) % 4);
     }, displayDuration);
 
-    return () => clearTimeout(cycle);
-  }, [posts, postIndex, activeColumn, displayDuration, fadeKey]);
+    return () => clearInterval(timer);
+  }, [posts, postIndex, activeColumn, displayDuration]);
 
+  // ---------- BACKGROUND ----------
   const bg =
     event?.background_type === 'image'
       ? `url(${event.background_value}) center/cover no-repeat`
       : event?.background_value ||
-        'linear-gradient(to bottom right,#1b2735,#090a0f)';
+        'linear-gradient(to bottom right, #1b2735, #090a0f)';
 
-  const fadeVariants = {
-    hidden: { opacity: 0 },
-    visible: {
-      opacity: 1,
-      transition: { duration: fadeDuration / 1000, ease: 'easeInOut' },
-    },
-  };
-
+  // ---------- POST CARD ----------
   function PostCard({ post }: { post: any }) {
     if (!post)
       return (
@@ -114,6 +107,7 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
           boxSizing: 'border-box',
         }}
       >
+        {/* LEFT: PHOTO */}
         <div
           style={{
             flex: '0 0 60%',
@@ -153,6 +147,8 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
             </div>
           )}
         </div>
+
+        {/* RIGHT: NAME + MESSAGE */}
         <div
           style={{
             flex: 1,
@@ -193,6 +189,7 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
     );
   }
 
+  // ---------- RENDER ----------
   return (
     <div
       style={{
@@ -206,6 +203,7 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
         overflow: 'hidden',
       }}
     >
+      {/* LOGO */}
       <div
         style={{
           position: 'absolute',
@@ -222,6 +220,7 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
         />
       </div>
 
+      {/* TITLE */}
       <h1
         style={{
           color: '#fff',
@@ -237,13 +236,14 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
         {event.title || 'Fan Zone Wall'}
       </h1>
 
+      {/* GRID */}
       <div
         style={{
           width: '90vw',
           height: '70vh',
           display: 'grid',
-          gridTemplateColumns: 'repeat(4,1fr)',
-          gridTemplateRows: 'repeat(2,1fr)',
+          gridTemplateColumns: 'repeat(4, 1fr)',
+          gridTemplateRows: 'repeat(2, 1fr)',
           borderRadius: 20,
           overflow: 'hidden',
           boxShadow: '10px 10px 30px rgba(0,0,0,0.4)',
@@ -253,20 +253,18 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
         }}
       >
         {columns.flat().map((post, i) => (
-          <AnimatePresence key={i}>
-            <motion.div
-              key={(post?.id || 'empty') + '-' + i + '-' + fadeKey}
-              variants={fadeVariants}
-              initial="hidden"
-              animate="visible"
-              style={{ width: '100%', height: '100%' }}
-            >
-              <PostCard post={post} />
-            </motion.div>
-          </AnimatePresence>
+          <motion.div
+            key={(post?.id || 'empty') + '-' + i}
+            animate={{ opacity: post?._fade ? [0, 1] : 1 }}
+            transition={{ duration: 1 }}
+            style={{ width: '100%', height: '100%' }}
+          >
+            <PostCard post={post} />
+          </motion.div>
         ))}
       </div>
 
+      {/* QR */}
       <div
         style={{
           position: 'absolute',
@@ -301,6 +299,7 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
         />
       </div>
 
+      {/* FULLSCREEN BUTTON */}
       <div
         style={{
           position: 'fixed',
