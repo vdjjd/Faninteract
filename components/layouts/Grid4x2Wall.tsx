@@ -19,15 +19,14 @@ const speedMap: Record<string, number> = {
 export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
   const [columns, setColumns] = useState<any[][]>([[], [], [], []]);
   const [postIndex, setPostIndex] = useState(0);
-  const [activeColumn, setActiveColumn] = useState(0);
 
   const displayDuration = speedMap[event?.transition_speed || 'Medium'] || 8000;
-  const fadeDuration = 2000; // 2s cinematic fade
-  const pauseBetween = 500; // 0.5s ghost pause
+  const fadeDuration = 2000;
+  const pauseBetween = 500;
 
-  /* ---------- INITIAL POPULATION ---------- */
+  // Fill first 8 slots
   useEffect(() => {
-    if (!posts || posts.length === 0) return;
+    if (!posts?.length) return;
     const repeated = [...posts];
     while (repeated.length < 8) repeated.push(...posts);
     const filled = [[], [], [], []].map((_, i) =>
@@ -37,82 +36,105 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
     setPostIndex(8 % posts.length);
   }, [posts]);
 
-  /* ---------- FADE SEQUENCE PER COLUMN ---------- */
+  // Sequential async loop
   useEffect(() => {
-    if (!posts || posts.length === 0) return;
+    if (!posts?.length) return;
 
-    const cycle = setInterval(() => {
-      const nextPost = posts[postIndex % posts.length];
+    let cancelled = false;
 
-      // Step 1: fade out top to ghost
-      setColumns((prev) => {
-        const updated = [...prev];
-        const col = [...updated[activeColumn]];
-        if (col[0]) col[0]._fadeOut = true; // mark ghost
-        updated[activeColumn] = col;
-        return updated;
-      });
+    async function animateLoop() {
+      let activeColumn = 0;
 
-      // Step 2: after fadeDuration, fade ghost into bottom
-      setTimeout(() => {
+      while (!cancelled) {
+        const nextPost = posts[postIndex % posts.length];
+
+        // fade top (ghost)
         setColumns((prev) => {
           const updated = [...prev];
           const col = [...updated[activeColumn]];
-          if (col[0]) {
-            col[1] = { ...col[0], _fadeOut: false };
-            col[0] = { ...col[0], _faded: true }; // keep ghost state
-          }
+          if (col[0]) col[0] = { ...col[0], state: 'ghost' };
           updated[activeColumn] = col;
           return updated;
         });
-      }, fadeDuration);
 
-      // Step 3: after pauseBetween, fade new post into top
-      setTimeout(() => {
+        await delay(fadeDuration);
+
+        // fade bottom to old top
         setColumns((prev) => {
           const updated = [...prev];
           const col = [...updated[activeColumn]];
-          col[0] = { ...nextPost, _fadeIn: true };
+          if (col[0]) col[1] = { ...col[0], state: 'ghost' };
           updated[activeColumn] = col;
           return updated;
         });
-      }, fadeDuration + pauseBetween);
 
-      // Step 4: advance column and post index after full sequence
-      setTimeout(() => {
-        setActiveColumn((prev) => (prev + 1) % 4);
-        setPostIndex((prev) => (prev + 1) % posts.length);
-      }, fadeDuration + pauseBetween + 1000); // small buffer for smooth rhythm
-    }, displayDuration);
+        await delay(pauseBetween);
 
-    return () => clearInterval(cycle);
-  }, [posts, postIndex, activeColumn, displayDuration]);
+        // fade new post into top
+        setColumns((prev) => {
+          const updated = [...prev];
+          const col = [...updated[activeColumn]];
+          col[0] = { ...nextPost, state: 'fadein' };
+          updated[activeColumn] = col;
+          return updated;
+        });
 
-  /* ---------- BACKGROUND ---------- */
+        setPostIndex((p) => (p + 1) % posts.length);
+        await delay(displayDuration);
+
+        activeColumn = (activeColumn + 1) % 4;
+      }
+    }
+
+    animateLoop();
+    return () => {
+      cancelled = true;
+    };
+  }, [posts]);
+
+  const delay = (ms: number) => new Promise((res) => setTimeout(res, ms));
+
+  /* ---------- Background ---------- */
   const bg =
     event?.background_type === 'image'
       ? `url(${event.background_value}) center/cover no-repeat`
       : event?.background_value ||
-        'linear-gradient(to bottom right, #1b2735, #090a0f)';
+        'linear-gradient(to bottom right,#1b2735,#090a0f)';
 
-  /* ---------- POST CARD ---------- */
+  /* ---------- Post Card ---------- */
   function PostCard({ post }: { post: any }) {
     if (!post)
       return (
-        <div className="flex items-center justify-center text-white text-lg opacity-40">
+        <div
+          style={{
+            width: '100%',
+            height: '100%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: '#fff',
+            opacity: 0.3,
+          }}
+        >
           Waiting for posts…
         </div>
       );
 
     let opacity = 1;
-    if (post._fadeOut) opacity = 0.2; // ghosting out
-    if (post._faded) opacity = 0.3; // ghost resting
-    if (post._fadeIn) opacity = 0; // will fade in from 0
+    if (post.state === 'ghost') opacity = 0.25;
 
     return (
       <motion.div
-        animate={{ opacity: post._fadeIn ? [0, 1] : opacity }}
-        transition={{ duration: fadeDuration / 1000, ease: 'easeInOut' }}
+        initial={{ opacity: 0 }}
+        animate={{
+          opacity:
+            post.state === 'fadein'
+              ? [0, 1]
+              : post.state === 'ghost'
+              ? [1, 0.25]
+              : 1,
+        }}
+        transition={{ duration: 1.5, ease: 'easeInOut' }}
         style={{
           width: '100%',
           height: '100%',
@@ -129,7 +151,6 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
           boxSizing: 'border-box',
         }}
       >
-        {/* LEFT: PHOTO */}
         <div
           style={{
             flex: '0 0 60%',
@@ -142,10 +163,10 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
           {post.photo_url ? (
             <img
               src={post.photo_url}
-              alt="Guest submission"
+              alt=""
               style={{
                 width: '100%',
-                aspectRatio: '1 / 1',
+                aspectRatio: '1/1',
                 objectFit: 'cover',
                 borderRadius: 12,
                 boxShadow: '0 0 16px rgba(0,0,0,0.5)',
@@ -155,7 +176,7 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
             <div
               style={{
                 width: '100%',
-                aspectRatio: '1 / 1',
+                aspectRatio: '1/1',
                 background: 'rgba(255,255,255,0.05)',
                 display: 'flex',
                 alignItems: 'center',
@@ -169,8 +190,6 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
             </div>
           )}
         </div>
-
-        {/* RIGHT: NAME + MESSAGE */}
         <div
           style={{
             flex: 1,
@@ -180,7 +199,6 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
             alignItems: 'center',
             textAlign: 'center',
             gap: '8px',
-            paddingLeft: '8px',
           }}
         >
           <h3
@@ -189,19 +207,15 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
               fontWeight: 700,
               fontSize: '1.2rem',
               margin: 0,
-              textShadow: '0 0 10px rgba(0,0,0,0.6)',
             }}
           >
             {post.nickname || ''}
           </h3>
           <p
             style={{
-              color: '#f1f1f1',
+              color: '#eee',
               fontSize: '1rem',
-              fontWeight: 400,
-              lineHeight: 1.4,
               margin: 0,
-              textShadow: '0 0 6px rgba(0,0,0,0.5)',
             }}
           >
             {post.message || ''}
@@ -211,54 +225,34 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
     );
   }
 
-  /* ---------- RENDER ---------- */
+  /* ---------- Render ---------- */
   return (
     <div
       style={{
         background: bg,
         width: '100%',
         height: '100vh',
-        position: 'relative',
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
         overflow: 'hidden',
       }}
     >
-      {/* LOGO */}
-      <div
-        style={{
-          position: 'absolute',
-          top: '3vh',
-          right: '3vw',
-          width: 'clamp(160px,18vw,220px)',
-          zIndex: 20,
-        }}
-      >
-        <img
-          src={event.logo_url || '/faninteractlogo.png'}
-          alt="Logo"
-          style={{ width: '100%', height: 'auto', objectFit: 'contain' }}
-        />
-      </div>
-
-      {/* TITLE */}
+      {/* Title */}
       <h1
         style={{
           color: '#fff',
           textAlign: 'center',
-          textShadow: '0 0 20px rgba(0,0,0,0.6)',
-          fontWeight: 900,
-          letterSpacing: '1px',
           marginTop: '3vh',
           marginBottom: '2vh',
           fontSize: 'clamp(2.5rem,4vw,5rem)',
+          textShadow: '0 0 20px rgba(0,0,0,0.6)',
         }}
       >
         {event.title || 'Fan Zone Wall'}
       </h1>
 
-      {/* GRID */}
+      {/* Grid */}
       <div
         style={{
           width: '90vw',
@@ -313,53 +307,10 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
           }}
         />
       </div>
-
-      {/* FULLSCREEN BUTTON */}
-      <div
-        style={{
-          position: 'fixed',
-          bottom: 10,
-          right: 10,
-          width: 48,
-          height: 48,
-          borderRadius: 10,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          cursor: 'pointer',
-          zIndex: 9999,
-          opacity: 0.25,
-          transition: 'opacity 0.3s ease',
-          background: 'rgba(255,255,255,0.08)',
-          backdropFilter: 'blur(6px)',
-          border: '1px solid rgba(255,255,255,0.2)',
-        }}
-        onMouseEnter={(e) => (e.currentTarget.style.opacity = '1')}
-        onMouseLeave={(e) => (e.currentTarget.style.opacity = '0.25')}
-        onClick={() => {
-          if (!document.fullscreenElement)
-            document.documentElement.requestFullscreen().catch(console.error);
-          else document.exitFullscreen();
-        }}
-      >
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          fill="none"
-          viewBox="0 0 24 24"
-          strokeWidth={1.5}
-          stroke="white"
-          style={{ width: 26, height: 26 }}
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            d="M3 9V4h5M21 9V4h-5M3 15v5h5M21 15v5h-5"
-          />
-        </svg>
-      </div>
     </div>
   );
 }
+
 
 
 
