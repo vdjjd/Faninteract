@@ -24,7 +24,6 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
 
   const displayDuration = speedMap[event?.transition_speed || 'Medium'] || 8000;
 
-  /* ---------- FADE DURATIONS BY SPEED ---------- */
   const fadeDurations: Record<string, number> = {
     Slow: 1.6,
     Medium: 1.2,
@@ -41,7 +40,7 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
     setCellIndex(0);
   }, [posts]);
 
-  /* ---------- CYCLIC ORDER UPDATES ---------- */
+  /* ---------- CYCLIC UPDATES ---------- */
   useEffect(() => {
     if (!posts || posts.length === 0) return;
     const order = [0, 1, 2, 3, 4, 5, 6, 7];
@@ -97,9 +96,12 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
           style={{
             flex: 1,
             position: 'relative',
-            padding: '2px 0 2px 2px',
-            boxSizing: 'border-box',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
             overflow: 'hidden',
+            padding: '4px',
+            boxSizing: 'border-box',
           }}
         >
           {post.photo_url ? (
@@ -108,7 +110,7 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
               alt="Guest submission"
               style={{
                 width: '100%',
-                height: '100%',
+                height: '50%', // ⬅️ reduced vertical height
                 objectFit: 'cover',
                 display: 'block',
                 opacity: 0.9,
@@ -119,7 +121,7 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
             <div
               style={{
                 width: '100%',
-                height: '100%',
+                height: '50%',
                 background: 'rgba(255,255,255,0.05)',
                 display: 'flex',
                 alignItems: 'center',
@@ -203,7 +205,7 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
     );
   }
 
-  /* ---------- FADE & ZOOM VARIANTS ---------- */
+  /* ---------- ANIMATION VARIANTS ---------- */
   const fadeVariants = {
     enter: { opacity: 0, scale: 0.98 },
     center: {
@@ -218,200 +220,141 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
     },
   };
 
-  /* ---------- BACKGROUND DRIFT ---------- */
-  const bgStyle: React.CSSProperties = {
-    background: bg,
-    width: '100%',
-    height: '100vh',
-    position: 'relative',
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    justifyContent: 'flex-start',
-    overflow: 'hidden',
-    animation: 'bgDrift 120s linear infinite',
-  };
-
-  const driftKeyframes = `
-    @keyframes bgDrift {
-      0% { background-position: 0% 50%; }
-      50% { background-position: 100% 50%; }
-      100% { background-position: 0% 50%; }
-    }
-  `;
-
-  /* ---------- RENDER ---------- */
   return (
-    <>
-      <style>{driftKeyframes}</style>
-      <div style={bgStyle}>
-        {/* LOGO */}
-        <div
+    <div
+      style={{
+        background: bg,
+        width: '100%',
+        height: '100vh',
+        position: 'relative',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'flex-start',
+        overflow: 'hidden',
+      }}
+    >
+      {/* LOGO */}
+      <div
+        style={{
+          position: 'absolute',
+          top: '3vh',
+          right: '3vw',
+          width: 'clamp(160px, 18vw, 220px)',
+          zIndex: 20,
+        }}
+      >
+        <img
+          src={event.logo_url || '/faninteractlogo.png'}
+          alt="Logo"
           style={{
-            position: 'absolute',
-            top: '3vh',
-            right: '3vw',
-            width: 'clamp(160px, 18vw, 220px)',
-            zIndex: 20,
+            width: '100%',
+            height: 'auto',
+            objectFit: 'contain',
+            filter: 'drop-shadow(0 0 12px rgba(0,0,0,0.85))',
           }}
-        >
-          <img
-            src={event.logo_url || '/faninteractlogo.png'}
-            alt="Logo"
-            style={{
-              width: '100%',
-              height: 'auto',
-              objectFit: 'contain',
-              filter: 'drop-shadow(0 0 12px rgba(0,0,0,0.85))',
-            }}
-          />
-        </div>
+        />
+      </div>
 
-        {/* TITLE */}
-        <h1
+      {/* TITLE */}
+      <h1
+        style={{
+          color: '#fff',
+          textAlign: 'center',
+          textShadow:
+            '0 0 20px rgba(255,255,255,0.8), 0 0 30px rgba(100,180,255,0.6)',
+          fontWeight: 900,
+          letterSpacing: '1px',
+          marginTop: '3vh',
+          marginBottom: '2vh',
+          fontSize: 'clamp(2.5rem, 4vw, 5rem)',
+          lineHeight: 1.1,
+        }}
+      >
+        {event.title || 'Fan Zone Wall'}
+      </h1>
+
+      {/* 4×2 GRID */}
+      <div
+        style={{
+          width: '90vw',
+          height: '75vh',
+          display: 'grid',
+          gridTemplateColumns: 'repeat(4, 1fr)',
+          gridTemplateRows: 'repeat(2, 1fr)',
+          borderRadius: 20,
+          overflow: 'hidden',
+          boxShadow: '10px 10px 30px rgba(0,0,0,0.4)',
+          border: '1px solid rgba(255,255,255,0.15)',
+          background: 'rgba(255,255,255,0.04)',
+          backdropFilter: 'blur(14px)',
+        }}
+      >
+        {gridPosts.map((post, i) => (
+          <AnimatePresence key={i} mode="wait">
+            <motion.div
+              key={(post?.id || 'empty') + '-' + i}
+              variants={fadeVariants}
+              initial="enter"
+              animate="center"
+              exit="exit"
+              style={{ width: '100%', height: '100%' }}
+            >
+              <PostCard post={post} />
+            </motion.div>
+          </AnimatePresence>
+        ))}
+      </div>
+
+      {/* QR SECTION */}
+      <div
+        style={{
+          position: 'absolute',
+          bottom: '4vh',
+          left: '4vw',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        <p
           style={{
             color: '#fff',
             textAlign: 'center',
             textShadow:
-              '0 0 20px rgba(255,255,255,0.8), 0 0 30px rgba(100,180,255,0.6)',
-            fontWeight: 900,
-            letterSpacing: '1px',
-            marginTop: '3vh',
-            marginBottom: '2vh',
-            fontSize: 'clamp(2.5rem, 4vw, 5rem)',
-            lineHeight: 1.1,
+              '0 0 12px rgba(255,255,255,0.8), 0 0 20px rgba(100,180,255,0.6)',
+            fontWeight: 700,
+            fontSize: 'clamp(1rem, 1.5vw, 1.6rem)',
+            marginBottom: '0.6vh',
           }}
         >
-          {event.title || 'Fan Zone Wall'}
-        </h1>
-
-        {/* 4×2 GRID */}
+          Scan Me To Join
+        </p>
         <div
           style={{
-            width: '90vw',
-            height: '75vh',
-            display: 'grid',
-            gridTemplateColumns: 'repeat(4, 1fr)',
-            gridTemplateRows: 'repeat(2, 1fr)',
-            borderRadius: 20,
-            overflow: 'hidden',
-            boxShadow: '10px 10px 30px rgba(0,0,0,0.4)',
-            border: '1px solid rgba(255,255,255,0.15)',
-            background: 'rgba(255,255,255,0.04)',
-            backdropFilter: 'blur(14px)',
+            padding: 8,
+            borderRadius: 16,
+            background: 'rgba(255,255,255,0.05)',
+            boxShadow:
+              '0 0 25px rgba(255,255,255,0.6), 0 0 40px rgba(100,180,255,0.3), inset 0 0 10px rgba(0,0,0,0.4)',
           }}
         >
-          {gridPosts.map((post, i) => (
-            <AnimatePresence key={i} mode="wait">
-              <motion.div
-                key={(post?.id || 'empty') + '-' + i}
-                variants={fadeVariants}
-                initial="enter"
-                animate="center"
-                exit="exit"
-                style={{ width: '100%', height: '100%' }}
-              >
-                <PostCard post={post} />
-              </motion.div>
-            </AnimatePresence>
-          ))}
-        </div>
-
-        {/* QR SECTION */}
-        <div
-          style={{
-            position: 'absolute',
-            bottom: '4vh',
-            left: '4vw',
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
-        >
-          <p
+          <QRCodeCanvas
+            value={`https://faninteract.vercel.app/submit/${event.id}`}
+            size={140}
+            bgColor="#ffffff"
+            fgColor="#000000"
+            level="H"
+            includeMargin={false}
             style={{
-              color: '#fff',
-              textAlign: 'center',
-              textShadow:
-                '0 0 12px rgba(255,255,255,0.8), 0 0 20px rgba(100,180,255,0.6)',
-              fontWeight: 700,
-              fontSize: 'clamp(1rem, 1.5vw, 1.6rem)',
-              marginBottom: '0.6vh',
+              borderRadius: 10,
+              display: 'block',
             }}
-          >
-            Scan Me To Join
-          </p>
-          <div
-            style={{
-              padding: 8,
-              borderRadius: 16,
-              background: 'rgba(255,255,255,0.05)',
-              boxShadow:
-                '0 0 25px rgba(255,255,255,0.6), 0 0 40px rgba(100,180,255,0.3), inset 0 0 10px rgba(0,0,0,0.4)',
-            }}
-          >
-            <QRCodeCanvas
-              value={`https://faninteract.vercel.app/submit/${event.id}`}
-              size={140}
-              bgColor="#ffffff"
-              fgColor="#000000"
-              level="H"
-              includeMargin={false}
-              style={{
-                borderRadius: 10,
-                display: 'block',
-              }}
-            />
-          </div>
-        </div>
-
-        {/* FULLSCREEN BUTTON */}
-        <div
-          style={{
-            position: 'fixed',
-            bottom: 10,
-            right: 10,
-            width: 48,
-            height: 48,
-            borderRadius: 10,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            cursor: 'pointer',
-            zIndex: 9999,
-            opacity: 0.25,
-            background: 'rgba(255,255,255,0.08)',
-            backdropFilter: 'blur(6px)',
-            border: '1px solid rgba(255,255,255,0.2)',
-            transition: 'opacity 0.3s ease',
-          }}
-          onMouseEnter={(e) => (e.currentTarget.style.opacity = '1')}
-          onMouseLeave={(e) => (e.currentTarget.style.opacity = '0.25')}
-          onClick={() => {
-            if (!document.fullscreenElement)
-              document.documentElement.requestFullscreen().catch(console.error);
-            else document.exitFullscreen();
-          }}
-          title="Toggle Fullscreen"
-        >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            fill="none"
-            viewBox="0 0 24 24"
-            strokeWidth={1.5}
-            stroke="white"
-            style={{ width: 26, height: 26 }}
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M3 9V4h5M21 9V4h-5M3 15v5h5M21 15v5h-5"
-            />
-          </svg>
+          />
         </div>
       </div>
-    </>
+    </div>
   );
 }
 
