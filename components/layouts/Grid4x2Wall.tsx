@@ -82,7 +82,7 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
           width: '100%',
           height: '100%',
           display: 'flex',
-          flexDirection: 'row',
+          flexDirection: 'column', // vertical split now
           borderRadius: 16,
           overflow: 'hidden',
           position: 'relative',
@@ -93,10 +93,10 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
             '0 0 20px rgba(255,255,255,0.1), 0 0 30px rgba(100,180,255,0.15)',
         }}
       >
-        {/* LEFT: PHOTO */}
+        {/* TOP: PHOTO */}
         <div
           style={{
-            flex: 1,
+            flex: '0 0 50%',
             position: 'relative',
             display: 'flex',
             alignItems: 'center',
@@ -112,7 +112,7 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
               alt="Guest submission"
               style={{
                 width: '100%',
-                height: '50%', // reduced vertical height
+                height: '100%',
                 objectFit: 'cover',
                 display: 'block',
                 opacity: 0.9,
@@ -123,7 +123,7 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
             <div
               style={{
                 width: '100%',
-                height: '50%',
+                height: '100%',
                 background: 'rgba(255,255,255,0.05)',
                 display: 'flex',
                 alignItems: 'center',
@@ -138,18 +138,18 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
           )}
         </div>
 
-        {/* RIGHT: NAME + MESSAGE */}
+        {/* BOTTOM: NAME + MESSAGE */}
         <div
           style={{
-            flex: 1,
+            flex: '0 0 50%',
             display: 'flex',
             flexDirection: 'column',
             justifyContent: 'space-between',
             background: 'rgba(0,0,0,0.25)',
             backdropFilter: 'blur(12px)',
-            borderLeft: '1px solid rgba(255,255,255,0.15)',
+            borderTop: '1px solid rgba(255,255,255,0.15)',
             boxShadow: 'inset 0 0 12px rgba(255,255,255,0.08)',
-            borderTopRightRadius: 12,
+            borderBottomLeftRadius: 12,
             borderBottomRightRadius: 12,
             overflow: 'hidden',
           }}
@@ -168,7 +168,7 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
               style={{
                 color: '#fff',
                 fontWeight: 800,
-                fontSize: 'clamp(1.4rem, 1.8vw, 2rem)',
+                fontSize: 'clamp(1.2rem, 1.6vw, 1.8rem)',
                 textShadow:
                   '0 0 12px rgba(255,255,255,0.8), 0 0 20px rgba(100,180,255,0.6), 0 0 4px rgba(0,0,0,0.8)',
                 margin: 0,
@@ -191,9 +191,9 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
             <p
               style={{
                 color: '#ddd',
-                fontSize: 'clamp(1rem, 1.3vw, 1.5rem)',
+                fontSize: 'clamp(1rem, 1.3vw, 1.4rem)',
                 fontWeight: 500,
-                lineHeight: 1.5,
+                lineHeight: 1.4,
                 textShadow: '0 0 8px rgba(0,0,0,0.6)',
                 filter: 'drop-shadow(0 0 4px rgba(255,255,255,0.2))',
                 margin: 0,
@@ -419,6 +419,7 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
     </div>
   );
 }
+
 
 
 
