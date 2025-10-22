@@ -16,20 +16,23 @@ export async function createPoll(hostId: string, data: any) {
     background_value: 'linear-gradient(135deg,#0d47a1,#1976d2)',
     layout: 'horizontal',
     options: data.options || [],
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
   };
 
+  // ✅ Must wrap payload in an array for insert + select combo
   const { data: created, error } = await supabase
     .from('polls')
-    .insert(newPoll)
+    .insert([newPoll])
     .select()
     .single();
 
   if (error) {
-    console.error('❌ Error creating poll:', error);
+    console.error('❌ Error creating poll:', error.message || error);
     return null;
   }
 
-  console.log('✅ Poll created:', created);
+  console.log('✅ Poll created successfully:', created);
   return created;
 }
 
@@ -44,7 +47,7 @@ export async function getPollsByHost(hostId: string) {
     .order('created_at', { ascending: false });
 
   if (error) {
-    console.error('❌ Error fetching polls:', error);
+    console.error('❌ Error fetching polls:', error.message || error);
     return [];
   }
 
@@ -63,7 +66,7 @@ export async function updatePoll(pollId: string, updates: any) {
     .single();
 
   if (error) {
-    console.error('❌ Error updating poll:', error);
+    console.error('❌ Error updating poll:', error.message || error);
     return null;
   }
 
@@ -75,7 +78,8 @@ export async function updatePoll(pollId: string, updates: any) {
 /* -------------------------------------------------------------------------- */
 export async function deletePoll(pollId: string) {
   const { error } = await supabase.from('polls').delete().eq('id', pollId);
-  if (error) console.error('❌ Error deleting poll:', error);
+
+  if (error) console.error('❌ Error deleting poll:', error.message || error);
   else console.log(`🗑️ Poll ${pollId} deleted`);
 }
 
@@ -126,7 +130,11 @@ export async function clearPoll(pollId: string) {
 /* -------------------------------------------------------------------------- */
 /* 🟠 ADD A VOTE                                                              */
 /* -------------------------------------------------------------------------- */
-export async function addVote(pollId: string, optionId: number, voterHash: string) {
+export async function addVote(
+  pollId: string,
+  optionId: number,
+  voterHash: string
+) {
   try {
     // check if this voter has already voted
     const { data: existing } = await supabase
@@ -144,7 +152,7 @@ export async function addVote(pollId: string, optionId: number, voterHash: strin
     // insert new vote
     const { error: insertError } = await supabase
       .from('poll_votes')
-      .insert({ poll_id: pollId, option_id: optionId, voter_hash: voterHash });
+      .insert([{ poll_id: pollId, option_id: optionId, voter_hash: voterHash }]);
 
     if (insertError) throw insertError;
 
@@ -158,12 +166,17 @@ export async function addVote(pollId: string, optionId: number, voterHash: strin
     if (fetchError) throw fetchError;
 
     const updatedOptions = (pollData?.options || []).map((o: any) =>
-      o.id === optionId ? { ...o, votes: (o.votes || 0) + 1 } : o
+      o.id === optionId
+        ? { ...o, votes: (o.votes || 0) + 1 }
+        : o
     );
 
     const { error: updateError } = await supabase
       .from('polls')
-      .update({ options: updatedOptions, updated_at: new Date().toISOString() })
+      .update({
+        options: updatedOptions,
+        updated_at: new Date().toISOString(),
+      })
       .eq('id', pollId);
 
     if (updateError) throw updateError;
