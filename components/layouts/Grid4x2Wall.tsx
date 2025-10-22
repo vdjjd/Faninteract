@@ -10,7 +10,6 @@ interface Grid4x2WallProps {
   posts: any[];
 }
 
-/* ---------- SPEED MAP ---------- */
 const speedMap: Record<string, number> = {
   Slow: 12000,
   Medium: 8000,
@@ -23,7 +22,8 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
   const [activeColumn, setActiveColumn] = useState(0);
 
   const displayDuration = speedMap[event?.transition_speed || 'Medium'] || 8000;
-  const fadeDuration = 2000; // slower, smoother fade
+  const fadeDuration = 2000; // 2s cinematic fade
+  const pauseBetween = 500; // 0.5s ghost pause
 
   /* ---------- INITIAL POPULATION ---------- */
   useEffect(() => {
@@ -37,41 +37,55 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
     setPostIndex(8 % posts.length);
   }, [posts]);
 
-  /* ---------- FADE + REPLACE ONE COLUMN AT A TIME ---------- */
+  /* ---------- FADE SEQUENCE PER COLUMN ---------- */
   useEffect(() => {
     if (!posts || posts.length === 0) return;
 
-    const timer = setInterval(() => {
-      // pull fresh post for THIS column only
+    const cycle = setInterval(() => {
+      const nextPost = posts[postIndex % posts.length];
+
+      // Step 1: fade out top to ghost
       setColumns((prev) => {
         const updated = [...prev];
         const col = [...updated[activeColumn]];
-        const newPost = posts[postIndex % posts.length];
-
-        // top fades in
-        col[0] = { ...newPost, _fade: true };
+        if (col[0]) col[0]._fadeOut = true; // mark ghost
         updated[activeColumn] = col;
         return updated;
       });
 
-      // after fade, push top → bottom
+      // Step 2: after fadeDuration, fade ghost into bottom
       setTimeout(() => {
         setColumns((prev) => {
           const updated = [...prev];
           const col = [...updated[activeColumn]];
-          const newTop = { ...col[0], _fade: false };
-          col[1] = newTop;
+          if (col[0]) {
+            col[1] = { ...col[0], _fadeOut: false };
+            col[0] = { ...col[0], _faded: true }; // keep ghost state
+          }
           updated[activeColumn] = col;
           return updated;
         });
+      }, fadeDuration);
 
-        // increment postIndex AFTER animation finishes
-        setPostIndex((prev) => (prev + 1) % posts.length);
+      // Step 3: after pauseBetween, fade new post into top
+      setTimeout(() => {
+        setColumns((prev) => {
+          const updated = [...prev];
+          const col = [...updated[activeColumn]];
+          col[0] = { ...nextPost, _fadeIn: true };
+          updated[activeColumn] = col;
+          return updated;
+        });
+      }, fadeDuration + pauseBetween);
+
+      // Step 4: advance column and post index after full sequence
+      setTimeout(() => {
         setActiveColumn((prev) => (prev + 1) % 4);
-      }, fadeDuration + 200); // small delay for smoother timing
+        setPostIndex((prev) => (prev + 1) % posts.length);
+      }, fadeDuration + pauseBetween + 1000); // small buffer for smooth rhythm
     }, displayDuration);
 
-    return () => clearInterval(timer);
+    return () => clearInterval(cycle);
   }, [posts, postIndex, activeColumn, displayDuration]);
 
   /* ---------- BACKGROUND ---------- */
@@ -85,13 +99,20 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
   function PostCard({ post }: { post: any }) {
     if (!post)
       return (
-        <div className="flex items-center justify-center text-white text-lg opacity-60">
+        <div className="flex items-center justify-center text-white text-lg opacity-40">
           Waiting for posts…
         </div>
       );
 
+    let opacity = 1;
+    if (post._fadeOut) opacity = 0.2; // ghosting out
+    if (post._faded) opacity = 0.3; // ghost resting
+    if (post._fadeIn) opacity = 0; // will fade in from 0
+
     return (
-      <div
+      <motion.div
+        animate={{ opacity: post._fadeIn ? [0, 1] : opacity }}
+        transition={{ duration: fadeDuration / 1000, ease: 'easeInOut' }}
         style={{
           width: '100%',
           height: '100%',
@@ -186,7 +207,7 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
             {post.message || ''}
           </p>
         </div>
-      </div>
+      </motion.div>
     );
   }
 
@@ -254,14 +275,7 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
         }}
       >
         {columns.flat().map((post, i) => (
-          <motion.div
-            key={(post?.id || 'empty') + '-' + i}
-            animate={{ opacity: post?._fade ? [0, 1] : 1 }}
-            transition={{ duration: fadeDuration / 1000 }}
-            style={{ width: '100%', height: '100%' }}
-          >
-            <PostCard post={post} />
-          </motion.div>
+          <PostCard key={(post?.id || 'empty') + '-' + i} post={post} />
         ))}
       </div>
 
@@ -300,7 +314,7 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
         />
       </div>
 
-      {/* FULLSCREEN */}
+      {/* FULLSCREEN BUTTON */}
       <div
         style={{
           position: 'fixed',
