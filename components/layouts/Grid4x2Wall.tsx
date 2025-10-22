@@ -18,14 +18,15 @@ export default function Grid1x2Wall({ event, posts }: Grid1x2WallProps) {
   const [top, setTop] = useState<any | null>(null);
   const [bottom, setBottom] = useState<any | null>(null);
   const [postIndex, setPostIndex] = useState(0);
+
   const [fadeTop, setFadeTop] = useState(false);
   const [fadeBottom, setFadeBottom] = useState(false);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
   const displayDuration = speedMap[event?.transition_speed || 'Medium'] || 8000;
-  const fadeDuration = 1200; // slightly slower for ghost feel
+  const fadeDuration = 1000;
 
-  // ---------- INITIAL POPULATION ----------
+  /* ---------- INITIAL SETUP ---------- */
   useEffect(() => {
     if (!posts?.length) return;
     setTop(posts[0]);
@@ -33,28 +34,36 @@ export default function Grid1x2Wall({ event, posts }: Grid1x2WallProps) {
     setPostIndex(2 % posts.length);
   }, [posts]);
 
-  // ---------- LOOP ----------
+  /* ---------- ANIMATION LOOP ---------- */
   useEffect(() => {
     if (!posts?.length) return;
 
     function cycle() {
-      // fade both top and bottom in sequence
-      setFadeTop(true);
+      // STEP 1: Fade out bottom
       setFadeBottom(true);
 
-      // halfway: move top → bottom
       setTimeout(() => {
-        setBottom(top);
-      }, fadeDuration / 2);
+        // STEP 2: Fade out top
+        setFadeTop(true);
+      }, fadeDuration * 0.5);
 
-      // full fade: replace top, reset fade states
       setTimeout(() => {
+        // STEP 3: Move top → bottom
+        setBottom(top);
+      }, fadeDuration * 1.0);
+
+      setTimeout(() => {
+        // STEP 4: Replace top with new post
         const next = posts[postIndex % posts.length];
         setTop(next);
         setPostIndex((p) => (p + 1) % posts.length);
+      }, fadeDuration * 1.5);
+
+      setTimeout(() => {
+        // STEP 5: Fade everything back in
         setFadeTop(false);
         setFadeBottom(false);
-      }, fadeDuration + 300); // slight buffer for softness
+      }, fadeDuration * 2);
     }
 
     timerRef.current = setInterval(cycle, displayDuration);
@@ -64,6 +73,7 @@ export default function Grid1x2Wall({ event, posts }: Grid1x2WallProps) {
     };
   }, [posts, top, postIndex]);
 
+  /* ---------- BACKGROUND ---------- */
   const bg =
     event?.background_type === 'image'
       ? `url(${event.background_value}) center/cover no-repeat`
@@ -73,12 +83,10 @@ export default function Grid1x2Wall({ event, posts }: Grid1x2WallProps) {
   /* ---------- POST CARD ---------- */
   function PostCard({
     post,
-    fadeOut,
-    fadeIn,
+    faded,
   }: {
     post: any;
-    fadeOut?: boolean;
-    fadeIn?: boolean;
+    faded?: boolean;
   }) {
     if (!post)
       return (
@@ -102,8 +110,9 @@ export default function Grid1x2Wall({ event, posts }: Grid1x2WallProps) {
         style={{
           width: '100%',
           height: '100%',
-          opacity: fadeOut ? 0 : fadeIn ? 0.3 : 1,
-          transition: `opacity ${fadeDuration}ms ease-in-out`,
+          opacity: faded ? 0 : 1,
+          transform: faded ? 'translateY(10px)' : 'translateY(0)',
+          transition: `opacity ${fadeDuration}ms ease-in-out, transform ${fadeDuration}ms ease-in-out`,
           display: 'flex',
           flexDirection: 'row',
           alignItems: 'center',
@@ -113,9 +122,7 @@ export default function Grid1x2Wall({ event, posts }: Grid1x2WallProps) {
           background: 'rgba(255,255,255,0.08)',
           border: '1px solid rgba(255,255,255,0.1)',
           padding: 12,
-          boxShadow: fadeIn
-            ? '0 0 25px rgba(255,255,255,0.3)'
-            : '0 0 15px rgba(0,0,0,0.4)',
+          boxShadow: '0 0 18px rgba(0,0,0,0.4)',
         }}
       >
         {/* PHOTO */}
@@ -134,9 +141,9 @@ export default function Grid1x2Wall({ event, posts }: Grid1x2WallProps) {
                 aspectRatio: '1/1',
                 objectFit: 'cover',
                 borderRadius: 10,
-                filter: fadeIn
-                  ? 'brightness(1.2) blur(0.8px)'
-                  : 'brightness(1) blur(0px)',
+                filter: faded
+                  ? 'blur(1px) brightness(0.7)'
+                  : 'blur(0) brightness(1)',
                 transition: `filter ${fadeDuration}ms ease-in-out`,
               }}
             />
@@ -194,6 +201,7 @@ export default function Grid1x2Wall({ event, posts }: Grid1x2WallProps) {
     );
   }
 
+  /* ---------- LAYOUT ---------- */
   return (
     <div
       style={{
@@ -205,7 +213,7 @@ export default function Grid1x2Wall({ event, posts }: Grid1x2WallProps) {
         justifyContent: 'center',
       }}
     >
-      {/* ONE COLUMN CENTERED */}
+      {/* ONE COLUMN */}
       <div
         style={{
           width: '22vw',
@@ -219,8 +227,8 @@ export default function Grid1x2Wall({ event, posts }: Grid1x2WallProps) {
           boxShadow: '10px 10px 30px rgba(0,0,0,0.4)',
         }}
       >
-        <PostCard post={top} fadeOut={fadeTop} />
-        <PostCard post={bottom} fadeIn={fadeBottom} />
+        <PostCard post={top} faded={fadeTop} />
+        <PostCard post={bottom} faded={fadeBottom} />
       </div>
 
       {/* FULLSCREEN BUTTON */}
@@ -267,6 +275,7 @@ export default function Grid1x2Wall({ event, posts }: Grid1x2WallProps) {
     </div>
   );
 }
+
 
 
 
