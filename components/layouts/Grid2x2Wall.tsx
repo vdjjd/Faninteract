@@ -278,41 +278,44 @@ export default function Grid2x2Wall({ event, posts }: Grid2x2WallProps) {
         ))}
       </div>
 
-      {/* QR CODE */}
-      <div
-        style={{
-          position: 'absolute',
-          bottom: 'calc(17vh - 90px)',
-          left: 'calc(9vw - 90px)',
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-        }}
-      >
-        <p
-          style={{
-            color: '#fff',
-            textAlign: 'center',
-            textShadow: '0 0 10px rgba(0,0,0,0.6)',
-            fontWeight: 700,
-            fontSize: 'clamp(1.2rem, 1.8vw, 2rem)',
-            marginBottom: '0.8vh',
-          }}
-        >
-          Scan Me To Join
-        </p>
-        <QRCodeCanvas
-          value={`https://faninteract.vercel.app/submit/${event.id}`}
-          size={180}
-          bgColor="#ffffff"
-          fgColor="#000000"
-          level="H"
-          style={{
-            borderRadius: 12,
-            boxShadow: '0 0 18px rgba(0,0,0,0.6)',
-          }}
-        />
-      </div>
+     {/* ---------- QR SECTION ---------- */}
+<div
+  style={{
+    position: 'absolute',
+    bottom: '4vh',         // moved closer to bottom
+    left: '4vw',           // tucked further left
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+  }}
+>
+  <p
+    style={{
+      color: '#fff',
+      textAlign: 'center',
+      textShadow: '0 0 10px rgba(0,0,0,0.6)',
+      fontWeight: 700,
+      fontSize: 'clamp(1rem, 1.5vw, 1.6rem)',   // proportional to new QR size
+      marginBottom: '0.6vh',
+    }}
+  >
+    Scan Me To Join
+  </p>
+  <QRCodeCanvas
+    value={`https://faninteract.vercel.app/submit/${event.id}`}
+    size={140}                               // smaller QR
+    bgColor="#ffffff"
+    fgColor="#000000"
+    level="H"
+    includeMargin={false}
+    style={{
+      borderRadius: 10,
+      boxShadow: '0 0 14px rgba(0,0,0,0.5)',
+    }}
+  />
+</div>
+
 
       {/* FULLSCREEN BUTTON */}
       <div
