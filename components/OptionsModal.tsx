@@ -25,8 +25,10 @@ export default function OptionsModal({
   const [uploading, setUploading] = useState(false);
   const [localEvent, setLocalEvent] = useState<any>({ ...event });
 
+  /* ---------- SAVE CHANGES ---------- */
   async function handleSave() {
     setSaving(true);
+
     const countdownValue =
       localEvent.countdown && localEvent.countdown !== 'none'
         ? String(localEvent.countdown)
@@ -57,6 +59,7 @@ export default function OptionsModal({
     onClose();
   }
 
+  /* ---------- IMAGE UPLOAD ---------- */
   async function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
     try {
       const file = e.target.files?.[0];
@@ -111,6 +114,7 @@ export default function OptionsModal({
     }
   }
 
+  /* ---------- DELETE OLD IMAGE ---------- */
   async function deleteOldImageIfExists() {
     try {
       if (localEvent.background_type !== 'image' || !localEvent.background_value)
@@ -134,6 +138,7 @@ export default function OptionsModal({
     }
   }
 
+  /* ---------- HANDLE COLOR/GRADIENT CHANGE ---------- */
   async function handleBackgroundChange(type: 'solid' | 'gradient', value: string) {
     if (localEvent.background_type === 'image') {
       const confirmDelete = window.confirm(
@@ -145,8 +150,17 @@ export default function OptionsModal({
     }
 
     localEvent.background_type = type;
+
+    // 🔥 Update DB and force immediate wall refresh
     await onBackgroundChange(localEvent, value);
-    setLocalEvent({ ...localEvent, background_type: type, background_value: value });
+    await refreshEvents();
+
+    // 🧠 Update modal local state
+    setLocalEvent({
+      ...localEvent,
+      background_type: type,
+      background_value: value,
+    });
   }
 
   return (
@@ -157,18 +171,14 @@ export default function OptionsModal({
           background: localEvent.background_value || DEFAULT_GRADIENT,
         }}
       >
-        <h3 className="text-center text-xl font-bold mb-3">
-          ⚙ Edit Wall Settings
-        </h3>
+        <h3 className="text-center text-xl font-bold mb-3">⚙ Edit Wall Settings</h3>
 
-        {/* ---- BASIC INFO ---- */}
+        {/* ---- TITLE FIELDS ---- */}
         <label className="block mt-2 text-sm">Title:</label>
         <input
           type="text"
           value={localEvent.host_title || ''}
-          onChange={(e) =>
-            setLocalEvent({ ...localEvent, host_title: e.target.value })
-          }
+          onChange={(e) => setLocalEvent({ ...localEvent, host_title: e.target.value })}
           className="w-full p-2 rounded-md text-black mt-1"
         />
 
@@ -176,9 +186,7 @@ export default function OptionsModal({
         <input
           type="text"
           value={localEvent.title || ''}
-          onChange={(e) =>
-            setLocalEvent({ ...localEvent, title: e.target.value })
-          }
+          onChange={(e) => setLocalEvent({ ...localEvent, title: e.target.value })}
           className="w-full p-2 rounded-md text-black mt-1"
         />
 
@@ -195,18 +203,21 @@ export default function OptionsModal({
           }
         >
           <option value="none">No Countdown / Start Immediately</option>
-          {['30 Seconds','1 Minute','2 Minutes','3 Minutes','4 Minutes','5 Minutes','10 Minutes','15 Minutes','20 Minutes','25 Minutes','30 Minutes','35 Minutes','40 Minutes','45 Minutes','50 Minutes','55 Minutes','60 Minutes']
-            .map((opt) => <option key={opt}>{opt}</option>)}
+          {[
+            '30 Seconds','1 Minute','2 Minutes','3 Minutes','4 Minutes','5 Minutes',
+            '10 Minutes','15 Minutes','20 Minutes','25 Minutes','30 Minutes','35 Minutes',
+            '40 Minutes','45 Minutes','50 Minutes','55 Minutes','60 Minutes',
+          ].map((opt) => (
+            <option key={opt}>{opt}</option>
+          ))}
         </select>
 
-        {/* ---- LAYOUT TYPE ---- */}
+        {/* ---- LAYOUT ---- */}
         <label className="block mt-3 text-sm">Layout Type:</label>
         <select
           className="w-full p-2 rounded-md text-black mt-1"
           value={localEvent.layout_type || 'Single Highlight Post'}
-          onChange={(e) =>
-            setLocalEvent({ ...localEvent, layout_type: e.target.value })
-          }
+          onChange={(e) => setLocalEvent({ ...localEvent, layout_type: e.target.value })}
         >
           <option>Single Highlight Post</option>
           <option>2 Column × 2 Row</option>
@@ -222,10 +233,7 @@ export default function OptionsModal({
               className="w-full p-2 rounded-md text-black mt-1"
               value={localEvent.post_transition || 'Fade In / Fade Out'}
               onChange={(e) =>
-                setLocalEvent({
-                  ...localEvent,
-                  post_transition: e.target.value,
-                })
+                setLocalEvent({ ...localEvent, post_transition: e.target.value })
               }
             >
               <option>Fade In / Fade Out</option>
@@ -239,16 +247,13 @@ export default function OptionsModal({
           </>
         )}
 
-        {/* ---- TRANSITION SPEED ---- */}
+        {/* ---- SPEED ---- */}
         <label className="block mt-3 text-sm">Transition Speed:</label>
         <select
           className="w-full p-2 rounded-md text-black mt-1"
           value={localEvent.transition_speed || 'Medium'}
           onChange={(e) =>
-            setLocalEvent({
-              ...localEvent,
-              transition_speed: e.target.value,
-            })
+            setLocalEvent({ ...localEvent, transition_speed: e.target.value })
           }
         >
           <option>Slow</option>
