@@ -70,10 +70,7 @@ export default function Grid2x2Wall({ event, posts }: Grid2x2WallProps) {
       );
 
     return (
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ duration: 0.4, ease: 'easeIn' }}
+      <div
         style={{
           width: '100%',
           height: '100%',
@@ -142,10 +139,7 @@ export default function Grid2x2Wall({ event, posts }: Grid2x2WallProps) {
               padding: '12px 18px',
             }}
           >
-            <motion.h3
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ duration: 0.4, ease: 'easeIn' }}
+            <h3
               style={{
                 color: '#fff',
                 fontWeight: 800,
@@ -155,7 +149,7 @@ export default function Grid2x2Wall({ event, posts }: Grid2x2WallProps) {
               }}
             >
               {post.nickname || ''}
-            </motion.h3>
+            </h3>
           </div>
 
           {/* BOTTOM HALF: MESSAGE */}
@@ -169,10 +163,7 @@ export default function Grid2x2Wall({ event, posts }: Grid2x2WallProps) {
               padding: '0 18px 12px',
             }}
           >
-            <motion.p
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ duration: 0.4, ease: 'easeIn', delay: 0.2 }}
+            <p
               style={{
                 color: '#ddd',
                 fontSize: '1.2rem',
@@ -183,10 +174,10 @@ export default function Grid2x2Wall({ event, posts }: Grid2x2WallProps) {
               }}
             >
               {post.message || ''}
-            </motion.p>
+            </p>
           </div>
         </div>
-      </motion.div>
+      </div>
     );
   }
 
