@@ -1,25 +1,13 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { QRCodeCanvas } from 'qrcode.react';
 import { supabase } from '@/lib/supabaseClient';
 
-/* ---------- TYPES ---------- */
-interface Post {
-  id: string;
-  user_id?: string | null;
-  event_id?: string | null;
-  photo_url?: string | null;
-  message?: string | null;
-  nickname?: string | null;
-  status?: string;
-  created_at?: string;
-}
-
 interface Grid4x2WallProps {
   event: any;
-  posts: Post[];
+  posts: any[];
 }
 
 /* ---------- SPEED MAP ---------- */
@@ -30,16 +18,15 @@ const speedMap: Record<string, number> = {
 };
 
 export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
-  const [columns, setColumns] = useState<Post[][]>([[], [], [], []]);
+  const [columns, setColumns] = useState<any[][]>([[], [], [], []]);
   const [postIndex, setPostIndex] = useState(0);
-  const [columnTurn, setColumnTurn] = useState(0); // 0–3 = col1–col4
 
   const displayDuration = speedMap[event?.transition_speed || 'Medium'] || 8000;
 
   /* ---------- INITIAL POPULATION ---------- */
   useEffect(() => {
     if (!posts || posts.length === 0) return;
-    const newCols: Post[][] = [[], [], [], []];
+    const newCols = [[], [], [], []];
     for (let i = 0; i < 4; i++) {
       newCols[i] = posts.slice(i * 2, i * 2 + 2);
     }
@@ -47,25 +34,28 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
     setPostIndex(8 % posts.length);
   }, [posts]);
 
-  /* ---------- CYCLIC UPDATES ---------- */
+  /* ---------- SEQUENTIAL COLUMN UPDATES ---------- */
   useEffect(() => {
     if (!posts || posts.length === 0) return;
 
-    const interval = setInterval(() => {
+    let colIndex = 0;
+    const totalCols = 4;
+
+    const timer = setInterval(() => {
       const nextPost = posts[postIndex % posts.length];
       setPostIndex((prev) => (prev + 1) % posts.length);
 
-      setColumns((prevCols) => {
-        const newCols = [...prevCols];
-        newCols[columnTurn] = [nextPost, ...newCols[columnTurn]].slice(0, 2);
+      setColumns((prev) => {
+        const newCols = [...prev];
+        newCols[colIndex] = [nextPost, ...newCols[colIndex]].slice(0, 2);
         return newCols;
       });
 
-      setColumnTurn((prev) => (prev + 1) % 4);
+      colIndex = (colIndex + 1) % totalCols;
     }, displayDuration);
 
-    return () => clearInterval(interval);
-  }, [posts, columnTurn, displayDuration, postIndex]);
+    return () => clearInterval(timer);
+  }, [posts, displayDuration, postIndex]);
 
   /* ---------- BACKGROUND ---------- */
   const bg =
@@ -74,8 +64,18 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
       : event?.background_value ||
         'linear-gradient(to bottom right,#1b2735,#090a0f)';
 
+  /* ---------- CARD VARIANTS ---------- */
+  const cardVariants = {
+    hidden: { y: -120, opacity: 0 },
+    visible: {
+      y: 0,
+      opacity: 1,
+      transition: { duration: 0.8, ease: 'easeOut' },
+    },
+  };
+
   /* ---------- POST CARD ---------- */
-  function PostCard({ post }: { post: Post | null }) {
+  function PostCard({ post }: { post: any }) {
     if (!post)
       return (
         <div className="flex items-center justify-center text-white text-lg opacity-60">
@@ -84,7 +84,10 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
       );
 
     return (
-      <div
+      <motion.div
+        variants={cardVariants}
+        initial="hidden"
+        animate="visible"
         style={{
           width: '100%',
           height: '100%',
@@ -109,7 +112,7 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
                 height: '100%',
                 objectFit: 'cover',
                 display: 'block',
-                opacity: 0.85,
+                opacity: 0.9,
               }}
             />
           ) : (
@@ -130,7 +133,7 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
           )}
         </div>
 
-        {/* RIGHT: NAME + MESSAGE */}
+        {/* RIGHT: TEXT */}
         <div
           style={{
             flex: 1,
@@ -142,10 +145,7 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
             backdropFilter: 'blur(8px)',
           }}
         >
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.4, ease: 'easeIn' }}
+          <div
             style={{
               color: '#fff',
               fontWeight: 800,
@@ -156,12 +156,9 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
             }}
           >
             {post.nickname || ''}
-          </motion.div>
+          </div>
 
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.4, ease: 'easeIn', delay: 0.1 }}
+          <div
             style={{
               color: '#ddd',
               fontSize: '1.1rem',
@@ -172,28 +169,11 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
             }}
           >
             {post.message || ''}
-          </motion.div>
+          </div>
         </div>
-      </div>
+      </motion.div>
     );
   }
-
-  /* ---------- ANIMATION ---------- */
-  const cardVariants = {
-    enter: { y: -100, opacity: 0 },
-    center: {
-      y: 0,
-      opacity: 1,
-      transition: { duration: 0.8, ease: 'easeOut' },
-    },
-    exit: {
-      y: 100,
-      opacity: 0,
-      transition: { duration: 0.6, ease: 'easeIn' },
-    },
-  };
-
-  const getColumnDelay = (index: number) => (index % 4) * 0.2;
 
   /* ---------- RENDER ---------- */
   return (
@@ -210,7 +190,7 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
         overflow: 'hidden',
       }}
     >
-      {/* ---------- LOGO TOP RIGHT ---------- */}
+      {/* ---------- LOGO ---------- */}
       <div
         style={{
           position: 'absolute',
@@ -263,31 +243,13 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
           border: '1px solid rgba(255,255,255,0.15)',
           background: 'rgba(255,255,255,0.06)',
           backdropFilter: 'blur(14px)',
-          gap: '0px',
         }}
       >
-        {columns.flat().map((post, i) => {
-          const colIndex = i % 4;
-          return (
-            <AnimatePresence key={i} initial={false}>
-              <motion.div
-                key={(post?.id || 'empty') + '-' + i}
-                variants={cardVariants}
-                initial="enter"
-                animate="center"
-                exit="exit"
-                transition={{
-                  delay: getColumnDelay(colIndex),
-                  duration: 0.8,
-                  ease: 'easeOut',
-                }}
-                style={{ width: '100%', height: '100%' }}
-              >
-                <PostCard post={post} />
-              </motion.div>
-            </AnimatePresence>
-          );
-        })}
+        {columns.flat().map((post, i) => (
+          <div key={`slot-${i}`} style={{ width: '100%', height: '100%' }}>
+            <PostCard post={post} />
+          </div>
+        ))}
       </div>
 
       {/* ---------- QR SECTION ---------- */}
