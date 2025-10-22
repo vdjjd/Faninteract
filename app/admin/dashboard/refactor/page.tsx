@@ -4,8 +4,10 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import {
   getEventsByHost,
+} from '@/lib/actions/events';
+import {
   getPollsByHost,
-} from '@/lib/actions';
+} from '@/lib/actions/polls';
 import DashboardHeader from './components/DashboardHeader';
 import CreateFanWallModal from '@/components/CreateFanWallModal';
 import CreatePollModal from '@/components/CreatePollModal';
@@ -142,3 +144,4 @@ export default function DashboardRefactor() {
     </div>
   );
 }
+
