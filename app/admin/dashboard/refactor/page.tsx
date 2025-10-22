@@ -4,10 +4,8 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import {
   getEventsByHost,
-} from '@/lib/actions/events';
-import {
   getPollsByHost,
-} from '@/lib/actions/polls';
+} from '@/lib/actions';
 import DashboardHeader from './components/DashboardHeader';
 import CreateFanWallModal from '@/components/CreateFanWallModal';
 import CreatePollModal from '@/components/CreatePollModal';
@@ -42,7 +40,7 @@ export default function DashboardRefactor() {
     load();
   }, []);
 
-  /* ---------- RELOAD HELPERS ---------- */
+  /* ---------- REFRESH HELPERS ---------- */
   async function refreshEvents() {
     if (!host) return;
     const updated = await getEventsByHost(host.id);
@@ -55,7 +53,7 @@ export default function DashboardRefactor() {
     setPolls(updated);
   }
 
-  /* ---------- OPEN MODALS ---------- */
+  /* ---------- CREATE HANDLERS ---------- */
   function handleCreateFanWall() {
     setFanWallModalOpen(true);
   }
@@ -87,28 +85,23 @@ export default function DashboardRefactor() {
         onCreatePoll={handleCreatePoll}
       />
 
-      {/* HOST + STATUS */}
-      <div className="mt-6 text-center">
-        <h1 className="text-2xl font-bold mb-2">🎛 Refactor Host Dashboard</h1>
-        <p className="text-lg text-gray-300 mb-4">
-          Host: {host?.email || 'Unknown'}
-        </p>
+      {/* FAN WALL GRID */}
+      <FanWallGrid
+        events={events}
+        host={host}
+        refreshEvents={refreshEvents}
+        onOpenOptions={(e) => console.log('Fan Wall Options:', e)}
+      />
 
-        <div className="bg-black/40 p-6 rounded-xl shadow-md border border-white/20 w-72 mx-auto">
-          <p className="text-lg">
-            🎤 Fan Zone Walls: <strong>{events.length}</strong>
-          </p>
-          <p className="text-lg mt-1">
-            📊 Live Poll Walls: <strong>{polls.length}</strong>
-          </p>
-        </div>
-      </div>
+      {/* POLL GRID */}
+      <PollGrid
+        polls={polls}
+        host={host}
+        refreshPolls={refreshPolls}
+        onOpenOptions={(p) => console.log('Poll Options:', p)}
+      />
 
-      {/* ---------- GRIDS ---------- */}
-      <FanWallGrid events={events} host={host} refreshEvents={refreshEvents} />
-      <PollGrid polls={polls} host={host} refreshPolls={refreshPolls} />
-
-      {/* ---------- MODALS ---------- */}
+      {/* CREATE FAN WALL MODAL */}
       <CreateFanWallModal
         isOpen={isFanWallModalOpen}
         onClose={() => setFanWallModalOpen(false)}
@@ -119,6 +112,7 @@ export default function DashboardRefactor() {
         }}
       />
 
+      {/* CREATE POLL MODAL */}
       <CreatePollModal
         isOpen={isPollModalOpen}
         onClose={() => setPollModalOpen(false)}
@@ -129,14 +123,13 @@ export default function DashboardRefactor() {
         }}
       />
 
-      {/* ---------- TOAST ---------- */}
+      {/* TOAST */}
       {toast && (
         <div className="fixed bottom-6 right-6 bg-green-600/90 text-white px-4 py-2 rounded-lg shadow-lg animate-fadeIn z-50">
           {toast}
         </div>
       )}
 
-      {/* ---------- STYLE ---------- */}
       <style jsx>{`
         @keyframes fadeIn {
           from { opacity: 0; transform: translateY(8px); }
