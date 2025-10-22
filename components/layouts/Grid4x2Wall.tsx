@@ -99,11 +99,11 @@ function PostCard({ post }: { post: any }) {
       {/* LEFT: PHOTO (larger) */}
       <div
         style={{
-          flex: '0 0 48%',
+          flex: '0 0 60%',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          paddingRight: '14px',
+          paddingRight: '2px',
         }}
       >
         {post.photo_url ? (
