@@ -320,9 +320,11 @@ export default function DashboardPage() {
                   : poll.background_value || DEFAULT_GRADIENT,
             }}
           >
+            {/* ✅ FIXED LINE */}
             <h3 className="font-bold text-lg text-center drop-shadow-md">
               {poll.host_title || poll.title || 'Untitled Poll'}
             </h3>
+
             <p className="text-sm mt-1">
               <strong>Status:</strong>{' '}
               <span
@@ -362,7 +364,7 @@ export default function DashboardPage() {
         ))}
       </div>
 
-      {/* ---------- CREATE NEW WALL OR POLL ---------- */}
+      {/* ---------- REST UNCHANGED ---------- */}
       {creatingNew && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 animate-fadeIn">
           <div className="bg-[#111] border border-gray-600 rounded-xl p-6 text-center text-white shadow-2xl w-96">
@@ -401,7 +403,6 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* ---------- DELETE CONFIRMATION ---------- */}
       {confirmingDelete && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 animate-fadeIn">
           <div className="bg-[#111] border border-gray-500 rounded-xl p-6 text-center text-white shadow-2xl w-80">
@@ -431,7 +432,6 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* ---------- OPTIONS MODAL ---------- */}
       {selectedEvent && selectedType && (
         <OptionsModal
           type={selectedType}
@@ -449,14 +449,12 @@ export default function DashboardPage() {
         />
       )}
 
-      {/* ---------- TOAST ---------- */}
       {toastMessage && (
         <div className="fixed bottom-6 right-6 bg-green-600/90 text-white px-4 py-2 rounded-lg shadow-lg animate-fadeIn z-50">
           {toastMessage}
         </div>
       )}
 
-      {/* ---------- FIXED STYLE ---------- */}
       <style jsx>{`
         @keyframes fadeIn {
           from { opacity: 0; transform: scale(0.98); }
