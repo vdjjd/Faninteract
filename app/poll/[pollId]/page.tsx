@@ -40,24 +40,24 @@ export default function PollWallPage() {
     }
     fetchPoll();
 
-    const channel = supabase
-      .channel('poll_realtime')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'poll_options' },
-        (payload) => {
-          if (payload.new.poll_id === eventId) {
-            setOptions((prev) =>
-              prev.map((o) =>
-                o.id === payload.new.id
-                  ? { ...o, votes: payload.new.votes }
-                  : o
-              )
-            );
-          }
-        }
-      )
-      .subscribe();
+const channel = supabase
+  .channel('poll_realtime')
+  .on(
+    'postgres_changes',
+    { event: '*', schema: 'public', table: 'poll_options' },
+    (payload: any) => {
+      const newRow = (payload && payload.new) || null;
+      if (newRow && typeof newRow.poll_id !== 'undefined' && newRow.poll_id === eventId) {
+        setOptions((prev) =>
+          prev.map((o) =>
+            o.id === newRow.id ? { ...o, votes: newRow.votes } : o
+          )
+        );
+      }
+    }
+  )
+  .subscribe();
+
 
     return () => {
       supabase.removeChannel(channel);
