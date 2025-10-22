@@ -320,7 +320,9 @@ export default function DashboardPage() {
                   : poll.background_value || DEFAULT_GRADIENT,
             }}
           >
-            <h3 className="font-bold text-lg text-center drop-shadow-md">{poll.title}</h3>
+            <h3 className="font-bold text-lg text-center drop-shadow-md">
+              {poll.host_title || poll.title || 'Untitled Poll'}
+            </h3>
             <p className="text-sm mt-1">
               <strong>Status:</strong>{' '}
               <span
