@@ -24,18 +24,19 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
 
   const displayDuration = speedMap[event?.transition_speed || 'Medium'] || 8000;
 
-  /* ---------- INITIAL POPULATION ---------- */
+  /* ---------- INITIAL FILL (EMPTY FIRST) ---------- */
   useEffect(() => {
     if (!posts || posts.length === 0) return;
-    const newCols: any[][] = [[], [], [], []]; // ✅ fixed TypeScript type
-    for (let i = 0; i < 4; i++) {
-      newCols[i] = posts.slice(i * 2, i * 2 + 2);
-    }
-    setColumns(newCols);
-    setPostIndex(8 % posts.length);
+    const repeated = [...posts];
+    while (repeated.length < 8) repeated.push(...posts); // ensure enough
+    const filledCols = [[], [], [], []].map((_, i) =>
+      repeated.slice(i * 2, i * 2 + 2)
+    );
+    setColumns(filledCols);
+    setPostIndex(repeated.length % posts.length);
   }, [posts]);
 
-  /* ---------- CYCLIC UPDATES ---------- */
+  /* ---------- COLUMN-BY-COLUMN CYCLIC UPDATE ---------- */
   useEffect(() => {
     if (!posts || posts.length === 0) return;
 
@@ -45,7 +46,10 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
 
       setColumns((prevCols) => {
         const updated = [...prevCols];
-        updated[activeColumn] = [nextPost, ...updated[activeColumn]].slice(0, 2);
+        const newCol = [...updated[activeColumn]];
+        newCol.unshift(nextPost); // add new at top
+        if (newCol.length > 2) newCol.pop(); // keep 2 rows
+        updated[activeColumn] = newCol;
         return updated;
       });
 
@@ -97,7 +101,7 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
                 height: '100%',
                 objectFit: 'cover',
                 display: 'block',
-                opacity: 0.85,
+                opacity: 0.9,
               }}
             />
           ) : (
@@ -118,7 +122,7 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
           )}
         </div>
 
-        {/* RIGHT: NAME + MESSAGE (split top/bottom halves) */}
+        {/* RIGHT: NAME + MESSAGE */}
         <div
           style={{
             flex: 1,
@@ -130,7 +134,6 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
             borderLeft: '1px solid rgba(255,255,255,0.1)',
           }}
         >
-          {/* TOP HALF: NAME */}
           <div
             style={{
               flex: 1,
@@ -153,8 +156,6 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
               {post.nickname || ''}
             </h3>
           </div>
-
-          {/* BOTTOM HALF: MESSAGE */}
           <div
             style={{
               flex: 1,
@@ -184,18 +185,9 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
   }
 
   /* ---------- ANIMATION ---------- */
-  const cardVariants = {
-    enter: { y: -100, opacity: 0 },
-    center: {
-      y: 0,
-      opacity: 1,
-      transition: { duration: 0.8, ease: 'easeOut' },
-    },
-    exit: {
-      y: 100,
-      opacity: 0,
-      transition: { duration: 0.6, ease: 'easeIn' },
-    },
+  const slideVariants = {
+    enter: { y: '-100%', opacity: 1 },
+    center: { y: 0, opacity: 1, transition: { duration: 0.8, ease: 'easeOut' } },
   };
 
   return (
@@ -212,7 +204,7 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
         overflow: 'hidden',
       }}
     >
-      {/* ---------- LOGO TOP RIGHT ---------- */}
+      {/* ---------- LOGO ---------- */}
       <div
         style={{
           position: 'absolute',
@@ -245,13 +237,12 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
           marginTop: '3vh',
           marginBottom: '2vh',
           fontSize: 'clamp(2.5rem, 4vw, 5rem)',
-          lineHeight: 1.1,
         }}
       >
         {event.title || 'Fan Zone Wall'}
       </h1>
 
-      {/* ---------- 4×2 GRID ---------- */}
+      {/* ---------- GRID ---------- */}
       <div
         style={{
           width: '90vw',
@@ -268,13 +259,12 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
         }}
       >
         {columns.flat().map((post, i) => (
-          <AnimatePresence key={i} initial={false}>
+          <AnimatePresence key={i}>
             <motion.div
               key={(post?.id || 'empty') + '-' + i}
-              variants={cardVariants}
+              variants={slideVariants}
               initial="enter"
               animate="center"
-              exit="exit"
               style={{ width: '100%', height: '100%' }}
             >
               <PostCard post={post} />
@@ -313,7 +303,6 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
           bgColor="#ffffff"
           fgColor="#000000"
           level="H"
-          includeMargin={false}
           style={{
             borderRadius: 12,
             boxShadow: '0 0 18px rgba(0,0,0,0.6)',
@@ -335,8 +324,8 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
           justifyContent: 'center',
           cursor: 'pointer',
           zIndex: 9999,
-          transition: 'opacity 0.3s ease',
           opacity: 0.25,
+          transition: 'opacity 0.3s ease',
           background: 'rgba(255,255,255,0.08)',
           backdropFilter: 'blur(6px)',
           border: '1px solid rgba(255,255,255,0.2)',
