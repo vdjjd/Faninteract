@@ -20,6 +20,7 @@ export default function DashboardPage() {
   const [newTitle, setNewTitle] = useState('');
   const [confirmingDelete, setConfirmingDelete] = useState<string | null>(null);
   const [selectedEvent, setSelectedEvent] = useState<any | null>(null);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   /* ---------- LOAD HOST EVENTS ---------- */
   useEffect(() => {
@@ -100,18 +101,16 @@ export default function DashboardPage() {
 
     if (!event) return;
 
-    // If countdown exists, start it — do not instantly go live
     if (event.countdown) {
       await supabase
         .from('events')
         .update({
           countdown_active: true,
-          status: 'inactive', // stays inactive until timer hits 0
+          status: 'inactive',
           updated_at: new Date().toISOString(),
         })
         .eq('id', id);
     } else {
-      // No countdown selected — go live immediately
       await supabase
         .from('events')
         .update({
@@ -135,7 +134,7 @@ export default function DashboardPage() {
       .from('events')
       .update({
         status: 'inactive',
-        countdown_active: false, // stop timer
+        countdown_active: false,
         updated_at: new Date().toISOString(),
       })
       .eq('id', id);
@@ -154,33 +153,65 @@ export default function DashboardPage() {
     );
   }
 
-  /* ---------- BACKGROUND CHANGE ---------- */
+  /* ---------- BACKGROUND CHANGE (fixed) ---------- */
   async function handleBackgroundChange(event: any, newValue: string) {
-    const card = document.getElementById(`card-${event.id}`);
-    if (card) {
-      card.animate([{ opacity: 1 }, { opacity: 0.6 }, { opacity: 1 }], {
-        duration: 1000,
-        easing: 'ease-in-out',
-      });
-      card.style.transition = 'background 1s ease';
-      card.style.background = newValue;
+    try {
+      const card = document.getElementById(`card-${event.id}`);
+      if (card) {
+        card.animate([{ opacity: 1 }, { opacity: 0.6 }, { opacity: 1 }], {
+          duration: 1000,
+          easing: 'ease-in-out',
+        });
+        card.style.transition = 'background 1s ease';
+        card.style.background = newValue;
+      }
+
+      const type =
+        newValue.startsWith('linear-gradient') ? 'gradient' :
+        newValue.startsWith('#') ? 'solid' :
+        'image';
+
+      // 🗑 Delete old image if switching away from it
+      if (event.background_type === 'image' && event.background_value?.includes('supabase.co/storage')) {
+        const path = event.background_value.split('/object/')[1];
+        if (path) {
+          await supabase.storage.from('wall-backgrounds').remove([path]);
+          console.log('🗑 Removed old image from storage:', path);
+        }
+      }
+
+      const { error } = await supabase
+        .from('events')
+        .update({
+          background_type: type,
+          background_value: newValue,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', event.id);
+
+      if (error) throw error;
+
+      console.log('✅ Background updated to:', type, newValue);
+      showToast('✅ Background updated successfully!');
+
+      const refreshed = await getEventsByHost(host.id);
+      setEvents(refreshed);
+    } catch (err) {
+      console.error('❌ handleBackgroundChange failed:', err);
+      showToast('❌ Failed to update background.');
     }
-
-    await supabase
-      .from('events')
-      .update({
-        background_value: newValue,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', event.id);
-
-    const refreshed = await getEventsByHost(host.id);
-    setEvents(refreshed);
   }
 
+  /* ---------- REFRESH ---------- */
   async function refreshEvents() {
     const updated = await getEventsByHost(host.id);
     setEvents(updated);
+  }
+
+  /* ---------- TOAST HANDLER ---------- */
+  function showToast(message: string) {
+    setToastMessage(message);
+    setTimeout(() => setToastMessage(null), 3000);
   }
 
   /* ---------- LOADING ---------- */
@@ -354,6 +385,13 @@ export default function DashboardPage() {
           onBackgroundChange={handleBackgroundChange}
           refreshEvents={refreshEvents}
         />
+      )}
+
+      {/* ---------- TOAST ---------- */}
+      {toastMessage && (
+        <div className="fixed bottom-6 right-6 bg-green-600/90 text-white px-4 py-2 rounded-lg shadow-lg animate-fadeIn z-50">
+          {toastMessage}
+        </div>
       )}
 
       <style>{`
