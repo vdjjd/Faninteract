@@ -1,324 +1,392 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import {
+  createEvent,
+  getEventsByHost,
+  deleteEvent,
+  clearEventPosts,
+} from '@/lib/actions/events';
+import {
+  createPoll,
+  getPollsByHost,
+  deletePoll,
+  clearPoll,
+} from '@/lib/actions/polls';
 import { supabase } from '@/lib/supabaseClient';
-import imageCompression from 'browser-image-compression';
+import OptionsModal from '@/components/OptionsModal';
 
 const DEFAULT_GRADIENT = 'linear-gradient(135deg,#0d47a1,#1976d2)';
 
-interface OptionsModalProps {
-  event: any; // could be an event or poll
-  hostId: string;
-  onClose: () => void;
-  onBackgroundChange: (event: any, newValue: string) => Promise<void>;
-  refreshEvents: () => Promise<void>;
-}
+export default function DashboardPage() {
+  const [host, setHost] = useState<any>(null);
+  const [events, setEvents] = useState<any[]>([]);
+  const [polls, setPolls] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [creatingNew, setCreatingNew] = useState<string | null>(null);
+  const [newTitle, setNewTitle] = useState('');
+  const [confirmingDelete, setConfirmingDelete] = useState<{ type: string; id: string } | null>(null);
+  const [selectedEvent, setSelectedEvent] = useState<any | null>(null);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-export default function OptionsModal({
-  event,
-  hostId,
-  onClose,
-  onBackgroundChange,
-  refreshEvents,
-}: OptionsModalProps) {
-  const [saving, setSaving] = useState(false);
-  const [uploading, setUploading] = useState(false);
-  const [localEvent, setLocalEvent] = useState<any>({ ...event });
-  const isPoll = localEvent?.type === 'poll';
+  /* ---------- LOAD HOST EVENTS + POLLS ---------- */
+  useEffect(() => {
+    async function fetchData() {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      setHost(user);
 
-  // 🆕 warning modal state
-  const [showWarning, setShowWarning] = useState(false);
-  const [pendingChange, setPendingChange] = useState<{ type: 'solid' | 'gradient'; value: string } | null>(null);
+      const [fetchedEvents, fetchedPolls] = await Promise.all([
+        getEventsByHost(user.id),
+        getPollsByHost(user.id),
+      ]);
 
-  /* ---------- SAVE CHANGES ---------- */
-  async function handleSave() {
-    setSaving(true);
+      setEvents(fetchedEvents);
+      setPolls(fetchedPolls);
+      setLoading(false);
+    }
+    fetchData();
+  }, []);
 
-    const table = isPoll ? 'polls' : 'events';
-    const updates: any = {
-      host_title: localEvent.host_title || '',
-      title: localEvent.title || '',
-      updated_at: new Date().toISOString(),
+  /* ---------- REALTIME REFRESH ---------- */
+  useEffect(() => {
+    if (!host) return;
+
+    const channel = supabase
+      .channel('dashboard_realtime')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'events' }, async () => {
+        const updatedEvents = await getEventsByHost(host.id);
+        setEvents(updatedEvents);
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'polls' }, async () => {
+        const updatedPolls = await getPollsByHost(host.id);
+        setPolls(updatedPolls);
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
     };
+  }, [host]);
 
-    if (!isPoll) {
-      const countdownValue =
-        localEvent.countdown && localEvent.countdown !== 'none'
-          ? String(localEvent.countdown)
-          : null;
-
-      Object.assign(updates, {
-        countdown: countdownValue,
-        countdown_active: false,
-        layout_type: localEvent.layout_type || 'Single Highlight Post',
-        post_transition: localEvent.post_transition || '',
-        transition_speed: localEvent.transition_speed || 'Medium',
-        auto_delete_minutes: localEvent.auto_delete_minutes ?? 0,
-      });
-    } else {
-      Object.assign(updates, {
-        duration: localEvent.duration || null,
-      });
-    }
-
-    const { error } = await supabase.from(table).update(updates).eq('id', localEvent.id);
-    if (error) console.error('❌ Supabase update error:', error);
-    else console.log('✅ Settings saved successfully');
-
-    await refreshEvents();
-    setSaving(false);
-    onClose();
+  /* ---------- FAN WALL CRUD ---------- */
+  async function handleCreateEvent() {
+    if (!newTitle.trim()) return;
+    await createEvent(host.id, { title: newTitle.trim() });
+    const updated = await getEventsByHost(host.id);
+    setEvents(updated);
+    setCreatingNew(null);
+    setNewTitle('');
   }
 
-  /* ---------- IMAGE UPLOAD ---------- */
-  async function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
+  async function handleDeleteEvent(id: string) {
+    await deleteEvent(id);
+    setEvents((prev) => prev.filter((e) => e.id !== id));
+    setConfirmingDelete(null);
+  }
+
+  async function handleClearEvent(id: string) {
+    await clearEventPosts(id);
+    const updated = await getEventsByHost(host.id);
+    setEvents(updated);
+  }
+
+  /* ---------- POLL CRUD ---------- */
+  async function handleCreatePoll() {
+    if (!newTitle.trim()) return;
+    await createPoll(host.id, { title: newTitle.trim() });
+    const updated = await getPollsByHost(host.id);
+    setPolls(updated);
+    setCreatingNew(null);
+    setNewTitle('');
+  }
+
+  async function handleDeletePoll(id: string) {
+    await deletePoll(id);
+    setPolls((prev) => prev.filter((p) => p.id !== id));
+    setConfirmingDelete(null);
+  }
+
+  async function handleClearPoll(id: string) {
+    await clearPoll(id);
+    const updated = await getPollsByHost(host.id);
+    setPolls(updated);
+  }
+
+  /* ---------- FAN WALL CONTROL ---------- */
+  async function handleLaunchWall(id: string) {
+    const wallUrl = `${window.location.origin}/wall/${id}`;
+    const popup = window.open(
+      wallUrl,
+      '_blank',
+      'width=1280,height=800,left=100,top=100,menubar=no,toolbar=no,location=no,status=no,resizable=yes,scrollbars=no'
+    );
+    popup?.focus();
+  }
+
+  async function handleStartWall(id: string) {
+    const { data: event } = await supabase.from('events').select('*').eq('id', id).single();
+    if (!event) return;
+
+    const update = event.countdown
+      ? { countdown_active: true, status: 'inactive' }
+      : { status: 'live', countdown_active: false };
+
+    await supabase.from('events').update({ ...update, updated_at: new Date().toISOString() }).eq('id', id);
+    const updated = await getEventsByHost(host.id);
+    setEvents(updated);
+  }
+
+  async function handleStopWall(id: string) {
+    await supabase
+      .from('events')
+      .update({ status: 'inactive', countdown_active: false, updated_at: new Date().toISOString() })
+      .eq('id', id);
+    const updated = await getEventsByHost(host.id);
+    setEvents(updated);
+  }
+
+  /* ---------- POLL CONTROL ---------- */
+  async function handleLaunchPoll(id: string) {
+    const pollUrl = `${window.location.origin}/poll/${id}`;
+    const popup = window.open(
+      pollUrl,
+      '_blank',
+      'width=1280,height=800,left=100,top=100,menubar=no,toolbar=no,location=no,status=no,resizable=yes,scrollbars=no'
+    );
+    popup?.focus();
+  }
+
+  /* ---------- BACKGROUND CHANGE ---------- */
+  async function handleBackgroundChange(event: any, newValue: string) {
     try {
-      const file = e.target.files?.[0];
-      if (!file) return;
+      const type =
+        newValue.startsWith('linear-gradient') ? 'gradient' :
+        newValue.startsWith('#') ? 'solid' : 'image';
 
-      if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
-        alert('Please upload a JPG, PNG, or WEBP file.');
-        return;
-      }
-
-      setUploading(true);
-      const compressed = await imageCompression(file, {
-        maxWidthOrHeight: 1920,
-        useWebWorker: true,
-      });
-
-      const ext = file.type.split('/')[1];
-      const filePath = `${localEvent.id}/background-${Date.now()}.${ext}`;
-
-      const { error: uploadError } = await supabase.storage
-        .from('wall-backgrounds')
-        .upload(filePath, compressed, { upsert: true });
-
-      if (uploadError) throw uploadError;
-
-      const { data: publicUrl } = supabase.storage.from('wall-backgrounds').getPublicUrl(filePath);
-
-      const { error: updateError } = await supabase
-        .from(isPoll ? 'polls' : 'events')
+      const { error } = await supabase
+        .from('events')
         .update({
-          background_type: 'image',
-          background_value: publicUrl.publicUrl,
-          background_url: publicUrl.publicUrl,
+          background_type: type,
+          background_value: newValue,
+          updated_at: new Date().toISOString(),
         })
-        .eq('id', localEvent.id);
+        .eq('id', event.id);
 
-      if (updateError) throw updateError;
+      if (error) throw error;
 
-      console.log('✅ Image uploaded successfully!');
-      setLocalEvent({
-        ...localEvent,
-        background_type: 'image',
-        background_value: publicUrl.publicUrl,
-      });
+      showToast('✅ Background updated successfully!');
+      const refreshed = await getEventsByHost(host.id);
+      setEvents(refreshed);
     } catch (err) {
-      console.error('❌ Upload error:', err);
-      alert('Upload failed. Please check console for details.');
-    } finally {
-      setUploading(false);
+      console.error('❌ handleBackgroundChange failed:', err);
+      showToast('❌ Failed to update background.');
     }
   }
 
-  /* ---------- DELETE OLD IMAGE ---------- */
-  async function deleteOldImageIfExists() {
-    try {
-      if (localEvent.background_type !== 'image' || !localEvent.background_value) return;
-      const url = localEvent.background_value;
-      const parts = url.split('/wall-backgrounds/');
-      if (parts.length < 2) return;
-      const filePath = parts[1];
-      console.log('🗑 Deleting old image:', filePath);
-      const { error } = await supabase.storage.from('wall-backgrounds').remove([filePath]);
-      if (error) console.error('⚠️ Failed to delete old image:', error);
-      else console.log('✅ Old image deleted from storage.');
-    } catch (err) {
-      console.error('❌ Error deleting old image:', err);
-    }
+  /* ---------- TOAST HANDLER ---------- */
+  function showToast(message: string) {
+    setToastMessage(message);
+    setTimeout(() => setToastMessage(null), 3000);
   }
 
-  /* ---------- HANDLE COLOR/GRADIENT CHANGE ---------- */
-  async function handleBackgroundChange(type: 'solid' | 'gradient', value: string) {
-    if (localEvent.background_type === 'image') {
-      setPendingChange({ type, value });
-      setShowWarning(true);
-      return;
-    }
-
-    localEvent.background_type = type;
-    await onBackgroundChange(localEvent, value);
-    await refreshEvents();
-    setLocalEvent({
-      ...localEvent,
-      background_type: type,
-      background_value: value,
-    });
-  }
+  /* ---------- PAGE ---------- */
+  if (loading)
+    return (
+      <div className="flex items-center justify-center h-screen bg-gradient-to-br from-[#0a2540] via-[#1b2b44] to-black text-white">
+        <p>Loading…</p>
+      </div>
+    );
 
   return (
-    <>
-      <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 backdrop-blur-md">
-        <div
-          className="bg-gradient-to-br from-[#0a2540] to-[#1b2b44] border border-blue-400 p-6 rounded-2xl shadow-2xl w-96 text-white animate-fadeIn overflow-y-auto max-h-[90vh]"
-          style={{
-            background: localEvent.background_value || DEFAULT_GRADIENT,
-          }}
+    <div className="min-h-screen bg-gradient-to-br from-[#0a2540] via-[#1b2b44] to-black text-white flex flex-col items-center px-4 py-8 font-sans">
+      <img
+        src="/faninteractlogo.png"
+        alt="FanInteract Logo"
+        className="w-44 animate-pulse mb-2 drop-shadow-lg"
+      />
+      <h1 className="text-2xl font-bold mb-6">🎛 Host Dashboard</h1>
+
+      {/* ---------- CREATE BUTTONS ---------- */}
+      <div className="flex gap-4 mb-4">
+        <button
+          onClick={() => setCreatingNew('fanwall')}
+          className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg font-semibold transition-all"
         >
-          <h3 className="text-center text-xl font-bold mb-3">
-            ⚙ {isPoll ? 'Edit Poll Settings' : 'Edit Wall Settings'}
-          </h3>
+          ➕ New Fan Zone Wall
+        </button>
+        <button
+          onClick={() => setCreatingNew('poll')}
+          className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg font-semibold transition-all"
+        >
+          📊 New Live Poll Wall
+        </button>
+      </div>
 
-          {/* ---- SHARED FIELDS ---- */}
-          <label className="block mt-2 text-sm">{isPoll ? 'Poll Title:' : 'Wall Title:'}</label>
-          <input
-            type="text"
-            value={localEvent.host_title || ''}
-            onChange={(e) => setLocalEvent({ ...localEvent, host_title: e.target.value })}
-            className="w-full p-2 rounded-md text-black mt-1"
-          />
-
-          <label className="block mt-3 text-sm">{isPoll ? 'Public Question:' : 'Public Title:'}</label>
-          <input
-            type="text"
-            value={localEvent.title || ''}
-            onChange={(e) => setLocalEvent({ ...localEvent, title: e.target.value })}
-            className="w-full p-2 rounded-md text-black mt-1"
-          />
-
-          {/* ---- POLL-SPECIFIC ---- */}
-          {isPoll && (
-            <>
-              <label className="block mt-3 text-sm">Poll Duration:</label>
-              <select
-                className="w-full p-2 rounded-md text-black mt-1"
-                value={localEvent.duration || 'none'}
-                onChange={(e) =>
-                  setLocalEvent({
-                    ...localEvent,
-                    duration: e.target.value === 'none' ? null : e.target.value,
-                  })
+      {/* ---------- FAN WALLS GRID ---------- */}
+      <h2 className="text-xl font-semibold mt-8 mb-2">🎤 Fan Zone Walls</h2>
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
+        {events.map((event) => (
+          <div
+            key={event.id}
+            className="rounded-xl p-4 text-center shadow-lg bg-cover bg-center"
+            style={{
+              background:
+                event.background_type === 'image'
+                  ? `url(${event.background_value}) center/cover no-repeat`
+                  : event.background_value || DEFAULT_GRADIENT,
+            }}
+          >
+            <h3 className="font-bold text-lg text-center drop-shadow-md">
+              {event.host_title || event.title}
+            </h3>
+            <p className="text-sm mt-1">
+              <strong>Status:</strong>{' '}
+              <span
+                className={
+                  event.status === 'live'
+                    ? 'text-lime-400'
+                    : event.status === 'cleared'
+                    ? 'text-cyan-400'
+                    : 'text-orange-400'
                 }
               >
-                <option value="none">No Timer (Manual Stop)</option>
-                <option value="30 Seconds">30 Seconds</option>
-                <option value="1 Minute">1 Minute</option>
-                <option value="2 Minutes">2 Minutes</option>
-                <option value="3 Minutes">3 Minutes</option>
-                <option value="5 Minutes">5 Minutes</option>
-              </select>
-            </>
-          )}
+                {event.status}
+              </span>
+            </p>
 
-          {/* ---- FAN WALL ONLY ---- */}
-          {!isPoll && (
-            <>
-              {/* Countdown */}
-              <label className="block mt-3 text-sm">Countdown:</label>
-              <select
-                className="w-full p-2 rounded-md text-black mt-1"
-                value={localEvent.countdown || 'none'}
-                onChange={(e) =>
-                  setLocalEvent({
-                    ...localEvent,
-                    countdown: e.target.value === 'none' ? null : e.target.value,
-                  })
+            <div className="flex flex-wrap justify-center gap-2 mt-3">
+              <button onClick={() => handleLaunchWall(event.id)} className="bg-blue-600 hover:bg-blue-700 px-2 py-1 rounded text-sm font-semibold">
+                🚀 Launch
+              </button>
+              <button onClick={() => handleStartWall(event.id)} className="bg-green-600 hover:bg-green-700 px-2 py-1 rounded text-sm font-semibold">
+                ▶️ Play
+              </button>
+              <button onClick={() => handleStopWall(event.id)} className="bg-red-600 hover:bg-red-700 px-2 py-1 rounded text-sm font-semibold">
+                ⏹ Stop
+              </button>
+              <button onClick={() => handleClearEvent(event.id)} className="bg-cyan-500 hover:bg-cyan-600 px-2 py-1 rounded text-sm font-semibold">
+                🧹 Clear
+              </button>
+              <button onClick={() => setSelectedEvent(event)} className="bg-indigo-500 hover:bg-indigo-600 px-2 py-1 rounded text-sm font-semibold">
+                ⚙ Options
+              </button>
+              <button onClick={() => setConfirmingDelete({ type: 'event', id: event.id })} className="bg-red-700 hover:bg-red-800 px-2 py-1 rounded text-sm font-semibold">
+                ❌ Delete
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* ---------- POLL WALLS GRID ---------- */}
+      <h2 className="text-xl font-semibold mt-10 mb-2">📊 Live Poll Walls</h2>
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
+        {polls.map((poll) => (
+          <div
+            key={poll.id}
+            className="rounded-xl p-4 text-center shadow-lg bg-cover bg-center"
+            style={{
+              background:
+                poll.background_type === 'image'
+                  ? `url(${poll.background_value}) center/cover no-repeat`
+                  : poll.background_value || DEFAULT_GRADIENT,
+            }}
+          >
+            <h3 className="font-bold text-lg text-center drop-shadow-md">
+              {poll.title}
+            </h3>
+            <p className="text-sm mt-1">
+              <strong>Status:</strong>{' '}
+              <span
+                className={
+                  poll.status === 'live'
+                    ? 'text-lime-400'
+                    : poll.status === 'cleared'
+                    ? 'text-cyan-400'
+                    : 'text-orange-400'
                 }
               >
-                <option value="none">No Countdown / Start Immediately</option>
-                {[
-                  '30 Seconds','1 Minute','2 Minutes','3 Minutes','4 Minutes','5 Minutes',
-                  '10 Minutes','15 Minutes','20 Minutes','25 Minutes','30 Minutes','45 Minutes','60 Minutes',
-                ].map((opt) => (
-                  <option key={opt}>{opt}</option>
-                ))}
-              </select>
+                {poll.status}
+              </span>
+            </p>
 
-              {/* Layout */}
-              <label className="block mt-3 text-sm">Layout Type:</label>
-              <select
-                className="w-full p-2 rounded-md text-black mt-1"
-                value={localEvent.layout_type || 'Single Highlight Post'}
-                onChange={(e) => setLocalEvent({ ...localEvent, layout_type: e.target.value })}
+            <div className="flex flex-wrap justify-center gap-2 mt-3">
+              <button onClick={() => handleLaunchPoll(poll.id)} className="bg-blue-600 hover:bg-blue-700 px-2 py-1 rounded text-sm font-semibold">
+                🚀 Launch
+              </button>
+              <button onClick={() => handleClearPoll(poll.id)} className="bg-cyan-500 hover:bg-cyan-600 px-2 py-1 rounded text-sm font-semibold">
+                🧹 Clear
+              </button>
+              <button onClick={() => setSelectedEvent(poll)} className="bg-indigo-500 hover:bg-indigo-600 px-2 py-1 rounded text-sm font-semibold">
+                ⚙ Options
+              </button>
+              <button onClick={() => setConfirmingDelete({ type: 'poll', id: poll.id })} className="bg-red-700 hover:bg-red-800 px-2 py-1 rounded text-sm font-semibold">
+                ❌ Delete
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* ---------- DELETE CONFIRMATION ---------- */}
+      {confirmingDelete && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 animate-fadeIn">
+          <div className="bg-[#111] border border-gray-500 rounded-xl p-6 text-center text-white shadow-2xl w-80">
+            <h3 className="text-xl font-semibold mb-3">Confirm Deletion</h3>
+            <p className="text-sm mb-4">Are you sure you want to delete this {confirmingDelete.type}?</p>
+            <div className="flex justify-center gap-4">
+              <button
+                onClick={() =>
+                  confirmingDelete.type === 'poll'
+                    ? handleDeletePoll(confirmingDelete.id)
+                    : handleDeleteEvent(confirmingDelete.id)
+                }
+                className="bg-green-600 hover:bg-green-700 px-4 py-2 rounded-lg font-semibold"
               >
-                <option>Single Highlight Post</option>
-                <option>2 Column × 2 Row</option>
-                <option>4 Column × 2 Row</option>
-              </select>
-            </>
-          )}
-
-          {/* ---- COLORS ---- */}
-          <h4 className="mt-5 text-sm font-semibold">🎨 Solid Colors</h4>
-          <div className="grid grid-cols-8 gap-2 mt-2">
-            {[
-              '#e53935','#d81b60','#8e24aa','#5e35b1','#3949ab','#1e88e5','#039be5','#00acc1',
-              '#00897b','#43a047','#7cb342','#c0ca33','#fdd835','#fb8c00','#f4511e','#6d4c41',
-            ].map((c) => (
-              <div
-                key={c}
-                className="w-5 h-5 rounded-full cursor-pointer border border-white/30 hover:scale-110 transition"
-                style={{ background: c }}
-                onClick={() => handleBackgroundChange('solid', c)}
-              />
-            ))}
-          </div>
-
-          <h4 className="mt-4 text-sm font-semibold">🌈 Gradients</h4>
-          <div className="grid grid-cols-8 gap-2 mt-2">
-            {[
-              'linear-gradient(135deg,#002244,#69BE28)',
-              'linear-gradient(135deg,#00338D,#C60C30)',
-              'linear-gradient(135deg,#203731,#FFB612)',
-              'linear-gradient(135deg,#0B2265,#A71930)',
-              'linear-gradient(135deg,#241773,#9E7C0C)',
-              'linear-gradient(135deg,#03202F,#FB4F14)',
-              'linear-gradient(135deg,#002244,#B0B7BC)',
-              'linear-gradient(135deg,#002C5F,#FFC20E)',
-              'linear-gradient(135deg,#E31837,#C60C30)',
-              'linear-gradient(135deg,#002C5F,#A5ACAF)',
-            ].map((g) => (
-              <div
-                key={g}
-                className="w-5 h-5 rounded-full cursor-pointer border border-white/30 hover:scale-110 transition"
-                style={{ background: g }}
-                onClick={() => handleBackgroundChange('gradient', g)}
-              />
-            ))}
-          </div>
-
-          {/* ---- UPLOAD ---- */}
-          <div className="mt-6 text-center">
-            <p className="text-sm font-semibold mb-2">Upload Custom Background</p>
-            <input
-              type="file"
-              accept="image/jpeg,image/png,image/webp"
-              onChange={handleImageUpload}
-              className="text-sm text-center"
-            />
-            {uploading && <p className="text-yellow-400 text-xs mt-2 animate-pulse">Uploading...</p>}
-          </div>
-
-          {/* ---- BUTTONS ---- */}
-          <div className="text-center mt-5 flex justify-center gap-4">
-            <button
-              disabled={saving}
-              onClick={handleSave}
-              className={`${saving ? 'bg-gray-500' : 'bg-green-600 hover:bg-green-700'} px-4 py-2 rounded font-semibold`}
-            >
-              {saving ? 'Saving…' : '💾 Save'}
-            </button>
-            <button
-              onClick={onClose}
-              className="bg-red-600 hover:bg-red-700 px-4 py-2 rounded font-semibold"
-            >
-              ✖ Close
-            </button>
+                ✅ Yes, Delete
+              </button>
+              <button
+                onClick={() => setConfirmingDelete(null)}
+                className="bg-red-600 hover:bg-red-700 px-4 py-2 rounded-lg font-semibold"
+              >
+                ✖ Cancel
+              </button>
+            </div>
           </div>
         </div>
-      </div>
-    </>
+      )}
+
+      {/* ---------- OPTIONS MODAL ---------- */}
+      {selectedEvent && (
+        <OptionsModal
+          event={selectedEvent}
+          hostId={host.id}
+          onClose={() => setSelectedEvent(null)}
+          onBackgroundChange={handleBackgroundChange}
+          refreshEvents={async () => {
+            const updated = await getEventsByHost(host.id);
+            setEvents(updated);
+          }}
+        />
+      )}
+
+      {/* ---------- TOAST ---------- */}
+      {toastMessage && (
+        <div className="fixed bottom-6 right-6 bg-green-600/90 text-white px-4 py-2 rounded-lg shadow-lg animate-fadeIn z-50">
+          {toastMessage}
+        </div>
+      )}
+
+      <style>{`
+        @keyframes fadeIn {
+          from { opacity: 0; transform: scale(0.98); }
+          to { opacity: 1; transform: scale(1); }
+        }
+        .animate-fadeIn {
+          animation: fadeIn 0.25s ease-out;
+        }
+      `}</style>
+    </div>
   );
 }
