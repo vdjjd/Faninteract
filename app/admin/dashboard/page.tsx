@@ -27,6 +27,7 @@ export default function DashboardPage() {
   const [newTitle, setNewTitle] = useState('');
   const [confirmingDelete, setConfirmingDelete] = useState<{ type: string; id: string } | null>(null);
   const [selectedEvent, setSelectedEvent] = useState<any | null>(null);
+  const [selectedType, setSelectedType] = useState<'fanwall' | 'poll' | 'trivia' | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   /* ---------- LOAD HOST EVENTS + POLLS ---------- */
@@ -268,7 +269,13 @@ export default function DashboardPage() {
               <button onClick={() => handleClearEvent(event.id)} className="bg-cyan-500 hover:bg-cyan-600 px-2 py-1 rounded text-sm font-semibold">
                 🧹 Clear
               </button>
-              <button onClick={() => setSelectedEvent(event)} className="bg-indigo-500 hover:bg-indigo-600 px-2 py-1 rounded text-sm font-semibold">
+              <button
+                onClick={() => {
+                  setSelectedEvent(event);
+                  setSelectedType('fanwall');
+                }}
+                className="bg-indigo-500 hover:bg-indigo-600 px-2 py-1 rounded text-sm font-semibold"
+              >
                 ⚙ Options
               </button>
               <button onClick={() => setConfirmingDelete({ type: 'event', id: event.id })} className="bg-red-700 hover:bg-red-800 px-2 py-1 rounded text-sm font-semibold">
@@ -318,7 +325,13 @@ export default function DashboardPage() {
               <button onClick={() => handleClearPoll(poll.id)} className="bg-cyan-500 hover:bg-cyan-600 px-2 py-1 rounded text-sm font-semibold">
                 🧹 Clear
               </button>
-              <button onClick={() => setSelectedEvent(poll)} className="bg-indigo-500 hover:bg-indigo-600 px-2 py-1 rounded text-sm font-semibold">
+              <button
+                onClick={() => {
+                  setSelectedEvent(poll);
+                  setSelectedType('poll');
+                }}
+                className="bg-indigo-500 hover:bg-indigo-600 px-2 py-1 rounded text-sm font-semibold"
+              >
                 ⚙ Options
               </button>
               <button onClick={() => setConfirmingDelete({ type: 'poll', id: poll.id })} className="bg-red-700 hover:bg-red-800 px-2 py-1 rounded text-sm font-semibold">
@@ -358,11 +371,15 @@ export default function DashboardPage() {
       )}
 
       {/* ---------- OPTIONS MODAL ---------- */}
-      {selectedEvent && (
+      {selectedEvent && selectedType && (
         <OptionsModal
+          type={selectedType}
           event={selectedEvent}
           hostId={host.id}
-          onClose={() => setSelectedEvent(null)}
+          onClose={() => {
+            setSelectedEvent(null);
+            setSelectedType(null);
+          }}
           onBackgroundChange={handleBackgroundChange}
           refreshEvents={async () => {
             const updated = await getEventsByHost(host.id);
