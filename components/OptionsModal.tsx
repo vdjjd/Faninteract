@@ -198,17 +198,16 @@ export default function OptionsModal({
           </select>
 
           {/* ---- LAYOUT ---- */}
-          <label className="block mt-3 text-sm">Layout Type:</label>
-          <select
-            className="w-full p-2 rounded-md text-black mt-1"
-            value={localEvent.layout_type || 'Single Highlight Post'}
-            onChange={(e) => setLocalEvent({ ...localEvent, layout_type: e.target.value })}
-          >
-            <option>Single Highlight Post</option>
-            <option>2 Column × 2 Row</option>
-            <option>4 Column × 2 Row</option>
-            <option>1 Column × 2 Row</option>
-          </select>
+<label className="block mt-3 text-sm">Layout Type:</label>
+<select
+  className="w-full p-2 rounded-md text-black mt-1"
+  value={localEvent.layout_type || 'Single Highlight Post'}
+  onChange={(e) => setLocalEvent({ ...localEvent, layout_type: e.target.value })}
+>
+  <option>Single Highlight Post</option>
+  <option>2 Column × 2 Row</option>
+  <option>4 Column × 2 Row</option>
+</select>
 
           {/* ---- POST TRANSITION ---- */}
           {localEvent.layout_type === 'Single Highlight Post' && (
