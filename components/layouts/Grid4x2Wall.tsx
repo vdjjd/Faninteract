@@ -27,7 +27,7 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
   /* ---------- INITIAL POPULATION ---------- */
   useEffect(() => {
     if (!posts || posts.length === 0) return;
-    const newCols = [[], [], [], []];
+    const newCols: any[][] = [[], [], [], []]; // ✅ fixed TypeScript type
     for (let i = 0; i < 4; i++) {
       newCols[i] = posts.slice(i * 2, i * 2 + 2);
     }
@@ -118,7 +118,7 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
           )}
         </div>
 
-        {/* RIGHT: NAME + MESSAGE */}
+        {/* RIGHT: NAME + MESSAGE (split top/bottom halves) */}
         <div
           style={{
             flex: 1,
@@ -212,7 +212,7 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
         overflow: 'hidden',
       }}
     >
-      {/* ---------- LOGO ---------- */}
+      {/* ---------- LOGO TOP RIGHT ---------- */}
       <div
         style={{
           position: 'absolute',
@@ -283,7 +283,7 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
         ))}
       </div>
 
-      {/* ---------- QR ---------- */}
+      {/* ---------- QR SECTION ---------- */}
       <div
         style={{
           position: 'absolute',
@@ -321,7 +321,7 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
         />
       </div>
 
-      {/* ---------- FULLSCREEN ---------- */}
+      {/* ---------- FULLSCREEN BUTTON ---------- */}
       <div
         style={{
           position: 'fixed',
@@ -368,3 +368,4 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
     </div>
   );
 }
+
