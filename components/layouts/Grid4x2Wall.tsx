@@ -10,20 +10,19 @@ interface Grid4x2WallProps {
 }
 
 const speedMap: Record<string, number> = {
-  Slow: 12000,
-  Medium: 8000,
-  Fast: 4000,
+  Slow: 3000,
+  Medium: 2000,
+  Fast: 1000,
 };
 
 export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
   const [columns, setColumns] = useState<any[][]>([[], [], [], []]);
   const [postIndex, setPostIndex] = useState(0);
-  const [activeColumn, setActiveColumn] = useState(0);
   const [isFullscreen, setIsFullscreen] = useState(false);
 
-  const displayDuration = speedMap[event?.transition_speed || 'Medium'] || 8000;
+  const displayDelay = speedMap[event?.transition_speed || 'Medium'] || 2000;
 
-  /* ---------- INITIAL POPULATION ---------- */
+  // ---------- INITIAL POPULATION ----------
   useEffect(() => {
     if (!posts || posts.length === 0) return;
 
@@ -31,61 +30,48 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
     while (looped.length < 8) looped.push(...posts);
 
     const newCols: any[][] = [[], [], [], []];
-    for (let i = 0; i < 4; i++) {
-      newCols[i] = looped.slice(i * 2, i * 2 + 2);
-    }
-
+    for (let i = 0; i < 4; i++) newCols[i] = looped.slice(i * 2, i * 2 + 2);
     setColumns(newCols);
     setPostIndex(8 % looped.length);
-    setActiveColumn(0);
   }, [posts]);
 
-  /* ---------- COLUMN-BY-COLUMN UPDATE ---------- */
+  // ---------- SEQUENTIAL COLUMN UPDATES ----------
   useEffect(() => {
     if (!posts || posts.length === 0) return;
 
     const looped = [...posts];
     while (looped.length < 8) looped.push(...posts);
 
-    const timer = setInterval(() => {
+    let col = 0;
+    const interval = setInterval(() => {
       const nextPost = looped[postIndex % looped.length];
+      setPostIndex((prev) => (prev + 1) % looped.length);
 
       setColumns((prev) => {
         const newCols = [...prev];
-        newCols[activeColumn] = [nextPost, ...newCols[activeColumn]].slice(0, 2);
+        newCols[col] = [nextPost, ...newCols[col]].slice(0, 2);
         return newCols;
       });
 
-      setPostIndex((prev) => (prev + 1) % looped.length);
-      setActiveColumn((prev) => (prev + 1) % 4);
-    }, displayDuration);
+      col = (col + 1) % 4; // move to next column next tick
+    }, displayDelay);
 
-    return () => clearInterval(timer);
-  }, [posts, postIndex, activeColumn, displayDuration]);
+    return () => clearInterval(interval);
+  }, [posts, postIndex, displayDelay]);
 
-  /* ---------- ANIMATION VARIANTS ---------- */
+  // ---------- ANIMATION ----------
   const cardVariants = {
-    enter: { y: -100, opacity: 0 },
-    center: {
-      y: 0,
-      opacity: 1,
-      transition: { duration: 0.7, ease: 'easeOut' },
-    },
-    exit: {
-      y: 100,
-      opacity: 0,
-      transition: { duration: 0.5, ease: 'easeIn' },
-    },
+    enter: { y: -80, opacity: 0 },
+    center: { y: 0, opacity: 1, transition: { duration: 0.6 } },
+    exit: { y: 80, opacity: 0, transition: { duration: 0.5 } },
   };
 
-  /* ---------- BACKGROUND ---------- */
   const bg =
     event?.background_type === 'image'
       ? `url(${event.background_value}) center/cover no-repeat`
-      : event?.background_value ||
-        'linear-gradient(to bottom right, #1b2735, #090a0f)';
+      : event?.background_value || 'linear-gradient(to bottom right,#1b2735,#090a0f)';
 
-  /* ---------- POST CARD ---------- */
+  // ---------- POST CARD ----------
   function PostCard({ post }: { post: any }) {
     if (!post)
       return (
@@ -104,30 +90,20 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
       >
         <div className="flex-1 relative">
           {post.photo_url ? (
-            <img
-              src={post.photo_url}
-              alt="Guest"
-              className="w-full h-full object-cover opacity-90"
-            />
+            <img src={post.photo_url} alt="Guest" className="w-full h-full object-cover opacity-90" />
           ) : (
-            <div className="flex items-center justify-center w-full h-full bg-white/10 text-gray-300">
-              No photo
-            </div>
+            <div className="flex items-center justify-center w-full h-full bg-white/10 text-gray-300">No photo</div>
           )}
         </div>
         <div className="p-3 bg-black/50 text-center">
-          <div className="text-white font-bold text-xl mb-1">
-            {post.nickname || ''}
-          </div>
-          <div className="text-gray-300 text-base leading-snug">
-            {post.message || ''}
-          </div>
+          <div className="text-white font-bold text-xl mb-1">{post.nickname || ''}</div>
+          <div className="text-gray-300 text-base leading-snug">{post.message || ''}</div>
         </div>
       </motion.div>
     );
   }
 
-  /* ---------- FULLSCREEN ---------- */
+  // ---------- FULLSCREEN ----------
   const toggleFullscreen = () => {
     if (!document.fullscreenElement) {
       document.documentElement.requestFullscreen().catch(console.error);
@@ -138,7 +114,7 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
     }
   };
 
-  /* ---------- RENDER ---------- */
+  // ---------- RENDER ----------
   return (
     <div
       style={{
@@ -154,24 +130,11 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
       }}
     >
       {/* ---------- LOGO ---------- */}
-      <div
-        style={{
-          position: 'absolute',
-          top: '3vh',
-          right: '3vw',
-          width: 'clamp(160px, 18vw, 220px)',
-          zIndex: 20,
-        }}
-      >
+      <div style={{ position: 'absolute', top: '3vh', right: '3vw', width: 'clamp(160px,18vw,220px)', zIndex: 20 }}>
         <img
           src={event.logo_url || '/faninteractlogo.png'}
           alt="Logo"
-          style={{
-            width: '100%',
-            height: 'auto',
-            objectFit: 'contain',
-            filter: 'drop-shadow(0 0 12px rgba(0,0,0,0.85))',
-          }}
+          style={{ width: '100%', height: 'auto', objectFit: 'contain', filter: 'drop-shadow(0 0 12px rgba(0,0,0,0.85))' }}
         />
       </div>
 
@@ -184,13 +147,13 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
           fontWeight: 900,
           marginTop: '3vh',
           marginBottom: '2vh',
-          fontSize: 'clamp(2.5rem, 4vw, 5rem)',
+          fontSize: 'clamp(2.5rem,4vw,5rem)',
         }}
       >
         {event.title || 'Fan Zone Wall'}
       </h1>
 
-      {/* ---------- 4×2 GRID ---------- */}
+      {/* ---------- GRID ---------- */}
       <div
         style={{
           width: '90vw',
@@ -211,19 +174,7 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
           <div key={colIndex} className="flex flex-col h-full">
             <AnimatePresence mode="popLayout">
               {col.map((post, i) => (
-                <motion.div
-                  key={`${post?.id || 'empty'}-${i}-${colIndex}`}
-                  variants={cardVariants}
-                  initial="enter"
-                  animate="center"
-                  exit="exit"
-                  style={{
-                    flex: 1,
-                    height: '50%',
-                    display: 'flex',
-                    flexDirection: 'column',
-                  }}
-                >
+                <motion.div key={`${post?.id || 'empty'}-${i}-${colIndex}`} style={{ flex: 1 }}>
                   <PostCard post={post} />
                 </motion.div>
               ))}
@@ -243,15 +194,7 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
           alignItems: 'center',
         }}
       >
-        <p
-          style={{
-            color: '#fff',
-            textAlign: 'center',
-            fontWeight: 700,
-            fontSize: 'clamp(1.2rem, 1.8vw, 2rem)',
-            marginBottom: '0.8vh',
-          }}
-        >
+        <p style={{ color: '#fff', textAlign: 'center', fontWeight: 700, fontSize: 'clamp(1.2rem,1.8vw,2rem)', marginBottom: '0.8vh' }}>
           Scan Me To Join
         </p>
         <QRCodeCanvas
@@ -292,34 +235,12 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
         title={isFullscreen ? 'Exit Fullscreen' : 'Enter Fullscreen'}
       >
         {isFullscreen ? (
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            fill="none"
-            viewBox="0 0 24 24"
-            strokeWidth={1.5}
-            stroke="white"
-            style={{ width: 26, height: 26 }}
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M15 4h5v5m-5 0 5-5M9 20H4v-5m5 0-5 5"
-            />
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="white" style={{ width: 26, height: 26 }}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M15 4h5v5m-5 0 5-5M9 20H4v-5m5 0-5 5" />
           </svg>
         ) : (
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            fill="none"
-            viewBox="0 0 24 24"
-            strokeWidth={1.5}
-            stroke="white"
-            style={{ width: 26, height: 26 }}
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M3 9V4h5M21 9V4h-5M3 15v5h5M21 15v5h-5"
-            />
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="white" style={{ width: 26, height: 26 }}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M3 9V4h5M21 9V4h-5M3 15v5h5M21 15v5h-5" />
           </svg>
         )}
       </button>
