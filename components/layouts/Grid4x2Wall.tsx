@@ -19,6 +19,9 @@ const speedMap: Record<string, number> = {
 export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
   const [columns, setColumns] = useState<any[][]>([[], [], [], []]);
   const [postIndex, setPostIndex] = useState(0);
+  const [columnTurn, setColumnTurn] = useState(0);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
   const displayDuration = speedMap[event?.transition_speed || 'Medium'] || 8000;
 
   /* ---------- INITIAL POPULATION ---------- */
@@ -28,47 +31,34 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
     while (looped.length < 8) looped.push(...posts);
 
     const newCols: any[][] = [[], [], [], []];
-    for (let i = 0; i < 4; i++) {
-      newCols[i] = looped.slice(i * 2, i * 2 + 2);
-    }
+    for (let i = 0; i < 4; i++) newCols[i] = looped.slice(i * 2, i * 2 + 2);
+
     setColumns(newCols);
     setPostIndex(8 % looped.length);
+    setColumnTurn(0);
   }, [posts]);
 
-  /* ---------- WATERFALL LOOP ---------- */
+  /* ---------- CYCLIC COLUMN UPDATES ---------- */
   useEffect(() => {
     if (!posts || posts.length === 0) return;
-
     const looped = [...posts];
     while (looped.length < 8) looped.push(...posts);
 
-    let currentColumn = 0;
-    let active = true;
+    const interval = setInterval(() => {
+      const nextPost = looped[postIndex % looped.length];
+      setPostIndex((prev) => (prev + 1) % looped.length);
 
-    async function runWaterfall() {
-      while (active) {
-        const nextPost = looped[postIndex % looped.length];
-        setPostIndex((prev) => (prev + 1) % looped.length);
+      setColumns((prev) => {
+        const newCols = [...prev];
+        newCols[columnTurn] = [nextPost, ...newCols[columnTurn]].slice(0, 2);
+        return newCols;
+      });
 
-        setColumns((prev) => {
-          const newCols = [...prev];
-          newCols[currentColumn] = [nextPost, ...newCols[currentColumn]].slice(
-            0,
-            2
-          );
-          return newCols;
-        });
+      setColumnTurn((prev) => (prev + 1) % 4);
+    }, displayDuration);
 
-        currentColumn = (currentColumn + 1) % 4;
-        await new Promise((r) => setTimeout(r, displayDuration));
-      }
-    }
-
-    runWaterfall();
-    return () => {
-      active = false;
-    };
-  }, [posts, displayDuration, postIndex]);
+    return () => clearInterval(interval);
+  }, [posts, displayDuration, postIndex, columnTurn]);
 
   /* ---------- BACKGROUND ---------- */
   const bg =
@@ -77,18 +67,18 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
       : event?.background_value ||
         'linear-gradient(to bottom right,#1b2735,#090a0f)';
 
-  /* ---------- CARD ANIM ---------- */
+  /* ---------- CARD ANIMATION ---------- */
   const cardVariants = {
-    enter: { y: -100, opacity: 0 },
+    enter: { y: -80, opacity: 0 },
     center: {
       y: 0,
       opacity: 1,
-      transition: { duration: 0.8, ease: 'easeOut' },
+      transition: { duration: 0.6, ease: 'easeOut' },
     },
     exit: {
-      y: 100,
+      y: 80,
       opacity: 0,
-      transition: { duration: 0.6, ease: 'easeIn' },
+      transition: { duration: 0.5, ease: 'easeIn' },
     },
   };
 
@@ -109,12 +99,12 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
         exit="exit"
         className="flex flex-row w-full h-full rounded-xl overflow-hidden border border-white/20 bg-white/10 backdrop-blur-md"
       >
-        {/* LEFT IMAGE */}
+        {/* LEFT: PHOTO */}
         <div className="flex-1 relative">
           {post.photo_url ? (
             <img
               src={post.photo_url}
-              alt="Guest submission"
+              alt="Guest"
               className="w-full h-full object-cover opacity-90"
             />
           ) : (
@@ -124,7 +114,7 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
           )}
         </div>
 
-        {/* RIGHT TEXT */}
+        {/* RIGHT: NAME + MESSAGE */}
         <div className="flex-1 flex flex-col justify-between p-3 bg-black/50 backdrop-blur-sm">
           <motion.div
             initial={{ opacity: 0 }}
@@ -147,6 +137,17 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
     );
   }
 
+  /* ---------- FULLSCREEN HANDLER ---------- */
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen().catch(console.error);
+      setIsFullscreen(true);
+    } else {
+      document.exitFullscreen();
+      setIsFullscreen(false);
+    }
+  };
+
   /* ---------- RENDER ---------- */
   return (
     <div
@@ -162,7 +163,7 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
         overflow: 'hidden',
       }}
     >
-      {/* ---------- LOGO ---------- */}
+      {/* LOGO */}
       <div
         style={{
           position: 'absolute',
@@ -184,24 +185,22 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
         />
       </div>
 
-      {/* ---------- TITLE ---------- */}
+      {/* TITLE */}
       <h1
         style={{
           color: '#fff',
           textAlign: 'center',
           textShadow: '0 0 20px rgba(0,0,0,0.6)',
           fontWeight: 900,
-          letterSpacing: '1px',
           marginTop: '3vh',
           marginBottom: '2vh',
           fontSize: 'clamp(2.5rem, 4vw, 5rem)',
-          lineHeight: 1.1,
         }}
       >
         {event.title || 'Fan Zone Wall'}
       </h1>
 
-      {/* ---------- 4×2 GRID ---------- */}
+      {/* GRID */}
       <div
         style={{
           width: '90vw',
@@ -237,7 +236,7 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
         ))}
       </div>
 
-      {/* ---------- QR ---------- */}
+      {/* QR */}
       <div
         style={{
           position: 'absolute',
@@ -246,14 +245,12 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
-          justifyContent: 'center',
         }}
       >
         <p
           style={{
             color: '#fff',
             textAlign: 'center',
-            textShadow: '0 0 10px rgba(0,0,0,0.6)',
             fontWeight: 700,
             fontSize: 'clamp(1.2rem, 1.8vw, 2rem)',
             marginBottom: '0.8vh',
@@ -264,19 +261,17 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
         <QRCodeCanvas
           value={`https://faninteract.vercel.app/submit/${event.id}`}
           size={180}
-          bgColor="#ffffff"
-          fgColor="#000000"
+          bgColor="#fff"
+          fgColor="#000"
           level="H"
           includeMargin={false}
-          style={{
-            borderRadius: 12,
-            boxShadow: '0 0 18px rgba(0,0,0,0.6)',
-          }}
+          style={{ borderRadius: 12, boxShadow: '0 0 18px rgba(0,0,0,0.6)' }}
         />
       </div>
 
-      {/* ---------- FULLSCREEN BUTTON ---------- */}
-      <div
+      {/* FULLSCREEN BUTTON */}
+      <button
+        onClick={toggleFullscreen}
         style={{
           position: 'fixed',
           bottom: 10,
@@ -284,41 +279,54 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
           width: 48,
           height: 48,
           borderRadius: 10,
+          background: 'rgba(255,255,255,0.1)',
+          border: '1px solid rgba(255,255,255,0.2)',
+          backdropFilter: 'blur(6px)',
+          color: '#fff',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
           cursor: 'pointer',
-          zIndex: 9999,
+          opacity: 0.3,
           transition: 'opacity 0.3s ease',
-          opacity: 0.25,
-          background: 'rgba(255,255,255,0.1)',
-          backdropFilter: 'blur(6px)',
-          border: '1px solid rgba(255,255,255,0.2)',
+          zIndex: 9999,
         }}
         onMouseEnter={(e) => (e.currentTarget.style.opacity = '1')}
-        onMouseLeave={(e) => (e.currentTarget.style.opacity = '0.25')}
-        onClick={() => {
-          if (!document.fullscreenElement)
-            document.documentElement.requestFullscreen().catch(console.error);
-          else document.exitFullscreen();
-        }}
-        title="Toggle Fullscreen"
+        onMouseLeave={(e) => (e.currentTarget.style.opacity = '0.3')}
+        title={isFullscreen ? 'Exit Fullscreen' : 'Enter Fullscreen'}
       >
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          fill="none"
-          viewBox="0 0 24 24"
-          strokeWidth={1.5}
-          stroke="white"
-          style={{ width: 26, height: 26 }}
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            d="M3 9V4h5M21 9V4h-5M3 15v5h5M21 15v5h-5"
-          />
-        </svg>
-      </div>
+        {isFullscreen ? (
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            fill="none"
+            viewBox="0 0 24 24"
+            strokeWidth={1.5}
+            stroke="white"
+            style={{ width: 26, height: 26 }}
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M15 4h5v5m-5 0 5-5M9 20H4v-5m5 0-5 5"
+            />
+          </svg>
+        ) : (
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            fill="none"
+            viewBox="0 0 24 24"
+            strokeWidth={1.5}
+            stroke="white"
+            style={{ width: 26, height: 26 }}
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M3 9V4h5M21 9V4h-5M3 15v5h5M21 15v5h-5"
+            />
+          </svg>
+        )}
+      </button>
     </div>
   );
 }
