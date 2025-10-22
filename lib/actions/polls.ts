@@ -1,6 +1,7 @@
 'use server';
 
-import { supabase } from '@/lib/supabaseClient';
+import { supabaseAdmin } from '@/lib/supabaseClient';
+const supabase = supabaseAdmin!;
 
 /* -------------------------------------------------------------------------- */
 /* 🟢 CREATE A NEW POLL                                                       */
