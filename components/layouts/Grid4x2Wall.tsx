@@ -10,7 +10,6 @@ interface Grid4x2WallProps {
   posts: any[];
 }
 
-/* ---------- SPEED MAP ---------- */
 const speedMap: Record<string, number> = {
   Slow: 12000,
   Medium: 8000,
@@ -21,11 +20,12 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
   const [columns, setColumns] = useState<any[][]>([[], [], [], []]);
   const [postIndex, setPostIndex] = useState(0);
   const [activeColumn, setActiveColumn] = useState(0);
-  const [fadeTrigger, setFadeTrigger] = useState(0); // re-renders animation
+  const [fadeKey, setFadeKey] = useState(0);
 
   const displayDuration = speedMap[event?.transition_speed || 'Medium'] || 8000;
+  const fadeDuration = 1000;
 
-  /* ---------- INITIAL POPULATION ---------- */
+  // Initial fill
   useEffect(() => {
     if (!posts || posts.length === 0) return;
     const repeated = [...posts];
@@ -37,50 +37,57 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
     setPostIndex(repeated.length % posts.length);
   }, [posts]);
 
-  /* ---------- COLUMN-BY-COLUMN FADE SEQUENCE ---------- */
+  // Sequential fade + push down logic
   useEffect(() => {
     if (!posts || posts.length === 0) return;
 
-    const timer = setTimeout(() => {
+    const cycle = setTimeout(() => {
       const nextPost = posts[postIndex % posts.length];
       setPostIndex((prev) => (prev + 1) % posts.length);
 
-      setColumns((prevCols) => {
-        const updated = [...prevCols];
-        const col = [...updated[activeColumn]];
-        const oldTop = col[0];
-        // Fade new post into top
-        col[0] = nextPost;
-        // After fade completes, push old top to bottom
-        setTimeout(() => {
-          setColumns((latest) => {
-            const now = [...latest];
-            const target = [...now[activeColumn]];
-            target[1] = oldTop;
-            now[activeColumn] = target;
-            return now;
-          });
-        }, 1000); // fade duration
-
-        updated[activeColumn] = col;
+      setColumns((prev) => {
+        const updated = [...prev];
+        const newCols = [...updated[activeColumn]];
+        const oldTop = newCols[0];
+        newCols[0] = nextPost;
+        updated[activeColumn] = newCols;
         return updated;
       });
 
-      setFadeTrigger((n) => n + 1); // triggers re-animation
+      setFadeKey((prev) => prev + 1);
+
+      // Move top to bottom after fade
+      setTimeout(() => {
+        setColumns((prev) => {
+          const updated = [...prev];
+          const col = [...updated[activeColumn]];
+          const oldTop = col[0];
+          col[1] = oldTop;
+          updated[activeColumn] = col;
+          return updated;
+        });
+      }, fadeDuration);
+
       setActiveColumn((prev) => (prev + 1) % 4);
     }, displayDuration);
 
-    return () => clearTimeout(timer);
-  }, [posts, postIndex, activeColumn, displayDuration, fadeTrigger]);
+    return () => clearTimeout(cycle);
+  }, [posts, postIndex, activeColumn, displayDuration, fadeKey]);
 
-  /* ---------- BACKGROUND ---------- */
   const bg =
     event?.background_type === 'image'
       ? `url(${event.background_value}) center/cover no-repeat`
       : event?.background_value ||
         'linear-gradient(to bottom right,#1b2735,#090a0f)';
 
-  /* ---------- POST CARD ---------- */
+  const fadeVariants = {
+    hidden: { opacity: 0 },
+    visible: {
+      opacity: 1,
+      transition: { duration: fadeDuration / 1000, ease: 'easeInOut' },
+    },
+  };
+
   function PostCard({ post }: { post: any }) {
     if (!post)
       return (
@@ -107,7 +114,6 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
           boxSizing: 'border-box',
         }}
       >
-        {/* PHOTO */}
         <div
           style={{
             flex: '0 0 60%',
@@ -147,8 +153,6 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
             </div>
           )}
         </div>
-
-        {/* TEXT */}
         <div
           style={{
             flex: 1,
@@ -189,16 +193,6 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
     );
   }
 
-  /* ---------- FADE VARIANTS ---------- */
-  const fadeVariants = {
-    hidden: { opacity: 0 },
-    visible: {
-      opacity: 1,
-      transition: { duration: 1.0, ease: 'easeInOut' },
-    },
-  };
-
-  /* ---------- RENDER ---------- */
   return (
     <div
       style={{
@@ -212,7 +206,6 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
         overflow: 'hidden',
       }}
     >
-      {/* LOGO */}
       <div
         style={{
           position: 'absolute',
@@ -229,7 +222,6 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
         />
       </div>
 
-      {/* TITLE */}
       <h1
         style={{
           color: '#fff',
@@ -245,7 +237,6 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
         {event.title || 'Fan Zone Wall'}
       </h1>
 
-      {/* GRID */}
       <div
         style={{
           width: '90vw',
@@ -264,7 +255,7 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
         {columns.flat().map((post, i) => (
           <AnimatePresence key={i}>
             <motion.div
-              key={(post?.id || 'empty') + '-' + i + '-' + fadeTrigger}
+              key={(post?.id || 'empty') + '-' + i + '-' + fadeKey}
               variants={fadeVariants}
               initial="hidden"
               animate="visible"
@@ -276,7 +267,6 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
         ))}
       </div>
 
-      {/* QR */}
       <div
         style={{
           position: 'absolute',
@@ -311,7 +301,6 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
         />
       </div>
 
-      {/* FULLSCREEN BUTTON */}
       <div
         style={{
           position: 'fixed',
@@ -357,4 +346,5 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
     </div>
   );
 }
+
 
