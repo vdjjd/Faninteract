@@ -24,7 +24,7 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
 
   const displayDuration = speedMap[event?.transition_speed || 'Medium'] || 8000;
 
-  /* ---------- INITIAL FILL ---------- */
+  /* ---------- INITIAL POPULATION ---------- */
   useEffect(() => {
     if (!posts || posts.length === 0) return;
     const repeated = [...posts];
@@ -36,35 +36,30 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
     setPostIndex(repeated.length % posts.length);
   }, [posts]);
 
-  /* ---------- COLUMN-BY-COLUMN UPDATE (sequential) ---------- */
+  /* ---------- SLOT-MACHINE SEQUENTIAL UPDATES ---------- */
   useEffect(() => {
     if (!posts || posts.length === 0) return;
 
-    const tick = () => {
+    const updateColumn = (colIndex: number) => {
       const nextPost = posts[postIndex % posts.length];
       setPostIndex((prev) => (prev + 1) % posts.length);
 
       setColumns((prevCols) => {
         const updated = [...prevCols];
-        const col = [...updated[activeColumn]];
+        const col = [...updated[colIndex]];
         col.unshift(nextPost);
         if (col.length > 2) col.pop();
-        updated[activeColumn] = col;
+        updated[colIndex] = col;
         return updated;
       });
+    };
 
-      // move to next column (one at a time)
+    const timer = setInterval(() => {
+      updateColumn(activeColumn);
       setActiveColumn((prev) => (prev + 1) % 4);
-    };
+    }, displayDuration);
 
-    // use a timeout chain so columns trigger sequentially
-    const schedule = () => {
-      tick();
-      setTimeout(schedule, displayDuration);
-    };
-
-    const timeout = setTimeout(schedule, displayDuration);
-    return () => clearTimeout(timeout);
+    return () => clearInterval(timer);
   }, [posts, activeColumn, displayDuration, postIndex]);
 
   /* ---------- BACKGROUND ---------- */
@@ -90,39 +85,51 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
           height: '100%',
           display: 'flex',
           flexDirection: 'row',
-          borderRadius: 12,
+          borderRadius: 14,
           overflow: 'hidden',
-          position: 'relative',
           background: 'rgba(255,255,255,0.06)',
           backdropFilter: 'blur(10px)',
           border: '1px solid rgba(255,255,255,0.15)',
+          padding: '10px',
+          boxSizing: 'border-box',
         }}
       >
         {/* LEFT: PHOTO */}
-        <div style={{ flex: 1, position: 'relative' }}>
+        <div
+          style={{
+            flex: '0 0 40%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '10px',
+          }}
+        >
           {post.photo_url ? (
             <img
               src={post.photo_url}
               alt="Guest submission"
               style={{
                 width: '100%',
-                height: '100%',
+                maxWidth: '200px',
+                aspectRatio: '1 / 1',
                 objectFit: 'cover',
-                display: 'block',
-                opacity: 0.9,
+                borderRadius: 10,
+                boxShadow: '0 0 10px rgba(0,0,0,0.4)',
               }}
             />
           ) : (
             <div
               style={{
                 width: '100%',
-                height: '100%',
+                maxWidth: '200px',
+                aspectRatio: '1 / 1',
                 background: 'rgba(255,255,255,0.05)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 color: '#999',
                 fontSize: '1rem',
+                borderRadius: 10,
               }}
             >
               No photo
@@ -134,22 +141,21 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
         <div
           style={{
             flex: 1,
-            display: 'flex',
-            flexDirection: 'column',
-            justifyContent: 'space-between',
+            display: 'grid',
+            gridTemplateRows: '1fr 1fr',
+            paddingLeft: '12px',
             background: 'rgba(0,0,0,0.45)',
-            backdropFilter: 'blur(8px)',
             borderLeft: '1px solid rgba(255,255,255,0.1)',
+            borderRadius: 10,
           }}
         >
+          {/* NAME */}
           <div
             style={{
-              flex: 1,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               textAlign: 'center',
-              padding: '12px 18px',
             }}
           >
             <h3
@@ -164,20 +170,20 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
               {post.nickname || ''}
             </h3>
           </div>
+
+          {/* MESSAGE */}
           <div
             style={{
-              flex: 1,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               textAlign: 'center',
-              padding: '0 18px 12px',
             }}
           >
             <p
               style={{
                 color: '#ddd',
-                fontSize: '1.2rem',
+                fontSize: '1.1rem',
                 fontWeight: 500,
                 lineHeight: 1.4,
                 textShadow: '0 0 6px rgba(0,0,0,0.6)',
@@ -192,13 +198,18 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
     );
   }
 
-  /* ---------- SLIDE ANIMATION ---------- */
+  /* ---------- SMOOTH SLIDE ---------- */
   const slideVariants = {
-    enter: { y: '-100%', opacity: 1 },
-    center: {
+    hidden: { y: '-100%', opacity: 0 },
+    visible: {
       y: 0,
       opacity: 1,
       transition: { duration: 0.9, ease: 'easeOut' },
+    },
+    exit: {
+      y: '100%',
+      opacity: 0,
+      transition: { duration: 0.9, ease: 'easeIn' },
     },
   };
 
@@ -262,6 +273,7 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
           display: 'grid',
           gridTemplateColumns: 'repeat(4, 1fr)',
           gridTemplateRows: 'repeat(2, 1fr)',
+          gap: 0,
           borderRadius: 20,
           overflow: 'hidden',
           boxShadow: '10px 10px 30px rgba(0,0,0,0.4)',
@@ -271,12 +283,13 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
         }}
       >
         {columns.flat().map((post, i) => (
-          <AnimatePresence key={i}>
+          <AnimatePresence key={i} mode="popLayout">
             <motion.div
               key={(post?.id || 'empty') + '-' + i}
               variants={slideVariants}
-              initial="enter"
-              animate="center"
+              initial="hidden"
+              animate="visible"
+              exit="exit"
               style={{ width: '100%', height: '100%' }}
             >
               <PostCard post={post} />
@@ -285,7 +298,7 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
         ))}
       </div>
 
-      {/* ---------- QR SECTION ---------- */}
+      {/* ---------- QR ---------- */}
       <div
         style={{
           position: 'absolute',
@@ -322,7 +335,7 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
         />
       </div>
 
-      {/* ---------- FULLSCREEN BUTTON ---------- */}
+      {/* ---------- FULLSCREEN ---------- */}
       <div
         style={{
           position: 'fixed',
