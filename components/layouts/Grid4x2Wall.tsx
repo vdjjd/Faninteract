@@ -92,46 +92,34 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
             '0 0 20px rgba(255,255,255,0.1), 0 0 30px rgba(100,180,255,0.15)',
         }}
       >
-        {/* LEFT: PHOTO (4:3) */}
+        {/* LEFT: PHOTO */}
         <div
           style={{
             flex: 1,
             position: 'relative',
             padding: '2px 0 2px 2px',
             boxSizing: 'border-box',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
+            overflow: 'hidden',
           }}
         >
           {post.photo_url ? (
-            <div
+            <img
+              src={post.photo_url}
+              alt="Guest submission"
               style={{
                 width: '100%',
                 height: '100%',
-                aspectRatio: '4 / 3',
-                overflow: 'hidden',
+                objectFit: 'cover',
+                display: 'block',
+                opacity: 0.9,
                 borderRadius: 10,
               }}
-            >
-              <img
-                src={post.photo_url}
-                alt="Guest submission"
-                style={{
-                  width: '100%',
-                  height: '100%',
-                  objectFit: 'cover',
-                  display: 'block',
-                  opacity: 0.9,
-                }}
-              />
-            </div>
+            />
           ) : (
             <div
               style={{
                 width: '100%',
                 height: '100%',
-                aspectRatio: '4 / 3',
                 background: 'rgba(255,255,255,0.05)',
                 display: 'flex',
                 alignItems: 'center',
@@ -426,6 +414,7 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
     </>
   );
 }
+
 
 
 
