@@ -25,10 +25,8 @@ export default function OptionsModal({
   const [uploading, setUploading] = useState(false);
   const [localEvent, setLocalEvent] = useState<any>({ ...event });
 
-  /* ---------- SAVE CHANGES ---------- */
   async function handleSave() {
     setSaving(true);
-
     const countdownValue =
       localEvent.countdown && localEvent.countdown !== 'none'
         ? String(localEvent.countdown)
@@ -59,7 +57,6 @@ export default function OptionsModal({
     onClose();
   }
 
-  /* ---------- HANDLE IMAGE UPLOAD ---------- */
   async function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
     try {
       const file = e.target.files?.[0];
@@ -71,8 +68,6 @@ export default function OptionsModal({
       }
 
       setUploading(true);
-
-      // Compress before upload
       const compressed = await imageCompression(file, {
         maxWidthOrHeight: 1920,
         useWebWorker: true,
@@ -116,7 +111,6 @@ export default function OptionsModal({
     }
   }
 
-  /* ---------- DELETE OLD IMAGE WHEN SWITCHING ---------- */
   async function deleteOldImageIfExists() {
     try {
       if (localEvent.background_type !== 'image' || !localEvent.background_value)
@@ -126,9 +120,9 @@ export default function OptionsModal({
       const parts = url.split('/wall-backgrounds/');
       if (parts.length < 2) return;
 
-      const filePath = parts[1]; // path inside the bucket
-
+      const filePath = parts[1];
       console.log('🗑 Deleting old image:', filePath);
+
       const { error } = await supabase.storage
         .from('wall-backgrounds')
         .remove([filePath]);
@@ -140,7 +134,6 @@ export default function OptionsModal({
     }
   }
 
-  /* ---------- BACKGROUND CHANGE (color/gradient) ---------- */
   async function handleBackgroundChange(type: 'solid' | 'gradient', value: string) {
     if (localEvent.background_type === 'image') {
       const confirmDelete = window.confirm(
@@ -189,18 +182,6 @@ export default function OptionsModal({
           className="w-full p-2 rounded-md text-black mt-1"
         />
 
-        {/* ---- UPLOAD IMAGE ---- */}
-        <label className="block mt-4 text-sm font-semibold">
-          🖼 Upload Custom Background (1920×1080 JPG/PNG/WEBP)
-        </label>
-        <input
-          type="file"
-          accept="image/jpeg,image/png,image/webp"
-          onChange={handleImageUpload}
-          className="w-full mt-2 text-sm"
-        />
-        {uploading && <p className="text-yellow-400 text-xs mt-1">Uploading...</p>}
-
         {/* ---- COUNTDOWN ---- */}
         <label className="block mt-3 text-sm">Countdown:</label>
         <select
@@ -214,27 +195,8 @@ export default function OptionsModal({
           }
         >
           <option value="none">No Countdown / Start Immediately</option>
-          {[
-            '30 Seconds',
-            '1 Minute',
-            '2 Minutes',
-            '3 Minutes',
-            '4 Minutes',
-            '5 Minutes',
-            '10 Minutes',
-            '15 Minutes',
-            '20 Minutes',
-            '25 Minutes',
-            '30 Minutes',
-            '35 Minutes',
-            '40 Minutes',
-            '45 Minutes',
-            '50 Minutes',
-            '55 Minutes',
-            '60 Minutes',
-          ].map((opt) => (
-            <option key={opt}>{opt}</option>
-          ))}
+          {['30 Seconds','1 Minute','2 Minutes','3 Minutes','4 Minutes','5 Minutes','10 Minutes','15 Minutes','20 Minutes','25 Minutes','30 Minutes','35 Minutes','40 Minutes','45 Minutes','50 Minutes','55 Minutes','60 Minutes']
+            .map((opt) => <option key={opt}>{opt}</option>)}
         </select>
 
         {/* ---- LAYOUT TYPE ---- */}
@@ -252,7 +214,7 @@ export default function OptionsModal({
           <option>1 Column × 2 Row</option>
         </select>
 
-        {/* ---- POST TRANSITION (only for Single Highlight) ---- */}
+        {/* ---- POST TRANSITION ---- */}
         {localEvent.layout_type === 'Single Highlight Post' && (
           <>
             <label className="block mt-3 text-sm">Post Transition:</label>
@@ -362,6 +324,18 @@ export default function OptionsModal({
             />
           ))}
         </div>
+
+        {/* ---- UPLOAD IMAGE ---- */}
+        <label className="block mt-6 text-sm font-semibold">
+          🖼 Upload Custom Background (1920×1080 JPG/PNG/WEBP)
+        </label>
+        <input
+          type="file"
+          accept="image/jpeg,image/png,image/webp"
+          onChange={handleImageUpload}
+          className="w-full mt-2 text-sm"
+        />
+        {uploading && <p className="text-yellow-400 text-xs mt-1">Uploading...</p>}
 
         {/* ---- BUTTONS ---- */}
         <div className="text-center mt-5 flex justify-center gap-4">
