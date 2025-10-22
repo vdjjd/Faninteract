@@ -16,6 +16,8 @@ import {
 } from '@/lib/actions/polls';
 import OptionsModal from '@/components/OptionsModal';
 import DashboardHeader from './components/DashboardHeader';
+import CreateFanWallModal from '@/components/CreateFanWallModal';
+import CreatePollModal from '@/components/CreatePollModal';
 
 const DEFAULT_GRADIENT = 'linear-gradient(135deg,#0d47a1,#1976d2)';
 
@@ -25,6 +27,8 @@ export default function DashboardRefactor() {
   const [polls, setPolls] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState<string | null>(null);
+  const [isFanWallModalOpen, setFanWallModalOpen] = useState(false);
+  const [isPollModalOpen, setPollModalOpen] = useState(false);
 
   /* ---------- LOAD HOST + DATA ---------- */
   useEffect(() => {
@@ -46,31 +50,13 @@ export default function DashboardRefactor() {
   }, []);
 
   /* ---------- CREATE FAN WALL ---------- */
-  async function handleCreateFanWall() {
-    if (!host) return;
-    const title = prompt('Enter a title for the new Fan Zone Wall:');
-    if (!title?.trim()) return;
-
-    const created = await createEvent(host.id, { title });
-    if (created) {
-      const updated = await getEventsByHost(host.id);
-      setEvents(updated);
-      showToast('✅ New Fan Zone Wall created!');
-    }
+  function handleCreateFanWall() {
+    setFanWallModalOpen(true);
   }
 
   /* ---------- CREATE POLL ---------- */
-  async function handleCreatePoll() {
-    if (!host) return;
-    const title = prompt('Enter a title for the new Live Poll:');
-    if (!title?.trim()) return;
-
-    const created = await createPoll(host.id, { title });
-    if (created) {
-      const updated = await getPollsByHost(host.id);
-      setPolls(updated);
-      showToast('✅ New Live Poll created!');
-    }
+  function handleCreatePoll() {
+    setPollModalOpen(true);
   }
 
   /* ---------- TOAST ---------- */
@@ -113,6 +99,30 @@ export default function DashboardRefactor() {
         </div>
       </div>
 
+      {/* CREATE FAN WALL MODAL */}
+      <CreateFanWallModal
+        isOpen={isFanWallModalOpen}
+        onClose={() => setFanWallModalOpen(false)}
+        hostId={host?.id}
+        refreshEvents={async () => {
+          const updated = await getEventsByHost(host.id);
+          setEvents(updated);
+          showToast('✅ Fan Zone Wall created!');
+        }}
+      />
+
+      {/* CREATE POLL MODAL */}
+      <CreatePollModal
+        isOpen={isPollModalOpen}
+        onClose={() => setPollModalOpen(false)}
+        hostId={host?.id}
+        refreshPolls={async () => {
+          const updated = await getPollsByHost(host.id);
+          setPolls(updated);
+          showToast('✅ Live Poll created!');
+        }}
+      />
+
       {/* TOAST */}
       {toast && (
         <div className="fixed bottom-6 right-6 bg-green-600/90 text-white px-4 py-2 rounded-lg shadow-lg animate-fadeIn z-50">
@@ -132,3 +142,4 @@ export default function DashboardRefactor() {
     </div>
   );
 }
+
