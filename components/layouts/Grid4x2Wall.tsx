@@ -10,6 +10,7 @@ interface Grid4x2WallProps {
   posts: any[];
 }
 
+/* ---------- SPEED MAP ---------- */
 const speedMap: Record<string, number> = {
   Slow: 12000,
   Medium: 8000,
@@ -22,9 +23,9 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
   const [activeColumn, setActiveColumn] = useState(0);
 
   const displayDuration = speedMap[event?.transition_speed || 'Medium'] || 8000;
-  const fadeDuration = 1000;
+  const fadeDuration = 2000; // slower, smoother fade
 
-  // ---------- INITIAL POPULATION ----------
+  /* ---------- INITIAL POPULATION ---------- */
   useEffect(() => {
     if (!posts || posts.length === 0) return;
     const repeated = [...posts];
@@ -33,28 +34,27 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
       repeated.slice(i * 2, i * 2 + 2)
     );
     setColumns(filled);
-    setPostIndex(repeated.length % posts.length);
+    setPostIndex(8 % posts.length);
   }, [posts]);
 
-  // ---------- FADE + REPLACE ONE COLUMN AT A TIME ----------
+  /* ---------- FADE + REPLACE ONE COLUMN AT A TIME ---------- */
   useEffect(() => {
     if (!posts || posts.length === 0) return;
 
     const timer = setInterval(() => {
-      const nextPost = posts[postIndex % posts.length];
-      setPostIndex((prev) => (prev + 1) % posts.length);
-
-      // Fade in new post on active column
+      // pull fresh post for THIS column only
       setColumns((prev) => {
         const updated = [...prev];
         const col = [...updated[activeColumn]];
-        const oldTop = col[0];
-        col[0] = { ...nextPost, _fade: true };
+        const newPost = posts[postIndex % posts.length];
+
+        // top fades in
+        col[0] = { ...newPost, _fade: true };
         updated[activeColumn] = col;
         return updated;
       });
 
-      // After fade, move top to bottom
+      // after fade, push top → bottom
       setTimeout(() => {
         setColumns((prev) => {
           const updated = [...prev];
@@ -64,23 +64,24 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
           updated[activeColumn] = col;
           return updated;
         });
-      }, fadeDuration);
 
-      // Move to next column
-      setActiveColumn((prev) => (prev + 1) % 4);
+        // increment postIndex AFTER animation finishes
+        setPostIndex((prev) => (prev + 1) % posts.length);
+        setActiveColumn((prev) => (prev + 1) % 4);
+      }, fadeDuration + 200); // small delay for smoother timing
     }, displayDuration);
 
     return () => clearInterval(timer);
   }, [posts, postIndex, activeColumn, displayDuration]);
 
-  // ---------- BACKGROUND ----------
+  /* ---------- BACKGROUND ---------- */
   const bg =
     event?.background_type === 'image'
       ? `url(${event.background_value}) center/cover no-repeat`
       : event?.background_value ||
         'linear-gradient(to bottom right, #1b2735, #090a0f)';
 
-  // ---------- POST CARD ----------
+  /* ---------- POST CARD ---------- */
   function PostCard({ post }: { post: any }) {
     if (!post)
       return (
@@ -189,7 +190,7 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
     );
   }
 
-  // ---------- RENDER ----------
+  /* ---------- RENDER ---------- */
   return (
     <div
       style={{
@@ -256,7 +257,7 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
           <motion.div
             key={(post?.id || 'empty') + '-' + i}
             animate={{ opacity: post?._fade ? [0, 1] : 1 }}
-            transition={{ duration: 1 }}
+            transition={{ duration: fadeDuration / 1000 }}
             style={{ width: '100%', height: '100%' }}
           >
             <PostCard post={post} />
@@ -299,7 +300,7 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
         />
       </div>
 
-      {/* FULLSCREEN BUTTON */}
+      {/* FULLSCREEN */}
       <div
         style={{
           position: 'fixed',
@@ -345,5 +346,6 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
     </div>
   );
 }
+
 
 
