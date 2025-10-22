@@ -92,37 +92,46 @@ export default function Grid2x2Wall({ event, posts }: Grid2x2WallProps) {
             '0 0 20px rgba(255,255,255,0.1), 0 0 30px rgba(100,180,255,0.15)', // glass edge glow
         }}
       >
-        {/* LEFT: PHOTO */}
-        <div style={{ flex: 1, position: 'relative' }}>
-          {post.photo_url ? (
-            <img
-              src={post.photo_url}
-              alt="Guest submission"
-              style={{
-                width: '100%',
-                height: '100%',
-                objectFit: 'cover',
-                display: 'block',
-                opacity: 0.9,
-              }}
-            />
-          ) : (
-            <div
-              style={{
-                width: '100%',
-                height: '100%',
-                background: 'rgba(255,255,255,0.05)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: '#999',
-                fontSize: '1rem',
-              }}
-            >
-              No photo
-            </div>
-          )}
-        </div>
+       {/* LEFT: PHOTO */}
+<div
+  style={{
+    flex: 1,
+    position: 'relative',
+    padding: '2px 0 2px 2px', // top, right, bottom, left
+    boxSizing: 'border-box',
+  }}
+>
+  {post.photo_url ? (
+    <img
+      src={post.photo_url}
+      alt="Guest submission"
+      style={{
+        width: '100%',
+        height: '100%',
+        objectFit: 'cover',
+        display: 'block',
+        opacity: 0.9,
+        borderRadius: 10, // match card rounding with inner inset
+      }}
+    />
+  ) : (
+    <div
+      style={{
+        width: '100%',
+        height: '100%',
+        background: 'rgba(255,255,255,0.05)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        color: '#999',
+        fontSize: '1rem',
+        borderRadius: 10,
+      }}
+    >
+      No photo
+    </div>
+  )}
+</div>
 
         {/* RIGHT: NAME + MESSAGE */}
         <div
