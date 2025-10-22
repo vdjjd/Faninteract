@@ -259,51 +259,66 @@ export default function DashboardPage() {
               >
                 {event.status}
               </span>
-            </p>
+            <p className="text-sm mt-1">
+  <strong>Status:</strong>{' '}
+  <span
+    className={
+      event.status === 'live'
+        ? 'text-lime-400'
+        : event.status === 'cleared'
+        ? 'text-cyan-400'
+        : 'text-orange-400'
+    }
+  >
+    {event.status}
+  </span>
+</p>
 
-            <div className="flex flex-wrap justify-center gap-2 mt-3">
-              <button onClick={() => handleLaunchWall(event.id)} className="bg-blue-600 hover:bg-blue-700 px-2 py-1 rounded text-sm font-semibold">
-                🚀 Launch
-              </button>
-              <button onClick={() => handleStartWall(event.id)} className="bg-green-600 hover:bg-green-700 px-2 py-1 rounded text-sm font-semibold">
-                ▶️ Play
-              </button>
-              <button onClick={() => handleStopWall(event.id)} className="bg-red-600 hover:bg-red-700 px-2 py-1 rounded text-sm font-semibold">
-                ⏹ Stop
-              </button>
-              <button onClick={() => handleClearEvent(event.id)} className="bg-cyan-500 hover:bg-cyan-600 px-2 py-1 rounded text-sm font-semibold">
-                🧹 Clear
-              </button>
+{/* 🕓 Pending button centered under status */}
+<div className="flex justify-center mt-2">
+  <button
+    onClick={() => window.open(`/admin/moderation/${event.id}`, '_blank')}
+    className="bg-yellow-500 hover:bg-yellow-600 text-black px-3 py-1 rounded-md text-sm font-semibold flex items-center gap-1 shadow-md"
+  >
+    🕓 Pending
+    {event.pending_posts > 0 && (
+      <span className="bg-black/70 text-white px-1.5 py-0.5 rounded-md text-xs font-bold">
+        {event.pending_posts}
+      </span>
+    )}
+  </button>
+</div>
 
-              {/* 🕓 Pending with count */}
-              <button
-                onClick={() => window.open(`/admin/moderation/${event.id}`, '_blank')}
-                className="bg-yellow-500 hover:bg-yellow-600 px-2 py-1 rounded text-sm font-semibold text-black flex items-center justify-center gap-1"
-              >
-                🕓 Pending
-                {event.pending_posts > 0 && (
-                  <span className="bg-black/60 text-white px-1.5 py-0.5 rounded-md text-xs font-bold">
-                    {event.pending_posts}
-                  </span>
-                )}
-              </button>
-
-              <button
-                onClick={() => {
-                  setSelectedEvent(event);
-                  setSelectedType('fanwall');
-                }}
-                className="bg-indigo-500 hover:bg-indigo-600 px-2 py-1 rounded text-sm font-semibold"
-              >
-                ⚙ Options
-              </button>
-              <button onClick={() => setConfirmingDelete({ type: 'event', id: event.id })} className="bg-red-700 hover:bg-red-800 px-2 py-1 rounded text-sm font-semibold">
-                ❌ Delete
-              </button>
-            </div>
-          </div>
-        ))}
-      </div>
+{/* Controls Row */}
+<div className="flex flex-wrap justify-center gap-2 mt-3">
+  <button onClick={() => handleLaunchWall(event.id)} className="bg-blue-600 hover:bg-blue-700 px-2 py-1 rounded text-sm font-semibold">
+    🚀 Launch
+  </button>
+  <button onClick={() => handleStartWall(event.id)} className="bg-green-600 hover:bg-green-700 px-2 py-1 rounded text-sm font-semibold">
+    ▶️ Play
+  </button>
+  <button onClick={() => handleStopWall(event.id)} className="bg-red-600 hover:bg-red-700 px-2 py-1 rounded text-sm font-semibold">
+    ⏹ Stop
+  </button>
+  <button onClick={() => handleClearEvent(event.id)} className="bg-cyan-500 hover:bg-cyan-600 px-2 py-1 rounded text-sm font-semibold">
+    🧹 Clear
+  </button>
+  <button
+    onClick={() => {
+      setSelectedEvent(event);
+      setSelectedType('fanwall');
+    }}
+    className="bg-indigo-500 hover:bg-indigo-600 px-2 py-1 rounded text-sm font-semibold"
+  >
+    ⚙ Options
+  </button>
+  <button
+    onClick={() => setConfirmingDelete({ type: 'event', id: event.id })}
+    className="bg-red-700 hover:bg-red-800 px-2 py-1 rounded text-sm font-semibold"
+  >
+    ❌ Delete
+  </button>
+</div>
 
       {/* ---------- POLL WALLS GRID ---------- */}
       <h2 className="text-xl font-semibold mt-10 mb-2">📊 Live Poll Walls</h2>
