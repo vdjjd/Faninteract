@@ -1,9 +1,9 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { QRCodeCanvas } from 'qrcode.react';
 
-interface Grid4x2WallProps {
+interface Grid1x2WallProps {
   event: any;
   posts: any[];
 }
@@ -14,72 +14,51 @@ const speedMap: Record<string, number> = {
   Fast: 4000,
 };
 
-export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
-  const [grid, setGrid] = useState<any[][]>([[], [], [], []]);
+export default function Grid1x2Wall({ event, posts }: Grid1x2WallProps) {
+  const [top, setTop] = useState<any | null>(null);
+  const [bottom, setBottom] = useState<any | null>(null);
   const [postIndex, setPostIndex] = useState(0);
-  const [activeColumn, setActiveColumn] = useState(0);
-  const displayDuration = speedMap[event?.transition_speed || 'Medium'] || 8000;
+  const [fading, setFading] = useState(false);
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
 
+  const displayDuration = speedMap[event?.transition_speed || 'Medium'] || 8000;
   const fadeDuration = 1000;
 
   // ---------- INITIAL POPULATION ----------
   useEffect(() => {
     if (!posts?.length) return;
-    const repeated = [...posts];
-    while (repeated.length < 8) repeated.push(...posts);
-    const filled = [[], [], [], []].map((_, i) =>
-      repeated.slice(i * 2, i * 2 + 2)
-    );
-    setGrid(filled);
-    setPostIndex(repeated.length % posts.length);
+    setTop(posts[0]);
+    setBottom(posts[1] || posts[0]);
+    setPostIndex(2 % posts.length);
   }, [posts]);
 
-  // ---------- SEQUENTIAL COLUMN UPDATE ----------
+  // ---------- SINGLE COLUMN LOOP ----------
   useEffect(() => {
     if (!posts?.length) return;
-    let cancel = false;
 
-    async function runCycle() {
-      while (!cancel) {
-        const col = activeColumn;
+    function cycle() {
+      setFading(true);
+
+      // After half fade, move top → bottom
+      setTimeout(() => {
+        setBottom(top);
+      }, fadeDuration / 2);
+
+      // After full fade, replace top with new post and fade back in
+      setTimeout(() => {
         const next = posts[postIndex % posts.length];
+        setTop(next);
         setPostIndex((p) => (p + 1) % posts.length);
-
-        // Animate that column only
-        setGrid((prev) => {
-          const updated = [...prev];
-          const colData = [...updated[col]];
-          // move top to bottom, then temporarily blank top
-          colData[1] = colData[0];
-          colData[0] = { fadingOut: true, ...colData[0] };
-          updated[col] = colData;
-          return updated;
-        });
-
-        // fade out then replace
-        await wait(fadeDuration);
-
-        setGrid((prev) => {
-          const updated = [...prev];
-          const colData = [...updated[col]];
-          colData[0] = next;
-          updated[col] = colData;
-          return updated;
-        });
-
-        // Wait for next column
-        await wait(displayDuration);
-        setActiveColumn((c) => (c + 1) % 4);
-      }
+        setFading(false);
+      }, fadeDuration);
     }
 
-    runCycle();
-    return () => {
-      cancel = true;
-    };
-  }, [posts, activeColumn]);
+    timerRef.current = setInterval(cycle, displayDuration);
 
-  const wait = (ms: number) => new Promise((res) => setTimeout(res, ms));
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
+  }, [posts, top, postIndex]);
 
   const bg =
     event?.background_type === 'image'
@@ -88,18 +67,8 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
         'linear-gradient(to bottom right,#1b2735,#090a0f)';
 
   // ---------- POST CARD ----------
-  function PostCard({ post }: { post: any }) {
-    const [fade, setFade] = useState(false);
-
-    useEffect(() => {
-      if (post?.fadingOut) {
-        setFade(true);
-        const t = setTimeout(() => setFade(false), fadeDuration);
-        return () => clearTimeout(t);
-      }
-    }, [post?.fadingOut]);
-
-    if (!post || !Object.keys(post).length)
+  function PostCard({ post, faded }: { post: any; faded?: boolean }) {
+    if (!post)
       return (
         <div
           style={{
@@ -109,9 +78,10 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
+            fontSize: '1.2rem',
           }}
         >
-          Waiting for posts…
+          Waiting...
         </div>
       );
 
@@ -120,8 +90,8 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
         style={{
           width: '100%',
           height: '100%',
-          opacity: fade ? 0 : 1,
-          transition: 'opacity 1s ease-in-out',
+          opacity: faded ? 0 : 1,
+          transition: `opacity ${fadeDuration}ms ease-in-out`,
           display: 'flex',
           flexDirection: 'row',
           alignItems: 'center',
@@ -130,60 +100,72 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
           overflow: 'hidden',
           background: 'rgba(255,255,255,0.08)',
           border: '1px solid rgba(255,255,255,0.1)',
-          padding: '12px',
+          padding: 12,
         }}
       >
+        {/* Photo */}
         <div
           style={{
             flex: '0 0 60%',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
             paddingRight: '10px',
           }}
         >
           {post.photo_url ? (
             <img
               src={post.photo_url}
-              alt="Guest"
+              alt="Fan"
               style={{
                 width: '100%',
-                aspectRatio: '1 / 1',
+                aspectRatio: '1/1',
                 objectFit: 'cover',
-                borderRadius: 12,
+                borderRadius: 10,
               }}
             />
           ) : (
             <div
               style={{
                 width: '100%',
-                aspectRatio: '1 / 1',
+                aspectRatio: '1/1',
                 background: 'rgba(255,255,255,0.05)',
-                color: '#999',
+                borderRadius: 10,
+                color: '#aaa',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                borderRadius: 12,
               }}
             >
               No Photo
             </div>
           )}
         </div>
+
+        {/* Text */}
         <div
           style={{
             flex: 1,
+            textAlign: 'center',
             display: 'flex',
             flexDirection: 'column',
-            alignItems: 'center',
-            textAlign: 'center',
-            gap: '6px',
+            justifyContent: 'center',
           }}
         >
-          <h3 style={{ color: '#fff', margin: 0, fontSize: '1.1rem' }}>
+          <h3
+            style={{
+              color: '#fff',
+              fontSize: '1.2rem',
+              margin: 0,
+              fontWeight: 700,
+            }}
+          >
             {post.nickname || ''}
           </h3>
-          <p style={{ color: '#eee', margin: 0, fontSize: '0.9rem' }}>
+          <p
+            style={{
+              color: '#ddd',
+              fontSize: '1rem',
+              margin: 0,
+            }}
+          >
             {post.message || ''}
           </p>
         </div>
@@ -198,71 +180,29 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
         width: '100%',
         height: '100vh',
         display: 'flex',
-        flexDirection: 'column',
         alignItems: 'center',
-        overflow: 'hidden',
+        justifyContent: 'center',
       }}
     >
-      <h1
-        style={{
-          color: '#fff',
-          textAlign: 'center',
-          marginTop: '3vh',
-          marginBottom: '2vh',
-          fontSize: 'clamp(2.5rem,4vw,5rem)',
-        }}
-      >
-        {event.title || 'Fan Zone Wall'}
-      </h1>
-
+      {/* Centered Column */}
       <div
         style={{
-          width: '90vw',
-          height: '70vh',
+          width: '22vw', // same width as one 4x2 column
+          height: '70vh', // same total height
           display: 'grid',
-          gridTemplateColumns: 'repeat(4,1fr)',
-          gridTemplateRows: 'repeat(2,1fr)',
-          gap: 0,
+          gridTemplateRows: 'repeat(2, 1fr)',
           borderRadius: 20,
           overflow: 'hidden',
+          background: 'rgba(255,255,255,0.05)',
+          border: '1px solid rgba(255,255,255,0.1)',
+          boxShadow: '10px 10px 30px rgba(0,0,0,0.4)',
         }}
       >
-        {grid.map((col, ci) =>
-          col.map((post, ri) => (
-            <PostCard key={`${ci}-${ri}-${post?.id || 'empty'}`} post={post} />
-          ))
-        )}
+        <PostCard post={top} faded={fading} />
+        <PostCard post={bottom} />
       </div>
 
-      <div
-        style={{
-          position: 'absolute',
-          bottom: 'calc(17vh - 90px)',
-          left: 'calc(9vw - 90px)',
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-        }}
-      >
-        <p
-          style={{
-            color: '#fff',
-            fontWeight: 700,
-            fontSize: 'clamp(1.2rem,1.8vw,2rem)',
-          }}
-        >
-          Scan Me To Join
-        </p>
-        <QRCodeCanvas
-          value={`https://faninteract.vercel.app/submit/${event.id}`}
-          size={180}
-          bgColor="#fff"
-          fgColor="#000"
-          level="H"
-        />
-      </div>
-
-      {/* FULLSCREEN BUTTON */}
+      {/* Fullscreen Button */}
       <div
         style={{
           position: 'fixed',
@@ -306,6 +246,7 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
     </div>
   );
 }
+
 
 
 
