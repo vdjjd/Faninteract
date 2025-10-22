@@ -2,8 +2,7 @@
 
 import { useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
-import Cropper from 'react-easy-crop';
-import getCroppedImg from '@/lib/getCroppedImg';
+import imageCompression from 'browser-image-compression';
 
 const DEFAULT_GRADIENT = 'linear-gradient(135deg,#0d47a1,#1976d2)';
 
@@ -23,15 +22,10 @@ export default function OptionsModal({
   refreshEvents,
 }: OptionsModalProps) {
   const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [localEvent, setLocalEvent] = useState<any>({ ...event });
 
-  // --- Upload + Crop States ---
-  const [uploading, setUploading] = useState(false);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const [crop, setCrop] = useState({ x: 0, y: 0 });
-  const [zoom, setZoom] = useState(1);
-  const [croppedAreaPixels, setCroppedAreaPixels] = useState<any>(null);
-
+  /* ---------- SAVE CHANGES ---------- */
   async function handleSave() {
     setSaving(true);
 
@@ -65,61 +59,101 @@ export default function OptionsModal({
     onClose();
   }
 
-  function handleBackgroundUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => setPreviewUrl(reader.result as string);
-    reader.readAsDataURL(file);
-  }
-
-  function onCropComplete(_: any, croppedAreaPixels: any) {
-    setCroppedAreaPixels(croppedAreaPixels);
-  }
-
-  async function handleSaveBackground() {
+  /* ---------- HANDLE IMAGE UPLOAD ---------- */
+  async function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
     try {
+      const file = e.target.files?.[0];
+      if (!file) return;
+
+      if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+        alert('Please upload a JPG, PNG, or WEBP file.');
+        return;
+      }
+
       setUploading(true);
-      const module = await import('@/lib/getCroppedImg');
-      const getCroppedImg = module.default;
-      const croppedBlob = await getCroppedImg(previewUrl!, croppedAreaPixels);
 
-      const fileExtension = previewUrl?.includes('image/webp') ? 'webp' : 'jpg';
-      const filePath = `${event.id}/background-${Date.now()}.${fileExtension}`;
-      const contentType =
-        fileExtension === 'webp' ? 'image/webp' : 'image/jpeg';
+      // Compress before upload
+      const compressed = await imageCompression(file, {
+        maxWidthOrHeight: 1920,
+        useWebWorker: true,
+      });
 
-      const { data, error } = await supabase.storage
+      const ext = file.type.split('/')[1];
+      const filePath = `${localEvent.id}/background-${Date.now()}.${ext}`;
+
+      const { error: uploadError } = await supabase.storage
         .from('wall-backgrounds')
-        .upload(filePath, croppedBlob, {
-          contentType,
-          upsert: true,
-        });
+        .upload(filePath, compressed, { upsert: true });
 
-      if (error) throw error;
+      if (uploadError) throw uploadError;
 
       const { data: publicUrl } = supabase.storage
         .from('wall-backgrounds')
         .getPublicUrl(filePath);
 
-      await supabase
+      const { error: updateError } = await supabase
         .from('events')
         .update({
           background_type: 'image',
           background_value: publicUrl.publicUrl,
-          updated_at: new Date().toISOString(),
+          background_url: publicUrl.publicUrl,
         })
-        .eq('id', event.id);
+        .eq('id', localEvent.id);
 
-      alert('✅ Background uploaded successfully!');
-      refreshEvents();
-      setPreviewUrl(null);
+      if (updateError) throw updateError;
+
+      console.log('✅ Image uploaded successfully!');
+      setLocalEvent({
+        ...localEvent,
+        background_type: 'image',
+        background_value: publicUrl.publicUrl,
+      });
     } catch (err) {
       console.error('❌ Upload error:', err);
-      alert('Upload failed');
+      alert('Upload failed. Please check console for details.');
     } finally {
       setUploading(false);
     }
+  }
+
+  /* ---------- DELETE OLD IMAGE WHEN SWITCHING ---------- */
+  async function deleteOldImageIfExists() {
+    try {
+      if (localEvent.background_type !== 'image' || !localEvent.background_value)
+        return;
+
+      const url = localEvent.background_value;
+      const parts = url.split('/wall-backgrounds/');
+      if (parts.length < 2) return;
+
+      const filePath = parts[1]; // path inside the bucket
+
+      console.log('🗑 Deleting old image:', filePath);
+      const { error } = await supabase.storage
+        .from('wall-backgrounds')
+        .remove([filePath]);
+
+      if (error) console.error('⚠️ Failed to delete old image:', error);
+      else console.log('✅ Old image deleted from storage.');
+    } catch (err) {
+      console.error('❌ Error deleting old image:', err);
+    }
+  }
+
+  /* ---------- BACKGROUND CHANGE (color/gradient) ---------- */
+  async function handleBackgroundChange(type: 'solid' | 'gradient', value: string) {
+    if (localEvent.background_type === 'image') {
+      const confirmDelete = window.confirm(
+        'Changing to a color or gradient will delete your uploaded image from storage.\nYou’ll need to re-upload it if you want to use it again.\n\nContinue?'
+      );
+      if (!confirmDelete) return;
+
+      await deleteOldImageIfExists();
+    }
+
+    localEvent.background_type = type;
+    await onBackgroundChange(localEvent, value);
+    setLocalEvent({ ...localEvent, background_type: type, background_value: value });
   }
 
   return (
@@ -154,6 +188,18 @@ export default function OptionsModal({
           }
           className="w-full p-2 rounded-md text-black mt-1"
         />
+
+        {/* ---- UPLOAD IMAGE ---- */}
+        <label className="block mt-4 text-sm font-semibold">
+          🖼 Upload Custom Background (1920×1080 JPG/PNG/WEBP)
+        </label>
+        <input
+          type="file"
+          accept="image/jpeg,image/png,image/webp"
+          onChange={handleImageUpload}
+          className="w-full mt-2 text-sm"
+        />
+        {uploading && <p className="text-yellow-400 text-xs mt-1">Uploading...</p>}
 
         {/* ---- COUNTDOWN ---- */}
         <label className="block mt-3 text-sm">Countdown:</label>
@@ -206,7 +252,7 @@ export default function OptionsModal({
           <option>1 Column × 2 Row</option>
         </select>
 
-        {/* ---- POST TRANSITION ---- */}
+        {/* ---- POST TRANSITION (only for Single Highlight) ---- */}
         {localEvent.layout_type === 'Single Highlight Post' && (
           <>
             <label className="block mt-3 text-sm">Post Transition:</label>
@@ -282,11 +328,12 @@ export default function OptionsModal({
               key={c}
               className="w-5 h-5 rounded-full cursor-pointer border border-white/30 hover:scale-110 transition"
               style={{ background: c }}
-              onClick={() => onBackgroundChange(localEvent, c)}
+              onClick={() => handleBackgroundChange('solid', c)}
             />
           ))}
         </div>
 
+        {/* ---- GRADIENTS ---- */}
         <h4 className="mt-4 text-sm font-semibold">🌈 Gradients</h4>
         <div className="grid grid-cols-8 gap-2 mt-2">
           {[
@@ -311,54 +358,13 @@ export default function OptionsModal({
               key={g}
               className="w-5 h-5 rounded-full cursor-pointer border border-white/30 hover:scale-110 transition"
               style={{ background: g }}
-              onClick={() => onBackgroundChange(localEvent, g)}
+              onClick={() => handleBackgroundChange('gradient', g)}
             />
           ))}
         </div>
 
-        {/* ---- CUSTOM BACKGROUND UPLOAD ---- */}
-        <h4 className="mt-6 text-sm font-semibold">🖼 Upload Custom Wall Background</h4>
-        <input
-          type="file"
-          accept="image/jpeg,image/png,image/webp"
-          onChange={handleBackgroundUpload}
-          className="w-full text-sm text-white mt-2"
-        />
-
-        {previewUrl && (
-          <div className="relative w-full h-[250px] mt-3 rounded-lg overflow-hidden border border-white/20">
-            <Cropper
-              image={previewUrl}
-              crop={crop}
-              zoom={zoom}
-              aspect={16 / 9}
-              onCropChange={setCrop}
-              onZoomChange={setZoom}
-              onCropComplete={onCropComplete}
-            />
-          </div>
-        )}
-
-        {previewUrl && (
-          <div className="flex justify-center gap-4 mt-3">
-            <button
-              onClick={handleSaveBackground}
-              disabled={uploading}
-              className="bg-green-600 hover:bg-green-700 px-4 py-2 rounded text-white font-semibold"
-            >
-              {uploading ? 'Uploading…' : '💾 Save Background'}
-            </button>
-            <button
-              onClick={() => setPreviewUrl(null)}
-              className="bg-gray-700 hover:bg-gray-800 px-4 py-2 rounded text-white"
-            >
-              Cancel
-            </button>
-          </div>
-        )}
-
         {/* ---- BUTTONS ---- */}
-        <div className="text-center mt-6 flex justify-center gap-4">
+        <div className="text-center mt-5 flex justify-center gap-4">
           <button
             disabled={saving}
             onClick={handleSave}
