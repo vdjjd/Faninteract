@@ -133,67 +133,68 @@ export default function Grid2x2Wall({ event, posts }: Grid2x2WallProps) {
   )}
 </div>
 
-        {/* RIGHT: NAME + MESSAGE */}
-        <div
-          style={{
-            flex: 1,
-            display: 'flex',
-            flexDirection: 'column',
-            justifyContent: 'space-between',
-            background: 'rgba(0,0,0,0.45)',
-            backdropFilter: 'blur(8px)',
-            borderLeft: '1px solid rgba(255,255,255,0.1)',
-          }}
-        >
-          {/* NAME */}
-          <div
-            style={{
-              flex: 1,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              padding: '12px 18px',
-            }}
-          >
-            <h3
-              style={{
-                color: '#fff',
-                fontWeight: 800,
-                fontSize: 'clamp(1.6rem, 2.2vw, 2.4rem)',
-                textShadow:
-                  '0 0 12px rgba(255,255,255,0.8), 0 0 20px rgba(100,180,255,0.6), 0 0 4px rgba(0,0,0,0.8)',
-                margin: 0,
-              }}
-            >
-              {post.nickname || ''}
-            </h3>
-          </div>
+{/* RIGHT: NAME + MESSAGE */}
+<div
+  style={{
+    flex: 1,
+    display: 'flex',
+    flexDirection: 'column',
+    justifyContent: 'space-between',
+    background: 'rgba(0,0,0,0.25)', // lighter, more transparent
+    backdropFilter: 'blur(12px)',    // softer glass blur
+    borderLeft: '1px solid rgba(255,255,255,0.15)',
+    boxShadow: 'inset 0 0 12px rgba(255,255,255,0.08)', // subtle inner edge
+  }}
+>
+  {/* NAME */}
+  <div
+    style={{
+      flex: 1,
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: '12px 18px',
+    }}
+  >
+    <h3
+      style={{
+        color: '#fff',
+        fontWeight: 800,
+        fontSize: 'clamp(1.6rem, 2.2vw, 2.4rem)',
+        textShadow:
+          '0 0 12px rgba(255,255,255,0.8), 0 0 20px rgba(100,180,255,0.6), 0 0 4px rgba(0,0,0,0.8)',
+        margin: 0,
+      }}
+    >
+      {post.nickname || ''}
+    </h3>
+  </div>
 
-          {/* MESSAGE */}
-          <div
-            style={{
-              flex: 1,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              padding: '0 18px 12px',
-            }}
-          >
-            <p
-              style={{
-                color: '#ddd',
-                fontSize: 'clamp(1.1rem, 1.6vw, 1.8rem)',
-                fontWeight: 500,
-                lineHeight: 1.5,
-                textShadow: '0 0 8px rgba(0,0,0,0.6)',
-                filter: 'drop-shadow(0 0 4px rgba(255,255,255,0.2))',
-                margin: 0,
-              }}
-            >
-              {post.message || ''}
-            </p>
-          </div>
-        </div>
+  {/* MESSAGE */}
+  <div
+    style={{
+      flex: 1,
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: '0 18px 12px',
+    }}
+  >
+    <p
+      style={{
+        color: '#ddd',
+        fontSize: 'clamp(1.1rem, 1.6vw, 1.8rem)',
+        fontWeight: 500,
+        lineHeight: 1.5,
+        textShadow: '0 0 8px rgba(0,0,0,0.6)',
+        filter: 'drop-shadow(0 0 4px rgba(255,255,255,0.2))',
+        margin: 0,
+      }}
+    >
+      {post.message || ''}
+    </p>
+  </div>
+</div>
       </div>
     );
   }
