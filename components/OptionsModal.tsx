@@ -84,11 +84,15 @@ export default function OptionsModal({
       const getCroppedImg = module.default;
       const croppedBlob = await getCroppedImg(previewUrl!, croppedAreaPixels);
 
-      const filePath = `${event.id}/background-${Date.now()}.jpg`;
+      const fileExtension = previewUrl?.includes('image/webp') ? 'webp' : 'jpg';
+      const filePath = `${event.id}/background-${Date.now()}.${fileExtension}`;
+      const contentType =
+        fileExtension === 'webp' ? 'image/webp' : 'image/jpeg';
+
       const { data, error } = await supabase.storage
         .from('wall-backgrounds')
         .upload(filePath, croppedBlob, {
-          contentType: 'image/jpeg',
+          contentType,
           upsert: true,
         });
 
@@ -316,7 +320,7 @@ export default function OptionsModal({
         <h4 className="mt-6 text-sm font-semibold">🖼 Upload Custom Wall Background</h4>
         <input
           type="file"
-          accept="image/jpeg,image/png"
+          accept="image/jpeg,image/png,image/webp"
           onChange={handleBackgroundUpload}
           className="w-full text-sm text-white mt-2"
         />
