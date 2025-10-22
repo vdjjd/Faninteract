@@ -63,7 +63,6 @@ export default function DashboardPage() {
         const updatedPolls = await getPollsByHost(host.id);
         setPolls(updatedPolls);
       })
-      // 🧠 Refresh pending counts when submissions change
       .on('postgres_changes', { event: '*', schema: 'public', table: 'submissions' }, async () => {
         const updatedEvents = await getEventsByHost(host.id);
         setEvents(updatedEvents);
@@ -190,13 +189,11 @@ export default function DashboardPage() {
     }
   }
 
-  /* ---------- TOAST HANDLER ---------- */
   function showToast(message: string) {
     setToastMessage(message);
     setTimeout(() => setToastMessage(null), 3000);
   }
 
-  /* ---------- PAGE ---------- */
   if (loading)
     return (
       <div className="flex items-center justify-center h-screen bg-gradient-to-br from-[#0a2540] via-[#1b2b44] to-black text-white">
@@ -247,7 +244,6 @@ export default function DashboardPage() {
               {event.host_title || event.title}
             </h3>
 
-            {/* Status Line */}
             <p className="text-sm mt-1">
               <strong>Status:</strong>{' '}
               <span
@@ -263,7 +259,6 @@ export default function DashboardPage() {
               </span>
             </p>
 
-            {/* 🕓 Pending button centered under status */}
             <div className="flex justify-center mt-2">
               <button
                 onClick={() => window.open(`/admin/moderation/${event.id}`, '_blank')}
@@ -278,7 +273,6 @@ export default function DashboardPage() {
               </button>
             </div>
 
-            {/* Controls Row */}
             <div className="flex flex-wrap justify-center gap-2 mt-3">
               <button onClick={() => handleLaunchWall(event.id)} className="bg-blue-600 hover:bg-blue-700 px-2 py-1 rounded text-sm font-semibold">
                 🚀 Launch
@@ -326,9 +320,7 @@ export default function DashboardPage() {
                   : poll.background_value || DEFAULT_GRADIENT,
             }}
           >
-            <h3 className="font-bold text-lg text-center drop-shadow-md">
-              {poll.title}
-            </h3>
+            <h3 className="font-bold text-lg text-center drop-shadow-md">{poll.title}</h3>
             <p className="text-sm mt-1">
               <strong>Status:</strong>{' '}
               <span
@@ -368,12 +360,53 @@ export default function DashboardPage() {
         ))}
       </div>
 
+      {/* ---------- CREATE NEW WALL OR POLL ---------- */}
+      {creatingNew && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 animate-fadeIn">
+          <div className="bg-[#111] border border-gray-600 rounded-xl p-6 text-center text-white shadow-2xl w-96">
+            <h3 className="text-xl font-semibold mb-3">
+              {creatingNew === 'poll' ? '📊 New Live Poll Wall' : '🎤 New Fan Zone Wall'}
+            </h3>
+
+            <input
+              type="text"
+              placeholder="Enter title..."
+              value={newTitle}
+              onChange={(e) => setNewTitle(e.target.value)}
+              className="w-full px-3 py-2 mb-4 rounded-md bg-gray-800 text-white border border-gray-500 focus:outline-none focus:border-blue-400"
+            />
+
+            <div className="flex justify-center gap-4">
+              <button
+                onClick={() =>
+                  creatingNew === 'poll' ? handleCreatePoll() : handleCreateEvent()
+                }
+                className="bg-green-600 hover:bg-green-700 px-4 py-2 rounded-lg font-semibold"
+              >
+                ✅ Create
+              </button>
+              <button
+                onClick={() => {
+                  setCreatingNew(null);
+                  setNewTitle('');
+                }}
+                className="bg-red-600 hover:bg-red-700 px-4 py-2 rounded-lg font-semibold"
+              >
+                ✖ Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ---------- DELETE CONFIRMATION ---------- */}
       {confirmingDelete && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 animate-fadeIn">
           <div className="bg-[#111] border border-gray-500 rounded-xl p-6 text-center text-white shadow-2xl w-80">
             <h3 className="text-xl font-semibold mb-3">Confirm Deletion</h3>
-            <p className="text-sm mb-4">Are you sure you want to delete this {confirmingDelete.type}?</p>
+            <p className="text-sm mb-4">
+              Are you sure you want to delete this {confirmingDelete.type}?
+            </p>
             <div className="flex justify-center gap-4">
               <button
                 onClick={() =>
