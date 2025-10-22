@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { QRCodeCanvas } from 'qrcode.react';
 import { supabase } from '@/lib/supabaseClient';
 
@@ -17,14 +16,6 @@ const speedMap: Record<string, number> = {
   Fast: 4000,
 };
 
-/* ---------- FADE VARIANTS ---------- */
-const fadeVariants = {
-  hidden: { opacity: 0 },
-  visible: { opacity: 1, transition: { duration: 1.2, ease: 'easeInOut' } },
-  exit: { opacity: 0, transition: { duration: 1.2, ease: 'easeInOut' } },
-};
-
-/* ---------- MAIN COMPONENT ---------- */
 export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
   const [gridPosts, setGridPosts] = useState<(any | null)[]>(Array(8).fill(null));
   const [pairIndex, setPairIndex] = useState(0);
@@ -32,7 +23,7 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
   const [isTransitioning, setIsTransitioning] = useState(false);
 
   const displayDelay = speedMap[event?.transition_speed || 'Medium'] || 8000;
-  const fadeDuration = 1200; // milliseconds
+  const fadeDuration = 1200; // 1.2s cinematic fade
 
   /* ---------- INITIAL POPULATION ---------- */
   useEffect(() => {
@@ -59,13 +50,11 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
       const [top, bottom] = pairs[pairIdx];
       const nextPost = posts[postPointer % posts.length];
 
-      // Step 1: bottom fade out
       await fadeOutCell(bottom);
-      // Step 2: slight overlap -> top fade out begins 300ms later
-      await new Promise((r) => setTimeout(r, 300));
+      await new Promise((r) => setTimeout(r, 300)); // overlap delay
       await fadeOutCell(top);
 
-      // Step 3: swap bottom with top’s previous post
+      // swap bottom with top’s old post
       setGridPosts((prev) => {
         const updated = [...prev];
         updated[bottom] = prev[top];
@@ -73,7 +62,7 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
       });
       await fadeInCell(bottom);
 
-      // Step 4: top gets new post
+      // top gets new post
       setGridPosts((prev) => {
         const updated = [...prev];
         updated[top] = nextPost;
@@ -81,7 +70,6 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
       });
       await fadeInCell(top);
 
-      // Step 5: increment pointers and wait before next pair
       setPostPointer((p) => (p + 1) % posts.length);
       await new Promise((r) => setTimeout(r, displayDelay));
       setIsTransitioning(false);
@@ -270,7 +258,7 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
         {event.title || 'Fan Zone Wall'}
       </h1>
 
-      {/* GRID 4×2 */}
+      {/* GRID 4×2 (FROSTED GLASS) */}
       <div
         style={{
           width: '88vw',
@@ -281,6 +269,11 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
           gap: 10,
           borderRadius: 20,
           overflow: 'hidden',
+          background: 'rgba(255,255,255,0.07)', // frosted glass
+          backdropFilter: 'blur(14px) saturate(150%)',
+          border: '1px solid rgba(255,255,255,0.18)',
+          boxShadow:
+            '0 0 40px rgba(0,0,0,0.5), inset 0 0 20px rgba(255,255,255,0.08)',
         }}
       >
         {gridPosts.map((post, i) => (
