@@ -18,40 +18,47 @@ const speedMap: Record<string, number> = {
 };
 
 export default function Grid2x2Wall({ event, posts }: Grid2x2WallProps) {
-  const [leftPosts, setLeftPosts] = useState<any[]>([]);
-  const [rightPosts, setRightPosts] = useState<any[]>([]);
+  const [gridPosts, setGridPosts] = useState<(any | null)[]>([null, null, null, null]);
   const [postIndex, setPostIndex] = useState(0);
-  const [isLeftTurn, setIsLeftTurn] = useState(true);
+  const [cellIndex, setCellIndex] = useState(0);
 
   const displayDuration = speedMap[event?.transition_speed || 'Medium'] || 8000;
 
   /* ---------- INITIAL POPULATION ---------- */
   useEffect(() => {
     if (!posts || posts.length === 0) return;
-    setLeftPosts(posts.slice(0, 2));
-    setRightPosts(posts.slice(2, 4));
+    const initial = posts.slice(0, 4);
+    setGridPosts([
+      initial[0] || null,
+      initial[1] || null,
+      initial[2] || null,
+      initial[3] || null,
+    ]);
     setPostIndex(4 % posts.length);
+    setCellIndex(0);
   }, [posts]);
 
-  /* ---------- CYCLIC UPDATES ---------- */
+  /* ---------- CYCLIC ORDER UPDATES ---------- */
   useEffect(() => {
     if (!posts || posts.length === 0) return;
 
+    const order = [0, 1, 2, 3]; // TL, TR, BL, BR
     const interval = setInterval(() => {
-      const nextPost = posts[postIndex % posts.length];
+      const next = posts[postIndex % posts.length];
+      const cellToUpdate = order[cellIndex % order.length];
+
+      setGridPosts((prev) => {
+        const newGrid = [...prev];
+        newGrid[cellToUpdate] = next;
+        return newGrid;
+      });
+
       setPostIndex((prev) => (prev + 1) % posts.length);
-
-      if (isLeftTurn) {
-        setLeftPosts((prev) => [nextPost, ...prev].slice(0, 2));
-      } else {
-        setRightPosts((prev) => [nextPost, ...prev].slice(0, 2));
-      }
-
-      setIsLeftTurn((prev) => !prev);
+      setCellIndex((prev) => (prev + 1) % order.length);
     }, displayDuration);
 
     return () => clearInterval(interval);
-  }, [posts, isLeftTurn, displayDuration, postIndex]);
+  }, [posts, cellIndex, postIndex, displayDuration]);
 
   /* ---------- BACKGROUND ---------- */
   const bg =
@@ -116,7 +123,7 @@ export default function Grid2x2Wall({ event, posts }: Grid2x2WallProps) {
           )}
         </div>
 
-        {/* RIGHT: NAME + MESSAGE (split top/bottom halves) */}
+        {/* RIGHT: NAME + MESSAGE */}
         <div
           style={{
             flex: 1,
@@ -128,14 +135,12 @@ export default function Grid2x2Wall({ event, posts }: Grid2x2WallProps) {
             borderLeft: '1px solid rgba(255,255,255,0.1)',
           }}
         >
-          {/* TOP HALF: NAME */}
           <div
             style={{
               flex: 1,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              textAlign: 'center',
               padding: '12px 18px',
             }}
           >
@@ -152,14 +157,12 @@ export default function Grid2x2Wall({ event, posts }: Grid2x2WallProps) {
             </h3>
           </div>
 
-          {/* BOTTOM HALF: MESSAGE */}
           <div
             style={{
               flex: 1,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              textAlign: 'center',
               padding: '0 18px 12px',
             }}
           >
@@ -181,21 +184,14 @@ export default function Grid2x2Wall({ event, posts }: Grid2x2WallProps) {
     );
   }
 
-  /* ---------- ANIMATION ---------- */
-  const cardVariants = {
-    enter: { y: -100, opacity: 0 },
-    center: {
-      y: 0,
-      opacity: 1,
-      transition: { duration: 0.8, ease: 'easeOut' },
-    },
-    exit: {
-      y: 100,
-      opacity: 0,
-      transition: { duration: 0.6, ease: 'easeIn' },
-    },
+  /* ---------- FADE VARIANTS ---------- */
+  const fadeVariants = {
+    enter: { opacity: 0 },
+    center: { opacity: 1, transition: { duration: 0.8 } },
+    exit: { opacity: 0, transition: { duration: 0.8 } },
   };
 
+  /* ---------- RENDER ---------- */
   return (
     <div
       style={{
@@ -210,7 +206,7 @@ export default function Grid2x2Wall({ event, posts }: Grid2x2WallProps) {
         overflow: 'hidden',
       }}
     >
-      {/* ---------- LOGO TOP RIGHT ---------- */}
+      {/* LOGO */}
       <div
         style={{
           position: 'absolute',
@@ -232,7 +228,7 @@ export default function Grid2x2Wall({ event, posts }: Grid2x2WallProps) {
         />
       </div>
 
-      {/* ---------- TITLE ---------- */}
+      {/* TITLE */}
       <h1
         style={{
           color: '#fff',
@@ -249,7 +245,7 @@ export default function Grid2x2Wall({ event, posts }: Grid2x2WallProps) {
         {event.title || 'Fan Zone Wall'}
       </h1>
 
-      {/* ---------- 2×2 GRID ---------- */}
+      {/* 2×2 GRID */}
       <div
         style={{
           width: '80vw',
@@ -257,6 +253,7 @@ export default function Grid2x2Wall({ event, posts }: Grid2x2WallProps) {
           display: 'grid',
           gridTemplateColumns: 'repeat(2, 1fr)',
           gridTemplateRows: 'repeat(2, 1fr)',
+          gap: '0px',
           borderRadius: 20,
           overflow: 'hidden',
           boxShadow: '10px 10px 30px rgba(0,0,0,0.4)',
@@ -265,25 +262,23 @@ export default function Grid2x2Wall({ event, posts }: Grid2x2WallProps) {
           backdropFilter: 'blur(14px)',
         }}
       >
-        {[leftPosts[0], rightPosts[0], leftPosts[1], rightPosts[1]].map(
-          (post, i) => (
-            <AnimatePresence key={i} initial={false}>
-              <motion.div
-                key={(post?.id || 'empty') + '-' + i}
-                variants={cardVariants}
-                initial="enter"
-                animate="center"
-                exit="exit"
-                style={{ width: '100%', height: '100%' }}
-              >
-                <PostCard post={post} />
-              </motion.div>
-            </AnimatePresence>
-          )
-        )}
+        {gridPosts.map((post, i) => (
+          <AnimatePresence key={i} mode="wait">
+            <motion.div
+              key={(post?.id || 'empty') + '-' + i}
+              variants={fadeVariants}
+              initial="enter"
+              animate="center"
+              exit="exit"
+              style={{ width: '100%', height: '100%' }}
+            >
+              <PostCard post={post} />
+            </motion.div>
+          </AnimatePresence>
+        ))}
       </div>
 
-      {/* ---------- QR SECTION ---------- */}
+      {/* QR CODE */}
       <div
         style={{
           position: 'absolute',
@@ -292,7 +287,6 @@ export default function Grid2x2Wall({ event, posts }: Grid2x2WallProps) {
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
-          justifyContent: 'center',
         }}
       >
         <p
@@ -313,7 +307,6 @@ export default function Grid2x2Wall({ event, posts }: Grid2x2WallProps) {
           bgColor="#ffffff"
           fgColor="#000000"
           level="H"
-          includeMargin={false}
           style={{
             borderRadius: 12,
             boxShadow: '0 0 18px rgba(0,0,0,0.6)',
@@ -321,7 +314,7 @@ export default function Grid2x2Wall({ event, posts }: Grid2x2WallProps) {
         />
       </div>
 
-      {/* ---------- FULLSCREEN BUTTON ---------- */}
+      {/* FULLSCREEN BUTTON */}
       <div
         style={{
           position: 'fixed',
@@ -335,11 +328,11 @@ export default function Grid2x2Wall({ event, posts }: Grid2x2WallProps) {
           justifyContent: 'center',
           cursor: 'pointer',
           zIndex: 9999,
-          transition: 'opacity 0.3s ease',
           opacity: 0.25,
           background: 'rgba(255,255,255,0.08)',
           backdropFilter: 'blur(6px)',
           border: '1px solid rgba(255,255,255,0.2)',
+          transition: 'opacity 0.3s ease',
         }}
         onMouseEnter={(e) => (e.currentTarget.style.opacity = '1')}
         onMouseLeave={(e) => (e.currentTarget.style.opacity = '0.25')}
