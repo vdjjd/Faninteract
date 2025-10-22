@@ -140,10 +140,13 @@ export default function Grid2x2Wall({ event, posts }: Grid2x2WallProps) {
     display: 'flex',
     flexDirection: 'column',
     justifyContent: 'space-between',
-    background: 'rgba(0,0,0,0.25)', // lighter, more transparent
-    backdropFilter: 'blur(12px)',    // softer glass blur
+    background: 'rgba(0,0,0,0.25)', // lighter, transparent glass
+    backdropFilter: 'blur(12px)',
     borderLeft: '1px solid rgba(255,255,255,0.15)',
-    boxShadow: 'inset 0 0 12px rgba(255,255,255,0.08)', // subtle inner edge
+    boxShadow: 'inset 0 0 12px rgba(255,255,255,0.08)',
+    borderTopRightRadius: 12,  // ✅ rounded inner corner (top-right)
+    borderBottomRightRadius: 12, // ✅ rounded inner corner (bottom-right)
+    overflow: 'hidden', // ✅ ensures blur and rounding stay clean
   }}
 >
   {/* NAME */}
