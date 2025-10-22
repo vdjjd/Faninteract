@@ -116,44 +116,65 @@ export default function Grid2x2Wall({ event, posts }: Grid2x2WallProps) {
           )}
         </div>
 
-        {/* RIGHT: NAME + MESSAGE */}
+        {/* RIGHT: NAME + MESSAGE (split top/bottom halves) */}
         <div
           style={{
             flex: 1,
             display: 'flex',
             flexDirection: 'column',
             justifyContent: 'space-between',
-            padding: '12px 18px',
             background: 'rgba(0,0,0,0.45)',
             backdropFilter: 'blur(8px)',
+            borderLeft: '1px solid rgba(255,255,255,0.1)',
           }}
         >
+          {/* TOP HALF: NAME */}
           <div
             style={{
-              color: '#fff',
-              fontWeight: 800,
-              fontSize: '1.6rem',
-              textShadow: '0 0 10px rgba(0,0,0,0.7)',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
+              flex: 1,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              textAlign: 'center',
+              padding: '12px 18px',
             }}
           >
-            {post.nickname || ''}
+            <h3
+              style={{
+                color: '#fff',
+                fontWeight: 800,
+                fontSize: '1.8rem',
+                textShadow: '0 0 10px rgba(0,0,0,0.7)',
+                margin: 0,
+              }}
+            >
+              {post.nickname || ''}
+            </h3>
           </div>
 
+          {/* BOTTOM HALF: MESSAGE */}
           <div
             style={{
-              color: '#ddd',
-              fontSize: '1.1rem',
-              fontWeight: 500,
-              lineHeight: 1.3,
-              marginTop: 8,
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
+              flex: 1,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              textAlign: 'center',
+              padding: '0 18px 12px',
             }}
           >
-            {post.message || ''}
+            <p
+              style={{
+                color: '#ddd',
+                fontSize: '1.2rem',
+                fontWeight: 500,
+                lineHeight: 1.4,
+                textShadow: '0 0 6px rgba(0,0,0,0.6)',
+                margin: 0,
+              }}
+            >
+              {post.message || ''}
+            </p>
           </div>
         </div>
       </div>
