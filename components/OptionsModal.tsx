@@ -91,52 +91,53 @@ function handleTextChange(idx: number, text: string) {
   }
 
   /* ---------- IMAGE UPLOAD ---------- */
-  async function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    try {
-      const file = e.target.files?.[0];
-      if (!file) return;
-      if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
-        alert('Please upload a JPG, PNG, or WEBP file.');
-        return;
-      }
+async function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
+  const table = isPoll ? 'polls' : 'events';
+  try {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+      alert('Please upload a JPG, PNG, or WEBP file.');
+      return;
+    }
 
-      setUploading(true);
-      const compressed = await imageCompression(file, {
-        maxWidthOrHeight: 1920,
-        useWebWorker: true,
-      });
+    setUploading(true);
+    const compressed = await imageCompression(file, {
+      maxWidthOrHeight: 1920,
+      useWebWorker: true,
+    });
 
-      const ext = file.type.split('/')[1];
-      const filePath = `${localEvent.id}/background-${Date.now()}.${ext}`;
+    const ext = file.type.split('/')[1];
+    const filePath = `${localEvent.id}/background-${Date.now()}.${ext}`;
 
-      const { error: uploadError } = await supabase.storage
-        .from('wall-backgrounds')
-        .upload(filePath, compressed, { upsert: true });
-      if (uploadError) throw uploadError;
+    const { error: uploadError } = await supabase.storage
+      .from('wall-backgrounds')
+      .upload(filePath, compressed, { upsert: true });
+    if (uploadError) throw uploadError;
 
-      const { data: publicUrl } = supabase.storage.from('wall-backgrounds').getPublicUrl(filePath);
-      const { error: updateError } = await supabase
-        .from(table)
-        .update({
-          background_type: 'image',
-          background_value: publicUrl.publicUrl,
-          background_url: publicUrl.publicUrl,
-        })
-        .eq('id', localEvent.id);
-      if (updateError) throw updateError;
-
-      setLocalEvent({
-        ...localEvent,
+    const { data: publicUrl } = supabase.storage.from('wall-backgrounds').getPublicUrl(filePath);
+    const { error: updateError } = await supabase
+      .from(table)
+      .update({
         background_type: 'image',
         background_value: publicUrl.publicUrl,
-      });
-    } catch (err) {
-      console.error('❌ Upload error:', err);
-      alert('Upload failed.');
-    } finally {
-      setUploading(false);
-    }
+        background_url: publicUrl.publicUrl,
+      })
+      .eq('id', localEvent.id);
+    if (updateError) throw updateError;
+
+    setLocalEvent({
+      ...localEvent,
+      background_type: 'image',
+      background_value: publicUrl.publicUrl,
+    });
+  } catch (err) {
+    console.error('❌ Upload error:', err);
+    alert('Upload failed.');
+  } finally {
+    setUploading(false);
   }
+}
 
   /* ---------- HANDLE COLOR / GRADIENT ---------- */
   async function handleBackgroundChange(type: 'solid' | 'gradient', value: string) {
