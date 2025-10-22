@@ -36,29 +36,27 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
     setPostIndex(repeated.length % posts.length);
   }, [posts]);
 
-  /* ---------- SLOT-MACHINE SEQUENTIAL UPDATES ---------- */
+  /* ---------- SEQUENTIAL COLUMN UPDATES ---------- */
   useEffect(() => {
     if (!posts || posts.length === 0) return;
 
-    const updateColumn = (colIndex: number) => {
+    const tick = () => {
       const nextPost = posts[postIndex % posts.length];
       setPostIndex((prev) => (prev + 1) % posts.length);
 
       setColumns((prevCols) => {
         const updated = [...prevCols];
-        const col = [...updated[colIndex]];
-        col.unshift(nextPost);
-        if (col.length > 2) col.pop();
-        updated[colIndex] = col;
+        const newCol = [...updated[activeColumn]];
+        newCol.unshift(nextPost);
+        if (newCol.length > 2) newCol.pop();
+        updated[activeColumn] = newCol;
         return updated;
       });
+
+      setActiveColumn((prev) => (prev + 1) % 4);
     };
 
-    const timer = setInterval(() => {
-      updateColumn(activeColumn);
-      setActiveColumn((prev) => (prev + 1) % 4);
-    }, displayDuration);
-
+    const timer = setInterval(tick, displayDuration);
     return () => clearInterval(timer);
   }, [posts, activeColumn, displayDuration, postIndex]);
 
@@ -70,130 +68,127 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
         'linear-gradient(to bottom right,#1b2735,#090a0f)';
 
   /* ---------- POST CARD ---------- */
-function PostCard({ post }: { post: any }) {
-  if (!post)
-    return (
-      <div className="flex items-center justify-center text-white text-lg opacity-60">
-        Fan posts will appear here soon!
-      </div>
-    );
+  function PostCard({ post }: { post: any }) {
+    if (!post)
+      return (
+        <div className="flex items-center justify-center text-white text-lg opacity-60">
+          Fan posts will appear here soon!
+        </div>
+      );
 
-  return (
-    <div
-      style={{
-        width: '100%',
-        height: '100%',
-        display: 'flex',
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'flex-start',
-        borderRadius: 14,
-        overflow: 'hidden',
-        background: 'rgba(255,255,255,0.08)',
-        backdropFilter: 'blur(6px)',
-        border: '1px solid rgba(255,255,255,0.1)',
-        padding: '14px',
-        boxSizing: 'border-box',
-      }}
-    >
-      {/* LEFT: PHOTO (larger) */}
+    return (
       <div
         style={{
-          flex: '0 0 60%',
+          width: '100%',
+          height: '100%',
           display: 'flex',
+          flexDirection: 'row',
           alignItems: 'center',
-          justifyContent: 'center',
-          paddingRight: '2px',
+          justifyContent: 'flex-start',
+          borderRadius: 14,
+          overflow: 'hidden',
+          background: 'rgba(255,255,255,0.08)',
+          backdropFilter: 'blur(6px)',
+          border: '1px solid rgba(255,255,255,0.1)',
+          padding: '14px',
+          boxSizing: 'border-box',
         }}
       >
-        {post.photo_url ? (
-          <img
-            src={post.photo_url}
-            alt="Guest submission"
+        {/* LEFT: PHOTO */}
+        <div
+          style={{
+            flex: '0 0 60%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            paddingRight: '2px',
+          }}
+        >
+          {post.photo_url ? (
+            <img
+              src={post.photo_url}
+              alt="Guest submission"
+              style={{
+                width: '100%',
+                aspectRatio: '1 / 1',
+                objectFit: 'cover',
+                borderRadius: 12,
+                boxShadow: '0 0 16px rgba(0,0,0,0.5)',
+              }}
+            />
+          ) : (
+            <div
+              style={{
+                width: '100%',
+                aspectRatio: '1 / 1',
+                background: 'rgba(255,255,255,0.05)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#999',
+                fontSize: '1rem',
+                borderRadius: 12,
+              }}
+            >
+              No photo
+            </div>
+          )}
+        </div>
+
+        {/* RIGHT: NAME + MESSAGE */}
+        <div
+          style={{
+            flex: 1,
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'center',
+            gap: '10px',
+            paddingLeft: '6px',
+          }}
+        >
+          <h3
             style={{
-              width: '100%',
-              aspectRatio: '1 / 1',
-              objectFit: 'cover',
-              borderRadius: 12,
-              boxShadow: '0 0 16px rgba(0,0,0,0.5)',
-            }}
-          />
-        ) : (
-          <div
-            style={{
-              width: '100%',
-              aspectRatio: '1 / 1',
-              background: 'rgba(255,255,255,0.05)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: '#999',
-              fontSize: '1rem',
-              borderRadius: 12,
+              color: '#fff',
+              fontWeight: 700,
+              fontSize: '1.3rem',
+              textAlign: 'center',
+              margin: 0,
+              textShadow: '0 0 10px rgba(0,0,0,0.6)',
             }}
           >
-            No photo
-          </div>
-        )}
+            {post.nickname || ''}
+          </h3>
+
+          <p
+            style={{
+              color: '#f1f1f1',
+              fontSize: '1.1rem',
+              fontWeight: 400,
+              lineHeight: 1.4,
+              textAlign: 'center',
+              margin: 0,
+              textShadow: '0 0 6px rgba(0,0,0,0.5)',
+            }}
+          >
+            {post.message || ''}
+          </p>
+        </div>
       </div>
+    );
+  }
 
-      {/* RIGHT: NAME + MESSAGE (no dark box) */}
-      <div
-        style={{
-          flex: 1,
-          display: 'flex',
-          flexDirection: 'column',
-          justifyContent: 'center',
-          gap: '10px',
-          paddingLeft: '6px',
-        }}
-      >
-        {/* NAME */}
-        <h3
-          style={{
-            color: '#fff',
-            fontWeight: 700,
-            fontSize: '1.3rem',
-            textAlign: 'center',
-            margin: 0,
-            textShadow: '0 0 10px rgba(0,0,0,0.6)',
-          }}
-        >
-          {post.nickname || ''}
-        </h3>
-
-        {/* MESSAGE */}
-        <p
-          style={{
-            color: '#f1f1f1',
-            fontSize: '1.1rem',
-            fontWeight: 400,
-            lineHeight: 1.4,
-            textAlign: 'center',
-            margin: 0,
-            textShadow: '0 0 6px rgba(0,0,0,0.5)',
-          }}
-        >
-          {post.message || ''}
-        </p>
-      </div>
-    </div>
-  );
-}
-
-
-  /* ---------- SMOOTH SLIDE ---------- */
+  /* ---------- SLIDE ANIMATION ---------- */
   const slideVariants = {
     hidden: { y: '-100%', opacity: 0 },
     visible: {
       y: 0,
       opacity: 1,
-      transition: { duration: 0.9, ease: 'easeOut' },
+      transition: { duration: 1.2, ease: 'easeOut' },
     },
     exit: {
       y: '100%',
       opacity: 0,
-      transition: { duration: 0.9, ease: 'easeIn' },
+      transition: { duration: 1.2, ease: 'easeIn' },
     },
   };
 
