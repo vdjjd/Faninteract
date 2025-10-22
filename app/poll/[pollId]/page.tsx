@@ -141,14 +141,7 @@ export default function PollWallPage() {
     );
 
   /* ---------- INACTIVE POLL WALL ---------- */
-  if (poll.status === 'inactive')
-    return (
-      <InactivePollWall
-        poll={poll}
-        countdown={poll.countdown}
-        countdownActive={poll.countdown_active}
-      />
-    );
+  if (poll.status === 'inactive') return <InactivePollWall poll={poll} />;
 
   /* ---------- CLOSED OVERLAY ---------- */
   const closedOverlay = poll.status === 'closed' && (
