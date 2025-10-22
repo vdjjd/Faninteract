@@ -135,6 +135,7 @@ export default function Grid2x2Wall({ event, posts }: Grid2x2WallProps) {
             borderLeft: '1px solid rgba(255,255,255,0.1)',
           }}
         >
+          {/* NAME */}
           <div
             style={{
               flex: 1,
@@ -149,7 +150,8 @@ export default function Grid2x2Wall({ event, posts }: Grid2x2WallProps) {
                 color: '#fff',
                 fontWeight: 800,
                 fontSize: '1.8rem',
-                textShadow: '0 0 10px rgba(0,0,0,0.7)',
+                textShadow:
+                  '0 0 12px rgba(255,255,255,0.8), 0 0 20px rgba(100,180,255,0.6), 0 0 4px rgba(0,0,0,0.8)',
                 margin: 0,
               }}
             >
@@ -157,6 +159,7 @@ export default function Grid2x2Wall({ event, posts }: Grid2x2WallProps) {
             </h3>
           </div>
 
+          {/* MESSAGE */}
           <div
             style={{
               flex: 1,
@@ -187,8 +190,14 @@ export default function Grid2x2Wall({ event, posts }: Grid2x2WallProps) {
   /* ---------- FADE VARIANTS ---------- */
   const fadeVariants = {
     enter: { opacity: 0 },
-    center: { opacity: 1, transition: { duration: 0.8 } },
-    exit: { opacity: 0, transition: { duration: 0.8 } },
+    center: {
+      opacity: 1,
+      transition: { duration: 1.2, ease: 'easeInOut' },
+    },
+    exit: {
+      opacity: 0,
+      transition: { duration: 1.2, ease: 'easeInOut', delay: 0.4 },
+    },
   };
 
   /* ---------- RENDER ---------- */
@@ -278,53 +287,54 @@ export default function Grid2x2Wall({ event, posts }: Grid2x2WallProps) {
         ))}
       </div>
 
-{/* ---------- QR SECTION ---------- */}
-<div
-  style={{
-    position: 'absolute',
-    bottom: '4vh',
-    left: '4vw',
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    justifyContent: 'center',
-  }}
->
-  <p
-    style={{
-      color: '#fff',
-      textAlign: 'center',
-      textShadow: '0 0 10px rgba(0,0,0,0.6)',
-      fontWeight: 700,
-      fontSize: 'clamp(1rem, 1.5vw, 1.6rem)',
-      marginBottom: '0.6vh',
-    }}
-  >
-    Scan Me To Join
-  </p>
-  <div
-    style={{
-      padding: 8,
-      borderRadius: 16,
-      background: 'rgba(255,255,255,0.05)',
-      boxShadow:
-        '0 0 25px rgba(255,255,255,0.6), 0 0 40px rgba(255,255,255,0.3), inset 0 0 10px rgba(0,0,0,0.4)',
-    }}
-  >
-    <QRCodeCanvas
-      value={`https://faninteract.vercel.app/submit/${event.id}`}
-      size={140}
-      bgColor="#ffffff"
-      fgColor="#000000"
-      level="H"
-      includeMargin={false}
-      style={{
-        borderRadius: 10,
-        display: 'block',
-      }}
-    />
-  </div>
-</div>
+      {/* ---------- QR SECTION ---------- */}
+      <div
+        style={{
+          position: 'absolute',
+          bottom: '4vh',
+          left: '4vw',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        <p
+          style={{
+            color: '#fff',
+            textAlign: 'center',
+            textShadow:
+              '0 0 12px rgba(255,255,255,0.8), 0 0 20px rgba(100,180,255,0.6), 0 0 4px rgba(0,0,0,0.7)',
+            fontWeight: 700,
+            fontSize: 'clamp(1rem, 1.5vw, 1.6rem)',
+            marginBottom: '0.6vh',
+          }}
+        >
+          Scan Me To Join
+        </p>
+        <div
+          style={{
+            padding: 8,
+            borderRadius: 16,
+            background: 'rgba(255,255,255,0.05)',
+            boxShadow:
+              '0 0 25px rgba(255,255,255,0.6), 0 0 40px rgba(255,255,255,0.3), inset 0 0 10px rgba(0,0,0,0.4)',
+          }}
+        >
+          <QRCodeCanvas
+            value={`https://faninteract.vercel.app/submit/${event.id}`}
+            size={140}
+            bgColor="#ffffff"
+            fgColor="#000000"
+            level="H"
+            includeMargin={false}
+            style={{
+              borderRadius: 10,
+              display: 'block',
+            }}
+          />
+        </div>
+      </div>
 
       {/* FULLSCREEN BUTTON */}
       <div
