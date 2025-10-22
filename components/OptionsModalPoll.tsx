@@ -56,9 +56,17 @@ export default function OptionsModalPoll({
   /* ---------- SAVE POLL ---------- */
   async function handleSave() {
     setSaving(true);
+
+    const countdownValue =
+      localEvent.countdown && localEvent.countdown !== 'none'
+        ? String(localEvent.countdown)
+        : null;
+
     const updates = {
       host_title: localEvent.host_title || '',
       title: localEvent.title || '',
+      countdown: countdownValue,
+      countdown_active: false,
       duration: localEvent.duration || null,
       options: pollOptions,
       updated_at: new Date().toISOString(),
@@ -155,6 +163,28 @@ export default function OptionsModalPoll({
             className="w-full p-2 rounded-md text-black mt-1"
           />
 
+          {/* ---- Countdown ---- */}
+          <label className="block mt-3 text-sm">Countdown (Before Poll Starts):</label>
+          <select
+            className="w-full p-2 rounded-md text-black mt-1"
+            value={localEvent.countdown || 'none'}
+            onChange={(e) =>
+              setLocalEvent({
+                ...localEvent,
+                countdown: e.target.value === 'none' ? null : e.target.value,
+              })
+            }
+          >
+            <option value="none">No Countdown / Start Immediately</option>
+            {[
+              '30 Seconds','1 Minute','2 Minutes','3 Minutes','4 Minutes','5 Minutes',
+              '10 Minutes','15 Minutes','20 Minutes','25 Minutes','30 Minutes',
+              '45 Minutes','60 Minutes',
+            ].map((opt) => (
+              <option key={opt}>{opt}</option>
+            ))}
+          </select>
+
           {/* ---- Duration ---- */}
           <label className="block mt-3 text-sm">Poll Duration:</label>
           <select
@@ -167,12 +197,13 @@ export default function OptionsModalPoll({
               })
             }
           >
-            <option value="none">Manual Stop</option>
-            <option>30 Seconds</option>
-            <option>1 Minute</option>
-            <option>2 Minutes</option>
-            <option>3 Minutes</option>
-            <option>5 Minutes</option>
+            <option value="none">Manual Stop (Host Controlled)</option>
+            {[
+              '5 Minutes','10 Minutes','15 Minutes','20 Minutes',
+              '25 Minutes','30 Minutes','45 Minutes','60 Minutes',
+            ].map((opt) => (
+              <option key={opt}>{opt}</option>
+            ))}
           </select>
 
           {/* ---- Poll Options ---- */}
