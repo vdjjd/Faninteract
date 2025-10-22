@@ -5,7 +5,8 @@ import { useParams } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
 import InactiveWall from '@/components/InactiveWall';
 import SingleHighlightWall from '@/components/layouts/SingleHighlightWall';
-import Grid2x2Wall from '@/components/layouts/Grid2x2Wall'; // ✅ new layout import
+import Grid2x2Wall from '@/components/layouts/Grid2x2Wall';
+import Grid4x2Wall from '@/components/layouts/Grid4x2Wall'; // ✅ new layout import
 
 /* ---------- TYPES ---------- */
 interface EventData {
@@ -19,7 +20,7 @@ interface EventData {
   logo_url: string | null;
   qr_url: string | null;
   host_id: string;
-  layout_type?: string | null; // ✅ layout selector
+  layout_type?: string | null;
 }
 
 interface SubmissionData {
@@ -61,7 +62,7 @@ export default function FanWallPage() {
     loadEvent();
   }, [eventId]);
 
-  /* ---------- REALTIME EVENT UPDATES + ULTRA-FAST POLL ---------- */
+  /* ---------- REALTIME EVENT UPDATES + FAST POLL ---------- */
   useEffect(() => {
     if (!eventId) return;
     let isMounted = true;
@@ -97,7 +98,6 @@ export default function FanWallPage() {
       )
       .subscribe();
 
-    // ⚡ fast poll (0.5s)
     const interval = setInterval(refreshEvent, 500);
 
     return () => {
@@ -209,6 +209,8 @@ export default function FanWallPage() {
         <div className={`fade-child ${showLive ? 'active' : ''}`}>
           {event.layout_type === '2 Column × 2 Row' ? (
             <Grid2x2Wall event={event} posts={submissions} />
+          ) : event.layout_type === '4 Column × 2 Row' ? (
+            <Grid4x2Wall event={event} posts={submissions} />
           ) : (
             <SingleHighlightWall event={event} posts={submissions} />
           )}

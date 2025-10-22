@@ -2,7 +2,6 @@
 
 import { useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
-import { getEventsByHost } from '@/lib/actions/events';
 
 const DEFAULT_GRADIENT = 'linear-gradient(135deg,#0d47a1,#1976d2)';
 
@@ -27,7 +26,6 @@ export default function OptionsModal({
   async function handleSave() {
     setSaving(true);
 
-    // Normalize countdown value to always be a string or null
     const countdownValue =
       localEvent.countdown && localEvent.countdown !== 'none'
         ? String(localEvent.countdown)
@@ -38,25 +36,20 @@ export default function OptionsModal({
       title: localEvent.title || '',
       countdown: countdownValue,
       countdown_active: false,
-      layout_type: localEvent.layout_type || '',
+      layout_type: localEvent.layout_type || 'Single Highlight Post',
       post_transition: localEvent.post_transition || '',
-      transition_speed: localEvent.transition_speed || 'Medium', // 🆕 added field
+      transition_speed: localEvent.transition_speed || 'Medium',
       auto_delete_minutes: localEvent.auto_delete_minutes ?? 0,
       updated_at: new Date().toISOString(),
     };
-
-    console.log('🧾 SAVING EVENT UPDATES:', updates);
 
     const { error } = await supabase
       .from('events')
       .update(updates)
       .eq('id', localEvent.id);
 
-    if (error) {
-      console.error('❌ Supabase update error:', error);
-    } else {
-      console.log('✅ Event saved successfully');
-    }
+    if (error) console.error('❌ Supabase update error:', error);
+    else console.log('✅ Event saved successfully');
 
     await refreshEvents();
     setSaving(false);
@@ -132,7 +125,7 @@ export default function OptionsModal({
           ))}
         </select>
 
-        {/* ---- LAYOUT ---- */}
+        {/* ---- LAYOUT TYPE ---- */}
         <label className="block mt-3 text-sm">Layout Type:</label>
         <select
           className="w-full p-2 rounded-md text-black mt-1"
@@ -147,7 +140,7 @@ export default function OptionsModal({
           <option>1 Column × 2 Row</option>
         </select>
 
-        {/* ---- POST TRANSITION ---- */}
+        {/* ---- POST TRANSITION (only for Single Highlight) ---- */}
         {localEvent.layout_type === 'Single Highlight Post' && (
           <>
             <label className="block mt-3 text-sm">Post Transition:</label>
@@ -172,7 +165,7 @@ export default function OptionsModal({
           </>
         )}
 
-        {/* 🕒 TRANSITION SPEED — always visible */}
+        {/* ---- TRANSITION SPEED ---- */}
         <label className="block mt-3 text-sm">Transition Speed:</label>
         <select
           className="w-full p-2 rounded-md text-black mt-1"
