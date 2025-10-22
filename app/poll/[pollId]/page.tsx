@@ -4,19 +4,91 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
 import { motion, AnimatePresence } from 'framer-motion';
-import InactivePollWall from '@/components/InactivePollWall'; // ✅ custom inactive layout
+import InactivePollWall from '@/components/InactivePollWall';
 
-interface PollOption {
-  id?: string;
-  text: string;
-  color?: string;
-  votes?: number;
+/* ---------- COUNTDOWN DISPLAY ---------- */
+function CountdownDisplay({
+  countdown,
+  countdownActive,
+  pollId,
+}: {
+  countdown: string;
+  countdownActive: boolean;
+  pollId: string;
+}) {
+  const [timeLeft, setTimeLeft] = useState<number>(0);
+  const [originalTime, setOriginalTime] = useState<number>(0);
+
+  // Convert countdown string → seconds
+  useEffect(() => {
+    if (!countdown) return;
+    const num = parseInt(countdown.split(' ')[0]);
+    const mins = countdown.toLowerCase().includes('minute');
+    const secs = countdown.toLowerCase().includes('second');
+    const total = mins ? num * 60 : secs ? num : 0;
+    setTimeLeft(total);
+    setOriginalTime(total);
+  }, [countdown]);
+
+  // Start countdown when activated
+  useEffect(() => {
+    if (!countdownActive || timeLeft <= 0) return;
+
+    const timer = setInterval(() => {
+      setTimeLeft((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          // 🟢 When timer hits zero → set poll live
+          (async () => {
+            const { error } = await supabase
+              .from('polls')
+              .update({ status: 'live', countdown_active: false })
+              .eq('id', pollId);
+            if (error) {
+              console.error('❌ Error setting poll live:', error);
+            } else {
+              console.log('✅ Countdown finished — poll set live');
+            }
+          })();
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [countdownActive, pollId, timeLeft]);
+
+  // Reset timer if countdown stopped
+  useEffect(() => {
+    if (!countdownActive) setTimeLeft(originalTime);
+  }, [countdownActive, originalTime]);
+
+  if (!countdown) return null;
+
+  const m = Math.floor(timeLeft / 60);
+  const s = timeLeft % 60;
+
+  return (
+    <div
+      style={{
+        fontSize: '4vw',
+        fontWeight: 900,
+        color: '#fff',
+        textShadow: '0 0 15px rgba(0,0,0,0.6)',
+        marginTop: '1vh',
+      }}
+    >
+      {m}:{s.toString().padStart(2, '0')}
+    </div>
+  );
 }
 
+/* ---------- MAIN POLL WALL PAGE ---------- */
 export default function PollWallPage() {
-  const { pollId } = useParams(); // ✅ correct param
+  const { pollId } = useParams();
   const [poll, setPoll] = useState<any>(null);
-  const [options, setOptions] = useState<PollOption[]>([]);
+  const [options, setOptions] = useState<any[]>([]);
 
   /* ---------- LOAD POLL ---------- */
   useEffect(() => {
@@ -40,7 +112,7 @@ export default function PollWallPage() {
 
     fetchPoll();
 
-    // 🔄 Realtime subscription for changes on this poll
+    // 🔄 Realtime updates
     const channel = supabase
       .channel('poll_realtime')
       .on(
@@ -60,7 +132,7 @@ export default function PollWallPage() {
     };
   }, [pollId]);
 
-  /* ---------- RENDER STATES ---------- */
+  /* ---------- LOADING ---------- */
   if (!poll)
     return (
       <div className="text-white text-center mt-10">
@@ -68,11 +140,17 @@ export default function PollWallPage() {
       </div>
     );
 
-  // 💤 Inactive Poll Wall
+  /* ---------- INACTIVE POLL WALL ---------- */
   if (poll.status === 'inactive')
-    return <InactivePollWall poll={poll} />;
+    return (
+      <InactivePollWall
+        poll={poll}
+        countdown={poll.countdown}
+        countdownActive={poll.countdown_active}
+      />
+    );
 
-  // 🏁 Closed overlay
+  /* ---------- CLOSED OVERLAY ---------- */
   const closedOverlay = poll.status === 'closed' && (
     <div className="absolute inset-0 bg-black/70 flex items-center justify-center z-40">
       <h1 className="text-5xl font-extrabold text-white drop-shadow-lg">
@@ -81,8 +159,8 @@ export default function PollWallPage() {
     </div>
   );
 
-  const totalVotes =
-    options.reduce((sum, o) => sum + (o.votes || 0), 0) || 1;
+  /* ---------- LIVE POLL DISPLAY ---------- */
+  const totalVotes = options.reduce((sum, o) => sum + (o.votes || 0), 0) || 1;
 
   const colorPresets = [
     '#0d6efd',
@@ -106,11 +184,20 @@ export default function PollWallPage() {
               'linear-gradient(to bottom right,#1b2735,#090a0f)',
       }}
     >
-      <h1 className="text-4xl font-extrabold mb-10 drop-shadow-lg text-center">
+      <h1 className="text-4xl font-extrabold mb-6 drop-shadow-lg text-center">
         {poll.title || 'Fan Polling Zone'}
       </h1>
 
-      <div className="w-[80%] max-w-5xl flex flex-col gap-6 relative">
+      {/* Countdown visible below title when live */}
+      {poll.countdown && poll.countdown_active && (
+        <CountdownDisplay
+          countdown={poll.countdown}
+          countdownActive={poll.countdown_active}
+          pollId={poll.id}
+        />
+      )}
+
+      <div className="w-[80%] max-w-5xl flex flex-col gap-6 relative mt-6">
         {options.map((opt, i) => {
           const percent = Math.round(((opt.votes || 0) / totalVotes) * 100);
           const color = opt.color || colorPresets[i % colorPresets.length];
