@@ -95,7 +95,7 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
         {/* LEFT: PHOTO */}
         <div
           style={{
-            flex: 1,
+            flex: 1.3, // wider photo ratio
             position: 'relative',
             padding: '2px 0 2px 2px',
             boxSizing: 'border-box',
@@ -136,11 +136,11 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
         {/* RIGHT: NAME + MESSAGE */}
         <div
           style={{
-            flex: 1,
+            flex: 0.7, // smaller text side
             display: 'flex',
             flexDirection: 'column',
             justifyContent: 'space-between',
-            background: 'rgba(0,0,0,0.25)',
+            background: 'rgba(0,0,0,0.25)', // glass-lite
             backdropFilter: 'blur(12px)',
             borderLeft: '1px solid rgba(255,255,255,0.15)',
             boxShadow: 'inset 0 0 12px rgba(255,255,255,0.08)',
