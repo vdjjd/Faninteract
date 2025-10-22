@@ -21,6 +21,8 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
   const [gridPosts, setGridPosts] = useState<(any | null)[]>(Array(8).fill(null));
   const [postIndex, setPostIndex] = useState(0);
   const [cellIndex, setCellIndex] = useState(0);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [hover, setHover] = useState(false);
 
   const displayDuration = speedMap[event?.transition_speed || 'Medium'] || 8000;
 
@@ -110,7 +112,7 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
               alt="Guest submission"
               style={{
                 width: '100%',
-                height: '50%', // ⬅️ reduced vertical height
+                height: '50%', // reduced vertical height
                 objectFit: 'cover',
                 display: 'block',
                 opacity: 0.9,
@@ -220,6 +222,22 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
     },
   };
 
+  /* ---------- FULLSCREEN EVENT LISTENER ---------- */
+  useEffect(() => {
+    const handler = () => setIsFullscreen(!!document.fullscreenElement);
+    document.addEventListener('fullscreenchange', handler);
+    return () => document.removeEventListener('fullscreenchange', handler);
+  }, []);
+
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen().catch(console.error);
+    } else {
+      document.exitFullscreen();
+    }
+  };
+
+  /* ---------- RENDER ---------- */
   return (
     <div
       style={{
@@ -354,9 +372,54 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
           />
         </div>
       </div>
+
+      {/* FULLSCREEN BUTTON */}
+      <div
+        onClick={toggleFullscreen}
+        onMouseEnter={() => setHover(true)}
+        onMouseLeave={() => setHover(false)}
+        title="Toggle Fullscreen"
+        style={{
+          position: 'fixed',
+          bottom: 14,
+          right: 14,
+          width: 48,
+          height: 48,
+          borderRadius: 10,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          cursor: 'pointer',
+          zIndex: 9999,
+          opacity: hover ? 1 : 0.25,
+          transition: 'opacity 0.3s ease, transform 0.3s ease',
+          transform: hover ? 'scale(1.05)' : 'scale(1)',
+          background: 'rgba(255,255,255,0.08)',
+          backdropFilter: 'blur(6px)',
+          border: '1px solid rgba(255,255,255,0.25)',
+          boxShadow:
+            '0 0 10px rgba(255,255,255,0.2), 0 0 20px rgba(100,180,255,0.25)',
+        }}
+      >
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          fill="none"
+          viewBox="0 0 24 24"
+          strokeWidth={1.6}
+          stroke="white"
+          style={{ width: 26, height: 26 }}
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M3 9V4h5M21 9V4h-5M3 15v5h5M21 15v5h-5"
+          />
+        </svg>
+      </div>
     </div>
   );
 }
+
 
 
 
