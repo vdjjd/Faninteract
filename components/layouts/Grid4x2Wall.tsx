@@ -9,7 +9,6 @@ interface Grid4x2WallProps {
   posts: any[];
 }
 
-/* ---------- SPEED MAP ---------- */
 const speedMap: Record<string, number> = {
   Slow: 12000,
   Medium: 8000,
@@ -19,7 +18,7 @@ const speedMap: Record<string, number> = {
 export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
   const [columns, setColumns] = useState<any[][]>([[], [], [], []]);
   const [postIndex, setPostIndex] = useState(0);
-  const [columnTurn, setColumnTurn] = useState(0);
+  const [activeColumn, setActiveColumn] = useState(0);
   const [isFullscreen, setIsFullscreen] = useState(false);
 
   const displayDuration = speedMap[event?.transition_speed || 'Medium'] || 8000;
@@ -27,60 +26,64 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
   /* ---------- INITIAL POPULATION ---------- */
   useEffect(() => {
     if (!posts || posts.length === 0) return;
+
     const looped = [...posts];
     while (looped.length < 8) looped.push(...posts);
 
     const newCols: any[][] = [[], [], [], []];
-    for (let i = 0; i < 4; i++) newCols[i] = looped.slice(i * 2, i * 2 + 2);
+    for (let i = 0; i < 4; i++) {
+      newCols[i] = looped.slice(i * 2, i * 2 + 2);
+    }
 
     setColumns(newCols);
     setPostIndex(8 % looped.length);
-    setColumnTurn(0);
+    setActiveColumn(0);
   }, [posts]);
 
-  /* ---------- CYCLIC COLUMN UPDATES ---------- */
+  /* ---------- COLUMN-BY-COLUMN UPDATE ---------- */
   useEffect(() => {
     if (!posts || posts.length === 0) return;
+
     const looped = [...posts];
     while (looped.length < 8) looped.push(...posts);
 
-    const interval = setInterval(() => {
+    const timer = setInterval(() => {
       const nextPost = looped[postIndex % looped.length];
-      setPostIndex((prev) => (prev + 1) % looped.length);
 
       setColumns((prev) => {
         const newCols = [...prev];
-        newCols[columnTurn] = [nextPost, ...newCols[columnTurn]].slice(0, 2);
+        newCols[activeColumn] = [nextPost, ...newCols[activeColumn]].slice(0, 2);
         return newCols;
       });
 
-      setColumnTurn((prev) => (prev + 1) % 4);
+      setPostIndex((prev) => (prev + 1) % looped.length);
+      setActiveColumn((prev) => (prev + 1) % 4);
     }, displayDuration);
 
-    return () => clearInterval(interval);
-  }, [posts, displayDuration, postIndex, columnTurn]);
+    return () => clearInterval(timer);
+  }, [posts, postIndex, activeColumn, displayDuration]);
+
+  /* ---------- ANIMATION VARIANTS ---------- */
+  const cardVariants = {
+    enter: { y: -100, opacity: 0 },
+    center: {
+      y: 0,
+      opacity: 1,
+      transition: { duration: 0.7, ease: 'easeOut' },
+    },
+    exit: {
+      y: 100,
+      opacity: 0,
+      transition: { duration: 0.5, ease: 'easeIn' },
+    },
+  };
 
   /* ---------- BACKGROUND ---------- */
   const bg =
     event?.background_type === 'image'
       ? `url(${event.background_value}) center/cover no-repeat`
       : event?.background_value ||
-        'linear-gradient(to bottom right,#1b2735,#090a0f)';
-
-  /* ---------- CARD ANIMATION ---------- */
-  const cardVariants = {
-    enter: { y: -80, opacity: 0 },
-    center: {
-      y: 0,
-      opacity: 1,
-      transition: { duration: 0.6, ease: 'easeOut' },
-    },
-    exit: {
-      y: 80,
-      opacity: 0,
-      transition: { duration: 0.5, ease: 'easeIn' },
-    },
-  };
+        'linear-gradient(to bottom right, #1b2735, #090a0f)';
 
   /* ---------- POST CARD ---------- */
   function PostCard({ post }: { post: any }) {
@@ -97,9 +100,8 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
         initial="enter"
         animate="center"
         exit="exit"
-        className="flex flex-row w-full h-full rounded-xl overflow-hidden border border-white/20 bg-white/10 backdrop-blur-md"
+        className="flex flex-col w-full h-full rounded-xl overflow-hidden border border-white/20 bg-white/10 backdrop-blur-md"
       >
-        {/* LEFT: PHOTO */}
         <div className="flex-1 relative">
           {post.photo_url ? (
             <img
@@ -113,31 +115,19 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
             </div>
           )}
         </div>
-
-        {/* RIGHT: NAME + MESSAGE */}
-        <div className="flex-1 flex flex-col justify-between p-3 bg-black/50 backdrop-blur-sm">
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.4, ease: 'easeIn' }}
-            className="text-white font-bold text-xl text-center mt-2"
-          >
+        <div className="p-3 bg-black/50 text-center">
+          <div className="text-white font-bold text-xl mb-1">
             {post.nickname || ''}
-          </motion.div>
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.4, ease: 'easeIn', delay: 0.1 }}
-            className="text-gray-200 text-center text-base mb-2"
-          >
+          </div>
+          <div className="text-gray-300 text-base leading-snug">
             {post.message || ''}
-          </motion.div>
+          </div>
         </div>
       </motion.div>
     );
   }
 
-  /* ---------- FULLSCREEN HANDLER ---------- */
+  /* ---------- FULLSCREEN ---------- */
   const toggleFullscreen = () => {
     if (!document.fullscreenElement) {
       document.documentElement.requestFullscreen().catch(console.error);
@@ -163,7 +153,7 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
         overflow: 'hidden',
       }}
     >
-      {/* LOGO */}
+      {/* ---------- LOGO ---------- */}
       <div
         style={{
           position: 'absolute',
@@ -185,7 +175,7 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
         />
       </div>
 
-      {/* TITLE */}
+      {/* ---------- TITLE ---------- */}
       <h1
         style={{
           color: '#fff',
@@ -200,7 +190,7 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
         {event.title || 'Fan Zone Wall'}
       </h1>
 
-      {/* GRID */}
+      {/* ---------- 4×2 GRID ---------- */}
       <div
         style={{
           width: '90vw',
@@ -208,9 +198,10 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
           display: 'grid',
           gridTemplateColumns: 'repeat(4, 1fr)',
           gridTemplateRows: 'repeat(2, 1fr)',
+          gap: '8px',
           borderRadius: 20,
           overflow: 'hidden',
-          boxShadow: '10px 10px 30px rgba(0,0,0,0.4)',
+          boxShadow: '0 0 30px rgba(0,0,0,0.4)',
           border: '1px solid rgba(255,255,255,0.15)',
           background: 'rgba(255,255,255,0.06)',
           backdropFilter: 'blur(14px)',
@@ -221,12 +212,17 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
             <AnimatePresence mode="popLayout">
               {col.map((post, i) => (
                 <motion.div
-                  key={`${post?.id || 'empty'}-${i}`}
+                  key={`${post?.id || 'empty'}-${i}-${colIndex}`}
                   variants={cardVariants}
                   initial="enter"
                   animate="center"
                   exit="exit"
-                  style={{ flex: 1 }}
+                  style={{
+                    flex: 1,
+                    height: '50%',
+                    display: 'flex',
+                    flexDirection: 'column',
+                  }}
                 >
                   <PostCard post={post} />
                 </motion.div>
@@ -236,7 +232,7 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
         ))}
       </div>
 
-      {/* QR */}
+      {/* ---------- QR ---------- */}
       <div
         style={{
           position: 'absolute',
@@ -269,7 +265,7 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
         />
       </div>
 
-      {/* FULLSCREEN BUTTON */}
+      {/* ---------- FULLSCREEN BUTTON ---------- */}
       <button
         onClick={toggleFullscreen}
         style={{
