@@ -18,18 +18,22 @@ const speedMap: Record<string, number> = {
 };
 
 export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
+  // Explicit typing to shut TypeScript up
   const [columns, setColumns] = useState<any[][]>([[], [], [], []]);
-  const [postIndex, setPostIndex] = useState(0);
+  const [postIndex, setPostIndex] = useState<number>(0);
 
-  const displayDuration = speedMap[event?.transition_speed || 'Medium'] || 8000;
+  const displayDuration =
+    speedMap[event?.transition_speed || 'Medium'] || 8000;
 
   /* ---------- INITIAL POPULATION ---------- */
   useEffect(() => {
     if (!posts || posts.length === 0) return;
-    const newCols = [[], [], [], []];
+
+    const newCols: any[][] = [[], [], [], []]; // ✅ explicit type fixes build
     for (let i = 0; i < 4; i++) {
       newCols[i] = posts.slice(i * 2, i * 2 + 2);
     }
+
     setColumns(newCols);
     setPostIndex(8 % posts.length);
   }, [posts]);
@@ -45,8 +49,8 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
       const nextPost = posts[postIndex % posts.length];
       setPostIndex((prev) => (prev + 1) % posts.length);
 
-      setColumns((prev) => {
-        const newCols = [...prev];
+      setColumns((prevCols) => {
+        const newCols = [...prevCols];
         newCols[colIndex] = [nextPost, ...newCols[colIndex]].slice(0, 2);
         return newCols;
       });
@@ -133,7 +137,7 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
           )}
         </div>
 
-        {/* RIGHT: TEXT */}
+        {/* RIGHT: TEXT AREA */}
         <div
           style={{
             flex: 1,
@@ -252,7 +256,7 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
         ))}
       </div>
 
-      {/* ---------- QR SECTION ---------- */}
+      {/* ---------- QR ---------- */}
       <div
         style={{
           position: 'absolute',
