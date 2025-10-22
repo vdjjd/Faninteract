@@ -2,17 +2,14 @@
 
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabaseClient';
-import {
-  getEventsByHost,
-} from '@/lib/actions/events';
-import {
-  getPollsByHost,
-} from '@/lib/actions/polls';
+import { getEventsByHost } from '@/lib/actions/events';
+import { getPollsByHost } from '@/lib/actions/polls';
 import DashboardHeader from './components/DashboardHeader';
 import CreateFanWallModal from '@/components/CreateFanWallModal';
 import CreatePollModal from '@/components/CreatePollModal';
 import FanWallGrid from './components/FanWallGrid';
 import PollGrid from './components/PollGrid';
+import OptionsModalFanWall from '@/components/OptionsModalFanWall'; // ✅ Step 1: added
 
 export default function DashboardRefactor() {
   const [host, setHost] = useState<any>(null);
@@ -20,8 +17,11 @@ export default function DashboardRefactor() {
   const [polls, setPolls] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState<string | null>(null);
+
+  // Modal States
   const [isFanWallModalOpen, setFanWallModalOpen] = useState(false);
   const [isPollModalOpen, setPollModalOpen] = useState(false);
+  const [selectedWall, setSelectedWall] = useState<any | null>(null); // ✅ Step 2 prep
 
   /* ---------- LOAD HOST + DATA ---------- */
   useEffect(() => {
@@ -92,7 +92,7 @@ export default function DashboardRefactor() {
         events={events}
         host={host}
         refreshEvents={refreshEvents}
-        onOpenOptions={(e) => console.log('Fan Wall Options:', e)}
+        onOpenOptions={(wall) => setSelectedWall(wall)} // ✅ Connects to modal
       />
 
       {/* POLL GRID */}
@@ -125,6 +125,23 @@ export default function DashboardRefactor() {
         }}
       />
 
+      {/* OPTIONS MODAL (Fan Wall) */}
+      {selectedWall && (
+        <OptionsModalFanWall
+          event={selectedWall}
+          hostId={host.id}
+          onClose={() => setSelectedWall(null)}
+          onBackgroundChange={async (event, newValue) => {
+            await supabase
+              .from('events')
+              .update({ background_value: newValue, updated_at: new Date().toISOString() })
+              .eq('id', event.id);
+            await refreshEvents();
+          }}
+          refreshEvents={refreshEvents}
+        />
+      )}
+
       {/* TOAST */}
       {toast && (
         <div className="fixed bottom-6 right-6 bg-green-600/90 text-white px-4 py-2 rounded-lg shadow-lg animate-fadeIn z-50">
@@ -144,4 +161,5 @@ export default function DashboardRefactor() {
     </div>
   );
 }
+
 
