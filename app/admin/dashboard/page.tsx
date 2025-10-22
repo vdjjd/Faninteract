@@ -153,7 +153,7 @@ export default function DashboardPage() {
     );
   }
 
-  /* ---------- BACKGROUND CHANGE (fixed) ---------- */
+  /* ---------- BACKGROUND CHANGE ---------- */
   async function handleBackgroundChange(event: any, newValue: string) {
     try {
       const card = document.getElementById(`card-${event.id}`);
@@ -170,15 +170,6 @@ export default function DashboardPage() {
         newValue.startsWith('linear-gradient') ? 'gradient' :
         newValue.startsWith('#') ? 'solid' :
         'image';
-
-      // 🗑 Delete old image if switching away from it
-      if (event.background_type === 'image' && event.background_value?.includes('supabase.co/storage')) {
-        const path = event.background_value.split('/object/')[1];
-        if (path) {
-          await supabase.storage.from('wall-backgrounds').remove([path]);
-          console.log('🗑 Removed old image from storage:', path);
-        }
-      }
 
       const { error } = await supabase
         .from('events')
@@ -273,15 +264,18 @@ export default function DashboardPage() {
           <div
             key={event.id}
             id={`card-${event.id}`}
-            className="rounded-xl p-4 text-center text-white shadow-lg transition-all"
+            className="rounded-xl p-4 text-center text-white shadow-lg transition-all bg-cover bg-center"
             style={{
-              background: event.background_value || DEFAULT_GRADIENT,
+              background:
+                event.background_type === 'image'
+                  ? `url(${event.background_value}) center/cover no-repeat`
+                  : event.background_value || DEFAULT_GRADIENT,
             }}
           >
-            <h3 className="font-bold text-lg text-center">
+            <h3 className="font-bold text-lg text-center drop-shadow-md">
               {event.host_title || event.title}
             </h3>
-            <p className="text-sm mt-1 text-center">
+            <p className="text-sm mt-1 text-center drop-shadow-md">
               <strong>Status:</strong>{' '}
               <span
                 className={
