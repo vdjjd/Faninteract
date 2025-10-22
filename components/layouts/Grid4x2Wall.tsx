@@ -71,9 +71,11 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
       await fadeInCell(top);
 
       setPostPointer((p) => (p + 1) % posts.length);
-      await new Promise((r) => setTimeout(r, displayDelay));
+
+      // ✅ moved delay *after* pairIndex update for pacing between each grouped transition
       setIsTransitioning(false);
       setPairIndex((prev) => (prev + 1) % pairs.length);
+      await new Promise((r) => setTimeout(r, displayDelay));
     }
 
     runPair(pairIndex);
@@ -284,41 +286,41 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
       </div>
 
       {/* QR SECTION */}
-<div
-  style={{
-    position: 'absolute',
-    bottom: '2vh',          // moved slightly lower
-    left: '2vw',            // moved further left
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    justifyContent: 'center',
-  }}
->
-  <p
-    style={{
-      color: '#fff',
-      fontWeight: 700,
-      fontSize: 'clamp(0.9rem, 1.3vw, 1.4rem)',
-      marginBottom: '0.4vh',
-      textAlign: 'center',
-    }}
-  >
-    Scan Me To Join
-  </p>
-  <QRCodeCanvas
-    value={`https://faninteract.vercel.app/submit/${event.id}`}
-    size={100}                // smaller QR
-    bgColor="#ffffff"
-    fgColor="#000000"
-    level="H"
-    style={{
-      borderRadius: 10,
-      boxShadow:
-        '0 0 20px rgba(255,255,255,0.5), 0 0 30px rgba(255,255,255,0.25), inset 0 0 8px rgba(0,0,0,0.4)',
-    }}
-  />
-</div>
+      <div
+        style={{
+          position: 'absolute',
+          bottom: '2vh',
+          left: '2vw',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        <p
+          style={{
+            color: '#fff',
+            fontWeight: 700,
+            fontSize: 'clamp(0.9rem, 1.3vw, 1.4rem)',
+            marginBottom: '0.4vh',
+            textAlign: 'center',
+          }}
+        >
+          Scan Me To Join
+        </p>
+        <QRCodeCanvas
+          value={`https://faninteract.vercel.app/submit/${event.id}`}
+          size={100}
+          bgColor="#ffffff"
+          fgColor="#000000"
+          level="H"
+          style={{
+            borderRadius: 10,
+            boxShadow:
+              '0 0 20px rgba(255,255,255,0.5), 0 0 30px rgba(255,255,255,0.25), inset 0 0 8px rgba(0,0,0,0.4)',
+          }}
+        />
+      </div>
 
       {/* FULLSCREEN BUTTON */}
       <div
