@@ -18,9 +18,9 @@ const speedMap: Record<string, number> = {
 };
 
 export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
-  // Explicit typing to shut TypeScript up
   const [columns, setColumns] = useState<any[][]>([[], [], [], []]);
   const [postIndex, setPostIndex] = useState<number>(0);
+  const [lastPosts, setLastPosts] = useState<string[]>([]); // track post IDs to detect new ones
 
   const displayDuration =
     speedMap[event?.transition_speed || 'Medium'] || 8000;
@@ -29,37 +29,51 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
   useEffect(() => {
     if (!posts || posts.length === 0) return;
 
-    const newCols: any[][] = [[], [], [], []]; // ✅ explicit type fixes build
+    const filled = [...posts];
+    while (filled.length < 8) filled.push(...posts);
+
+    const newCols: any[][] = [[], [], [], []];
     for (let i = 0; i < 4; i++) {
-      newCols[i] = posts.slice(i * 2, i * 2 + 2);
+      newCols[i] = filled.slice(i * 2, i * 2 + 2);
     }
 
     setColumns(newCols);
-    setPostIndex(8 % posts.length);
+    setPostIndex(8 % filled.length);
+    setLastPosts(posts.map((p) => p.id));
   }, [posts]);
 
   /* ---------- SEQUENTIAL COLUMN UPDATES ---------- */
   useEffect(() => {
     if (!posts || posts.length === 0) return;
 
+    const looped = [...posts];
+    while (looped.length < 8) looped.push(...posts);
+
     let colIndex = 0;
     const totalCols = 4;
 
     const timer = setInterval(() => {
-      const nextPost = posts[postIndex % posts.length];
-      setPostIndex((prev) => (prev + 1) % posts.length);
+      // Only animate if there are new posts
+      const newIDs = posts.map((p) => p.id);
+      const hasNew = newIDs.some((id) => !lastPosts.includes(id));
 
-      setColumns((prevCols) => {
-        const newCols = [...prevCols];
-        newCols[colIndex] = [nextPost, ...newCols[colIndex]].slice(0, 2);
-        return newCols;
-      });
+      if (hasNew) {
+        const nextPost = looped[postIndex % looped.length];
+        setPostIndex((prev) => (prev + 1) % looped.length);
 
-      colIndex = (colIndex + 1) % totalCols;
+        setColumns((prevCols) => {
+          const newCols = [...prevCols];
+          newCols[colIndex] = [nextPost, ...newCols[colIndex]].slice(0, 2);
+          return newCols;
+        });
+
+        colIndex = (colIndex + 1) % totalCols;
+        setLastPosts(newIDs);
+      }
     }, displayDuration);
 
     return () => clearInterval(timer);
-  }, [posts, displayDuration, postIndex]);
+  }, [posts, displayDuration, postIndex, lastPosts]);
 
   /* ---------- BACKGROUND ---------- */
   const bg =
