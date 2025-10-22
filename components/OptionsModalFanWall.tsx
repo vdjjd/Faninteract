@@ -190,9 +190,13 @@ export default function OptionsModalFanWall({
           {/* ---- Post Transition ---- */}
           <label className="block mt-3 text-sm">Post Transition:</label>
           <select
-            className="w-full p-2 rounded-md text-black mt-1"
+            className="w-full p-2 rounded-md text-black mt-1 disabled:bg-gray-300 disabled:cursor-not-allowed"
             value={localEvent.post_transition || 'Fade In / Fade Out'}
             onChange={(e) => setLocalEvent({ ...localEvent, post_transition: e.target.value })}
+            disabled={
+              localEvent.layout_type === '2 Column × 2 Row' ||
+              localEvent.layout_type === '4 Column × 2 Row'
+            }
           >
             <option>Fade In / Fade Out</option>
             <option>Slide Up / Slide Out</option>
@@ -202,6 +206,13 @@ export default function OptionsModalFanWall({
             <option>Flip</option>
             <option>Rotate In / Rotate Out</option>
           </select>
+
+          {(localEvent.layout_type === '2 Column × 2 Row' ||
+            localEvent.layout_type === '4 Column × 2 Row') && (
+            <p className="text-xs text-yellow-400 mt-1">
+              Transition is fixed for multi-grid layouts.
+            </p>
+          )}
 
           {/* ---- Speed ---- */}
           <label className="block mt-3 text-sm">Transition Speed:</label>
