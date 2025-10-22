@@ -116,19 +116,86 @@ export default function OptionsModalFanWall({
   }
 
   async function handleBackgroundChange(type: 'solid' | 'gradient', value: string) {
+    // If currently using an image, warn before deleting
     if (localEvent.background_type === 'image') {
       setPendingChange({ type, value });
       setShowWarning(true);
       return;
     }
-    localEvent.background_type = type;
-    await onBackgroundChange(localEvent, value);
-    await refreshEvents();
+
+    // No image, apply immediately
+    await supabase
+      .from('events')
+      .update({
+        background_type: type,
+        background_value: value,
+        background_url: null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', localEvent.id);
+
     setLocalEvent({ ...localEvent, background_type: type, background_value: value });
+    await refreshEvents();
+  }
+
+  async function confirmChange() {
+    if (!pendingChange) return;
+    await deleteOldImageIfExists();
+
+    await supabase
+      .from('events')
+      .update({
+        background_type: pendingChange.type,
+        background_value: pendingChange.value,
+        background_url: null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', localEvent.id);
+
+    setLocalEvent({
+      ...localEvent,
+      background_type: pendingChange.type,
+      background_value: pendingChange.value,
+    });
+    setShowWarning(false);
+    setPendingChange(null);
+    await refreshEvents();
+  }
+
+  function cancelChange() {
+    setShowWarning(false);
+    setPendingChange(null);
   }
 
   return (
     <>
+      {/* ⚠️ Popup Warning */}
+      {showWarning && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[60]">
+          <div className="bg-gray-900 border border-yellow-500 p-6 rounded-2xl shadow-2xl text-white w-[90%] max-w-sm text-center">
+            <h2 className="text-lg font-bold text-yellow-400 mb-3">Warning</h2>
+            <p className="text-sm mb-5">
+              Changing to a color or gradient will delete your current background image.
+              You’ll need to re-upload it if you want it back.
+            </p>
+            <div className="flex justify-center gap-4">
+              <button
+                onClick={confirmChange}
+                className="bg-green-600 hover:bg-green-700 px-4 py-2 rounded font-semibold"
+              >
+                Continue
+              </button>
+              <button
+                onClick={cancelChange}
+                className="bg-red-600 hover:bg-red-700 px-4 py-2 rounded font-semibold"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 backdrop-blur-md">
         <div
           className="bg-gradient-to-br from-[#0a2540] to-[#1b2b44] border border-blue-400 p-6 rounded-2xl shadow-2xl w-96 text-white animate-fadeIn overflow-y-auto max-h-[90vh]"
