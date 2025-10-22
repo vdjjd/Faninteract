@@ -17,55 +17,115 @@ const speedMap: Record<string, number> = {
   Fast: 4000,
 };
 
+/* ---------- FADE VARIANTS ---------- */
+const fadeVariants = {
+  hidden: { opacity: 0 },
+  visible: { opacity: 1, transition: { duration: 1.2, ease: 'easeInOut' } },
+  exit: { opacity: 0, transition: { duration: 1.2, ease: 'easeInOut' } },
+};
+
+/* ---------- MAIN COMPONENT ---------- */
 export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
   const [gridPosts, setGridPosts] = useState<(any | null)[]>(Array(8).fill(null));
-  const [postIndex, setPostIndex] = useState(0);
-  const [cellIndex, setCellIndex] = useState(0);
-  const [isFullscreen, setIsFullscreen] = useState(false);
-  const [hover, setHover] = useState(false);
+  const [pairIndex, setPairIndex] = useState(0);
+  const [postPointer, setPostPointer] = useState(0);
+  const [isTransitioning, setIsTransitioning] = useState(false);
 
-  const displayDuration = speedMap[event?.transition_speed || 'Medium'] || 8000;
-
-  const fadeDurations: Record<string, number> = {
-    Slow: 1.6,
-    Medium: 1.2,
-    Fast: 0.8,
-  };
-  const fadeDuration = fadeDurations[event?.transition_speed || 'Medium'];
+  const displayDelay = speedMap[event?.transition_speed || 'Medium'] || 8000;
+  const fadeDuration = 1200; // milliseconds
 
   /* ---------- INITIAL POPULATION ---------- */
   useEffect(() => {
     if (!posts || posts.length === 0) return;
-    const initial = posts.slice(0, 8);
-    setGridPosts(initial.map((p) => p || null));
-    setPostIndex(8 % posts.length);
-    setCellIndex(0);
+    setGridPosts((prev) =>
+      prev.map((_, i) => posts[i % posts.length] || null)
+    );
+    setPostPointer(8 % posts.length);
   }, [posts]);
 
-  /* ---------- CYCLIC UPDATES ---------- */
+  /* ---------- SEQUENTIAL PAIRED FADE LOGIC ---------- */
   useEffect(() => {
-    if (!posts || posts.length === 0) return;
-    const order = [0, 1, 2, 3, 4, 5, 6, 7];
-    const interval = setInterval(() => {
-      const next = posts[postIndex % posts.length];
-      const cellToUpdate = order[cellIndex % order.length];
+    if (!posts || posts.length === 0 || isTransitioning) return;
+
+    const pairs = [
+      [0, 4],
+      [1, 5],
+      [2, 6],
+      [3, 7],
+    ];
+
+    async function runPair(pairIdx: number) {
+      setIsTransitioning(true);
+      const [top, bottom] = pairs[pairIdx];
+      const nextPost = posts[postPointer % posts.length];
+
+      // Step 1: bottom fade out
+      await fadeOutCell(bottom);
+      // Step 2: slight overlap -> top fade out begins 300ms later
+      await new Promise((r) => setTimeout(r, 300));
+      await fadeOutCell(top);
+
+      // Step 3: swap bottom with top’s previous post
       setGridPosts((prev) => {
-        const newGrid = [...prev];
-        newGrid[cellToUpdate] = next;
-        return newGrid;
+        const updated = [...prev];
+        updated[bottom] = prev[top];
+        return updated;
       });
-      setPostIndex((prev) => (prev + 1) % posts.length);
-      setCellIndex((prev) => (prev + 1) % order.length);
-    }, displayDuration);
-    return () => clearInterval(interval);
-  }, [posts, cellIndex, postIndex, displayDuration]);
+      await fadeInCell(bottom);
+
+      // Step 4: top gets new post
+      setGridPosts((prev) => {
+        const updated = [...prev];
+        updated[top] = nextPost;
+        return updated;
+      });
+      await fadeInCell(top);
+
+      // Step 5: increment pointers and wait before next pair
+      setPostPointer((p) => (p + 1) % posts.length);
+      await new Promise((r) => setTimeout(r, displayDelay));
+      setIsTransitioning(false);
+      setPairIndex((prev) => (prev + 1) % pairs.length);
+    }
+
+    runPair(pairIndex);
+  }, [pairIndex, posts, postPointer, event?.transition_speed]);
+
+  /* ---------- FADE HELPERS ---------- */
+  function fadeOutCell(index: number) {
+    return new Promise((resolve) => {
+      const el = document.getElementById(`cell-${index}`);
+      if (!el) return resolve(null);
+      el.animate([{ opacity: 1 }, { opacity: 0 }], {
+        duration: fadeDuration,
+        easing: 'ease-in-out',
+      }).onfinish = () => {
+        el.style.opacity = '0';
+        resolve(true);
+      };
+    });
+  }
+
+  function fadeInCell(index: number) {
+    return new Promise((resolve) => {
+      const el = document.getElementById(`cell-${index}`);
+      if (!el) return resolve(null);
+      el.animate([{ opacity: 0 }, { opacity: 1 }], {
+        duration: fadeDuration,
+        easing: 'ease-in-out',
+      }).onfinish = () => {
+        el.style.opacity = '1';
+        resolve(true);
+      };
+    });
+  }
 
   /* ---------- BACKGROUND ---------- */
   const bg =
     event?.background_type === 'image'
       ? `url(${event.background_value}) center/cover no-repeat`
       : event?.background_value ||
-        'linear-gradient(to bottom right, #1b2735, #090a0f)';
+        'linear-gradient(to bottom right,#1b2735,#090a0f)';
 
   /* ---------- POST CARD ---------- */
   function PostCard({ post }: { post: any }) {
@@ -81,161 +141,81 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
         style={{
           width: '100%',
           height: '100%',
-          display: 'flex',
-          flexDirection: 'column', // vertical split now
-          borderRadius: 16,
+          borderRadius: 14,
           overflow: 'hidden',
-          position: 'relative',
-          background: 'rgba(255,255,255,0.06)',
+          display: 'flex',
+          flexDirection: 'column',
+          background: 'rgba(255,255,255,0.05)',
+          border: '1px solid rgba(255,255,255,0.12)',
           backdropFilter: 'blur(10px)',
-          border: '1px solid rgba(255,255,255,0.15)',
-          boxShadow:
-            '0 0 20px rgba(255,255,255,0.1), 0 0 30px rgba(100,180,255,0.15)',
         }}
       >
-        {/* TOP: PHOTO */}
-        <div
-          style={{
-            flex: '0 0 50%',
-            position: 'relative',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            overflow: 'hidden',
-            padding: '4px',
-            boxSizing: 'border-box',
-          }}
-        >
-          {post.photo_url ? (
-            <img
-              src={post.photo_url}
-              alt="Guest submission"
-              style={{
-                width: '100%',
-                height: '100%',
-                objectFit: 'cover',
-                display: 'block',
-                opacity: 0.9,
-                borderRadius: 10,
-              }}
-            />
-          ) : (
-            <div
-              style={{
-                width: '100%',
-                height: '100%',
-                background: 'rgba(255,255,255,0.05)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: '#999',
-                fontSize: '1rem',
-                borderRadius: 10,
-              }}
-            >
-              No photo
-            </div>
-          )}
+        {/* PHOTO (70%) */}
+        <div style={{ height: '70%', position: 'relative', padding: 2 }}>
+          <img
+            src={post.photo_url}
+            alt="Guest submission"
+            style={{
+              width: '100%',
+              height: '100%',
+              objectFit: 'cover',
+              borderRadius: 12,
+              display: 'block',
+              opacity: 0.9,
+            }}
+          />
         </div>
 
-        {/* BOTTOM: NAME + MESSAGE */}
+        {/* TEXT (30%) */}
         <div
           style={{
-            flex: '0 0 50%',
+            height: '30%',
             display: 'flex',
             flexDirection: 'column',
-            justifyContent: 'space-between',
-            background: 'rgba(0,0,0,0.25)',
-            backdropFilter: 'blur(12px)',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '10px',
+            background: 'rgba(0,0,0,0.3)',
+            backdropFilter: 'blur(10px)',
             borderTop: '1px solid rgba(255,255,255,0.15)',
-            boxShadow: 'inset 0 0 12px rgba(255,255,255,0.08)',
-            borderBottomLeftRadius: 12,
-            borderBottomRightRadius: 12,
-            overflow: 'hidden',
+            borderRadius: '0 0 12px 12px',
+            textAlign: 'center',
           }}
         >
-          {/* NAME */}
-          <div
+          <h3
             style={{
-              flex: 1,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              padding: '12px 18px',
+              color: '#fff',
+              fontWeight: 800,
+              fontSize: '1.2rem',
+              marginBottom: 4,
+              textShadow: '0 0 6px rgba(0,0,0,0.8)',
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              maxWidth: '90%',
             }}
           >
-            <h3
-              style={{
-                color: '#fff',
-                fontWeight: 800,
-                fontSize: 'clamp(1.2rem, 1.6vw, 1.8rem)',
-                textShadow:
-                  '0 0 12px rgba(255,255,255,0.8), 0 0 20px rgba(100,180,255,0.6), 0 0 4px rgba(0,0,0,0.8)',
-                margin: 0,
-              }}
-            >
-              {post.nickname || ''}
-            </h3>
-          </div>
-
-          {/* MESSAGE */}
-          <div
+            {post.nickname || ''}
+          </h3>
+          <p
             style={{
-              flex: 1,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              padding: '0 18px 12px',
+              color: '#ddd',
+              fontSize: '1rem',
+              fontWeight: 500,
+              lineHeight: 1.3,
+              margin: 0,
+              maxWidth: '90%',
+              textShadow: '0 0 4px rgba(0,0,0,0.6)',
+              wordWrap: 'break-word',
+              overflowWrap: 'anywhere',
             }}
           >
-            <p
-              style={{
-                color: '#ddd',
-                fontSize: 'clamp(1rem, 1.3vw, 1.4rem)',
-                fontWeight: 500,
-                lineHeight: 1.4,
-                textShadow: '0 0 8px rgba(0,0,0,0.6)',
-                filter: 'drop-shadow(0 0 4px rgba(255,255,255,0.2))',
-                margin: 0,
-              }}
-            >
-              {post.message || ''}
-            </p>
-          </div>
+            {post.message || ''}
+          </p>
         </div>
       </div>
     );
   }
-
-  /* ---------- ANIMATION VARIANTS ---------- */
-  const fadeVariants = {
-    enter: { opacity: 0, scale: 0.98 },
-    center: {
-      opacity: 1,
-      scale: 1,
-      transition: { duration: fadeDuration, ease: 'easeInOut' },
-    },
-    exit: {
-      opacity: 0,
-      scale: 1.02,
-      transition: { duration: fadeDuration, ease: 'easeInOut', delay: 0.4 },
-    },
-  };
-
-  /* ---------- FULLSCREEN EVENT LISTENER ---------- */
-  useEffect(() => {
-    const handler = () => setIsFullscreen(!!document.fullscreenElement);
-    document.addEventListener('fullscreenchange', handler);
-    return () => document.removeEventListener('fullscreenchange', handler);
-  }, []);
-
-  const toggleFullscreen = () => {
-    if (!document.fullscreenElement) {
-      document.documentElement.requestFullscreen().catch(console.error);
-    } else {
-      document.exitFullscreen();
-    }
-  };
 
   /* ---------- RENDER ---------- */
   return (
@@ -244,11 +224,11 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
         background: bg,
         width: '100%',
         height: '100vh',
-        position: 'relative',
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'flex-start',
+        position: 'relative',
         overflow: 'hidden',
       }}
     >
@@ -268,8 +248,7 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
           style={{
             width: '100%',
             height: 'auto',
-            objectFit: 'contain',
-            filter: 'drop-shadow(0 0 12px rgba(0,0,0,0.85))',
+            filter: 'drop-shadow(0 0 12px rgba(0,0,0,0.8))',
           }}
         />
       </div>
@@ -279,8 +258,7 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
         style={{
           color: '#fff',
           textAlign: 'center',
-          textShadow:
-            '0 0 20px rgba(255,255,255,0.8), 0 0 30px rgba(100,180,255,0.6)',
+          textShadow: '0 0 20px rgba(0,0,0,0.6)',
           fontWeight: 900,
           letterSpacing: '1px',
           marginTop: '3vh',
@@ -292,35 +270,23 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
         {event.title || 'Fan Zone Wall'}
       </h1>
 
-      {/* 4×2 GRID */}
+      {/* GRID 4×2 */}
       <div
         style={{
-          width: '90vw',
-          height: '75vh',
+          width: '88vw',
+          height: '70vh',
           display: 'grid',
           gridTemplateColumns: 'repeat(4, 1fr)',
           gridTemplateRows: 'repeat(2, 1fr)',
+          gap: 10,
           borderRadius: 20,
           overflow: 'hidden',
-          boxShadow: '10px 10px 30px rgba(0,0,0,0.4)',
-          border: '1px solid rgba(255,255,255,0.15)',
-          background: 'rgba(255,255,255,0.04)',
-          backdropFilter: 'blur(14px)',
         }}
       >
         {gridPosts.map((post, i) => (
-          <AnimatePresence key={i} mode="wait">
-            <motion.div
-              key={(post?.id || 'empty') + '-' + i}
-              variants={fadeVariants}
-              initial="enter"
-              animate="center"
-              exit="exit"
-              style={{ width: '100%', height: '100%' }}
-            >
-              <PostCard post={post} />
-            </motion.div>
-          </AnimatePresence>
+          <div id={`cell-${i}`} key={i} style={{ width: '100%', height: '100%' }}>
+            <PostCard post={post} />
+          </div>
         ))}
       </div>
 
@@ -339,50 +305,34 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
         <p
           style={{
             color: '#fff',
-            textAlign: 'center',
-            textShadow:
-              '0 0 12px rgba(255,255,255,0.8), 0 0 20px rgba(100,180,255,0.6)',
             fontWeight: 700,
             fontSize: 'clamp(1rem, 1.5vw, 1.6rem)',
             marginBottom: '0.6vh',
+            textAlign: 'center',
           }}
         >
           Scan Me To Join
         </p>
-        <div
+        <QRCodeCanvas
+          value={`https://faninteract.vercel.app/submit/${event.id}`}
+          size={130}
+          bgColor="#ffffff"
+          fgColor="#000000"
+          level="H"
           style={{
-            padding: 8,
-            borderRadius: 16,
-            background: 'rgba(255,255,255,0.05)',
+            borderRadius: 12,
             boxShadow:
-              '0 0 25px rgba(255,255,255,0.6), 0 0 40px rgba(100,180,255,0.3), inset 0 0 10px rgba(0,0,0,0.4)',
+              '0 0 25px rgba(255,255,255,0.6), 0 0 40px rgba(255,255,255,0.3), inset 0 0 10px rgba(0,0,0,0.4)',
           }}
-        >
-          <QRCodeCanvas
-            value={`https://faninteract.vercel.app/submit/${event.id}`}
-            size={140}
-            bgColor="#ffffff"
-            fgColor="#000000"
-            level="H"
-            includeMargin={false}
-            style={{
-              borderRadius: 10,
-              display: 'block',
-            }}
-          />
-        </div>
+        />
       </div>
 
       {/* FULLSCREEN BUTTON */}
       <div
-        onClick={toggleFullscreen}
-        onMouseEnter={() => setHover(true)}
-        onMouseLeave={() => setHover(false)}
-        title="Toggle Fullscreen"
         style={{
           position: 'fixed',
-          bottom: 14,
-          right: 14,
+          bottom: 10,
+          right: 10,
           width: 48,
           height: 48,
           borderRadius: 10,
@@ -391,21 +341,26 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
           justifyContent: 'center',
           cursor: 'pointer',
           zIndex: 9999,
-          opacity: hover ? 1 : 0.25,
-          transition: 'opacity 0.3s ease, transform 0.3s ease',
-          transform: hover ? 'scale(1.05)' : 'scale(1)',
+          opacity: 0.25,
           background: 'rgba(255,255,255,0.08)',
           backdropFilter: 'blur(6px)',
-          border: '1px solid rgba(255,255,255,0.25)',
-          boxShadow:
-            '0 0 10px rgba(255,255,255,0.2), 0 0 20px rgba(100,180,255,0.25)',
+          border: '1px solid rgba(255,255,255,0.2)',
+          transition: 'opacity 0.3s ease',
         }}
+        onMouseEnter={(e) => (e.currentTarget.style.opacity = '1')}
+        onMouseLeave={(e) => (e.currentTarget.style.opacity = '0.25')}
+        onClick={() => {
+          if (!document.fullscreenElement)
+            document.documentElement.requestFullscreen().catch(console.error);
+          else document.exitFullscreen();
+        }}
+        title="Toggle Fullscreen"
       >
         <svg
           xmlns="http://www.w3.org/2000/svg"
           fill="none"
           viewBox="0 0 24 24"
-          strokeWidth={1.6}
+          strokeWidth={1.5}
           stroke="white"
           style={{ width: 26, height: 26 }}
         >
