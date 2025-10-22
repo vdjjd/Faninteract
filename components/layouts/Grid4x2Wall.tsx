@@ -70,133 +70,117 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
         'linear-gradient(to bottom right,#1b2735,#090a0f)';
 
   /* ---------- POST CARD ---------- */
-  function PostCard({ post }: { post: any }) {
-    if (!post)
-      return (
-        <div className="flex items-center justify-center text-white text-lg opacity-60">
-          Fan posts will appear here soon!
-        </div>
-      );
-
+function PostCard({ post }: { post: any }) {
+  if (!post)
     return (
-      <div
-        style={{
-          width: '100%',
-          height: '100%',
-          display: 'flex',
-          flexDirection: 'row',
-          borderRadius: 14,
-          overflow: 'hidden',
-          background: 'rgba(255,255,255,0.06)',
-          backdropFilter: 'blur(10px)',
-          border: '1px solid rgba(255,255,255,0.15)',
-          padding: '10px',
-          boxSizing: 'border-box',
-        }}
-      >
-        {/* LEFT: PHOTO */}
-        <div
-          style={{
-            flex: '0 0 40%',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: '10px',
-          }}
-        >
-          {post.photo_url ? (
-            <img
-              src={post.photo_url}
-              alt="Guest submission"
-              style={{
-                width: '100%',
-                maxWidth: '200px',
-                aspectRatio: '1 / 1',
-                objectFit: 'cover',
-                borderRadius: 10,
-                boxShadow: '0 0 10px rgba(0,0,0,0.4)',
-              }}
-            />
-          ) : (
-            <div
-              style={{
-                width: '100%',
-                maxWidth: '200px',
-                aspectRatio: '1 / 1',
-                background: 'rgba(255,255,255,0.05)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: '#999',
-                fontSize: '1rem',
-                borderRadius: 10,
-              }}
-            >
-              No photo
-            </div>
-          )}
-        </div>
-
-        {/* RIGHT: NAME + MESSAGE */}
-        <div
-          style={{
-            flex: 1,
-            display: 'grid',
-            gridTemplateRows: '1fr 1fr',
-            paddingLeft: '12px',
-            background: 'rgba(0,0,0,0.45)',
-            borderLeft: '1px solid rgba(255,255,255,0.1)',
-            borderRadius: 10,
-          }}
-        >
-          {/* NAME */}
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              textAlign: 'center',
-            }}
-          >
-            <h3
-              style={{
-                color: '#fff',
-                fontWeight: 800,
-                fontSize: '1.8rem',
-                textShadow: '0 0 10px rgba(0,0,0,0.7)',
-                margin: 0,
-              }}
-            >
-              {post.nickname || ''}
-            </h3>
-          </div>
-
-          {/* MESSAGE */}
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              textAlign: 'center',
-            }}
-          >
-            <p
-              style={{
-                color: '#ddd',
-                fontSize: '1.1rem',
-                fontWeight: 500,
-                lineHeight: 1.4,
-                textShadow: '0 0 6px rgba(0,0,0,0.6)',
-                margin: 0,
-              }}
-            >
-              {post.message || ''}
-            </p>
-          </div>
-        </div>
+      <div className="flex items-center justify-center text-white text-lg opacity-60">
+        Fan posts will appear here soon!
       </div>
     );
-  }
+
+  return (
+    <div
+      style={{
+        width: '100%',
+        height: '100%',
+        display: 'flex',
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'flex-start',
+        borderRadius: 14,
+        overflow: 'hidden',
+        background: 'rgba(255,255,255,0.08)',
+        backdropFilter: 'blur(6px)',
+        border: '1px solid rgba(255,255,255,0.1)',
+        padding: '14px',
+        boxSizing: 'border-box',
+      }}
+    >
+      {/* LEFT: PHOTO (larger) */}
+      <div
+        style={{
+          flex: '0 0 48%',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          paddingRight: '14px',
+        }}
+      >
+        {post.photo_url ? (
+          <img
+            src={post.photo_url}
+            alt="Guest submission"
+            style={{
+              width: '100%',
+              aspectRatio: '1 / 1',
+              objectFit: 'cover',
+              borderRadius: 12,
+              boxShadow: '0 0 16px rgba(0,0,0,0.5)',
+            }}
+          />
+        ) : (
+          <div
+            style={{
+              width: '100%',
+              aspectRatio: '1 / 1',
+              background: 'rgba(255,255,255,0.05)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#999',
+              fontSize: '1rem',
+              borderRadius: 12,
+            }}
+          >
+            No photo
+          </div>
+        )}
+      </div>
+
+      {/* RIGHT: NAME + MESSAGE (no dark box) */}
+      <div
+        style={{
+          flex: 1,
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'center',
+          gap: '10px',
+          paddingLeft: '6px',
+        }}
+      >
+        {/* NAME */}
+        <h3
+          style={{
+            color: '#fff',
+            fontWeight: 700,
+            fontSize: '1.3rem',
+            textAlign: 'center',
+            margin: 0,
+            textShadow: '0 0 10px rgba(0,0,0,0.6)',
+          }}
+        >
+          {post.nickname || ''}
+        </h3>
+
+        {/* MESSAGE */}
+        <p
+          style={{
+            color: '#f1f1f1',
+            fontSize: '1.1rem',
+            fontWeight: 400,
+            lineHeight: 1.4,
+            textAlign: 'center',
+            margin: 0,
+            textShadow: '0 0 6px rgba(0,0,0,0.5)',
+          }}
+        >
+          {post.message || ''}
+        </p>
+      </div>
+    </div>
+  );
+}
+
 
   /* ---------- SMOOTH SLIDE ---------- */
   const slideVariants = {
