@@ -63,6 +63,11 @@ export default function DashboardPage() {
         const updatedPolls = await getPollsByHost(host.id);
         setPolls(updatedPolls);
       })
+      // 🧠 Also refresh pending counts when submissions change
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'submissions' }, async () => {
+        const updatedEvents = await getEventsByHost(host.id);
+        setEvents(updatedEvents);
+      })
       .subscribe();
 
     return () => {
@@ -269,6 +274,20 @@ export default function DashboardPage() {
               <button onClick={() => handleClearEvent(event.id)} className="bg-cyan-500 hover:bg-cyan-600 px-2 py-1 rounded text-sm font-semibold">
                 🧹 Clear
               </button>
+
+              {/* 🕓 Pending with count */}
+              <button
+                onClick={() => window.open(`/admin/moderation/${event.id}`, '_blank')}
+                className="bg-yellow-500 hover:bg-yellow-600 px-2 py-1 rounded text-sm font-semibold text-black flex items-center justify-center gap-1"
+              >
+                🕓 Pending
+                {event.pending_posts > 0 && (
+                  <span className="bg-black/60 text-white px-1.5 py-0.5 rounded-md text-xs font-bold">
+                    {event.pending_posts}
+                  </span>
+                )}
+              </button>
+
               <button
                 onClick={() => {
                   setSelectedEvent(event);
