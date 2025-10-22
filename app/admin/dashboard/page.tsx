@@ -449,9 +449,6 @@ export default function DashboardPage() {
                 ✖ Cancel
               </button>
             </div>
-
-              </button>
-            </div>
           </div>
         </div>
       )}
