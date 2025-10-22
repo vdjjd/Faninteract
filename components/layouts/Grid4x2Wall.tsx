@@ -18,11 +18,12 @@ export default function Grid1x2Wall({ event, posts }: Grid1x2WallProps) {
   const [top, setTop] = useState<any | null>(null);
   const [bottom, setBottom] = useState<any | null>(null);
   const [postIndex, setPostIndex] = useState(0);
-  const [fading, setFading] = useState(false);
+  const [fadeTop, setFadeTop] = useState(false);
+  const [fadeBottom, setFadeBottom] = useState(false);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
   const displayDuration = speedMap[event?.transition_speed || 'Medium'] || 8000;
-  const fadeDuration = 1000;
+  const fadeDuration = 1200; // slightly slower for ghost feel
 
   // ---------- INITIAL POPULATION ----------
   useEffect(() => {
@@ -32,25 +33,28 @@ export default function Grid1x2Wall({ event, posts }: Grid1x2WallProps) {
     setPostIndex(2 % posts.length);
   }, [posts]);
 
-  // ---------- SINGLE COLUMN LOOP ----------
+  // ---------- LOOP ----------
   useEffect(() => {
     if (!posts?.length) return;
 
     function cycle() {
-      setFading(true);
+      // fade both top and bottom in sequence
+      setFadeTop(true);
+      setFadeBottom(true);
 
-      // After half fade, move top → bottom
+      // halfway: move top → bottom
       setTimeout(() => {
         setBottom(top);
       }, fadeDuration / 2);
 
-      // After full fade, replace top with new post and fade back in
+      // full fade: replace top, reset fade states
       setTimeout(() => {
         const next = posts[postIndex % posts.length];
         setTop(next);
         setPostIndex((p) => (p + 1) % posts.length);
-        setFading(false);
-      }, fadeDuration);
+        setFadeTop(false);
+        setFadeBottom(false);
+      }, fadeDuration + 300); // slight buffer for softness
     }
 
     timerRef.current = setInterval(cycle, displayDuration);
@@ -66,8 +70,16 @@ export default function Grid1x2Wall({ event, posts }: Grid1x2WallProps) {
       : event?.background_value ||
         'linear-gradient(to bottom right,#1b2735,#090a0f)';
 
-  // ---------- POST CARD ----------
-  function PostCard({ post, faded }: { post: any; faded?: boolean }) {
+  /* ---------- POST CARD ---------- */
+  function PostCard({
+    post,
+    fadeOut,
+    fadeIn,
+  }: {
+    post: any;
+    fadeOut?: boolean;
+    fadeIn?: boolean;
+  }) {
     if (!post)
       return (
         <div
@@ -90,7 +102,7 @@ export default function Grid1x2Wall({ event, posts }: Grid1x2WallProps) {
         style={{
           width: '100%',
           height: '100%',
-          opacity: faded ? 0 : 1,
+          opacity: fadeOut ? 0 : fadeIn ? 0.3 : 1,
           transition: `opacity ${fadeDuration}ms ease-in-out`,
           display: 'flex',
           flexDirection: 'row',
@@ -101,9 +113,12 @@ export default function Grid1x2Wall({ event, posts }: Grid1x2WallProps) {
           background: 'rgba(255,255,255,0.08)',
           border: '1px solid rgba(255,255,255,0.1)',
           padding: 12,
+          boxShadow: fadeIn
+            ? '0 0 25px rgba(255,255,255,0.3)'
+            : '0 0 15px rgba(0,0,0,0.4)',
         }}
       >
-        {/* Photo */}
+        {/* PHOTO */}
         <div
           style={{
             flex: '0 0 60%',
@@ -119,6 +134,10 @@ export default function Grid1x2Wall({ event, posts }: Grid1x2WallProps) {
                 aspectRatio: '1/1',
                 objectFit: 'cover',
                 borderRadius: 10,
+                filter: fadeIn
+                  ? 'brightness(1.2) blur(0.8px)'
+                  : 'brightness(1) blur(0px)',
+                transition: `filter ${fadeDuration}ms ease-in-out`,
               }}
             />
           ) : (
@@ -139,7 +158,7 @@ export default function Grid1x2Wall({ event, posts }: Grid1x2WallProps) {
           )}
         </div>
 
-        {/* Text */}
+        {/* TEXT */}
         <div
           style={{
             flex: 1,
@@ -155,6 +174,7 @@ export default function Grid1x2Wall({ event, posts }: Grid1x2WallProps) {
               fontSize: '1.2rem',
               margin: 0,
               fontWeight: 700,
+              textShadow: '0 0 12px rgba(0,0,0,0.5)',
             }}
           >
             {post.nickname || ''}
@@ -164,6 +184,7 @@ export default function Grid1x2Wall({ event, posts }: Grid1x2WallProps) {
               color: '#ddd',
               fontSize: '1rem',
               margin: 0,
+              textShadow: '0 0 10px rgba(0,0,0,0.4)',
             }}
           >
             {post.message || ''}
@@ -184,11 +205,11 @@ export default function Grid1x2Wall({ event, posts }: Grid1x2WallProps) {
         justifyContent: 'center',
       }}
     >
-      {/* Centered Column */}
+      {/* ONE COLUMN CENTERED */}
       <div
         style={{
-          width: '22vw', // same width as one 4x2 column
-          height: '70vh', // same total height
+          width: '22vw',
+          height: '70vh',
           display: 'grid',
           gridTemplateRows: 'repeat(2, 1fr)',
           borderRadius: 20,
@@ -198,11 +219,11 @@ export default function Grid1x2Wall({ event, posts }: Grid1x2WallProps) {
           boxShadow: '10px 10px 30px rgba(0,0,0,0.4)',
         }}
       >
-        <PostCard post={top} faded={fading} />
-        <PostCard post={bottom} />
+        <PostCard post={top} fadeOut={fadeTop} />
+        <PostCard post={bottom} fadeIn={fadeBottom} />
       </div>
 
-      {/* Fullscreen Button */}
+      {/* FULLSCREEN BUTTON */}
       <div
         style={{
           position: 'fixed',
@@ -246,6 +267,7 @@ export default function Grid1x2Wall({ event, posts }: Grid1x2WallProps) {
     </div>
   );
 }
+
 
 
 
