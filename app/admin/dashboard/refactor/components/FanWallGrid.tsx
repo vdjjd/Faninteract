@@ -7,45 +7,85 @@ interface FanWallGridProps {
   events: any[];
   host: any;
   refreshEvents: () => Promise<void>;
-  onOpenOptions: (event: any) => void; // ✅ new prop for opening OptionsModal
+  onOpenOptions: (event: any) => void;
 }
 
 export default function FanWallGrid({ events, host, refreshEvents, onOpenOptions }: FanWallGridProps) {
+  /* ---------- Launch Wall ---------- */
   async function handleLaunch(id: string) {
     const url = `${window.location.origin}/wall/${id}`;
     const popup = window.open(url, '_blank', 'width=1280,height=800,left=100,top=100');
     popup?.focus();
   }
 
+  /* ---------- Start Wall (with countdown support) ---------- */
   async function handleStart(id: string) {
-    await supabase.from('events').update({
-      status: 'live',
-      updated_at: new Date().toISOString(),
-    }).eq('id', id);
+    // Get current event first
+    const { data: current, error } = await supabase
+      .from('events')
+      .select('countdown')
+      .eq('id', id)
+      .single();
+
+    if (error) {
+      console.error('❌ Error fetching event before start:', error);
+      return;
+    }
+
+    // If countdown exists, activate countdown instead of going live
+    if (current?.countdown && current.countdown !== 'none') {
+      await supabase
+        .from('events')
+        .update({
+          countdown_active: true,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', id);
+    } else {
+      await supabase
+        .from('events')
+        .update({
+          status: 'live',
+          countdown_active: false,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', id);
+    }
+
     await refreshEvents();
   }
 
+  /* ---------- Stop Wall ---------- */
   async function handleStop(id: string) {
-    await supabase.from('events').update({
-      status: 'inactive',
-      updated_at: new Date().toISOString(),
-    }).eq('id', id);
+    await supabase
+      .from('events')
+      .update({
+        status: 'inactive',
+        countdown_active: false,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', id);
+
     await refreshEvents();
   }
 
+  /* ---------- Clear Posts ---------- */
   async function handleClear(id: string) {
     await clearEventPosts(id);
     await refreshEvents();
   }
 
+  /* ---------- Delete Wall ---------- */
   async function handleDelete(id: string) {
     await deleteEvent(id);
     await refreshEvents();
   }
 
+  /* ---------- UI ---------- */
   return (
     <div className="mt-10 w-full max-w-6xl">
       <h2 className="text-xl font-semibold mb-3">🎤 Fan Zone Walls</h2>
+
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
         {events.length === 0 && (
           <p className="text-gray-400 italic">No Fan Zone Walls created yet.</p>
@@ -104,25 +144,40 @@ export default function FanWallGrid({ events, host, refreshEvents, onOpenOptions
 
             {/* Control Buttons */}
             <div className="flex flex-wrap justify-center gap-2 mt-3">
-              <button onClick={() => handleLaunch(event.id)} className="bg-blue-600 hover:bg-blue-700 px-2 py-1 rounded text-sm font-semibold">
+              <button
+                onClick={() => handleLaunch(event.id)}
+                className="bg-blue-600 hover:bg-blue-700 px-2 py-1 rounded text-sm font-semibold"
+              >
                 🚀 Launch
               </button>
-              <button onClick={() => handleStart(event.id)} className="bg-green-600 hover:bg-green-700 px-2 py-1 rounded text-sm font-semibold">
+              <button
+                onClick={() => handleStart(event.id)}
+                className="bg-green-600 hover:bg-green-700 px-2 py-1 rounded text-sm font-semibold"
+              >
                 ▶️ Play
               </button>
-              <button onClick={() => handleStop(event.id)} className="bg-red-600 hover:bg-red-700 px-2 py-1 rounded text-sm font-semibold">
+              <button
+                onClick={() => handleStop(event.id)}
+                className="bg-red-600 hover:bg-red-700 px-2 py-1 rounded text-sm font-semibold"
+              >
                 ⏹ Stop
               </button>
-              <button onClick={() => handleClear(event.id)} className="bg-cyan-500 hover:bg-cyan-600 px-2 py-1 rounded text-sm font-semibold">
+              <button
+                onClick={() => handleClear(event.id)}
+                className="bg-cyan-500 hover:bg-cyan-600 px-2 py-1 rounded text-sm font-semibold"
+              >
                 🧹 Clear
               </button>
               <button
-                onClick={() => onOpenOptions(event)} // ✅ opens the OptionsModalFanWall
+                onClick={() => onOpenOptions(event)}
                 className="bg-indigo-500 hover:bg-indigo-600 px-2 py-1 rounded text-sm font-semibold"
               >
                 ⚙ Options
               </button>
-              <button onClick={() => handleDelete(event.id)} className="bg-red-700 hover:bg-red-800 px-2 py-1 rounded text-sm font-semibold">
+              <button
+                onClick={() => handleDelete(event.id)}
+                className="bg-red-700 hover:bg-red-800 px-2 py-1 rounded text-sm font-semibold"
+              >
                 ❌ Delete
               </button>
             </div>
