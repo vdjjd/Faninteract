@@ -11,6 +11,12 @@ const BAR_COLORS = [
   '#002C5F', '#FFC20E', '#004C54', '#A5ACAF'
 ];
 
+interface PollOption {
+  id: number;
+  text: string;
+  color: string;
+}
+
 interface OptionsModalProps {
   event: any;
   hostId: string;
@@ -35,7 +41,7 @@ export default function OptionsModal({
   const [pendingChange, setPendingChange] = useState<{ type: 'solid' | 'gradient'; value: string } | null>(null);
 
   /* ---------- Poll Option Colors ---------- */
-  const [pollOptions, setPollOptions] = useState(
+  const [pollOptions, setPollOptions] = useState<PollOption[]>(
     localEvent.options || Array.from({ length: 8 }, (_, i) => ({
       id: i + 1,
       text: `Option ${i + 1}`,
@@ -43,17 +49,17 @@ export default function OptionsModal({
     }))
   );
 
- function handleColorChange(idx: number, color: string) {
-  setPollOptions((prev: { id: number; text: string; color: string }[]) =>
-    prev.map((opt, i) => (i === idx ? { ...opt, color } : opt))
-  );
-}
+  function handleColorChange(idx: number, color: string) {
+    setPollOptions((prev: PollOption[]) =>
+      prev.map((opt, i) => (i === idx ? { ...opt, color } : opt))
+    );
+  }
 
-function handleTextChange(idx: number, text: string) {
-  setPollOptions((prev: { id: number; text: string; color: string }[]) =>
-    prev.map((opt, i) => (i === idx ? { ...opt, text } : opt))
-  );
-}
+  function handleTextChange(idx: number, text: string) {
+    setPollOptions((prev: PollOption[]) =>
+      prev.map((opt, i) => (i === idx ? { ...opt, text } : opt))
+    );
+  }
 
   /* ---------- SAVE ---------- */
   async function handleSave() {
@@ -91,53 +97,53 @@ function handleTextChange(idx: number, text: string) {
   }
 
   /* ---------- IMAGE UPLOAD ---------- */
-async function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
-  const table = isPoll ? 'polls' : 'events';
-  try {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
-      alert('Please upload a JPG, PNG, or WEBP file.');
-      return;
-    }
+  async function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const table = isPoll ? 'polls' : 'events';
+    try {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+        alert('Please upload a JPG, PNG, or WEBP file.');
+        return;
+      }
 
-    setUploading(true);
-    const compressed = await imageCompression(file, {
-      maxWidthOrHeight: 1920,
-      useWebWorker: true,
-    });
+      setUploading(true);
+      const compressed = await imageCompression(file, {
+        maxWidthOrHeight: 1920,
+        useWebWorker: true,
+      });
 
-    const ext = file.type.split('/')[1];
-    const filePath = `${localEvent.id}/background-${Date.now()}.${ext}`;
+      const ext = file.type.split('/')[1];
+      const filePath = `${localEvent.id}/background-${Date.now()}.${ext}`;
 
-    const { error: uploadError } = await supabase.storage
-      .from('wall-backgrounds')
-      .upload(filePath, compressed, { upsert: true });
-    if (uploadError) throw uploadError;
+      const { error: uploadError } = await supabase.storage
+        .from('wall-backgrounds')
+        .upload(filePath, compressed, { upsert: true });
+      if (uploadError) throw uploadError;
 
-    const { data: publicUrl } = supabase.storage.from('wall-backgrounds').getPublicUrl(filePath);
-    const { error: updateError } = await supabase
-      .from(table)
-      .update({
+      const { data: publicUrl } = supabase.storage.from('wall-backgrounds').getPublicUrl(filePath);
+      const { error: updateError } = await supabase
+        .from(table)
+        .update({
+          background_type: 'image',
+          background_value: publicUrl.publicUrl,
+          background_url: publicUrl.publicUrl,
+        })
+        .eq('id', localEvent.id);
+      if (updateError) throw updateError;
+
+      setLocalEvent({
+        ...localEvent,
         background_type: 'image',
         background_value: publicUrl.publicUrl,
-        background_url: publicUrl.publicUrl,
-      })
-      .eq('id', localEvent.id);
-    if (updateError) throw updateError;
-
-    setLocalEvent({
-      ...localEvent,
-      background_type: 'image',
-      background_value: publicUrl.publicUrl,
-    });
-  } catch (err) {
-    console.error('❌ Upload error:', err);
-    alert('Upload failed.');
-  } finally {
-    setUploading(false);
+      });
+    } catch (err) {
+      console.error('❌ Upload error:', err);
+      alert('Upload failed.');
+    } finally {
+      setUploading(false);
+    }
   }
-}
 
   /* ---------- HANDLE COLOR / GRADIENT ---------- */
   async function handleBackgroundChange(type: 'solid' | 'gradient', value: string) {
@@ -157,6 +163,7 @@ async function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
     });
   }
 
+  /* ---------- RENDER ---------- */
   return (
     <>
       <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 backdrop-blur-md">
@@ -207,10 +214,9 @@ async function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
                 <option>5 Minutes</option>
               </select>
 
-              {/* ---- Poll Answers ---- */}
               <h4 className="mt-5 text-sm font-semibold">🗳 Poll Answers & Colors</h4>
               <div className="grid grid-cols-1 gap-2 mt-2">
-                {pollOptions.map((opt, idx) => (
+                {pollOptions.map((opt: PollOption, idx: number) => (
                   <div key={opt.id} className="flex items-center gap-2">
                     <input
                       type="text"
@@ -236,7 +242,7 @@ async function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
             </>
           )}
 
-          {/* ---- Fan Zone Wall Fields ---- */}
+          {/* ---- Fan Wall Fields ---- */}
           {!isPoll && (
             <>
               <label className="block mt-3 text-sm">Countdown:</label>
@@ -258,11 +264,12 @@ async function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
             </>
           )}
 
-          {/* ---- Color Selectors ---- */}
+          {/* ---- Background Pickers ---- */}
           <h4 className="mt-5 text-sm font-semibold">🎨 Background Colors</h4>
           <div className="grid grid-cols-8 gap-2 mt-2">
             {[
-              '#e53935','#8e24aa','#1e88e5','#43a047','#fb8c00','#fdd835','#6d4c41','#00acc1'
+              '#e53935','#8e24aa','#1e88e5','#43a047',
+              '#fb8c00','#fdd835','#6d4c41','#00acc1'
             ].map((c) => (
               <div
                 key={c}
@@ -303,7 +310,9 @@ async function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
               onChange={handleImageUpload}
               className="text-sm text-center"
             />
-            {uploading && <p className="text-yellow-400 text-xs mt-2 animate-pulse">Uploading...</p>}
+            {uploading && (
+              <p className="text-yellow-400 text-xs mt-2 animate-pulse">Uploading...</p>
+            )}
           </div>
 
           {/* ---- Buttons ---- */}
