@@ -15,6 +15,7 @@ import {
   clearPoll,
 } from '@/lib/actions/polls';
 import OptionsModal from '@/components/OptionsModal';
+import DashboardHeader from './components/DashboardHeader'; // ✅ new import
 
 export default function DashboardRefactor() {
   const [host, setHost] = useState<any>(null);
@@ -49,13 +50,24 @@ export default function DashboardRefactor() {
   }
 
   return (
-    <div className="min-h-screen bg-black text-white flex flex-col items-center p-8">
-      <h1 className="text-2xl font-bold mb-4">🧪 Refactor Dashboard</h1>
-      <p>Host: {host?.email}</p>
+    <div className="min-h-screen bg-gradient-to-br from-[#0a2540] via-[#1b2b44] to-black text-white flex flex-col items-center p-8">
+      {/* ✅ Header with logo + buttons */}
+      <DashboardHeader
+        onCreateFanWall={() => console.log('Create Fan Wall clicked')}
+        onCreatePoll={() => console.log('Create Poll clicked')}
+      />
 
-      <div className="mt-6">
-        <p>Events loaded: {events.length}</p>
-        <p>Polls loaded: {polls.length}</p>
+      {/* ✅ Simple status readout */}
+      <div className="mt-6 text-center">
+        <h1 className="text-2xl font-bold mb-2">🧪 Refactor Dashboard</h1>
+        <p className="text-lg text-gray-300 mb-4">
+          Host: {host?.email}
+        </p>
+
+        <div className="bg-black/40 p-4 rounded-lg shadow-md border border-white/20">
+          <p>🎤 Fan Zone Walls Loaded: <strong>{events.length}</strong></p>
+          <p>📊 Live Polls Loaded: <strong>{polls.length}</strong></p>
+        </div>
       </div>
     </div>
   );
