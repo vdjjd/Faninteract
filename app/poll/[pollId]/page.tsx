@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
 import InactivePollWall from '@/app/wall/components/polls/InactivePollWall';
-import LivePollWall from '../components/LivePollWall'; // ✅ Live view component
+import LivePollWall from '../components/LivePollWall';
 
 /* ---------- COUNTDOWN DISPLAY ---------- */
 function CountdownDisplay({
@@ -77,7 +77,6 @@ export default function PollWallPage() {
   const [poll, setPoll] = useState<any>(null);
   const [options, setOptions] = useState<any[]>([]);
 
-  /* ---------- LOAD POLL ---------- */
   useEffect(() => {
     if (!pollId) return;
 
@@ -110,22 +109,23 @@ export default function PollWallPage() {
           table: 'polls',
           filter: `id=eq.${pollId}`,
         },
-        (payload) => {
-          if (payload.new) {
-            setPoll(payload.new);
-            setOptions(payload.new.options || []);
+        (payload: any) => {
+          // ✅ FIX: Explicitly cast payload.new to expected type
+          const newPoll = payload.new as { [key: string]: any };
+          if (newPoll) {
+            setPoll(newPoll);
+            setOptions(Array.isArray(newPoll.options) ? newPoll.options : []);
           }
         }
       )
       .subscribe();
 
-    // ✅ FIX: cleanup must NOT return a Promise
+    // ✅ FIX: Cleanup must be synchronous
     return () => {
       void supabase.removeChannel(channel);
     };
   }, [pollId]);
 
-  /* ---------- STATE HANDLING ---------- */
   if (!poll)
     return (
       <div className="text-white text-center mt-10">Loading poll...</div>
