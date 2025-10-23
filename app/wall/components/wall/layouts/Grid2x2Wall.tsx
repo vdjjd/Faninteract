@@ -26,10 +26,13 @@ export default function Grid2x2Wall({ event, posts }: Grid2x2WallProps) {
   const postIndex = useRef(0);
   const cellIndex = useRef(0);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const resetKey = useRef(0); // 🔸 forces grid reset when speed/layout changes
 
-  /* ---------- UPDATE SPEED INSTANTLY ---------- */
+  /* ---------- UPDATE SPEED LIVE ---------- */
   useEffect(() => {
-    setDisplayDuration(speedMap[event?.transition_speed || 'Medium']);
+    const newDuration = speedMap[event?.transition_speed || 'Medium'];
+    setDisplayDuration(newDuration);
+    resetKey.current += 1; // trigger full loop restart
   }, [event?.transition_speed]);
 
   /* ---------- UPDATE BACKGROUND LIVE ---------- */
@@ -39,7 +42,7 @@ export default function Grid2x2Wall({ event, posts }: Grid2x2WallProps) {
       : event?.background_value ||
         'linear-gradient(to bottom right, #1b2735, #090a0f)';
 
-  /* ---------- FADE DURATION BY SPEED ---------- */
+  /* ---------- FADE DURATION ---------- */
   const fadeDurations: Record<string, number> = {
     Slow: 1.6,
     Medium: 1.2,
@@ -47,23 +50,21 @@ export default function Grid2x2Wall({ event, posts }: Grid2x2WallProps) {
   };
   const fadeDuration = fadeDurations[event?.transition_speed || 'Medium'];
 
-  /* ---------- INITIAL GRID POPULATION ---------- */
+  /* ---------- INITIAL GRID ---------- */
   useEffect(() => {
     if (!posts?.length) return;
     const initial = posts.slice(0, 4);
-    setGridPosts([
-      initial[0] || null,
-      initial[1] || null,
-      initial[2] || null,
-      initial[3] || null,
-    ]);
+    setGridPosts([initial[0] || null, initial[1] || null, initial[2] || null, initial[3] || null]);
     postIndex.current = 4 % posts.length;
     cellIndex.current = 0;
-  }, [posts]);
+  }, [posts, resetKey.current]); // 🔸 reset when key increments
 
-  /* ---------- MAIN FADE CYCLE LOOP ---------- */
+  /* ---------- FADE LOOP ---------- */
   useEffect(() => {
     if (!posts?.length) return;
+
+    // stop previous interval before restart
+    if (intervalRef.current) clearInterval(intervalRef.current);
 
     const cycle = () => {
       const nextPost = posts[postIndex.current % posts.length];
@@ -79,16 +80,11 @@ export default function Grid2x2Wall({ event, posts }: Grid2x2WallProps) {
       cellIndex.current = (cellIndex.current + 1) % order.current.length;
     };
 
-    // clear any running interval
-    if (intervalRef.current) clearInterval(intervalRef.current);
-
-    // start new one with current displayDuration
     intervalRef.current = setInterval(cycle, displayDuration);
-
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
-  }, [posts, displayDuration]);
+  }, [posts, displayDuration, resetKey.current]);
 
   /* ---------- POST CARD ---------- */
   function PostCard({ post }: { post: any }) {
@@ -150,7 +146,7 @@ export default function Grid2x2Wall({ event, posts }: Grid2x2WallProps) {
           )}
         </div>
 
-        {/* RIGHT: NAME + MESSAGE */}
+        {/* RIGHT: TEXT */}
         <div
           style={{
             flex: 1,
@@ -163,18 +159,9 @@ export default function Grid2x2Wall({ event, posts }: Grid2x2WallProps) {
             boxShadow: 'inset 0 0 12px rgba(255,255,255,0.08)',
             borderTopRightRadius: 12,
             borderBottomRightRadius: 12,
-            overflow: 'hidden',
           }}
         >
-          <div
-            style={{
-              flex: 1,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              padding: '12px 18px',
-            }}
-          >
+          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '12px 18px' }}>
             <h3
               style={{
                 color: '#fff',
@@ -188,16 +175,7 @@ export default function Grid2x2Wall({ event, posts }: Grid2x2WallProps) {
               {post.nickname || ''}
             </h3>
           </div>
-
-          <div
-            style={{
-              flex: 1,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              padding: '0 18px 12px',
-            }}
-          >
+          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 18px 12px' }}>
             <p
               style={{
                 color: '#ddd',
@@ -232,7 +210,7 @@ export default function Grid2x2Wall({ event, posts }: Grid2x2WallProps) {
     },
   };
 
-  /* ---------- BACKGROUND ANIMATION ---------- */
+  /* ---------- BACKGROUND ---------- */
   const driftKeyframes = `
     @keyframes bgDrift {
       0% { background-position: 0% 50%; }
@@ -245,7 +223,6 @@ export default function Grid2x2Wall({ event, posts }: Grid2x2WallProps) {
     background: bg,
     width: '100%',
     height: '100vh',
-    position: 'relative',
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
@@ -260,15 +237,7 @@ export default function Grid2x2Wall({ event, posts }: Grid2x2WallProps) {
       <style>{driftKeyframes}</style>
       <div style={bgStyle}>
         {/* LOGO */}
-        <div
-          style={{
-            position: 'absolute',
-            top: '3vh',
-            right: '3vw',
-            width: 'clamp(160px, 18vw, 220px)',
-            zIndex: 20,
-          }}
-        >
+        <div style={{ position: 'absolute', top: '3vh', right: '3vw', width: 'clamp(160px, 18vw, 220px)', zIndex: 20 }}>
           <img
             src={event.logo_url || '/faninteractlogo.png'}
             alt="Logo"
@@ -372,10 +341,7 @@ export default function Grid2x2Wall({ event, posts }: Grid2x2WallProps) {
               fgColor="#000000"
               level="H"
               includeMargin={false}
-              style={{
-                borderRadius: 10,
-                display: 'block',
-              }}
+              style={{ borderRadius: 10, display: 'block' }}
             />
           </div>
         </div>
@@ -409,19 +375,8 @@ export default function Grid2x2Wall({ event, posts }: Grid2x2WallProps) {
           }}
           title="Toggle Fullscreen"
         >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            fill="none"
-            viewBox="0 0 24 24"
-            strokeWidth={1.5}
-            stroke="white"
-            style={{ width: 26, height: 26 }}
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M3 9V4h5M21 9V4h-5M3 15v5h5M21 15v5h-5"
-            />
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="white" style={{ width: 26, height: 26 }}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M3 9V4h5M21 9V4h-5M3 15v5h5M21 15v5h-5" />
           </svg>
         </div>
       </div>

@@ -20,25 +20,27 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
   const [displayDelay, setDisplayDelay] = useState(
     speedMap[event?.transition_speed || 'Medium']
   );
+  const resetKey = useRef(0); // 🔸 forces full cycle reset
 
   const postPointer = useRef(0);
   const pairIndex = useRef(0);
   const activeRef = useRef(false);
-  const cycleRef = useRef<Promise<void> | null>(null);
 
   /* ---------- UPDATE SPEED LIVE ---------- */
   useEffect(() => {
-    setDisplayDelay(speedMap[event?.transition_speed || 'Medium']);
+    const newDelay = speedMap[event?.transition_speed || 'Medium'];
+    setDisplayDelay(newDelay);
+    resetKey.current += 1; // restart loop when speed changes
   }, [event?.transition_speed]);
 
-  const fadeDuration = 1200; // 1.2s fade for cinematic feel
+  const fadeDuration = 1200; // consistent fade timing
 
   /* ---------- INITIAL POPULATION ---------- */
   useEffect(() => {
     if (!posts?.length) return;
     setGridPosts((prev) => prev.map((_, i) => posts[i % posts.length] || null));
     postPointer.current = 8 % posts.length;
-  }, [posts]);
+  }, [posts, resetKey.current]); // 🔸 reset when key increments
 
   /* ---------- SEQUENTIAL PAIR LOOP ---------- */
   useEffect(() => {
@@ -50,6 +52,7 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
       [3, 7],
     ];
 
+    let cancelled = false;
     activeRef.current = true;
 
     async function fadeOutCell(index: number) {
@@ -59,7 +62,7 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
         duration: fadeDuration,
         easing: 'ease-in-out',
       }).finished;
-      el.style.opacity = '0';
+      if (!cancelled) el.style.opacity = '0';
     }
 
     async function fadeInCell(index: number) {
@@ -69,20 +72,20 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
         duration: fadeDuration,
         easing: 'ease-in-out',
       }).finished;
-      el.style.opacity = '1';
+      if (!cancelled) el.style.opacity = '1';
     }
 
     async function runCycle() {
-      while (activeRef.current) {
+      while (activeRef.current && !cancelled) {
         const [top, bottom] = pairs[pairIndex.current];
         const nextPost = posts[postPointer.current % posts.length];
 
-        // Fade out bottom then top
+        // fade bottom then top
         await fadeOutCell(bottom);
-        await new Promise((r) => setTimeout(r, 300)); // overlap delay
+        await new Promise((r) => setTimeout(r, 300));
         await fadeOutCell(top);
 
-        // Replace bottom → top content
+        // replace posts bottom -> top
         setGridPosts((prev) => {
           const updated = [...prev];
           updated[bottom] = prev[top];
@@ -104,12 +107,13 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
       }
     }
 
-    cycleRef.current = runCycle();
+    runCycle();
 
     return () => {
+      cancelled = true;
       activeRef.current = false;
     };
-  }, [posts, displayDelay]);
+  }, [posts, displayDelay, resetKey.current]); // 🔸 restart loop cleanly
 
   /* ---------- BACKGROUND ---------- */
   const bg =
@@ -155,7 +159,6 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
             }}
           />
         </div>
-
         <div
           style={{
             height: '30%',
@@ -350,22 +353,10 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
         }}
         title="Toggle Fullscreen"
       >
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          fill="none"
-          viewBox="0 0 24 24"
-          strokeWidth={1.5}
-          stroke="white"
-          style={{ width: 26, height: 26 }}
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            d="M3 9V4h5M21 9V4h-5M3 15v5h5M21 15v5h-5"
-          />
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="white" style={{ width: 26, height: 26 }}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M3 9V4h5M21 9V4h-5M3 15v5h5M21 15v5h-5" />
         </svg>
       </div>
     </div>
   );
 }
-
