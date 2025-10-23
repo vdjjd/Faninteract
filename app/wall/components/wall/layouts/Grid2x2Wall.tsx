@@ -25,12 +25,12 @@ export default function Grid2x2Wall({ event, posts }: Grid2x2WallProps) {
     speedMap[event?.transition_speed || 'Medium'] || 8000
   );
 
-  /* ---------- UPDATE SPEED DYNAMICALLY ---------- */
+  /* ---------- UPDATE SPEED ---------- */
   useEffect(() => {
     setDisplayDuration(speedMap[event?.transition_speed || 'Medium'] || 8000);
   }, [event?.transition_speed]);
 
-  /* ---------- FADE DURATIONS BY SPEED ---------- */
+  /* ---------- FADE DURATIONS ---------- */
   const fadeDurations: Record<string, number> = {
     Slow: 1.6,
     Medium: 1.2,
@@ -47,36 +47,37 @@ export default function Grid2x2Wall({ event, posts }: Grid2x2WallProps) {
     setCellIndex(0);
   }, [posts]);
 
-  /* ---------- CYCLIC ORDER UPDATES (FIXED SPEED UPDATE) ---------- */
+  /* ---------- SEQUENTIAL LOOP ---------- */
   useEffect(() => {
     if (!posts || posts.length === 0) return;
 
-    const order = [0, 1, 2, 3]; // TL, TR, BL, BR
-    const activeRef = { current: true };
+    const order = [0, 1, 2, 3];
+    let active = true;
 
-    async function cycle() {
-      while (activeRef.current) {
-        const next = posts[postIndex % posts.length];
+    async function runCycle() {
+      while (active) {
+        const nextPost = posts[postIndex % posts.length];
         const cellToUpdate = order[cellIndex % order.length];
 
         setGridPosts((prev) => {
           const newGrid = [...prev];
-          newGrid[cellToUpdate] = next;
+          newGrid[cellToUpdate] = nextPost;
           return newGrid;
         });
 
+        // Move to next post and cell
         setPostIndex((prev) => (prev + 1) % posts.length);
         setCellIndex((prev) => (prev + 1) % order.length);
 
-        // Dynamic delay — reacts instantly when speed changes
+        // Wait for fade/transition time before next cell
         await new Promise((r) => setTimeout(r, displayDuration));
       }
     }
 
-    cycle();
+    runCycle();
 
     return () => {
-      activeRef.current = false; // stop on unmount/speed change
+      active = false;
     };
   }, [posts, postIndex, cellIndex, displayDuration]);
 
@@ -84,8 +85,7 @@ export default function Grid2x2Wall({ event, posts }: Grid2x2WallProps) {
   const bg =
     event?.background_type === 'image'
       ? `url(${event.background_value}) center/cover no-repeat`
-      : event?.background_value ||
-        'linear-gradient(to bottom right, #1b2735, #090a0f)';
+      : event?.background_value || 'linear-gradient(to bottom right, #1b2735, #090a0f)';
 
   /* ---------- POST CARD ---------- */
   function PostCard({ post }: { post: any }) {
@@ -109,18 +109,12 @@ export default function Grid2x2Wall({ event, posts }: Grid2x2WallProps) {
           background: 'rgba(255,255,255,0.06)',
           backdropFilter: 'blur(10px)',
           border: '1px solid rgba(255,255,255,0.15)',
-          boxShadow: '0 0 20px rgba(255,255,255,0.1), 0 0 30px rgba(100,180,255,0.15)',
+          boxShadow:
+            '0 0 20px rgba(255,255,255,0.1), 0 0 30px rgba(100,180,255,0.15)',
         }}
       >
         {/* LEFT: PHOTO */}
-        <div
-          style={{
-            flex: 1,
-            position: 'relative',
-            padding: '2px 0 2px 2px',
-            boxSizing: 'border-box',
-          }}
-        >
+        <div style={{ flex: 1, position: 'relative', padding: '2px 0 2px 2px' }}>
           {post.photo_url ? (
             <img
               src={post.photo_url}
@@ -169,7 +163,6 @@ export default function Grid2x2Wall({ event, posts }: Grid2x2WallProps) {
             overflow: 'hidden',
           }}
         >
-          {/* NAME */}
           <div
             style={{
               flex: 1,
@@ -193,7 +186,6 @@ export default function Grid2x2Wall({ event, posts }: Grid2x2WallProps) {
             </h3>
           </div>
 
-          {/* MESSAGE */}
           <div
             style={{
               flex: 1,
@@ -222,7 +214,7 @@ export default function Grid2x2Wall({ event, posts }: Grid2x2WallProps) {
     );
   }
 
-  /* ---------- FADE & ZOOM VARIANTS ---------- */
+  /* ---------- FADE VARIANTS ---------- */
   const fadeVariants = {
     enter: { opacity: 0, scale: 0.98 },
     center: {
@@ -233,10 +225,11 @@ export default function Grid2x2Wall({ event, posts }: Grid2x2WallProps) {
     exit: {
       opacity: 0,
       scale: 1.02,
-      transition: { duration: fadeDuration, ease: 'easeInOut', delay: 0.4 },
+      transition: { duration: fadeDuration, ease: 'easeInOut', delay: 0.2 },
     },
   };
 
+  /* ---------- BACKGROUND ANIM ---------- */
   const driftKeyframes = `
     @keyframes bgDrift {
       0% { background-position: 0% 50%; }
@@ -303,7 +296,7 @@ export default function Grid2x2Wall({ event, posts }: Grid2x2WallProps) {
           {event.title || 'Fan Zone Wall'}
         </h1>
 
-        {/* 2×2 GRID */}
+        {/* GRID */}
         <div
           style={{
             width: '80vw',
@@ -335,7 +328,7 @@ export default function Grid2x2Wall({ event, posts }: Grid2x2WallProps) {
           ))}
         </div>
 
-        {/* QR SECTION */}
+        {/* QR */}
         <div
           style={{
             position: 'absolute',
@@ -384,7 +377,7 @@ export default function Grid2x2Wall({ event, posts }: Grid2x2WallProps) {
           </div>
         </div>
 
-        {/* FULLSCREEN BUTTON */}
+        {/* FULLSCREEN */}
         <div
           style={{
             position: 'fixed',
