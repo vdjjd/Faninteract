@@ -3,127 +3,143 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 
+/* ---------- TYPES ---------- */
 interface EventData {
   id: string;
   title: string | null;
-  status: string | null;
+  status: 'inactive' | 'live';
   countdown: string | null;
-  background_type: string | null;
+  countdown_active?: boolean;
+  background_type: 'gradient' | 'solid' | 'image' | null;
   background_value: string | null;
   logo_url: string | null;
   qr_url: string | null;
-  transition_speed?: string | null;
+  host_id: string;
   layout_type?: string | null;
 }
 
 interface SubmissionData {
   id: string;
-  event_id: string;
-  nickname: string | null;
-  message: string | null;
+  user_id: string | null;
+  event_id: string | null;
   photo_url: string | null;
-  status: string | null;
+  message: string | null;
+  nickname: string | null;
+  status?: string;
   created_at: string;
 }
 
-/**
- * Hook for fetching + subscribing to wall event + approved posts.
- * Keeps all walls + dashboard synced.
- */
-export function useWallData(eventId: string) {
+/* ---------- HOOK ---------- */
+export function useWallData(eventId: string | string[] | undefined) {
   const [event, setEvent] = useState<EventData | null>(null);
-  const [posts, setPosts] = useState<SubmissionData[]>([]);
+  const [submissions, setSubmissions] = useState<SubmissionData[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showLive, setShowLive] = useState(false);
 
-  /* ---------- INITIAL FETCH ---------- */
+  /* ---------- LOAD EVENT ---------- */
   useEffect(() => {
     if (!eventId) return;
 
-    async function fetchAll() {
-      setLoading(true);
-
-      // fetch event
-      const { data: eventData, error: eventError } = await supabase
+    async function loadEvent() {
+      const { data, error } = await supabase
         .from('events')
         .select('*')
         .eq('id', eventId)
         .single();
 
-      if (eventError) console.error('Error loading event:', eventError);
-      else setEvent(eventData);
+      if (error) console.error('❌ Error loading event:', error);
+      if (data) {
+        setEvent(data);
+        setShowLive(data.status === 'live');
+      }
+      setLoading(false);
+    }
 
-      // fetch approved posts
-      const { data: postData, error: postError } = await supabase
+    loadEvent();
+  }, [eventId]);
+
+  /* ---------- REALTIME EVENT UPDATES ---------- */
+  useEffect(() => {
+    if (!eventId) return;
+    let mounted = true;
+
+    const channel = supabase
+      .channel(`events-live-${eventId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'events',
+          filter: `id=eq.${eventId}`,
+        },
+        (payload) => {
+          if (!mounted) return;
+          const updated = payload.new as EventData;
+          setEvent((prev) => ({ ...prev, ...updated }));
+          setShowLive(updated.status === 'live');
+        }
+      )
+      .subscribe();
+
+    return () => {
+      mounted = false;
+      supabase.removeChannel(channel);
+    };
+  }, [eventId]);
+
+  /* ---------- REALTIME SUBMISSIONS ---------- */
+  useEffect(() => {
+    if (!eventId) return;
+
+    async function loadSubs() {
+      const { data, error } = await supabase
         .from('submissions')
         .select('*')
         .eq('event_id', eventId)
         .eq('status', 'approved')
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: true });
 
-      if (postError) console.error('Error loading posts:', postError);
-      else setPosts(postData || []);
-
-      setLoading(false);
+      if (error) console.error('❌ Error loading submissions:', error);
+      if (data) setSubmissions(data);
     }
 
-    fetchAll();
-  }, [eventId]);
+    loadSubs();
 
-  /* ---------- REALTIME SUBSCRIPTION ---------- */
-  useEffect(() => {
-    if (!eventId) return;
+    const channel = supabase
+      .channel(`submissions-realtime-${eventId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'submissions',
+          filter: `event_id=eq.${eventId}`,
+        },
+        (payload) => {
+          const updated = payload.new as SubmissionData;
 
-    // channel for realtime changes
-    const channel = supabase.channel(`wall-${eventId}`);
-
-    // 🔁 Watch for new approved posts
-    channel.on(
-      'postgres_changes',
-      { event: 'INSERT', schema: 'public', table: 'submissions' },
-      (payload: any) => {
-        if (payload.new?.event_id === eventId && payload.new?.status === 'approved') {
-          setPosts((prev) => [payload.new, ...prev]);
-        }
-      }
-    );
-
-    // 🧹 Watch for post updates (like approvals)
-    channel.on(
-      'postgres_changes',
-      { event: 'UPDATE', schema: 'public', table: 'submissions' },
-      (payload: any) => {
-        if (payload.new?.event_id !== eventId) return;
-        setPosts((prev) => {
-          const idx = prev.findIndex((p) => p.id === payload.new.id);
-          if (idx >= 0) {
-            const copy = [...prev];
-            copy[idx] = payload.new;
-            return copy;
-          } else if (payload.new.status === 'approved') {
-            return [payload.new, ...prev];
+          if (updated.status === 'approved') {
+            setSubmissions((prev) => {
+              const exists = prev.find((p) => p.id === updated.id);
+              return exists
+                ? prev.map((p) => (p.id === updated.id ? updated : p))
+                : [...prev, updated];
+            });
+          } else if (
+            payload.eventType === 'DELETE' ||
+            updated.status !== 'approved'
+          ) {
+            setSubmissions((prev) => prev.filter((p) => p.id !== updated.id));
           }
-          return prev;
-        });
-      }
-    );
-
-    // 🧩 Watch for event updates (background, countdown, etc.)
-    channel.on(
-      'postgres_changes',
-      { event: 'UPDATE', schema: 'public', table: 'events' },
-      (payload: any) => {
-        if (payload.new?.id === eventId) {
-          setEvent(payload.new);
         }
-      }
-    );
-
-    channel.subscribe();
+      )
+      .subscribe();
 
     return () => {
       supabase.removeChannel(channel);
     };
   }, [eventId]);
 
-  return { event, posts, loading };
+  return { event, submissions, loading, showLive };
 }
