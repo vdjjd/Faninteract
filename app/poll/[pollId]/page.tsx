@@ -192,7 +192,8 @@ export default function PollWallPage() {
           exit={{ opacity: 0 }}
           transition={{ duration: 1.2 }}
         >
-          {poll.layout_type === 'Vertical' ? (
+          {/* ✅ Corrected layout selector */}
+          {poll.layout === 'vertical' ? (
             <LivePollVertical poll={poll} />
           ) : (
             <LivePollHorizontal poll={poll} />
