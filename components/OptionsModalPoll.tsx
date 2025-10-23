@@ -33,7 +33,10 @@ export default function OptionsModalPoll({
 }: OptionsModalPollProps) {
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
-  const [localEvent, setLocalEvent] = useState<any>({ ...event });
+  const [localEvent, setLocalEvent] = useState<any>({
+    ...event,
+    layout_direction: event.layout_direction || 'horizontal',
+  });
 
   const [pollOptions, setPollOptions] = useState<PollOption[]>(
     event.options?.length
@@ -52,14 +55,14 @@ export default function OptionsModalPoll({
     [pollOptions]
   );
 
-  /* ---------- Text Change ---------- */
+  /* ---------- Update Text ---------- */
   function handleTextChange(idx: number, text: string) {
     setPollOptions((prev) =>
       prev.map((opt, i) => (i === idx ? { ...opt, text } : opt))
     );
   }
 
-  /* ---------- Color Change ---------- */
+  /* ---------- Update Color ---------- */
   function handleColorChange(idx: number, color: string) {
     setPollOptions((prev) =>
       prev.map((opt, i) => (i === idx ? { ...opt, color } : opt))
@@ -88,7 +91,7 @@ export default function OptionsModalPoll({
     });
   }
 
-  /* ---------- Save ---------- */
+  /* ---------- Save Poll ---------- */
   async function handleSave() {
     setSaving(true);
     const updates = {
@@ -97,6 +100,7 @@ export default function OptionsModalPoll({
       countdown: localEvent.countdown || null,
       countdown_active: false,
       duration: localEvent.duration || null,
+      layout_direction: localEvent.layout_direction || 'horizontal',
       options: pollOptions,
       updated_at: new Date().toISOString(),
     };
@@ -119,6 +123,7 @@ export default function OptionsModalPoll({
     try {
       const file = e.target.files?.[0];
       if (!file) return;
+
       if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
         alert('Please upload a JPG, PNG, or WEBP file.');
         return;
@@ -164,7 +169,7 @@ export default function OptionsModalPoll({
     }
   }
 
-  /* ---------- Background Color Change ---------- */
+  /* ---------- Background Change ---------- */
   async function handleBackgroundChange(
     type: 'solid' | 'gradient',
     value: string
@@ -188,7 +193,7 @@ export default function OptionsModalPoll({
       >
         <h3 className="text-center text-xl font-bold mb-4">⚙ Edit Live Poll</h3>
 
-        {/* Title */}
+        {/* Titles */}
         <label className="block text-sm">Poll Title (Private):</label>
         <input
           type="text"
@@ -249,7 +254,23 @@ export default function OptionsModalPoll({
           )}
         </select>
 
-        {/* Number of Answers */}
+        {/* 🆕 Layout Direction */}
+        <label className="block text-sm mt-3">Poll Layout Direction:</label>
+        <select
+          className="w-full p-2 rounded-md text-black mt-1"
+          value={localEvent.layout_direction || 'horizontal'}
+          onChange={(e) =>
+            setLocalEvent({
+              ...localEvent,
+              layout_direction: e.target.value,
+            })
+          }
+        >
+          <option value="horizontal">Horizontal (Left to Right)</option>
+          <option value="vertical">Vertical (Bottom to Top)</option>
+        </select>
+
+        {/* Number of Answer Choices */}
         <label className="block text-sm mt-4">Number of Answer Choices:</label>
         <select
           className="w-full p-2 rounded-md text-black mt-1"
@@ -298,7 +319,7 @@ export default function OptionsModalPoll({
           ))}
         </div>
 
-        {/* Background Options */}
+        {/* 🎨 Background Colors */}
         <h4 className="mt-5 text-sm font-semibold">🎨 Background Colors</h4>
         <div className="grid grid-cols-8 gap-2 mt-2">
           {[
@@ -314,6 +335,7 @@ export default function OptionsModalPoll({
           ))}
         </div>
 
+        {/* 🌈 Gradient Presets */}
         <h4 className="mt-4 text-sm font-semibold">🌈 Gradient Presets</h4>
         <div className="grid grid-cols-8 gap-2 mt-2">
           {[
