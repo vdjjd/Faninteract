@@ -22,7 +22,14 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
   const [postPointer, setPostPointer] = useState(0);
   const [isTransitioning, setIsTransitioning] = useState(false);
 
-  const displayDelay = speedMap[event?.transition_speed || 'Medium'] || 8000;
+// ---------- DYNAMIC SPEED ----------
+const [displayDelay, setDisplayDelay] = useState(
+  speedMap[event?.transition_speed || 'Medium'] || 8000
+);
+
+useEffect(() => {
+  setDisplayDelay(speedMap[event?.transition_speed || 'Medium'] || 8000);
+}, [event?.transition_speed]);
   const fadeDuration = 1200; // 1.2s cinematic fade
 
   /* ---------- INITIAL POPULATION ---------- */
