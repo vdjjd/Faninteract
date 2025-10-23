@@ -35,7 +35,7 @@ export default function OptionsModalPoll({
   const [uploading, setUploading] = useState(false);
   const [localEvent, setLocalEvent] = useState<any>({
     ...event,
-    layout_direction: event.layout_direction || 'horizontal',
+    layout_direction: event.layout || 'horizontal', // ✅ match DB column
   });
 
   const [pollOptions, setPollOptions] = useState<PollOption[]>(
@@ -74,7 +74,6 @@ export default function OptionsModalPoll({
     setOptionCount(newCount);
     setPollOptions((prev) => {
       const updated = [...prev];
-
       if (newCount > prev.length) {
         for (let i = prev.length; i < newCount; i++) {
           updated.push({
@@ -86,36 +85,48 @@ export default function OptionsModalPoll({
       } else if (newCount < prev.length) {
         updated.splice(newCount);
       }
-
       return updated;
     });
   }
 
   /* ---------- Save Poll ---------- */
   async function handleSave() {
-    setSaving(true);
-    const updates = {
-      host_title: localEvent.host_title?.trim() || event.host_title || 'Untitled Poll',
-      title: localEvent.title?.trim() || event.title || 'Untitled Question',
-      countdown: localEvent.countdown || null,
-      countdown_active: false,
-      duration: localEvent.duration || null,
-      layout_direction: localEvent.layout_direction || 'horizontal',
-      options: pollOptions,
-      updated_at: new Date().toISOString(),
-    };
+    try {
+      setSaving(true);
 
-    const { error } = await supabase.from('polls').update(updates).eq('id', localEvent.id);
-    if (error) {
-      console.error('❌ Error saving poll:', error);
-      alert('Failed to save poll settings.');
-    } else {
-      console.log('✅ Poll saved successfully.');
+      const updates = {
+        host_title:
+          localEvent.host_title?.trim() || event.host_title || 'Untitled Poll',
+        title:
+          localEvent.title?.trim() || event.title || 'Untitled Question',
+        countdown: localEvent.countdown || null,
+        countdown_active: false,
+        duration:
+          typeof localEvent.duration === 'string'
+            ? parseInt(localEvent.duration)
+            : localEvent.duration || 0,
+        layout: localEvent.layout_direction || 'horizontal', // ✅ fixed
+        options: pollOptions,
+        updated_at: new Date().toISOString(),
+      };
+
+      const { data, error } = await supabase
+        .from('polls')
+        .update(updates)
+        .eq('id', localEvent.id)
+        .select();
+
+      if (error) throw error;
+
+      console.log('✅ Poll saved successfully:', data);
+      await refreshEvents();
+      onClose();
+    } catch (err) {
+      console.error('❌ Error saving poll:', err);
+      alert('Failed to save poll settings. Check console for details.');
+    } finally {
+      setSaving(false);
     }
-
-    await refreshEvents();
-    setSaving(false);
-    onClose();
   }
 
   /* ---------- Upload Background ---------- */
@@ -147,23 +158,28 @@ export default function OptionsModalPoll({
         .from('wall-backgrounds')
         .getPublicUrl(filePath);
 
-      await supabase
+      const { error: updateError } = await supabase
         .from('polls')
         .update({
           background_type: 'image',
           background_value: publicUrl.publicUrl,
           background_url: publicUrl.publicUrl,
+          updated_at: new Date().toISOString(),
         })
         .eq('id', localEvent.id);
+
+      if (updateError) throw updateError;
 
       setLocalEvent({
         ...localEvent,
         background_type: 'image',
         background_value: publicUrl.publicUrl,
       });
+
+      console.log('✅ Background uploaded successfully.');
     } catch (err) {
       console.error('❌ Upload error:', err);
-      alert('Upload failed.');
+      alert('Upload failed. Check console for details.');
     } finally {
       setUploading(false);
     }
