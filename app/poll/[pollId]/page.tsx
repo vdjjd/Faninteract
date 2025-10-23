@@ -3,9 +3,8 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
-import { motion, AnimatePresence } from 'framer-motion';
 import InactivePollWall from '@/app/wall/components/polls/InactivePollWall';
-import LivePollWall from '../components/LivePollWall'; // ✅ New import for live view
+import LivePollWall from '../components/LivePollWall'; // ✅ Live view component
 
 /* ---------- COUNTDOWN DISPLAY ---------- */
 function CountdownDisplay({
@@ -82,7 +81,7 @@ export default function PollWallPage() {
   useEffect(() => {
     if (!pollId) return;
 
-    async function fetchPoll() {
+    const fetchPoll = async () => {
       const { data, error } = await supabase
         .from('polls')
         .select('*')
@@ -96,7 +95,7 @@ export default function PollWallPage() {
 
       setPoll(data);
       setOptions(data.options || []);
-    }
+    };
 
     fetchPoll();
 
@@ -105,7 +104,12 @@ export default function PollWallPage() {
       .channel('poll_realtime')
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: 'polls', filter: `id=eq.${pollId}` },
+        {
+          event: '*',
+          schema: 'public',
+          table: 'polls',
+          filter: `id=eq.${pollId}`,
+        },
         (payload) => {
           if (payload.new) {
             setPoll(payload.new);
@@ -115,14 +119,20 @@ export default function PollWallPage() {
       )
       .subscribe();
 
-    return () => supabase.removeChannel(channel);
+    // ✅ FIX: cleanup must NOT return a Promise
+    return () => {
+      void supabase.removeChannel(channel);
+    };
   }, [pollId]);
 
   /* ---------- STATE HANDLING ---------- */
-  if (!poll) return <div className="text-white text-center mt-10">Loading poll...</div>;
+  if (!poll)
+    return (
+      <div className="text-white text-center mt-10">Loading poll...</div>
+    );
 
   if (poll.status === 'inactive') return <InactivePollWall poll={poll} />;
-  if (poll.status === 'live') return <LivePollWall poll={poll} />; // ✅ Now routed to new component
+  if (poll.status === 'live') return <LivePollWall poll={poll} />;
 
   /* ---------- CLOSED POLL ---------- */
   return (
@@ -132,7 +142,8 @@ export default function PollWallPage() {
         background:
           poll.background_type === 'image'
             ? `url(${poll.background_value}) center/cover no-repeat`
-            : poll.background_value || 'linear-gradient(to bottom right,#1b2735,#090a0f)',
+            : poll.background_value ||
+              'linear-gradient(to bottom right,#1b2735,#090a0f)',
       }}
     >
       <h1 className="text-5xl font-extrabold text-white drop-shadow-lg text-center">
