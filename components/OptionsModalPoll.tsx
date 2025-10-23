@@ -8,7 +8,6 @@ const DEFAULT_GRADIENT = 'linear-gradient(135deg,#0d47a1,#1976d2)';
 const BAR_COLORS = [
   '#00338D', '#C60C30', '#203731', '#FFB612',
   '#0B2265', '#A71930', '#03202F', '#FB4F14',
-  '#002C5F', '#FFC20E', '#004C54', '#A5ACAF'
 ];
 
 interface OptionsModalPollProps {
@@ -35,58 +34,80 @@ export default function OptionsModalPoll({
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [localEvent, setLocalEvent] = useState<any>({ ...event });
+
+  // 🟢 Initialize poll options
   const [pollOptions, setPollOptions] = useState<PollOption[]>(
-    localEvent.options ||
-      Array.from({ length: 4 }, (_, i) => ({
-        id: i + 1,
-        text: `Option ${i + 1}`,
-        color: BAR_COLORS[i],
-      }))
+    event.options && event.options.length > 0
+      ? event.options
+      : Array.from({ length: 4 }, (_, i) => ({
+          id: i + 1,
+          text: `Option ${i + 1}`,
+          color: BAR_COLORS[i],
+        }))
   );
 
-  /* ---------- UPDATE OPTION ---------- */
+  const [optionCount, setOptionCount] = useState<number>(pollOptions.length);
+
+  /* ---------- Update Text ---------- */
   function handleTextChange(idx: number, text: string) {
     setPollOptions((prev) =>
       prev.map((opt, i) => (i === idx ? { ...opt, text } : opt))
     );
   }
 
+  /* ---------- Update Color ---------- */
   function handleColorChange(idx: number, color: string) {
     setPollOptions((prev) =>
       prev.map((opt, i) => (i === idx ? { ...opt, color } : opt))
     );
   }
 
-  /* ---------- SAVE POLL ---------- */
+  /* ---------- Handle Option Count Change ---------- */
+  function handleOptionCountChange(newCount: number) {
+    setOptionCount(newCount);
+    setPollOptions((prev) => {
+      const updated = [...prev];
+
+      // Add new options if count increased
+      if (newCount > prev.length) {
+        for (let i = prev.length; i < newCount; i++) {
+          updated.push({
+            id: i + 1,
+            text: `Option ${i + 1}`,
+            color: BAR_COLORS[i % BAR_COLORS.length],
+          });
+        }
+      }
+
+      // Remove extra options if count decreased
+      if (newCount < prev.length) {
+        updated.splice(newCount);
+      }
+
+      return updated;
+    });
+  }
+
+  /* ---------- Save Poll ---------- */
   async function handleSave() {
     setSaving(true);
 
-    const countdownValue =
-      localEvent.countdown && localEvent.countdown !== 'none'
-        ? String(localEvent.countdown)
-        : null;
-
-    // 🟢 separate private (host_title) and public (title)
     const updates = {
       host_title: localEvent.host_title?.trim() || event.host_title || 'Untitled Poll',
       title: localEvent.title?.trim() || event.title || 'Untitled Question',
-      countdown: countdownValue,
+      countdown: localEvent.countdown || null,
       countdown_active: false,
       duration: localEvent.duration || null,
       options: pollOptions,
       updated_at: new Date().toISOString(),
     };
 
-    const { error } = await supabase
-      .from('polls')
-      .update(updates)
-      .eq('id', localEvent.id);
-
+    const { error } = await supabase.from('polls').update(updates).eq('id', localEvent.id);
     if (error) {
-      console.error('❌ Supabase update error:', error);
-      alert('Error saving poll settings.');
+      console.error('❌ Error saving poll:', error);
+      alert('Failed to save poll settings.');
     } else {
-      console.log('✅ Poll saved successfully');
+      console.log('✅ Poll saved successfully.');
     }
 
     await refreshEvents();
@@ -94,7 +115,7 @@ export default function OptionsModalPoll({
     onClose();
   }
 
-  /* ---------- IMAGE UPLOAD ---------- */
+  /* ---------- Upload Image ---------- */
   async function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
     try {
       const file = e.target.files?.[0];
@@ -145,7 +166,7 @@ export default function OptionsModalPoll({
     }
   }
 
-  /* ---------- BACKGROUND ---------- */
+  /* ---------- Background Change ---------- */
   async function handleBackgroundChange(
     type: 'solid' | 'gradient',
     value: string
@@ -162,206 +183,149 @@ export default function OptionsModalPoll({
 
   /* ---------- UI ---------- */
   return (
-    <>
-      <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 backdrop-blur-md">
-        <div
-          className="bg-gradient-to-br from-[#0a2540] to-[#1b2b44] border border-blue-400 p-6 rounded-2xl shadow-2xl w-[480px] text-white animate-fadeIn overflow-y-auto max-h-[90vh]"
-          style={{ background: localEvent.background_value || DEFAULT_GRADIENT }}
+    <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 backdrop-blur-md">
+      <div
+        className="bg-gradient-to-br from-[#0a2540] to-[#1b2b44] border border-blue-400 p-6 rounded-2xl shadow-2xl w-[500px] text-white animate-fadeIn overflow-y-auto max-h-[90vh]"
+        style={{ background: localEvent.background_value || DEFAULT_GRADIENT }}
+      >
+        <h3 className="text-center text-xl font-bold mb-4">⚙ Edit Live Poll</h3>
+
+        {/* Title */}
+        <label className="block text-sm mt-2">Poll Title (Private):</label>
+        <input
+          type="text"
+          value={localEvent.host_title || ''}
+          onChange={(e) =>
+            setLocalEvent({ ...localEvent, host_title: e.target.value })
+          }
+          className="w-full p-2 rounded-md text-black mt-1"
+        />
+
+        <label className="block text-sm mt-3">Public Question:</label>
+        <input
+          type="text"
+          value={localEvent.title || ''}
+          onChange={(e) =>
+            setLocalEvent({ ...localEvent, title: e.target.value })
+          }
+          className="w-full p-2 rounded-md text-black mt-1"
+        />
+
+        {/* Countdown */}
+        <label className="block text-sm mt-3">Countdown (Before Start):</label>
+        <select
+          className="w-full p-2 rounded-md text-black mt-1"
+          value={localEvent.countdown || 'none'}
+          onChange={(e) =>
+            setLocalEvent({
+              ...localEvent,
+              countdown: e.target.value === 'none' ? null : e.target.value,
+            })
+          }
         >
-          <h3 className="text-center text-xl font-bold mb-3">⚙ Edit Live Poll</h3>
+          <option value="none">No Countdown / Start Immediately</option>
+          {['30 Seconds', '1 Minute', '2 Minutes', '3 Minutes', '5 Minutes'].map((opt) => (
+            <option key={opt}>{opt}</option>
+          ))}
+        </select>
 
-          {/* ---- Titles ---- */}
-          <label className="block mt-2 text-sm">Poll Title (Private):</label>
-          <input
-            type="text"
-            value={localEvent.host_title || ''}
-            onChange={(e) =>
-              setLocalEvent({ ...localEvent, host_title: e.target.value })
-            }
-            className="w-full p-2 rounded-md text-black mt-1"
-          />
-
-          <label className="block mt-3 text-sm">Public Question:</label>
-          <input
-            type="text"
-            value={localEvent.title || ''}
-            onChange={(e) =>
-              setLocalEvent({ ...localEvent, title: e.target.value })
-            }
-            className="w-full p-2 rounded-md text-black mt-1"
-          />
-
-          {/* ---- Countdown ---- */}
-          <label className="block mt-3 text-sm">
-            Countdown (Before Poll Starts):
-          </label>
-          <select
-            className="w-full p-2 rounded-md text-black mt-1"
-            value={localEvent.countdown || 'none'}
-            onChange={(e) =>
-              setLocalEvent({
-                ...localEvent,
-                countdown: e.target.value === 'none' ? null : e.target.value,
-              })
-            }
-          >
-            <option value="none">No Countdown / Start Immediately</option>
-            {[
-              '30 Seconds',
-              '1 Minute',
-              '2 Minutes',
-              '3 Minutes',
-              '4 Minutes',
-              '5 Minutes',
-              '10 Minutes',
-              '15 Minutes',
-              '20 Minutes',
-              '25 Minutes',
-              '30 Minutes',
-              '45 Minutes',
-              '60 Minutes',
-            ].map((opt) => (
+        {/* Duration */}
+        <label className="block text-sm mt-3">Poll Duration:</label>
+        <select
+          className="w-full p-2 rounded-md text-black mt-1"
+          value={localEvent.duration || 'none'}
+          onChange={(e) =>
+            setLocalEvent({
+              ...localEvent,
+              duration: e.target.value === 'none' ? null : e.target.value,
+            })
+          }
+        >
+          <option value="none">Manual Stop (Host Controlled)</option>
+          {['5 Minutes', '10 Minutes', '15 Minutes', '20 Minutes', '30 Minutes'].map(
+            (opt) => (
               <option key={opt}>{opt}</option>
-            ))}
-          </select>
+            )
+          )}
+        </select>
 
-          {/* ---- Duration ---- */}
-          <label className="block mt-3 text-sm">Poll Duration:</label>
-          <select
-            className="w-full p-2 rounded-md text-black mt-1"
-            value={localEvent.duration || 'none'}
-            onChange={(e) =>
-              setLocalEvent({
-                ...localEvent,
-                duration: e.target.value === 'none' ? null : e.target.value,
-              })
-            }
-          >
-            <option value="none">Manual Stop (Host Controlled)</option>
-            {[
-              '5 Minutes',
-              '10 Minutes',
-              '15 Minutes',
-              '20 Minutes',
-              '25 Minutes',
-              '30 Minutes',
-              '45 Minutes',
-              '60 Minutes',
-            ].map((opt) => (
-              <option key={opt}>{opt}</option>
-            ))}
-          </select>
+        {/* Number of Answer Choices */}
+        <label className="block text-sm mt-4">Number of Answer Choices:</label>
+        <select
+          className="w-full p-2 rounded-md text-black mt-1"
+          value={optionCount}
+          onChange={(e) => handleOptionCountChange(parseInt(e.target.value))}
+        >
+          {[2, 3, 4, 5, 6, 7, 8].map((num) => (
+            <option key={num} value={num}>
+              {num}
+            </option>
+          ))}
+        </select>
 
-          {/* ---- Poll Options ---- */}
-          <h4 className="mt-5 text-sm font-semibold">🗳 Poll Options & Colors</h4>
-          <div className="flex flex-col gap-2 mt-2">
-            {pollOptions.map((opt, idx) => (
-              <div key={opt.id} className="flex items-center gap-2">
-                <input
-                  type="text"
-                  value={opt.text}
-                  onChange={(e) => handleTextChange(idx, e.target.value)}
-                  className="flex-1 p-1 rounded-md text-black text-sm"
-                />
-                <div className="flex gap-1">
-                  {BAR_COLORS.slice(0, 6).map((c) => (
-                    <div
-                      key={c}
-                      onClick={() => handleColorChange(idx, c)}
-                      className={`w-5 h-5 rounded-full cursor-pointer border ${
-                        opt.color === c ? 'border-white' : 'border-gray-400'
-                      }`}
-                      style={{ background: c }}
-                    />
-                  ))}
-                </div>
+        {/* Poll Options */}
+        <h4 className="mt-5 text-sm font-semibold">🗳 Poll Options</h4>
+        <div className="flex flex-col gap-2 mt-2">
+          {pollOptions.slice(0, optionCount).map((opt, idx) => (
+            <div key={opt.id} className="flex items-center gap-2">
+              <input
+                type="text"
+                value={opt.text}
+                onChange={(e) => handleTextChange(idx, e.target.value)}
+                placeholder={`Option ${idx + 1}`}
+                className="flex-1 p-1 rounded-md text-black text-sm"
+              />
+              <div className="flex gap-1">
+                {BAR_COLORS.slice(0, 6).map((c) => (
+                  <div
+                    key={c}
+                    onClick={() => handleColorChange(idx, c)}
+                    className={`w-5 h-5 rounded-full cursor-pointer border ${
+                      opt.color === c ? 'border-white' : 'border-gray-400'
+                    }`}
+                    style={{ background: c }}
+                  />
+                ))}
               </div>
-            ))}
-          </div>
+            </div>
+          ))}
+        </div>
 
-          {/* ---- Background ---- */}
-          <h4 className="mt-5 text-sm font-semibold">🎨 Background Colors</h4>
-          <div className="grid grid-cols-8 gap-2 mt-2">
-            {[
-              '#e53935',
-              '#8e24aa',
-              '#1e88e5',
-              '#43a047',
-              '#fb8c00',
-              '#fdd835',
-              '#6d4c41',
-              '#00acc1',
-            ].map((c) => (
-              <div
-                key={c}
-                className="w-5 h-5 rounded-full cursor-pointer border border-white/30 hover:scale-110 transition"
-                style={{ background: c }}
-                onClick={() => handleBackgroundChange('solid', c)}
-              />
-            ))}
-          </div>
-
-          <h4 className="mt-4 text-sm font-semibold">🌈 Gradient Presets</h4>
-          <div className="grid grid-cols-8 gap-2 mt-2">
-            {[
-              'linear-gradient(135deg,#002244,#69BE28)',
-              'linear-gradient(135deg,#00338D,#C60C30)',
-              'linear-gradient(135deg,#0B2265,#A71930)',
-              'linear-gradient(135deg,#203731,#FFB612)',
-              'linear-gradient(135deg,#4F2683,#FFC62F)',
-              'linear-gradient(135deg,#241773,#9E7C0C)',
-              'linear-gradient(135deg,#03202F,#FB4F14)',
-              'linear-gradient(135deg,#002C5F,#FFC20E)',
-            ].map((g) => (
-              <div
-                key={g}
-                className="w-5 h-5 rounded-full cursor-pointer border border-white/30 hover:scale-110 transition"
-                style={{ background: g }}
-                onClick={() => handleBackgroundChange('gradient', g)}
-              />
-            ))}
-          </div>
-
-          {/* ---- Upload Image ---- */}
-          <div className="mt-6 text-center">
-            <p className="text-sm font-semibold mb-2">
-              Upload Custom Background
+        {/* Upload Background */}
+        <div className="mt-6 text-center">
+          <p className="text-sm font-semibold mb-2">Upload Custom Background</p>
+          <input
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            onChange={handleImageUpload}
+            className="text-sm text-center"
+          />
+          {uploading && (
+            <p className="text-yellow-400 text-xs mt-2 animate-pulse">
+              Uploading...
             </p>
-            <input
-              type="file"
-              accept="image/jpeg,image/png,image/webp"
-              onChange={handleImageUpload}
-              className="text-sm text-center"
-            />
-            {uploading && (
-              <p className="text-yellow-400 text-xs mt-2 animate-pulse">
-                Uploading...
-              </p>
-            )}
-          </div>
+          )}
+        </div>
 
-          {/* ---- Buttons ---- */}
-          <div className="text-center mt-5 flex justify-center gap-4">
-            <button
-              disabled={saving}
-              onClick={handleSave}
-              className={`${
-                saving
-                  ? 'bg-gray-500'
-                  : 'bg-green-600 hover:bg-green-700'
-              } px-4 py-2 rounded font-semibold`}
-            >
-              {saving ? 'Saving…' : '💾 Save'}
-            </button>
-            <button
-              onClick={onClose}
-              className="bg-red-600 hover:bg-red-700 px-4 py-2 rounded font-semibold"
-            >
-              ✖ Close
-            </button>
-          </div>
+        {/* Buttons */}
+        <div className="text-center mt-6 flex justify-center gap-4">
+          <button
+            disabled={saving}
+            onClick={handleSave}
+            className={`${
+              saving ? 'bg-gray-500' : 'bg-green-600 hover:bg-green-700'
+            } px-4 py-2 rounded font-semibold`}
+          >
+            {saving ? 'Saving…' : '💾 Save'}
+          </button>
+          <button
+            onClick={onClose}
+            className="bg-red-600 hover:bg-red-700 px-4 py-2 rounded font-semibold"
+          >
+            ✖ Close
+          </button>
         </div>
       </div>
-    </>
+    </div>
   );
 }
