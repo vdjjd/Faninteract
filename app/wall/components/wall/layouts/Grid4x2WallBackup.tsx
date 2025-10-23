@@ -52,10 +52,10 @@ useEffect(() => {
     [3, 7],
   ];
 
-  // 👇 Declare outside so TypeScript recognizes it
-  let active = true; // prevents overlap if speed changes mid-loop
+  // 👇 Explicit type fixes TS complaint
+  let active: boolean = true; // prevents overlap if speed changes mid-loop
 
-  async function runPair(pairIdx: number) {
+  async function runPair(pairIdx: number): Promise<void> {
     if (!active) return;
     setIsTransitioning(true);
 
