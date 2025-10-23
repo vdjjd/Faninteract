@@ -34,53 +34,55 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
     setPostPointer(8 % posts.length);
   }, [posts]);
 
-  /* ---------- SEQUENTIAL PAIRED FADE LOGIC ---------- */
-  useEffect(() => {
-    if (!posts || posts.length === 0 || isTransitioning) return;
+ /* ---------- SEQUENTIAL PAIRED FADE LOGIC ---------- */
+useEffect(() => {
+  if (!posts || posts.length === 0 || isTransitioning) return;
 
-    const pairs = [
-      [0, 4],
-      [1, 5],
-      [2, 6],
-      [3, 7],
-    ];
+  const pairs = [
+    [0, 4],
+    [1, 5],
+    [2, 6],
+    [3, 7],
+  ];
 
-    async function runPair(pairIdx: number) {
-      setIsTransitioning(true);
-      const [top, bottom] = pairs[pairIdx];
-      const nextPost = posts[postPointer % posts.length];
+  async function runPair(pairIdx: number) {
+    setIsTransitioning(true);
+    const [top, bottom] = pairs[pairIdx];
+    const nextPost = posts[postPointer % posts.length];
 
-      await fadeOutCell(bottom);
-      await new Promise((r) => setTimeout(r, 300)); // overlap delay
-      await fadeOutCell(top);
+    await fadeOutCell(bottom);
+    await new Promise((r) => setTimeout(r, 300)); // overlap delay
+    await fadeOutCell(top);
 
-      // swap bottom with top’s old post
-      setGridPosts((prev) => {
-        const updated = [...prev];
-        updated[bottom] = prev[top];
-        return updated;
-      });
-      await fadeInCell(bottom);
+    // swap bottom with top’s old post
+    setGridPosts((prev) => {
+      const updated = [...prev];
+      updated[bottom] = prev[top];
+      return updated;
+    });
+    await fadeInCell(bottom);
 
-      // top gets new post
-      setGridPosts((prev) => {
-        const updated = [...prev];
-        updated[top] = nextPost;
-        return updated;
-      });
-      await fadeInCell(top);
+    // top gets new post
+    setGridPosts((prev) => {
+      const updated = [...prev];
+      updated[top] = nextPost;
+      return updated;
+    });
+    await fadeInCell(top);
 
-setPostPointer((p) => (p + 1) % posts.length);
+    setPostPointer((p) => (p + 1) % posts.length);
 
-// ✅ moved delay *after* pairIndex update for pacing between each grouped transition
-setIsTransitioning(false);
-setPairIndex((prev) => (prev + 1) % pairs.length);
-await new Promise((r) =>
-  setTimeout(r, speedMap[event?.transition_speed || 'Medium'] || 8000)
-);
+    // ✅ moved delay *after* pairIndex update for pacing between each grouped transition
+    setIsTransitioning(false);
+    setPairIndex((prev) => (prev + 1) % pairs.length);
+    await new Promise((r) =>
+      setTimeout(r, speedMap[event?.transition_speed || 'Medium'] || 8000)
+    );
+  } // 👈 closes async function
 
-    runPair(pairIndex);
-  }, [pairIndex, posts, postPointer, event?.transition_speed]);
+  runPair(pairIndex);
+}, [pairIndex, posts, postPointer, event?.transition_speed]); // 👈 closes useEffect
+
 
   /* ---------- FADE HELPERS ---------- */
   function fadeOutCell(index: number) {
