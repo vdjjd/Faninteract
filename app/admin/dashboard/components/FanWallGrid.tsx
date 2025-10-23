@@ -11,55 +11,120 @@ interface FanWallGridProps {
 }
 
 export default function FanWallGrid({ events, host, refreshEvents, onOpenOptions }: FanWallGridProps) {
+  /* ---------- OPEN WALL ---------- */
   async function handleLaunch(id: string) {
     const url = `${window.location.origin}/wall/${id}`;
     const popup = window.open(url, '_blank', 'width=1280,height=800,left=100,top=100');
     popup?.focus();
   }
 
+  /* ---------- PLAY ---------- */
   async function handleStart(id: string) {
-    const { data: current, error } = await supabase
-      .from('events')
-      .select('countdown')
-      .eq('id', id)
-      .single();
-
-    if (error) return console.error('❌ Error fetching event before start:', error);
-
-    if (current?.countdown && current.countdown !== 'none') {
-      await supabase
+    try {
+      // fetch event to check countdown
+      const { data: current, error } = await supabase
         .from('events')
-        .update({ countdown_active: true, updated_at: new Date().toISOString() })
-        .eq('id', id);
-    } else {
-      await supabase
-        .from('events')
-        .update({ status: 'live', countdown_active: false, updated_at: new Date().toISOString() })
-        .eq('id', id);
+        .select('countdown')
+        .eq('id', id)
+        .single();
+
+      if (error) {
+        console.error('❌ Error fetching event before start:', error);
+        return;
+      }
+
+      // has countdown?
+      if (current?.countdown && current.countdown !== 'none') {
+        await supabase
+          .from('events')
+          .update({
+            countdown_active: true,
+            status: 'inactive',
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', id);
+      } else {
+        // go live instantly
+        await supabase
+          .from('events')
+          .update({
+            status: 'live',
+            countdown_active: false,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', id);
+
+        // ✅ broadcast realtime change immediately
+        supabase.channel('events-realtime').send({
+          type: 'broadcast',
+          event: 'event_status_changed',
+          payload: { id, status: 'live' },
+        });
+      }
+
+      await refreshEvents();
+    } catch (err) {
+      console.error('❌ Error starting wall:', err);
     }
-
-    await refreshEvents();
   }
 
+  /* ---------- STOP ---------- */
   async function handleStop(id: string) {
-    await supabase
-      .from('events')
-      .update({ status: 'inactive', countdown_active: false, updated_at: new Date().toISOString() })
-      .eq('id', id);
+    try {
+      await supabase
+        .from('events')
+        .update({
+          status: 'inactive',
+          countdown_active: false,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', id);
 
-    await refreshEvents();
+      // ✅ broadcast realtime change immediately
+      supabase.channel('events-realtime').send({
+          type: 'broadcast',
+          event: 'event_status_changed',
+          payload: { id, status: 'inactive' },
+      });
+
+      await refreshEvents();
+    } catch (err) {
+      console.error('❌ Error stopping wall:', err);
+    }
   }
 
+  /* ---------- CLEAR ---------- */
   async function handleClear(id: string) {
     await clearEventPosts(id);
     await refreshEvents();
   }
 
+  /* ---------- DELETE ---------- */
   async function handleDelete(id: string) {
     await deleteEvent(id);
     await refreshEvents();
   }
 
+  /* ---------- SUBSCRIBE TO REALTIME PENDING UPDATES ---------- */
+  useEffect(() => {
+    const channel = supabase
+      .channel('submissions-pending')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'submissions' },
+        async (payload) => {
+          // refresh dashboard counts on any insert/update/delete
+          await refreshEvents();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
+
+  /* ---------- RENDER ---------- */
   return (
     <div className="mt-10 w-full max-w-6xl">
       <h2 className="text-xl font-semibold mb-3">🎤 Fan Zone Walls</h2>
@@ -97,7 +162,7 @@ export default function FanWallGrid({ events, host, refreshEvents, onOpenOptions
                 </span>
               </p>
 
-              {/* Pending Button Centered */}
+              {/* Pending Button */}
               <div className="flex justify-center mb-3">
                 <button
                   onClick={() => window.open(`/admin/moderation/${event.id}`, '_blank')}
