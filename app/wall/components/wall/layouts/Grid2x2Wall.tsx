@@ -21,8 +21,14 @@ export default function Grid2x2Wall({ event, posts }: Grid2x2WallProps) {
   const [gridPosts, setGridPosts] = useState<(any | null)[]>([null, null, null, null]);
   const [postIndex, setPostIndex] = useState(0);
   const [cellIndex, setCellIndex] = useState(0);
+  const [displayDuration, setDisplayDuration] = useState(
+    speedMap[event?.transition_speed || 'Medium'] || 8000
+  );
 
-  const displayDuration = speedMap[event?.transition_speed || 'Medium'] || 8000;
+  /* ---------- UPDATE SPEED DYNAMICALLY ---------- */
+  useEffect(() => {
+    setDisplayDuration(speedMap[event?.transition_speed || 'Medium'] || 8000);
+  }, [event?.transition_speed]);
 
   /* ---------- FADE DURATIONS BY SPEED ---------- */
   const fadeDurations: Record<string, number> = {
@@ -57,7 +63,7 @@ export default function Grid2x2Wall({ event, posts }: Grid2x2WallProps) {
       setCellIndex((prev) => (prev + 1) % order.length);
     }, displayDuration);
     return () => clearInterval(interval);
-  }, [posts, cellIndex, postIndex, displayDuration]);
+  }, [posts, cellIndex, postIndex, displayDuration]); // ✅ depend on displayDuration so new speed applies instantly
 
   /* ---------- BACKGROUND ---------- */
   const bg =
@@ -89,115 +95,115 @@ export default function Grid2x2Wall({ event, posts }: Grid2x2WallProps) {
           backdropFilter: 'blur(10px)',
           border: '1px solid rgba(255,255,255,0.15)',
           boxShadow:
-            '0 0 20px rgba(255,255,255,0.1), 0 0 30px rgba(100,180,255,0.15)', // glass edge glow
+            '0 0 20px rgba(255,255,255,0.1), 0 0 30px rgba(100,180,255,0.15)',
         }}
       >
-       {/* LEFT: PHOTO */}
-<div
-  style={{
-    flex: 1,
-    position: 'relative',
-    padding: '2px 0 2px 2px', // top, right, bottom, left
-    boxSizing: 'border-box',
-  }}
->
-  {post.photo_url ? (
-    <img
-      src={post.photo_url}
-      alt="Guest submission"
-      style={{
-        width: '100%',
-        height: '100%',
-        objectFit: 'cover',
-        display: 'block',
-        opacity: 0.9,
-        borderRadius: 10, // match card rounding with inner inset
-      }}
-    />
-  ) : (
-    <div
-      style={{
-        width: '100%',
-        height: '100%',
-        background: 'rgba(255,255,255,0.05)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        color: '#999',
-        fontSize: '1rem',
-        borderRadius: 10,
-      }}
-    >
-      No photo
-    </div>
-  )}
-</div>
+        {/* LEFT: PHOTO */}
+        <div
+          style={{
+            flex: 1,
+            position: 'relative',
+            padding: '2px 0 2px 2px',
+            boxSizing: 'border-box',
+          }}
+        >
+          {post.photo_url ? (
+            <img
+              src={post.photo_url}
+              alt="Guest submission"
+              style={{
+                width: '100%',
+                height: '100%',
+                objectFit: 'cover',
+                display: 'block',
+                opacity: 0.9,
+                borderRadius: 10,
+              }}
+            />
+          ) : (
+            <div
+              style={{
+                width: '100%',
+                height: '100%',
+                background: 'rgba(255,255,255,0.05)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#999',
+                fontSize: '1rem',
+                borderRadius: 10,
+              }}
+            >
+              No photo
+            </div>
+          )}
+        </div>
 
-{/* RIGHT: NAME + MESSAGE */}
-<div
-  style={{
-    flex: 1,
-    display: 'flex',
-    flexDirection: 'column',
-    justifyContent: 'space-between',
-    background: 'rgba(0,0,0,0.25)', // lighter, transparent glass
-    backdropFilter: 'blur(12px)',
-    borderLeft: '1px solid rgba(255,255,255,0.15)',
-    boxShadow: 'inset 0 0 12px rgba(255,255,255,0.08)',
-    borderTopRightRadius: 12,  // ✅ rounded inner corner (top-right)
-    borderBottomRightRadius: 12, // ✅ rounded inner corner (bottom-right)
-    overflow: 'hidden', // ✅ ensures blur and rounding stay clean
-  }}
->
-  {/* NAME */}
-  <div
-    style={{
-      flex: 1,
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      padding: '12px 18px',
-    }}
-  >
-    <h3
-      style={{
-        color: '#fff',
-        fontWeight: 800,
-        fontSize: 'clamp(1.6rem, 2.2vw, 2.4rem)',
-        textShadow:
-          '0 0 12px rgba(255,255,255,0.8), 0 0 20px rgba(100,180,255,0.6), 0 0 4px rgba(0,0,0,0.8)',
-        margin: 0,
-      }}
-    >
-      {post.nickname || ''}
-    </h3>
-  </div>
+        {/* RIGHT: NAME + MESSAGE */}
+        <div
+          style={{
+            flex: 1,
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'space-between',
+            background: 'rgba(0,0,0,0.25)',
+            backdropFilter: 'blur(12px)',
+            borderLeft: '1px solid rgba(255,255,255,0.15)',
+            boxShadow: 'inset 0 0 12px rgba(255,255,255,0.08)',
+            borderTopRightRadius: 12,
+            borderBottomRightRadius: 12,
+            overflow: 'hidden',
+          }}
+        >
+          {/* NAME */}
+          <div
+            style={{
+              flex: 1,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '12px 18px',
+            }}
+          >
+            <h3
+              style={{
+                color: '#fff',
+                fontWeight: 800,
+                fontSize: 'clamp(1.6rem, 2.2vw, 2.4rem)',
+                textShadow:
+                  '0 0 12px rgba(255,255,255,0.8), 0 0 20px rgba(100,180,255,0.6), 0 0 4px rgba(0,0,0,0.8)',
+                margin: 0,
+              }}
+            >
+              {post.nickname || ''}
+            </h3>
+          </div>
 
-  {/* MESSAGE */}
-  <div
-    style={{
-      flex: 1,
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      padding: '0 18px 12px',
-    }}
-  >
-    <p
-      style={{
-        color: '#ddd',
-        fontSize: 'clamp(1.1rem, 1.6vw, 1.8rem)',
-        fontWeight: 500,
-        lineHeight: 1.5,
-        textShadow: '0 0 8px rgba(0,0,0,0.6)',
-        filter: 'drop-shadow(0 0 4px rgba(255,255,255,0.2))',
-        margin: 0,
-      }}
-    >
-      {post.message || ''}
-    </p>
-  </div>
-</div>
+          {/* MESSAGE */}
+          <div
+            style={{
+              flex: 1,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '0 18px 12px',
+            }}
+          >
+            <p
+              style={{
+                color: '#ddd',
+                fontSize: 'clamp(1.1rem, 1.6vw, 1.8rem)',
+                fontWeight: 500,
+                lineHeight: 1.5,
+                textShadow: '0 0 8px rgba(0,0,0,0.6)',
+                filter: 'drop-shadow(0 0 4px rgba(255,255,255,0.2))',
+                margin: 0,
+              }}
+            >
+              {post.message || ''}
+            </p>
+          </div>
+        </div>
       </div>
     );
   }
@@ -217,7 +223,14 @@ export default function Grid2x2Wall({ event, posts }: Grid2x2WallProps) {
     },
   };
 
-  /* ---------- OPTIONAL BACKGROUND DRIFT ---------- */
+  const driftKeyframes = `
+    @keyframes bgDrift {
+      0% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+      100% { background-position: 0% 50%; }
+    }
+  `;
+
   const bgStyle: React.CSSProperties = {
     background: bg,
     width: '100%',
@@ -230,15 +243,6 @@ export default function Grid2x2Wall({ event, posts }: Grid2x2WallProps) {
     overflow: 'hidden',
     animation: 'bgDrift 120s linear infinite',
   };
-
-  /* ---------- CSS KEYFRAMES ---------- */
-  const driftKeyframes = `
-    @keyframes bgDrift {
-      0% { background-position: 0% 50%; }
-      50% { background-position: 100% 50%; }
-      100% { background-position: 0% 50%; }
-    }
-  `;
 
   /* ---------- RENDER ---------- */
   return (
@@ -414,4 +418,3 @@ export default function Grid2x2Wall({ event, posts }: Grid2x2WallProps) {
     </>
   );
 }
-
