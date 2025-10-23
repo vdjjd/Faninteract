@@ -4,38 +4,60 @@ import { supabase } from '@/lib/supabaseClient';
 /* 🧱 EVENT ACTIONS - For Host Dashboard + Fan Walls                          */
 /* -------------------------------------------------------------------------- */
 
-// ✅ Create new event (with default host/public titles)
+// ✅ Create new event (auto QR code)
 export async function createEvent(host_id: string, { title }: { title: string }) {
-  const { data, error } = await supabase
-    .from('events')
-    .insert([
-      {
-        host_id,
-        host_title: `${title} Fan Zone Wall`,
-        title,
-        status: 'inactive',
-        type: 'fan_wall',
-        background_type: 'gradient',
-        background_value: 'linear-gradient(to bottom right, #4dc6ff, #001f4d)',
-        theme_colors: null,
-        team: null,
-        countdown: null,
-        pending_posts: 0,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        deleted: false,
-      },
-    ])
-    .select()
-    .single();
+  try {
+    // 1️⃣ Create the event
+    const { data: event, error } = await supabase
+      .from('events')
+      .insert([
+        {
+          host_id,
+          host_title: `${title} Fan Zone Wall`,
+          title,
+          status: 'inactive',
+          type: 'fan_wall',
+          background_type: 'gradient',
+          background_value: 'linear-gradient(to bottom right, #4dc6ff, #001f4d)',
+          theme_colors: null,
+          team: null,
+          countdown: null,
+          pending_posts: 0,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          deleted: false,
+        },
+      ])
+      .select()
+      .single();
 
-  if (error) {
-    console.error('❌ Error creating event:', error.message);
-    throw error;
+    if (error || !event) {
+      console.error('❌ Error creating event:', error?.message || error);
+      throw error;
+    }
+
+    // 2️⃣ Generate its QR URL
+    const qrUrl = `https://faninteract.vercel.app/wall/${event.id}`;
+
+    // 3️⃣ Update the record with the new QR URL
+    const { data: updated, error: updateError } = await supabase
+      .from('events')
+      .update({ qr_url: qrUrl, updated_at: new Date().toISOString() })
+      .eq('id', event.id)
+      .select()
+      .single();
+
+    if (updateError) {
+      console.error('⚠️ Event created but failed to save QR URL:', updateError.message);
+      return event;
+    }
+
+    console.log('✅ Event created with QR URL:', updated.qr_url);
+    return updated;
+  } catch (err) {
+    console.error('❌ Error in createEvent:', err);
+    throw err;
   }
-
-  console.log('✅ Event created:', data);
-  return data;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -90,10 +112,7 @@ export async function updateEventSettings(
 /* -------------------------------------------------------------------------- */
 // ✅ Permanently delete an event from DB
 export async function deleteEvent(id: string) {
-  const { error } = await supabase
-    .from('events')
-    .delete()
-    .eq('id', id);
+  const { error } = await supabase.from('events').delete().eq('id', id);
 
   if (error) {
     console.error('❌ Error deleting event:', error.message);
