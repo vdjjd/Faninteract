@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
+import { AnimatePresence, motion } from 'framer-motion';
 import InactivePollWall from '@/app/wall/components/polls/InactivePollWall';
 import LivePollWall from '../components/LivePollWall';
 
@@ -39,7 +40,11 @@ function CountdownDisplay({
           (async () => {
             const { error } = await supabase
               .from('polls')
-              .update({ status: 'live', countdown_active: false, updated_at: new Date().toISOString() })
+              .update({
+                status: 'live',
+                countdown_active: false,
+                updated_at: new Date().toISOString(),
+              })
               .eq('id', pollId);
             if (error) console.error('❌ Error setting poll live:', error);
           })();
@@ -98,7 +103,7 @@ export default function PollWallPage() {
 
     fetchPoll();
 
-    // 🔄 Real-time updates (unique channel per poll)
+    // 🔄 Real-time updates (unique per poll)
     const channel = supabase
       .channel(`poll-updates-${pollId}`)
       .on(
@@ -110,17 +115,17 @@ export default function PollWallPage() {
           filter: `id=eq.${pollId}`,
         },
         (payload: any) => {
-          console.log('📡 Realtime update received:', payload);
           const newPoll = payload.new as Record<string, any> | null;
           if (newPoll) {
+            console.log('📡 Realtime poll update:', newPoll.status);
             setPoll(newPoll);
             setOptions(Array.isArray(newPoll.options) ? newPoll.options : []);
           }
         }
       )
-      .subscribe((status) => {
-        console.log(`📡 Poll channel ${pollId} status:`, status);
-      });
+      .subscribe((status) =>
+        console.log(`📡 Poll channel [${pollId}] → ${status}`)
+      );
 
     return () => {
       supabase.removeChannel(channel);
@@ -132,24 +137,32 @@ export default function PollWallPage() {
       <div className="text-white text-center mt-10">Loading poll...</div>
     );
 
-  if (poll.status === 'inactive') return <InactivePollWall poll={poll} />;
-  if (poll.status === 'live') return <LivePollWall poll={poll} />;
-
-  /* ---------- CLOSED POLL ---------- */
   return (
-    <div
-      className="w-full h-screen flex flex-col justify-center items-center text-white relative overflow-hidden"
-      style={{
-        background:
-          poll.background_type === 'image'
-            ? `url(${poll.background_value}) center/cover no-repeat`
-            : poll.background_value ||
-              'linear-gradient(to bottom right,#1b2735,#090a0f)',
-      }}
-    >
-      <h1 className="text-5xl font-extrabold text-white drop-shadow-lg text-center">
-        🏁 Poll Closed
-      </h1>
-    </div>
+    <AnimatePresence mode="wait">
+      {poll.status === 'inactive' && (
+        <motion.div
+          key="inactive"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 1 }}
+        >
+          <InactivePollWall poll={poll} />
+        </motion.div>
+      )}
+
+      {(poll.status === 'live' || poll.status === 'closed') && (
+        <motion.div
+          key="live"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 1.2 }}
+        >
+          <LivePollWall poll={poll} />
+        </motion.div>
+      )}
+    </AnimatePresence>
   );
 }
+

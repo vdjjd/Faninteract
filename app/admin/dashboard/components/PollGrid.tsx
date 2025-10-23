@@ -12,6 +12,14 @@ interface PollGridProps {
 }
 
 export default function PollGrid({ polls, host, refreshPolls, onOpenOptions }: PollGridProps) {
+  async function updatePollStatus(id: string, updates: Record<string, any>) {
+    const { error } = await supabase
+      .from('polls')
+      .update({ ...updates, updated_at: new Date().toISOString() })
+      .eq('id', id);
+    if (error) console.error('❌ Error updating poll:', error.message);
+  }
+
   async function handleLaunch(id: string) {
     const url = `${window.location.origin}/poll/${id}`;
     const popup = window.open(url, '_blank', 'width=1280,height=800,left=100,top=100');
@@ -19,28 +27,17 @@ export default function PollGrid({ polls, host, refreshPolls, onOpenOptions }: P
   }
 
   async function handleStart(id: string) {
-    await supabase
-      .from('polls')
-      .update({
-        status: 'live',
-        countdown_active: false,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', id);
-
+    await updatePollStatus(id, { status: 'live', countdown_active: false });
     await refreshPolls();
   }
 
   async function handleStop(id: string) {
-    await supabase
-      .from('polls')
-      .update({
-        status: 'inactive',
-        countdown_active: false,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', id);
+    await updatePollStatus(id, { status: 'inactive', countdown_active: false });
+    await refreshPolls();
+  }
 
+  async function handleEnd(id: string) {
+    await updatePollStatus(id, { status: 'closed', countdown_active: false });
     await refreshPolls();
   }
 
@@ -85,6 +82,8 @@ export default function PollGrid({ polls, host, refreshPolls, onOpenOptions }: P
                         ? 'text-lime-400'
                         : poll.status === 'inactive'
                         ? 'text-orange-400'
+                        : poll.status === 'closed'
+                        ? 'text-purple-400'
                         : 'text-gray-400'
                     }
                   >
@@ -93,7 +92,7 @@ export default function PollGrid({ polls, host, refreshPolls, onOpenOptions }: P
                 </p>
               </div>
 
-              {/* Primary Controls (Top Row) */}
+              {/* ---------- Primary Controls (Top Row) ---------- */}
               <div className="flex justify-center gap-2 mb-2 flex-wrap">
                 <button
                   onClick={() => handleLaunch(poll.id)}
@@ -113,9 +112,15 @@ export default function PollGrid({ polls, host, refreshPolls, onOpenOptions }: P
                 >
                   ⏹ Stop
                 </button>
+                <button
+                  onClick={() => handleEnd(poll.id)}
+                  className="bg-purple-600 hover:bg-purple-700 px-2 py-1 rounded text-sm font-semibold"
+                >
+                  🏁 End Poll
+                </button>
               </div>
 
-              {/* Secondary Controls (Bottom Row) */}
+              {/* ---------- Secondary Controls (Bottom Row) ---------- */}
               <div className="flex flex-wrap justify-center gap-2 border-t border-white/10 pt-2">
                 <button
                   onClick={() => handleClear(poll.id)}
