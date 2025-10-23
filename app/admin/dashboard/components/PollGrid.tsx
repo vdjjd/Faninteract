@@ -1,6 +1,6 @@
 'use client';
 
-import { supabase } from '@/lib/supabaseClient'; // ✅ FIXED missing import
+import { supabase } from '@/lib/supabaseClient';
 import { clearPoll, deletePoll } from '@/lib/actions/polls';
 import GridCard from './GridCard';
 
@@ -74,6 +74,21 @@ export default function PollGrid({ polls, host, refreshPolls, onOpenOptions }: P
     await refreshPolls();
   }
 
+  /* ---------- END POLL (Manual Close) ---------- */
+  async function handleEnd(id: string) {
+    await supabase
+      .from('polls')
+      .update({
+        status: 'closed',
+        countdown_active: false,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', id);
+
+    console.log(`🏁 Poll ${id} manually ended`);
+    await refreshPolls();
+  }
+
   /* ---------- CLEAR ---------- */
   async function handleClear(id: string) {
     await clearPoll(id);
@@ -118,6 +133,8 @@ export default function PollGrid({ polls, host, refreshPolls, onOpenOptions }: P
                         ? 'text-lime-400'
                         : poll.status === 'inactive'
                         ? 'text-orange-400'
+                        : poll.status === 'closed'
+                        ? 'text-red-400'
                         : 'text-gray-400'
                     }
                   >
@@ -126,7 +143,7 @@ export default function PollGrid({ polls, host, refreshPolls, onOpenOptions }: P
                 </p>
               </div>
 
-              {/* Primary Controls (Top Row) */}
+              {/* Primary Controls */}
               <div className="flex justify-center gap-2 mb-2 flex-wrap">
                 <button
                   onClick={() => handleLaunch(poll.id)}
@@ -142,13 +159,19 @@ export default function PollGrid({ polls, host, refreshPolls, onOpenOptions }: P
                 </button>
                 <button
                   onClick={() => handleStop(poll.id)}
-                  className="bg-red-600 hover:bg-red-700 px-2 py-1 rounded text-sm font-semibold"
+                  className="bg-yellow-600 hover:bg-yellow-700 px-2 py-1 rounded text-sm font-semibold"
                 >
                   ⏹ Stop
                 </button>
+                <button
+                  onClick={() => handleEnd(poll.id)}
+                  className="bg-red-600 hover:bg-red-700 px-2 py-1 rounded text-sm font-semibold"
+                >
+                  🏁 End Poll
+                </button>
               </div>
 
-              {/* Secondary Controls (Bottom Row) */}
+              {/* Secondary Controls */}
               <div className="flex flex-wrap justify-center gap-2 border-t border-white/10 pt-2">
                 <button
                   onClick={() => handleClear(poll.id)}
@@ -164,7 +187,7 @@ export default function PollGrid({ polls, host, refreshPolls, onOpenOptions }: P
                 </button>
                 <button
                   onClick={() => handleDelete(poll.id)}
-                  className="bg-red-700 hover:bg-red-800 px-2 py-1 rounded text-sm font-semibold"
+                  className="bg-red-800 hover:bg-red-900 px-2 py-1 rounded text-sm font-semibold"
                 >
                   ❌ Delete
                 </button>
