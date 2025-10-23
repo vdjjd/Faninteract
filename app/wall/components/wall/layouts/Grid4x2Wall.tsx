@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState } from 'react';
 import { QRCodeCanvas } from 'qrcode.react';
 import { supabase } from '@/lib/supabaseClient';
 
@@ -21,81 +21,76 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
   const [pairIndex, setPairIndex] = useState(0);
   const [postPointer, setPostPointer] = useState(0);
   const [isTransitioning, setIsTransitioning] = useState(false);
-  const [displayDelay, setDisplayDelay] = useState(speedMap[event?.transition_speed || 'Medium'] || 8000);
 
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
-  const fadeDuration = 1200;
+// ---------- DYNAMIC SPEED ----------
+const [displayDelay, setDisplayDelay] = useState(
+  speedMap[event?.transition_speed || 'Medium'] || 8000
+);
 
-  /* ---------- HANDLE SPEED CHANGES ---------- */
-  useEffect(() => {
-    setDisplayDelay(speedMap[event?.transition_speed || 'Medium'] || 8000);
-    console.log(`⚡ Transition speed changed to ${event?.transition_speed}`);
-    if (timerRef.current) {
-      clearTimeout(timerRef.current);
-      timerRef.current = null;
-    }
-  }, [event?.transition_speed]);
+useEffect(() => {
+  setDisplayDelay(speedMap[event?.transition_speed || 'Medium'] || 8000);
+}, [event?.transition_speed]);
+  const fadeDuration = 1200; // 1.2s cinematic fade
 
   /* ---------- INITIAL POPULATION ---------- */
   useEffect(() => {
     if (!posts || posts.length === 0) return;
-    setGridPosts((prev) => prev.map((_, i) => posts[i % posts.length] || null));
+    setGridPosts((prev) =>
+      prev.map((_, i) => posts[i % posts.length] || null)
+    );
     setPostPointer(8 % posts.length);
   }, [posts]);
 
-  /* ---------- SEQUENTIAL PAIRED FADE LOGIC ---------- */
-  useEffect(() => {
-    if (!posts || posts.length === 0 || isTransitioning) return;
+ /* ---------- SEQUENTIAL PAIRED FADE LOGIC ---------- */
+useEffect(() => {
+  if (!posts || posts.length === 0 || isTransitioning) return;
 
-    const pairs = [
-      [0, 4],
-      [1, 5],
-      [2, 6],
-      [3, 7],
-    ];
+  const pairs = [
+    [0, 4],
+    [1, 5],
+    [2, 6],
+    [3, 7],
+  ];
 
-    async function runPair(pairIdx: number) {
-      setIsTransitioning(true);
-      const [top, bottom] = pairs[pairIdx];
-      const nextPost = posts[postPointer % posts.length];
+  async function runPair(pairIdx: number) {
+    setIsTransitioning(true);
+    const [top, bottom] = pairs[pairIdx];
+    const nextPost = posts[postPointer % posts.length];
 
-      // bottom fades first, then top
-      await fadeOutCell(bottom);
-      await new Promise((r) => setTimeout(r, 300));
-      await fadeOutCell(top);
+    await fadeOutCell(bottom);
+    await new Promise((r) => setTimeout(r, 300)); // overlap delay
+    await fadeOutCell(top);
 
-      // move top → bottom
-      setGridPosts((prev) => {
-        const updated = [...prev];
-        updated[bottom] = prev[top];
-        return updated;
-      });
-      await fadeInCell(bottom);
+    // swap bottom with top’s old post
+    setGridPosts((prev) => {
+      const updated = [...prev];
+      updated[bottom] = prev[top];
+      return updated;
+    });
+    await fadeInCell(bottom);
 
-      // replace top with next post
-      setGridPosts((prev) => {
-        const updated = [...prev];
-        updated[top] = nextPost;
-        return updated;
-      });
-      await fadeInCell(top);
+    // top gets new post
+    setGridPosts((prev) => {
+      const updated = [...prev];
+      updated[top] = nextPost;
+      return updated;
+    });
+    await fadeInCell(top);
 
-      // advance pointers
-      setPostPointer((p) => (p + 1) % posts.length);
-      setIsTransitioning(false);
+// add a controlled delay between cell groups
+await new Promise((r) => setTimeout(r, displayDelay));
 
-      // queue next pair properly (no double step)
-      timerRef.current = setTimeout(() => {
-        setPairIndex((prev) => (prev + 1) % pairs.length);
-      }, displayDelay);
-    }
+setPostPointer((p) => (p + 1) % posts.length);
+setIsTransitioning(false);
+setPairIndex((prev) => (prev + 1) % pairs.length);
+    await new Promise((r) =>
+      setTimeout(r, speedMap[event?.transition_speed || 'Medium'] || 8000)
+    );
+  } // 👈 closes async function
 
-    runPair(pairIndex);
+  runPair(pairIndex);
+}, [pairIndex, posts, postPointer, event?.transition_speed]); // 👈 closes useEffect
 
-    return () => {
-      if (timerRef.current) clearTimeout(timerRef.current);
-    };
-  }, [pairIndex, posts, postPointer, displayDelay]);
 
   /* ---------- FADE HELPERS ---------- */
   function fadeOutCell(index: number) {
@@ -156,6 +151,7 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
           backdropFilter: 'blur(10px)',
         }}
       >
+        {/* PHOTO (70%) */}
         <div style={{ height: '70%', position: 'relative', padding: 2 }}>
           <img
             src={post.photo_url}
@@ -171,6 +167,7 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
           />
         </div>
 
+        {/* TEXT (30%) */}
         <div
           style={{
             height: '30%',
@@ -274,7 +271,7 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
         {event.title || 'Fan Zone Wall'}
       </h1>
 
-      {/* GRID */}
+      {/* GRID 4×2 (FROSTED GLASS) */}
       <div
         style={{
           width: '88vw',
@@ -285,7 +282,7 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
           gap: 10,
           borderRadius: 20,
           overflow: 'hidden',
-          background: 'rgba(255,255,255,0.07)',
+          background: 'rgba(255,255,255,0.07)', // frosted glass
           backdropFilter: 'blur(14px) saturate(150%)',
           border: '1px solid rgba(255,255,255,0.18)',
           boxShadow:
@@ -299,7 +296,7 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
         ))}
       </div>
 
-      {/* QR */}
+      {/* QR SECTION */}
       <div
         style={{
           position: 'absolute',
@@ -336,7 +333,7 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
         />
       </div>
 
-      {/* FULLSCREEN */}
+      {/* FULLSCREEN BUTTON */}
       <div
         style={{
           position: 'fixed',
