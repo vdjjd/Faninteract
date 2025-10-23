@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { QRCodeCanvas } from 'qrcode.react';
 import { supabase } from '@/lib/supabaseClient';
 
@@ -22,75 +22,79 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
   const [postPointer, setPostPointer] = useState(0);
   const [isTransitioning, setIsTransitioning] = useState(false);
 
-// ---------- DYNAMIC SPEED ----------
-const [displayDelay, setDisplayDelay] = useState(
-  speedMap[event?.transition_speed || 'Medium'] || 8000
-);
+  // ---------- DYNAMIC SPEED ----------
+  const [displayDelay, setDisplayDelay] = useState(
+    speedMap[event?.transition_speed || 'Medium'] || 8000
+  );
 
-useEffect(() => {
-  setDisplayDelay(speedMap[event?.transition_speed || 'Medium'] || 8000);
-}, [event?.transition_speed]);
+  useEffect(() => {
+    setDisplayDelay(speedMap[event?.transition_speed || 'Medium'] || 8000);
+  }, [event?.transition_speed]);
+
   const fadeDuration = 1200; // 1.2s cinematic fade
 
   /* ---------- INITIAL POPULATION ---------- */
   useEffect(() => {
     if (!posts || posts.length === 0) return;
-    setGridPosts((prev) =>
-      prev.map((_, i) => posts[i % posts.length] || null)
-    );
+    setGridPosts((prev) => prev.map((_, i) => posts[i % posts.length] || null));
     setPostPointer(8 % posts.length);
   }, [posts]);
 
- /* ---------- SEQUENTIAL PAIRED FADE LOGIC ---------- */
-useEffect(() => {
-  if (!posts || posts.length === 0 || isTransitioning) return;
+  /* ---------- SEQUENTIAL PAIRED FADE LOGIC ---------- */
+  useEffect(() => {
+    if (!posts || posts.length === 0 || isTransitioning) return;
 
-  const pairs = [
-    [0, 4],
-    [1, 5],
-    [2, 6],
-    [3, 7],
-  ];
+    const pairs: [number, number][] = [
+      [0, 4],
+      [1, 5],
+      [2, 6],
+      [3, 7],
+    ];
 
-  async function runPair(pairIdx: number) {
-    setIsTransitioning(true);
-    const [top, bottom] = pairs[pairIdx];
-    const nextPost = posts[postPointer % posts.length];
+    const activeRef = useRef(true);
+    activeRef.current = true;
 
-    await fadeOutCell(bottom);
-    await new Promise((r) => setTimeout(r, 300)); // overlap delay
-    await fadeOutCell(top);
+    async function runPair(pairIdx: number): Promise<void> {
+      if (!activeRef.current) return;
+      setIsTransitioning(true);
 
-    // swap bottom with top’s old post
-    setGridPosts((prev) => {
-      const updated = [...prev];
-      updated[bottom] = prev[top];
-      return updated;
-    });
-    await fadeInCell(bottom);
+      const [top, bottom] = pairs[pairIdx];
+      const nextPost = posts[postPointer % posts.length];
 
-    // top gets new post
-    setGridPosts((prev) => {
-      const updated = [...prev];
-      updated[top] = nextPost;
-      return updated;
-    });
-    await fadeInCell(top);
+      await fadeOutCell(bottom);
+      await new Promise((r) => setTimeout(r, 300)); // overlap delay
+      await fadeOutCell(top);
 
-// add a controlled delay between cell groups
-await new Promise((r) => setTimeout(r, displayDelay));
+      setGridPosts((prev) => {
+        const updated = [...prev];
+        updated[bottom] = prev[top];
+        return updated;
+      });
+      await fadeInCell(bottom);
 
-setPostPointer((p) => (p + 1) % posts.length);
-setIsTransitioning(false);
-setPairIndex((prev) => (prev + 1) % pairs.length);
-    await new Promise((r) =>
-      setTimeout(r, speedMap[event?.transition_speed || 'Medium'] || 8000)
-    );
-  } // 👈 closes async function
+      setGridPosts((prev) => {
+        const updated = [...prev];
+        updated[top] = nextPost;
+        return updated;
+      });
+      await fadeInCell(top);
 
-  runPair(pairIndex);
-}, [pairIndex, posts, postPointer, event?.transition_speed]); // 👈 closes useEffect
+      await new Promise((r) => setTimeout(r, displayDelay));
 
+      setPostPointer((p) => (p + 1) % posts.length);
+      setIsTransitioning(false);
+
+      if (activeRef.current) {
+        runPair((pairIdx + 1) % pairs.length);
+      }
+    }
+
+    runPair(pairIndex);
+
+    return () => {
+      activeRef.current = false;
+    };
+  }, [posts, postPointer, displayDelay, pairIndex, isTransitioning]);
 
   /* ---------- FADE HELPERS ---------- */
   function fadeOutCell(index: number) {
@@ -151,7 +155,6 @@ setPairIndex((prev) => (prev + 1) % pairs.length);
           backdropFilter: 'blur(10px)',
         }}
       >
-        {/* PHOTO (70%) */}
         <div style={{ height: '70%', position: 'relative', padding: 2 }}>
           <img
             src={post.photo_url}
@@ -167,7 +170,6 @@ setPairIndex((prev) => (prev + 1) % pairs.length);
           />
         </div>
 
-        {/* TEXT (30%) */}
         <div
           style={{
             height: '30%',
@@ -233,7 +235,6 @@ setPairIndex((prev) => (prev + 1) % pairs.length);
         overflow: 'hidden',
       }}
     >
-      {/* LOGO */}
       <div
         style={{
           position: 'absolute',
@@ -254,7 +255,6 @@ setPairIndex((prev) => (prev + 1) % pairs.length);
         />
       </div>
 
-      {/* TITLE */}
       <h1
         style={{
           color: '#fff',
@@ -271,7 +271,6 @@ setPairIndex((prev) => (prev + 1) % pairs.length);
         {event.title || 'Fan Zone Wall'}
       </h1>
 
-      {/* GRID 4×2 (FROSTED GLASS) */}
       <div
         style={{
           width: '88vw',
@@ -282,7 +281,7 @@ setPairIndex((prev) => (prev + 1) % pairs.length);
           gap: 10,
           borderRadius: 20,
           overflow: 'hidden',
-          background: 'rgba(255,255,255,0.07)', // frosted glass
+          background: 'rgba(255,255,255,0.07)',
           backdropFilter: 'blur(14px) saturate(150%)',
           border: '1px solid rgba(255,255,255,0.18)',
           boxShadow:
@@ -296,7 +295,6 @@ setPairIndex((prev) => (prev + 1) % pairs.length);
         ))}
       </div>
 
-      {/* QR SECTION */}
       <div
         style={{
           position: 'absolute',
@@ -333,7 +331,6 @@ setPairIndex((prev) => (prev + 1) % pairs.length);
         />
       </div>
 
-      {/* FULLSCREEN BUTTON */}
       <div
         style={{
           position: 'fixed',
