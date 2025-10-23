@@ -22,19 +22,14 @@ export default function FanWallGrid({ events, host, refreshEvents, onOpenOptions
   /* ---------- PLAY ---------- */
   async function handleStart(id: string) {
     try {
-      // fetch event to check countdown
       const { data: current, error } = await supabase
         .from('events')
         .select('countdown')
         .eq('id', id)
         .single();
 
-      if (error) {
-        console.error('❌ Error fetching event before start:', error);
-        return;
-      }
+      if (error) return console.error('❌ Error fetching event before start:', error);
 
-      // if countdown is set, activate countdown mode
       if (current?.countdown && current.countdown !== 'none') {
         await supabase
           .from('events')
@@ -45,7 +40,6 @@ export default function FanWallGrid({ events, host, refreshEvents, onOpenOptions
           })
           .eq('id', id);
       } else {
-        // otherwise go live instantly
         await supabase
           .from('events')
           .update({
@@ -55,7 +49,6 @@ export default function FanWallGrid({ events, host, refreshEvents, onOpenOptions
           })
           .eq('id', id);
 
-        // broadcast live change
         supabase.channel('events-realtime').send({
           type: 'broadcast',
           event: 'event_status_changed',
@@ -81,7 +74,6 @@ export default function FanWallGrid({ events, host, refreshEvents, onOpenOptions
         })
         .eq('id', id);
 
-      // broadcast stop change
       supabase.channel('events-realtime').send({
         type: 'broadcast',
         event: 'event_status_changed',
@@ -106,6 +98,21 @@ export default function FanWallGrid({ events, host, refreshEvents, onOpenOptions
     await refreshEvents();
   }
 
+  /* ---------- MODERATION POPUP ---------- */
+  function openModerationPopup(eventId: string) {
+    const w = 1280;
+    const h = 720;
+    const left = window.screenX + (window.outerWidth - w) / 2;
+    const top = window.screenY + (window.outerHeight - h) / 2;
+    const url = `/admin/moderation/${eventId}`;
+    const popup = window.open(
+      url,
+      'ModerationWindow',
+      `width=${w},height=${h},left=${left},top=${top},resizable=yes,menubar=no,toolbar=no,location=no,status=no`
+    );
+    popup?.focus();
+  }
+
   /* ---------- SUBSCRIBE TO REALTIME PENDING UPDATES ---------- */
   useEffect(() => {
     const channel = supabase
@@ -114,7 +121,6 @@ export default function FanWallGrid({ events, host, refreshEvents, onOpenOptions
         'postgres_changes',
         { event: '*', schema: 'public', table: 'submissions' },
         async (payload: any) => {
-          // Type-safe guard — if payload has event_id, refresh
           if (payload?.new && 'event_id' in payload.new) {
             await refreshEvents();
           }
@@ -171,7 +177,9 @@ export default function FanWallGrid({ events, host, refreshEvents, onOpenOptions
               <div className="flex justify-center mb-3">
                 <button
                   onClick={() =>
-                    window.open(`/admin/moderation/${event.id}`, '_blank')
+                    event.pending_posts > 0
+                      ? openModerationPopup(event.id)
+                      : null
                   }
                   className={`px-3 py-1 rounded-md text-sm font-semibold flex items-center gap-1 shadow-md transition ${
                     event.pending_posts > 0
