@@ -174,28 +174,43 @@ export default function FanWallGrid({ events, host, refreshEvents, onOpenOptions
               </p>
 
               {/* Pending Button */}
-              <div className="flex justify-center mb-3">
-                <button
-                  onClick={() =>
-                    event.pending_posts > 0
-                      ? openModerationPopup(event.id)
-                      : null
-                  }
-                  className={`px-3 py-1 rounded-md text-sm font-semibold flex items-center gap-1 shadow-md transition ${
-                    event.pending_posts > 0
-                      ? 'bg-yellow-500 hover:bg-yellow-600 text-black'
-                      : 'bg-gray-500 text-white/80 cursor-not-allowed'
-                  }`}
-                >
-                  🕓 Pending
-                  {event.pending_posts > 0 && (
-                    <span className="bg-black/70 text-white px-1.5 py-0.5 rounded-md text-xs font-bold">
-                      {event.pending_posts}
-                    </span>
-                  )}
-                </button>
-              </div>
-            </div>
+<div className="flex justify-center mb-3">
+  <button
+    onClick={() => {
+      const popup = window.open(
+        `/admin/moderation/${event.id}`,
+        `moderation_${event.id}`, // unique name per wall
+        'width=1280,height=720,left=100,top=100,resizable=yes,scrollbars=yes'
+      );
+      popup?.focus();
+
+      // ✅ Refresh dashboard when popup closes
+      const checkPopup = setInterval(() => {
+        if (popup?.closed) {
+          clearInterval(checkPopup);
+          refreshEvents();
+        }
+      }, 1000);
+    }}
+    className={`px-3 py-1 rounded-md text-sm font-semibold flex items-center gap-1 shadow-md transition ${
+      event.pending_posts > 0
+        ? 'bg-yellow-500 hover:bg-yellow-600 text-black'
+        : 'bg-gray-600 hover:bg-gray-700 text-white/80'
+    }`}
+  >
+    🕓 Pending
+    <span
+      className={`px-1.5 py-0.5 rounded-md text-xs font-bold ${
+        event.pending_posts > 0
+          ? 'bg-black/70 text-white'
+          : 'bg-white/20 text-gray-300'
+      }`}
+    >
+      {event.pending_posts}
+    </span>
+  </button>
+</div>
+
 
             {/* Control Buttons */}
             <div className="flex flex-wrap justify-center gap-2 mt-auto pt-2 border-t border-white/10">
