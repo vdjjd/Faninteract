@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 
 /* ---------- TYPES ---------- */
@@ -16,6 +16,9 @@ interface EventData {
   qr_url: string | null;
   host_id: string;
   layout_type?: string | null;
+  transition_speed?: 'Slow' | 'Medium' | 'Fast';
+  updated_at?: string;
+  _version?: number;
 }
 
 interface SubmissionData {
@@ -36,7 +39,11 @@ export function useWallData(eventId: string | string[] | undefined) {
   const [loading, setLoading] = useState(true);
   const [showLive, setShowLive] = useState(false);
 
-  /* ---------- LOAD EVENT ---------- */
+  // Track connection resilience
+  const eventChannelRef = useRef<any>(null);
+  const subChannelRef = useRef<any>(null);
+
+  /* ---------- LOAD EVENT (initial) ---------- */
   useEffect(() => {
     if (!eventId) return;
 
@@ -54,17 +61,8 @@ export function useWallData(eventId: string | string[] | undefined) {
       }
 
       if (data) {
-        setEvent(data);
-
-        // 🧠 determine visibility
-        if (data.status === 'live') {
-          setShowLive(true);
-        } else if (data.countdown_active) {
-          // countdown in progress → stay inactive until updated
-          setShowLive(false);
-        } else {
-          setShowLive(false);
-        }
+        setEvent({ ...data, _version: Date.now() });
+        setShowLive(data.status === 'live');
       }
 
       setLoading(false);
@@ -77,12 +75,16 @@ export function useWallData(eventId: string | string[] | undefined) {
   useEffect(() => {
     if (!eventId) return;
 
+    // Clean previous channel
+    if (eventChannelRef.current)
+      supabase.removeChannel(eventChannelRef.current);
+
     const channel = supabase
       .channel(`events-wall-${eventId}`)
       .on(
         'postgres_changes',
         {
-          event: 'UPDATE',
+          event: '*', // catch all changes
           schema: 'public',
           table: 'events',
           filter: `id=eq.${eventId}`,
@@ -91,19 +93,21 @@ export function useWallData(eventId: string | string[] | undefined) {
           const updated = payload.new as EventData;
           if (!updated) return;
 
-          setEvent((prev) => ({ ...prev, ...updated }));
+          setEvent((prev) => ({ ...prev, ...updated, _version: Date.now() }));
 
-          // 🧩 determine wall visibility in real time
-          if (updated.status === 'live') {
-            setShowLive(true);
-          } else if (updated.countdown_active) {
-            setShowLive(false);
-          } else {
-            setShowLive(false);
-          }
+          // 🧩 Visibility logic
+          if (updated.status === 'live') setShowLive(true);
+          else if (updated.countdown_active) setShowLive(false);
+          else setShowLive(false);
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        if (status === 'CLOSED') {
+          console.warn('🔁 Event channel closed, re-subscribing...');
+        }
+      });
+
+    eventChannelRef.current = channel;
 
     return () => {
       supabase.removeChannel(channel);
@@ -126,12 +130,16 @@ export function useWallData(eventId: string | string[] | undefined) {
         console.error('❌ Error loading submissions:', error);
         return;
       }
+
       if (data) setSubmissions(data);
     }
 
     loadSubs();
 
-    const channel = supabase
+    if (subChannelRef.current)
+      supabase.removeChannel(subChannelRef.current);
+
+    const subChannel = supabase
       .channel(`submissions-wall-${eventId}`)
       .on(
         'postgres_changes',
@@ -165,10 +173,33 @@ export function useWallData(eventId: string | string[] | undefined) {
           }
         }
       )
+      .subscribe((status) => {
+        if (status === 'CLOSED') {
+          console.warn('🔁 Submissions channel closed, re-subscribing...');
+        }
+      });
+
+    subChannelRef.current = subChannel;
+
+    return () => {
+      supabase.removeChannel(subChannel);
+    };
+  }, [eventId]);
+
+  /* ---------- MANUAL BROADCAST LISTENER (OPTIONAL) ---------- */
+  useEffect(() => {
+    const broadcastChannel = supabase
+      .channel('events-realtime')
+      .on('broadcast', { event: 'wall_update' }, (payload) => {
+        const data = payload.payload as Partial<EventData>;
+        if (data.id && data.id === eventId) {
+          setEvent((prev) => ({ ...prev, ...data, _version: Date.now() }));
+        }
+      })
       .subscribe();
 
     return () => {
-      supabase.removeChannel(channel);
+      supabase.removeChannel(broadcastChannel);
     };
   }, [eventId]);
 

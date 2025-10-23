@@ -2,7 +2,6 @@
 
 import { useEffect, useState, useRef } from 'react';
 import { QRCodeCanvas } from 'qrcode.react';
-import { supabase } from '@/lib/supabaseClient';
 
 interface Grid4x2WallProps {
   event: any;
@@ -18,32 +17,32 @@ const speedMap: Record<string, number> = {
 
 export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
   const [gridPosts, setGridPosts] = useState<(any | null)[]>(Array(8).fill(null));
-  const [pairIndex, setPairIndex] = useState(0);
-  const [postPointer, setPostPointer] = useState(0);
-  const [isTransitioning, setIsTransitioning] = useState(false);
-
-  // ---------- DYNAMIC SPEED ----------
   const [displayDelay, setDisplayDelay] = useState(
-    speedMap[event?.transition_speed || 'Medium'] || 8000
+    speedMap[event?.transition_speed || 'Medium']
   );
 
+  const postPointer = useRef(0);
+  const pairIndex = useRef(0);
+  const activeRef = useRef(false);
+  const cycleRef = useRef<Promise<void> | null>(null);
+
+  /* ---------- UPDATE SPEED LIVE ---------- */
   useEffect(() => {
-    setDisplayDelay(speedMap[event?.transition_speed || 'Medium'] || 8000);
+    setDisplayDelay(speedMap[event?.transition_speed || 'Medium']);
   }, [event?.transition_speed]);
 
-  const fadeDuration = 1200; // 1.2s cinematic fade
+  const fadeDuration = 1200; // 1.2s fade for cinematic feel
 
   /* ---------- INITIAL POPULATION ---------- */
   useEffect(() => {
-    if (!posts || posts.length === 0) return;
+    if (!posts?.length) return;
     setGridPosts((prev) => prev.map((_, i) => posts[i % posts.length] || null));
-    setPostPointer(8 % posts.length);
+    postPointer.current = 8 % posts.length;
   }, [posts]);
 
-  /* ---------- SEQUENTIAL PAIRED FADE LOGIC ---------- */
+  /* ---------- SEQUENTIAL PAIR LOOP ---------- */
   useEffect(() => {
-    if (!posts || posts.length === 0 || isTransitioning) return;
-
+    if (!posts?.length) return;
     const pairs: [number, number][] = [
       [0, 4],
       [1, 5],
@@ -51,86 +50,73 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
       [3, 7],
     ];
 
-    const activeRef = useRef(true);
     activeRef.current = true;
 
-    async function runPair(pairIdx: number): Promise<void> {
-      if (!activeRef.current) return;
-      setIsTransitioning(true);
+    async function fadeOutCell(index: number) {
+      const el = document.getElementById(`cell-${index}`);
+      if (!el) return;
+      await el.animate([{ opacity: 1 }, { opacity: 0 }], {
+        duration: fadeDuration,
+        easing: 'ease-in-out',
+      }).finished;
+      el.style.opacity = '0';
+    }
 
-      const [top, bottom] = pairs[pairIdx];
-      const nextPost = posts[postPointer % posts.length];
+    async function fadeInCell(index: number) {
+      const el = document.getElementById(`cell-${index}`);
+      if (!el) return;
+      await el.animate([{ opacity: 0 }, { opacity: 1 }], {
+        duration: fadeDuration,
+        easing: 'ease-in-out',
+      }).finished;
+      el.style.opacity = '1';
+    }
 
-      await fadeOutCell(bottom);
-      await new Promise((r) => setTimeout(r, 300)); // overlap delay
-      await fadeOutCell(top);
+    async function runCycle() {
+      while (activeRef.current) {
+        const [top, bottom] = pairs[pairIndex.current];
+        const nextPost = posts[postPointer.current % posts.length];
 
-      setGridPosts((prev) => {
-        const updated = [...prev];
-        updated[bottom] = prev[top];
-        return updated;
-      });
-      await fadeInCell(bottom);
+        // Fade out bottom then top
+        await fadeOutCell(bottom);
+        await new Promise((r) => setTimeout(r, 300)); // overlap delay
+        await fadeOutCell(top);
 
-      setGridPosts((prev) => {
-        const updated = [...prev];
-        updated[top] = nextPost;
-        return updated;
-      });
-      await fadeInCell(top);
+        // Replace bottom → top content
+        setGridPosts((prev) => {
+          const updated = [...prev];
+          updated[bottom] = prev[top];
+          return updated;
+        });
+        await fadeInCell(bottom);
 
-      await new Promise((r) => setTimeout(r, displayDelay));
+        setGridPosts((prev) => {
+          const updated = [...prev];
+          updated[top] = nextPost;
+          return updated;
+        });
+        await fadeInCell(top);
 
-      setPostPointer((p) => (p + 1) % posts.length);
-      setIsTransitioning(false);
+        postPointer.current = (postPointer.current + 1) % posts.length;
+        pairIndex.current = (pairIndex.current + 1) % pairs.length;
 
-      if (activeRef.current) {
-        runPair((pairIdx + 1) % pairs.length);
+        await new Promise((r) => setTimeout(r, displayDelay));
       }
     }
 
-    runPair(pairIndex);
+    cycleRef.current = runCycle();
 
     return () => {
       activeRef.current = false;
     };
-  }, [posts, postPointer, displayDelay, pairIndex, isTransitioning]);
-
-  /* ---------- FADE HELPERS ---------- */
-  function fadeOutCell(index: number) {
-    return new Promise((resolve) => {
-      const el = document.getElementById(`cell-${index}`);
-      if (!el) return resolve(null);
-      el.animate([{ opacity: 1 }, { opacity: 0 }], {
-        duration: fadeDuration,
-        easing: 'ease-in-out',
-      }).onfinish = () => {
-        el.style.opacity = '0';
-        resolve(true);
-      };
-    });
-  }
-
-  function fadeInCell(index: number) {
-    return new Promise((resolve) => {
-      const el = document.getElementById(`cell-${index}`);
-      if (!el) return resolve(null);
-      el.animate([{ opacity: 0 }, { opacity: 1 }], {
-        duration: fadeDuration,
-        easing: 'ease-in-out',
-      }).onfinish = () => {
-        el.style.opacity = '1';
-        resolve(true);
-      };
-    });
-  }
+  }, [posts, displayDelay]);
 
   /* ---------- BACKGROUND ---------- */
   const bg =
     event?.background_type === 'image'
       ? `url(${event.background_value}) center/cover no-repeat`
       : event?.background_value ||
-        'linear-gradient(to bottom right,#1b2735,#090a0f)';
+        'linear-gradient(to bottom right, #1b2735, #090a0f)';
 
   /* ---------- POST CARD ---------- */
   function PostCard({ post }: { post: any }) {
@@ -235,6 +221,7 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
         overflow: 'hidden',
       }}
     >
+      {/* LOGO */}
       <div
         style={{
           position: 'absolute',
@@ -255,6 +242,7 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
         />
       </div>
 
+      {/* TITLE */}
       <h1
         style={{
           color: '#fff',
@@ -271,6 +259,7 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
         {event.title || 'Fan Zone Wall'}
       </h1>
 
+      {/* GRID */}
       <div
         style={{
           width: '88vw',
@@ -295,6 +284,7 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
         ))}
       </div>
 
+      {/* QR */}
       <div
         style={{
           position: 'absolute',
@@ -331,6 +321,7 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
         />
       </div>
 
+      {/* FULLSCREEN */}
       <div
         style={{
           position: 'fixed',
@@ -377,3 +368,4 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
     </div>
   );
 }
+

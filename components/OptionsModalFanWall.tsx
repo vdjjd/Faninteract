@@ -28,6 +28,19 @@ export default function OptionsModalFanWall({
   const [showWarning, setShowWarning] = useState(false);
   const [pendingChange, setPendingChange] = useState<{ type: 'solid' | 'gradient'; value: string } | null>(null);
 
+  /* ---------- BROADCAST UTILITY ---------- */
+  async function broadcastEventChange() {
+    try {
+      await supabase.channel(`events-wall-${localEvent.id}`).send({
+        type: 'broadcast',
+        event: 'UPDATE',
+        payload: { id: localEvent.id, updated_at: new Date().toISOString() },
+      });
+    } catch (err) {
+      console.warn('⚠️ Broadcast failed (safe to ignore on localhost):', err);
+    }
+  }
+
   async function handleSave() {
     setSaving(true);
     const countdownValue =
@@ -51,6 +64,7 @@ export default function OptionsModalFanWall({
     if (error) console.error('❌ Supabase update error:', error);
 
     await refreshEvents();
+    await broadcastEventChange();
     setSaving(false);
     onClose();
   }
@@ -85,6 +99,7 @@ export default function OptionsModalFanWall({
           background_type: 'image',
           background_value: publicUrl.publicUrl,
           background_url: publicUrl.publicUrl,
+          updated_at: new Date().toISOString(),
         })
         .eq('id', localEvent.id);
 
@@ -93,6 +108,9 @@ export default function OptionsModalFanWall({
         background_type: 'image',
         background_value: publicUrl.publicUrl,
       });
+
+      await refreshEvents();
+      await broadcastEventChange();
     } catch (err) {
       console.error('❌ Upload error:', err);
       alert('Upload failed.');
@@ -116,14 +134,12 @@ export default function OptionsModalFanWall({
   }
 
   async function handleBackgroundChange(type: 'solid' | 'gradient', value: string) {
-    // If currently using an image, warn before deleting
     if (localEvent.background_type === 'image') {
       setPendingChange({ type, value });
       setShowWarning(true);
       return;
     }
 
-    // No image, apply immediately
     await supabase
       .from('events')
       .update({
@@ -136,6 +152,7 @@ export default function OptionsModalFanWall({
 
     setLocalEvent({ ...localEvent, background_type: type, background_value: value });
     await refreshEvents();
+    await broadcastEventChange();
   }
 
   async function confirmChange() {
@@ -157,9 +174,11 @@ export default function OptionsModalFanWall({
       background_type: pendingChange.type,
       background_value: pendingChange.value,
     });
+
     setShowWarning(false);
     setPendingChange(null);
     await refreshEvents();
+    await broadcastEventChange();
   }
 
   function cancelChange() {
@@ -196,6 +215,7 @@ export default function OptionsModalFanWall({
         </div>
       )}
 
+      {/* 🔧 Main Modal */}
       <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 backdrop-blur-md">
         <div
           className="bg-gradient-to-br from-[#0a2540] to-[#1b2b44] border border-blue-400 p-6 rounded-2xl shadow-2xl w-96 text-white animate-fadeIn overflow-y-auto max-h-[90vh]"
@@ -234,9 +254,9 @@ export default function OptionsModalFanWall({
           >
             <option value="none">No Countdown / Start Immediately</option>
             {[
-              '30 Seconds','1 Minute','2 Minutes','3 Minutes','4 Minutes','5 Minutes',
-              '10 Minutes','15 Minutes','20 Minutes','25 Minutes','30 Minutes',
-              '45 Minutes','60 Minutes',
+              '30 Seconds', '1 Minute', '2 Minutes', '3 Minutes', '4 Minutes',
+              '5 Minutes', '10 Minutes', '15 Minutes', '20 Minutes', '25 Minutes',
+              '30 Minutes', '45 Minutes', '60 Minutes',
             ].map((opt) => (
               <option key={opt}>{opt}</option>
             ))}
@@ -315,12 +335,12 @@ export default function OptionsModalFanWall({
             <option value={60}>60 Minutes</option>
           </select>
 
-          {/* ---- Background Colors ---- */}
+          {/* ---- Background ---- */}
           <h4 className="mt-5 text-sm font-semibold">🎨 Solid Colors</h4>
           <div className="grid grid-cols-8 gap-2 mt-2">
             {[
-              '#e53935','#d81b60','#8e24aa','#5e35b1','#3949ab','#1e88e5','#039be5','#00acc1',
-              '#00897b','#43a047','#7cb342','#c0ca33','#fdd835','#fb8c00','#f4511e','#6d4c41',
+              '#e53935', '#d81b60', '#8e24aa', '#5e35b1', '#3949ab', '#1e88e5', '#039be5', '#00acc1',
+              '#00897b', '#43a047', '#7cb342', '#c0ca33', '#fdd835', '#fb8c00', '#f4511e', '#6d4c41',
             ].map((c) => (
               <div
                 key={c}

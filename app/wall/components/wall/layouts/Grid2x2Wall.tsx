@@ -1,9 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { QRCodeCanvas } from 'qrcode.react';
-import { supabase } from '@/lib/supabaseClient';
 
 interface Grid2x2WallProps {
   event: any;
@@ -19,18 +18,28 @@ const speedMap: Record<string, number> = {
 
 export default function Grid2x2Wall({ event, posts }: Grid2x2WallProps) {
   const [gridPosts, setGridPosts] = useState<(any | null)[]>([null, null, null, null]);
-  const [postIndex, setPostIndex] = useState(0);
-  const [cellIndex, setCellIndex] = useState(0);
   const [displayDuration, setDisplayDuration] = useState(
-    speedMap[event?.transition_speed || 'Medium'] || 8000
+    speedMap[event?.transition_speed || 'Medium']
   );
 
-  /* ---------- UPDATE SPEED ---------- */
+  const order = useRef([0, 1, 2, 3]);
+  const postIndex = useRef(0);
+  const cellIndex = useRef(0);
+  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  /* ---------- UPDATE SPEED INSTANTLY ---------- */
   useEffect(() => {
-    setDisplayDuration(speedMap[event?.transition_speed || 'Medium'] || 8000);
+    setDisplayDuration(speedMap[event?.transition_speed || 'Medium']);
   }, [event?.transition_speed]);
 
-  /* ---------- FADE DURATIONS ---------- */
+  /* ---------- UPDATE BACKGROUND LIVE ---------- */
+  const bg =
+    event?.background_type === 'image'
+      ? `url(${event.background_value}) center/cover no-repeat`
+      : event?.background_value ||
+        'linear-gradient(to bottom right, #1b2735, #090a0f)';
+
+  /* ---------- FADE DURATION BY SPEED ---------- */
   const fadeDurations: Record<string, number> = {
     Slow: 1.6,
     Medium: 1.2,
@@ -38,54 +47,48 @@ export default function Grid2x2Wall({ event, posts }: Grid2x2WallProps) {
   };
   const fadeDuration = fadeDurations[event?.transition_speed || 'Medium'];
 
-  /* ---------- INITIAL POPULATION ---------- */
+  /* ---------- INITIAL GRID POPULATION ---------- */
   useEffect(() => {
-    if (!posts || posts.length === 0) return;
+    if (!posts?.length) return;
     const initial = posts.slice(0, 4);
-    setGridPosts([initial[0] || null, initial[1] || null, initial[2] || null, initial[3] || null]);
-    setPostIndex(4 % posts.length);
-    setCellIndex(0);
+    setGridPosts([
+      initial[0] || null,
+      initial[1] || null,
+      initial[2] || null,
+      initial[3] || null,
+    ]);
+    postIndex.current = 4 % posts.length;
+    cellIndex.current = 0;
   }, [posts]);
 
-  /* ---------- SEQUENTIAL LOOP ---------- */
+  /* ---------- MAIN FADE CYCLE LOOP ---------- */
   useEffect(() => {
-    if (!posts || posts.length === 0) return;
+    if (!posts?.length) return;
 
-    const order = [0, 1, 2, 3];
-    let active = true;
+    const cycle = () => {
+      const nextPost = posts[postIndex.current % posts.length];
+      const cellToUpdate = order.current[cellIndex.current % order.current.length];
 
-    async function runCycle() {
-      while (active) {
-        const nextPost = posts[postIndex % posts.length];
-        const cellToUpdate = order[cellIndex % order.length];
+      setGridPosts((prev) => {
+        const newGrid = [...prev];
+        newGrid[cellToUpdate] = nextPost;
+        return newGrid;
+      });
 
-        setGridPosts((prev) => {
-          const newGrid = [...prev];
-          newGrid[cellToUpdate] = nextPost;
-          return newGrid;
-        });
+      postIndex.current = (postIndex.current + 1) % posts.length;
+      cellIndex.current = (cellIndex.current + 1) % order.current.length;
+    };
 
-        // Move to next post and cell
-        setPostIndex((prev) => (prev + 1) % posts.length);
-        setCellIndex((prev) => (prev + 1) % order.length);
+    // clear any running interval
+    if (intervalRef.current) clearInterval(intervalRef.current);
 
-        // Wait for fade/transition time before next cell
-        await new Promise((r) => setTimeout(r, displayDuration));
-      }
-    }
-
-    runCycle();
+    // start new one with current displayDuration
+    intervalRef.current = setInterval(cycle, displayDuration);
 
     return () => {
-      active = false;
+      if (intervalRef.current) clearInterval(intervalRef.current);
     };
-  }, [posts, postIndex, cellIndex, displayDuration]);
-
-  /* ---------- BACKGROUND ---------- */
-  const bg =
-    event?.background_type === 'image'
-      ? `url(${event.background_value}) center/cover no-repeat`
-      : event?.background_value || 'linear-gradient(to bottom right, #1b2735, #090a0f)';
+  }, [posts, displayDuration]);
 
   /* ---------- POST CARD ---------- */
   function PostCard({ post }: { post: any }) {
@@ -178,7 +181,7 @@ export default function Grid2x2Wall({ event, posts }: Grid2x2WallProps) {
                 fontWeight: 800,
                 fontSize: 'clamp(1.6rem, 2.2vw, 2.4rem)',
                 textShadow:
-                  '0 0 12px rgba(255,255,255,0.8), 0 0 20px rgba(100,180,255,0.6), 0 0 4px rgba(0,0,0,0.8)',
+                  '0 0 12px rgba(255,255,255,0.8), 0 0 20px rgba(100,180,255,0.6)',
                 margin: 0,
               }}
             >
@@ -229,7 +232,7 @@ export default function Grid2x2Wall({ event, posts }: Grid2x2WallProps) {
     },
   };
 
-  /* ---------- BACKGROUND ANIM ---------- */
+  /* ---------- BACKGROUND ANIMATION ---------- */
   const driftKeyframes = `
     @keyframes bgDrift {
       0% { background-position: 0% 50%; }
