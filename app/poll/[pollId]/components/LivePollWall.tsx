@@ -2,9 +2,12 @@
 
 import { motion, AnimatePresence } from 'framer-motion';
 
-/* ---------- LIVE POLL WALL ---------- */
-export default function LivePollWall({ poll }: { poll: any }) {
-  const options = poll.options || [];
+interface LivePollWallProps {
+  poll: any;
+}
+
+export default function LivePollWall({ poll }: LivePollWallProps) {
+  const options = poll?.options || [];
   const totalVotes = options.reduce((sum: number, o: any) => sum + (o.votes || 0), 0) || 1;
 
   const colorPresets = [
@@ -28,12 +31,10 @@ export default function LivePollWall({ poll }: { poll: any }) {
             : poll.background_value || 'linear-gradient(to bottom right,#1b2735,#090a0f)',
       }}
     >
-      {/* TITLE */}
       <h1 className="text-4xl font-extrabold mb-6 drop-shadow-lg text-center">
-        {poll.title || 'Fan Polling Zone'}
+        {poll.title || 'Live Fan Poll'}
       </h1>
 
-      {/* OPTIONS */}
       <div className="w-[80%] max-w-5xl flex flex-col gap-6 relative mt-6">
         {options.map((opt: any, i: number) => {
           const percent = Math.round(((opt.votes || 0) / totalVotes) * 100);
@@ -45,6 +46,7 @@ export default function LivePollWall({ poll }: { poll: any }) {
                 <span className="font-semibold">{opt.text}</span>
                 <span>{opt.votes || 0} votes</span>
               </div>
+
               <div className="relative w-full bg-white/15 rounded-full overflow-hidden h-10">
                 <AnimatePresence>
                   <motion.div
@@ -75,16 +77,7 @@ export default function LivePollWall({ poll }: { poll: any }) {
         })}
       </div>
 
-      {/* POLL CLOSED OVERLAY */}
-      {poll.status === 'closed' && (
-        <div className="absolute inset-0 bg-black/70 flex items-center justify-center z-40">
-          <h1 className="text-5xl font-extrabold text-white drop-shadow-lg">
-            🏁 Poll Closed
-          </h1>
-        </div>
-      )}
-
-      {/* FULLSCREEN BUTTON */}
+      {/* Fullscreen button */}
       <div
         className="fixed bottom-3 right-3 w-12 h-12 rounded-xl flex items-center justify-center cursor-pointer z-50 opacity-20 hover:opacity-100 transition-all duration-300 bg-white/10 backdrop-blur-md border border-white/20"
         onClick={() => {
