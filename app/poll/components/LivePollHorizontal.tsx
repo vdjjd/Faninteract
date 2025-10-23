@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { supabase } from '@/lib/supabaseClient';
 import PollDurationTimer from './PollDurationTimer';
 import PollResultsOverlay from './PollResultsOverlay';
@@ -29,7 +29,10 @@ export default function LivePollHorizontal({ poll }: LivePollHorizontalProps) {
       )
       .subscribe();
 
-    return () => supabase.removeChannel(channel);
+    // ✅ Safe async cleanup wrapper
+    return () => {
+      void supabase.removeChannel(channel);
+    };
   }, [poll.id]);
 
   /* ---------- Winner Tracking ---------- */

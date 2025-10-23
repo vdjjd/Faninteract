@@ -29,7 +29,10 @@ export default function LivePollVertical({ poll }: LivePollVerticalProps) {
       )
       .subscribe();
 
-    return () => supabase.removeChannel(channel);
+    // ✅ Safe cleanup wrapper to avoid async return type errors
+    return () => {
+      void supabase.removeChannel(channel);
+    };
   }, [poll.id]);
 
   /* ---------- Winner Tracking ---------- */
