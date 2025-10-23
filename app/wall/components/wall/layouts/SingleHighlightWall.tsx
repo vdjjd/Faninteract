@@ -63,17 +63,28 @@ const speedMap: Record<string, number> = {
   Fast: 4000,
 };
 
-/* ---------- LIVE WALL ---------- */
 export default function LiveWall({ event, posts }: LiveWallProps) {
   const [livePosts, setLivePosts] = useState(posts || []);
   const [currentIndex, setCurrentIndex] = useState(0);
-
   const transitionStyle =
     transitions[event?.post_transition || 'Fade In / Fade Out'];
-
-  /* 🕒 Determine transition duration from event */
   const displayDuration =
     speedMap[event?.transition_speed || 'Medium'] || 8000;
+
+  /* ---------- AUTO RESTORE FULLSCREEN ---------- */
+  useEffect(() => {
+    let wasFullscreen = !!document.fullscreenElement;
+    const handleChange = () => {
+      if (!document.fullscreenElement && wasFullscreen) {
+        setTimeout(() => {
+          document.documentElement.requestFullscreen().catch(() => {});
+        }, 300);
+      }
+      wasFullscreen = !!document.fullscreenElement;
+    };
+    document.addEventListener('fullscreenchange', handleChange);
+    return () => document.removeEventListener('fullscreenchange', handleChange);
+  }, []);
 
   /* ---------- INITIAL FETCH ---------- */
   useEffect(() => {
@@ -90,68 +101,53 @@ export default function LiveWall({ event, posts }: LiveWallProps) {
     fetchApproved();
   }, [event?.id]);
 
-  /* ---------- REALTIME SUBSCRIPTIONS ---------- */
+  /* ---------- REALTIME UPDATES ---------- */
   useEffect(() => {
     if (!event?.id) return;
-
     const channel = supabase
       .channel(`live-submissions-${event.id}`)
       .on(
         'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'submissions',
-          filter: `event_id=eq.${event.id}`,
-        },
+        { event: '*', schema: 'public', table: 'submissions', filter: `event_id=eq.${event.id}` },
         (payload) => {
-          if (payload.eventType === 'INSERT' && payload.new.status === 'approved') {
+          if (payload.eventType === 'INSERT' && payload.new.status === 'approved')
             setLivePosts((prev) => [payload.new, ...prev]);
-          } else if (payload.eventType === 'UPDATE' && payload.new.status === 'approved') {
+          else if (payload.eventType === 'UPDATE' && payload.new.status === 'approved')
             setLivePosts((prev) => {
               const exists = prev.find((p) => p.id === payload.new.id);
-              if (exists) return prev;
-              return [payload.new, ...prev];
+              return exists ? prev : [payload.new, ...prev];
             });
-          } else if (payload.eventType === 'DELETE') {
+          else if (payload.eventType === 'DELETE')
             setLivePosts((prev) => prev.filter((p) => p.id !== payload.old.id));
-          }
         }
       )
       .subscribe();
-
     return () => {
       supabase.removeChannel(channel);
     };
   }, [event?.id]);
 
-/* ---------- 🧹 AUTO DELETE FILTER (stable for transitions) ---------- */
-const [filteredPosts, setFilteredPosts] = useState(livePosts);
-
-useEffect(() => {
-  const applyFilter = () => {
-    const limit = event?.auto_delete_minutes || 0;
-    if (limit === 0) {
-      setFilteredPosts(livePosts);
-      return;
-    }
-    const now = Date.now();
-    const filtered = livePosts.filter((p) => {
-      const createdAt = new Date(p.created_at).getTime();
-      const diffMinutes = (now - createdAt) / 1000 / 60;
-      return diffMinutes <= limit;
-    });
-    setFilteredPosts(filtered);
-  };
-
-  applyFilter();                    // run immediately
-  const timer = setInterval(applyFilter, 60000); // re-check once per minute
-  return () => clearInterval(timer);
-}, [livePosts, event?.auto_delete_minutes]);
-
-  /* ---------- CYCLE THROUGH POSTS ---------- */
+  /* ---------- AUTO DELETE FILTER ---------- */
+  const [filteredPosts, setFilteredPosts] = useState(livePosts);
   useEffect(() => {
-    if (!filteredPosts || filteredPosts.length === 0) return;
+    const applyFilter = () => {
+      const limit = event?.auto_delete_minutes || 0;
+      if (limit === 0) return setFilteredPosts(livePosts);
+      const now = Date.now();
+      const filtered = livePosts.filter((p) => {
+        const createdAt = new Date(p.created_at).getTime();
+        return (now - createdAt) / 60000 <= limit;
+      });
+      setFilteredPosts(filtered);
+    };
+    applyFilter();
+    const timer = setInterval(applyFilter, 60000);
+    return () => clearInterval(timer);
+  }, [livePosts, event?.auto_delete_minutes]);
+
+  /* ---------- POST CYCLE ---------- */
+  useEffect(() => {
+    if (!filteredPosts?.length) return;
     const interval = setInterval(() => {
       setCurrentIndex((i) => (i + 1) % filteredPosts.length);
     }, displayDuration);
@@ -164,8 +160,7 @@ useEffect(() => {
   const bg =
     event?.background_type === 'image'
       ? `url(${event.background_value}) center/cover no-repeat`
-      : event?.background_value ||
-        'linear-gradient(to bottom right,#1b2735,#090a0f)';
+      : event?.background_value || 'linear-gradient(to bottom right,#1b2735,#090a0f)';
 
   /* ---------- RENDER ---------- */
   return (
@@ -216,7 +211,7 @@ useEffect(() => {
           position: 'relative',
         }}
       >
-        {/* ---------- LEFT SIDE PHOTO ---------- */}
+        {/* ---------- LEFT PHOTO ---------- */}
         <div style={{ width: '45%', marginLeft: '4vw' }}>
           <AnimatePresence mode="wait">
             {current?.photo_url ? (
@@ -242,7 +237,6 @@ useEffect(() => {
                 transition={{ duration: 0.6 }}
                 style={{
                   width: '100%',
-                  height: 'auto',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
@@ -266,10 +260,9 @@ useEffect(() => {
             justifyContent: 'center',
             height: '100%',
             transform: 'translateY(-11%)',
-            position: 'relative',
           }}
         >
-          {/* STATIC LOGO */}
+          {/* LOGO */}
           <div
             style={{
               width: 'clamp(260px, 26vw, 380px)',
@@ -289,7 +282,7 @@ useEffect(() => {
             />
           </div>
 
-          {/* STATIC GREY BAR */}
+          {/* GREY BAR */}
           <div
             style={{
               width: '92%',
@@ -303,17 +296,13 @@ useEffect(() => {
             }}
           ></div>
 
-          {/* ---------- ANIMATED TEXT ---------- */}
+          {/* ---------- TEXT ---------- */}
           <AnimatePresence mode="wait">
             {current ? (
               <motion.div
                 key={current.id}
                 {...transitionStyle}
-                style={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                }}
+                style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}
               >
                 <h2
                   style={{
@@ -360,7 +349,7 @@ useEffect(() => {
         </div>
       </div>
 
-      {/* ---------- QR SECTION ---------- */}
+      {/* ---------- QR ---------- */}
       <div
         style={{
           position: 'absolute',
@@ -369,14 +358,12 @@ useEffect(() => {
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
-          justifyContent: 'center',
           textAlign: 'center',
         }}
       >
         <p
           style={{
             color: '#fff',
-            textAlign: 'center',
             textShadow: '0 0 10px rgba(0,0,0,0.6)',
             fontWeight: 700,
             fontSize: 'clamp(1.2rem, 1.8vw, 2rem)',
@@ -428,19 +415,8 @@ useEffect(() => {
         }}
         title="Toggle Fullscreen"
       >
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          fill="none"
-          viewBox="0 0 24 24"
-          strokeWidth={1.5}
-          stroke="white"
-          style={{ width: 26, height: 26 }}
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            d="M3 9V4h5M21 9V4h-5M3 15v5h5M21 15v5h-5"
-          />
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="white" style={{ width: 26, height: 26 }}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M3 9V4h5M21 9V4h-5M3 15v5h5M21 15v5h-5" />
         </svg>
       </div>
     </div>

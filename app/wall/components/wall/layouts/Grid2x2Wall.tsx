@@ -26,16 +26,31 @@ export default function Grid2x2Wall({ event, posts }: Grid2x2WallProps) {
   const postIndex = useRef(0);
   const cellIndex = useRef(0);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
-  const resetKey = useRef(0); // 🔸 forces grid reset when speed/layout changes
+  const resetKey = useRef(0);
 
   /* ---------- UPDATE SPEED LIVE ---------- */
   useEffect(() => {
     const newDuration = speedMap[event?.transition_speed || 'Medium'];
     setDisplayDuration(newDuration);
-    resetKey.current += 1; // trigger full loop restart
+    resetKey.current += 1;
   }, [event?.transition_speed]);
 
-  /* ---------- UPDATE BACKGROUND LIVE ---------- */
+  /* ---------- AUTO RESTORE FULLSCREEN ---------- */
+  useEffect(() => {
+    let wasFullscreen = !!document.fullscreenElement;
+    const handleChange = () => {
+      if (!document.fullscreenElement && wasFullscreen) {
+        setTimeout(() => {
+          document.documentElement.requestFullscreen().catch(() => {});
+        }, 300);
+      }
+      wasFullscreen = !!document.fullscreenElement;
+    };
+    document.addEventListener('fullscreenchange', handleChange);
+    return () => document.removeEventListener('fullscreenchange', handleChange);
+  }, []);
+
+  /* ---------- BACKGROUND ---------- */
   const bg =
     event?.background_type === 'image'
       ? `url(${event.background_value}) center/cover no-repeat`
@@ -57,13 +72,11 @@ export default function Grid2x2Wall({ event, posts }: Grid2x2WallProps) {
     setGridPosts([initial[0] || null, initial[1] || null, initial[2] || null, initial[3] || null]);
     postIndex.current = 4 % posts.length;
     cellIndex.current = 0;
-  }, [posts, resetKey.current]); // 🔸 reset when key increments
+  }, [posts, resetKey.current]);
 
   /* ---------- FADE LOOP ---------- */
   useEffect(() => {
     if (!posts?.length) return;
-
-    // stop previous interval before restart
     if (intervalRef.current) clearInterval(intervalRef.current);
 
     const cycle = () => {
@@ -346,7 +359,7 @@ export default function Grid2x2Wall({ event, posts }: Grid2x2WallProps) {
           </div>
         </div>
 
-        {/* FULLSCREEN */}
+        {/* FULLSCREEN BUTTON */}
         <div
           style={{
             position: 'fixed',

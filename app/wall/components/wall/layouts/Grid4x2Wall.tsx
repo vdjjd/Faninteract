@@ -20,7 +20,7 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
   const [displayDelay, setDisplayDelay] = useState(
     speedMap[event?.transition_speed || 'Medium']
   );
-  const resetKey = useRef(0); // 🔸 forces full cycle reset
+  const resetKey = useRef(0);
 
   const postPointer = useRef(0);
   const pairIndex = useRef(0);
@@ -30,17 +30,17 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
   useEffect(() => {
     const newDelay = speedMap[event?.transition_speed || 'Medium'];
     setDisplayDelay(newDelay);
-    resetKey.current += 1; // restart loop when speed changes
+    resetKey.current += 1;
   }, [event?.transition_speed]);
 
-  const fadeDuration = 1200; // consistent fade timing
+  const fadeDuration = 1200;
 
   /* ---------- INITIAL POPULATION ---------- */
   useEffect(() => {
     if (!posts?.length) return;
     setGridPosts((prev) => prev.map((_, i) => posts[i % posts.length] || null));
     postPointer.current = 8 % posts.length;
-  }, [posts, resetKey.current]); // 🔸 reset when key increments
+  }, [posts, resetKey.current]);
 
   /* ---------- SEQUENTIAL PAIR LOOP ---------- */
   useEffect(() => {
@@ -80,12 +80,10 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
         const [top, bottom] = pairs[pairIndex.current];
         const nextPost = posts[postPointer.current % posts.length];
 
-        // fade bottom then top
         await fadeOutCell(bottom);
         await new Promise((r) => setTimeout(r, 300));
         await fadeOutCell(top);
 
-        // replace posts bottom -> top
         setGridPosts((prev) => {
           const updated = [...prev];
           updated[bottom] = prev[top];
@@ -108,12 +106,26 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
     }
 
     runCycle();
-
     return () => {
       cancelled = true;
       activeRef.current = false;
     };
-  }, [posts, displayDelay, resetKey.current]); // 🔸 restart loop cleanly
+  }, [posts, displayDelay, resetKey.current]);
+
+  /* ---------- AUTO RESTORE FULLSCREEN ---------- */
+  useEffect(() => {
+    let wasFullscreen = !!document.fullscreenElement;
+    const handleChange = () => {
+      if (!document.fullscreenElement && wasFullscreen) {
+        setTimeout(() => {
+          document.documentElement.requestFullscreen().catch(() => {});
+        }, 300);
+      }
+      wasFullscreen = !!document.fullscreenElement;
+    };
+    document.addEventListener('fullscreenchange', handleChange);
+    return () => document.removeEventListener('fullscreenchange', handleChange);
+  }, []);
 
   /* ---------- BACKGROUND ---------- */
   const bg =
@@ -324,7 +336,7 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
         />
       </div>
 
-      {/* FULLSCREEN */}
+      {/* FULLSCREEN BUTTON */}
       <div
         style={{
           position: 'fixed',
@@ -360,3 +372,4 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
     </div>
   );
 }
+
