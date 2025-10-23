@@ -1,7 +1,8 @@
 'use client';
 
+import { useEffect } from 'react';
 import { supabase } from '@/lib/supabaseClient';
-import { getEventsByHost, clearEventPosts, deleteEvent } from '@/lib/actions/events';
+import { clearEventPosts, deleteEvent } from '@/lib/actions/events';
 
 interface FanWallGridProps {
   events: any[];
@@ -21,7 +22,6 @@ export default function FanWallGrid({ events, host, refreshEvents, onOpenOptions
   /* ---------- PLAY ---------- */
   async function handleStart(id: string) {
     try {
-      // fetch event to check countdown
       const { data: current, error } = await supabase
         .from('events')
         .select('countdown')
@@ -33,8 +33,8 @@ export default function FanWallGrid({ events, host, refreshEvents, onOpenOptions
         return;
       }
 
-      // has countdown?
       if (current?.countdown && current.countdown !== 'none') {
+        // start countdown
         await supabase
           .from('events')
           .update({
@@ -44,7 +44,7 @@ export default function FanWallGrid({ events, host, refreshEvents, onOpenOptions
           })
           .eq('id', id);
       } else {
-        // go live instantly
+        // go live immediately
         await supabase
           .from('events')
           .update({
@@ -53,13 +53,6 @@ export default function FanWallGrid({ events, host, refreshEvents, onOpenOptions
             updated_at: new Date().toISOString(),
           })
           .eq('id', id);
-
-        // ✅ broadcast realtime change immediately
-        supabase.channel('events-realtime').send({
-          type: 'broadcast',
-          event: 'event_status_changed',
-          payload: { id, status: 'live' },
-        });
       }
 
       await refreshEvents();
@@ -80,13 +73,6 @@ export default function FanWallGrid({ events, host, refreshEvents, onOpenOptions
         })
         .eq('id', id);
 
-      // ✅ broadcast realtime change immediately
-      supabase.channel('events-realtime').send({
-          type: 'broadcast',
-          event: 'event_status_changed',
-          payload: { id, status: 'inactive' },
-      });
-
       await refreshEvents();
     } catch (err) {
       console.error('❌ Error stopping wall:', err);
@@ -105,16 +91,17 @@ export default function FanWallGrid({ events, host, refreshEvents, onOpenOptions
     await refreshEvents();
   }
 
-  /* ---------- SUBSCRIBE TO REALTIME PENDING UPDATES ---------- */
+  /* ---------- REALTIME PENDING UPDATES ---------- */
   useEffect(() => {
     const channel = supabase
-      .channel('submissions-pending')
+      .channel('submissions-realtime')
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'submissions' },
         async (payload) => {
-          // refresh dashboard counts on any insert/update/delete
-          await refreshEvents();
+          if (payload.new?.event_id) {
+            await refreshEvents();
+          }
         }
       )
       .subscribe();
@@ -130,7 +117,9 @@ export default function FanWallGrid({ events, host, refreshEvents, onOpenOptions
       <h2 className="text-xl font-semibold mb-3">🎤 Fan Zone Walls</h2>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
-        {events.length === 0 && <p className="text-gray-400 italic">No Fan Zone Walls created yet.</p>}
+        {events.length === 0 && (
+          <p className="text-gray-400 italic">No Fan Zone Walls created yet.</p>
+        )}
 
         {events.map((event) => (
           <div
@@ -140,9 +129,11 @@ export default function FanWallGrid({ events, host, refreshEvents, onOpenOptions
               background:
                 event.background_type === 'image'
                   ? `url(${event.background_value}) center/cover no-repeat`
-                  : event.background_value || 'linear-gradient(135deg,#0d47a1,#1976d2)',
+                  : event.background_value ||
+                    'linear-gradient(135deg,#0d47a1,#1976d2)',
             }}
           >
+            {/* ---------- HEADER ---------- */}
             <div>
               <h3 className="font-bold text-lg text-center drop-shadow-md mb-1">
                 {event.host_title || event.title || 'Untitled Wall'}
@@ -162,10 +153,12 @@ export default function FanWallGrid({ events, host, refreshEvents, onOpenOptions
                 </span>
               </p>
 
-              {/* Pending Button */}
+              {/* ---------- PENDING BUTTON ---------- */}
               <div className="flex justify-center mb-3">
                 <button
-                  onClick={() => window.open(`/admin/moderation/${event.id}`, '_blank')}
+                  onClick={() =>
+                    window.open(`/admin/moderation/${event.id}`, '_blank')
+                  }
                   className={`px-3 py-1 rounded-md text-sm font-semibold flex items-center gap-1 shadow-md transition ${
                     event.pending_posts > 0
                       ? 'bg-yellow-500 hover:bg-yellow-600 text-black'
@@ -182,24 +175,42 @@ export default function FanWallGrid({ events, host, refreshEvents, onOpenOptions
               </div>
             </div>
 
-            {/* Control Buttons */}
+            {/* ---------- CONTROLS ---------- */}
             <div className="flex flex-wrap justify-center gap-2 mt-auto pt-2 border-t border-white/10">
-              <button onClick={() => handleLaunch(event.id)} className="bg-blue-600 hover:bg-blue-700 px-2 py-1 rounded text-sm font-semibold">
+              <button
+                onClick={() => handleLaunch(event.id)}
+                className="bg-blue-600 hover:bg-blue-700 px-2 py-1 rounded text-sm font-semibold"
+              >
                 🚀 Launch
               </button>
-              <button onClick={() => handleStart(event.id)} className="bg-green-600 hover:bg-green-700 px-2 py-1 rounded text-sm font-semibold">
+              <button
+                onClick={() => handleStart(event.id)}
+                className="bg-green-600 hover:bg-green-700 px-2 py-1 rounded text-sm font-semibold"
+              >
                 ▶️ Play
               </button>
-              <button onClick={() => handleStop(event.id)} className="bg-red-600 hover:bg-red-700 px-2 py-1 rounded text-sm font-semibold">
+              <button
+                onClick={() => handleStop(event.id)}
+                className="bg-red-600 hover:bg-red-700 px-2 py-1 rounded text-sm font-semibold"
+              >
                 ⏹ Stop
               </button>
-              <button onClick={() => handleClear(event.id)} className="bg-cyan-500 hover:bg-cyan-600 px-2 py-1 rounded text-sm font-semibold">
+              <button
+                onClick={() => handleClear(event.id)}
+                className="bg-cyan-500 hover:bg-cyan-600 px-2 py-1 rounded text-sm font-semibold"
+              >
                 🧹 Clear
               </button>
-              <button onClick={() => onOpenOptions(event)} className="bg-indigo-500 hover:bg-indigo-600 px-2 py-1 rounded text-sm font-semibold">
+              <button
+                onClick={() => onOpenOptions(event)}
+                className="bg-indigo-500 hover:bg-indigo-600 px-2 py-1 rounded text-sm font-semibold"
+              >
                 ⚙ Options
               </button>
-              <button onClick={() => handleDelete(event.id)} className="bg-red-700 hover:bg-red-800 px-2 py-1 rounded text-sm font-semibold">
+              <button
+                onClick={() => handleDelete(event.id)}
+                className="bg-red-700 hover:bg-red-800 px-2 py-1 rounded text-sm font-semibold"
+              >
                 ❌ Delete
               </button>
             </div>

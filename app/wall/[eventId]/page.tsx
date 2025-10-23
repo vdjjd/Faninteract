@@ -20,9 +20,9 @@ export default function FanWallPage() {
   if (event?.background_type === 'image' && event?.background_value) {
     bg = `url(${event.background_value}) center/cover no-repeat`;
   } else if (event?.background_type === 'gradient' && event?.background_value) {
-    bg = `${event.background_value}`;
+    bg = event.background_value;
   } else if (event?.background_type === 'solid' && event?.background_value) {
-    bg = `${event.background_value}`;
+    bg = event.background_value;
   }
 
   /* ---------- LOADING ---------- */
@@ -60,12 +60,20 @@ export default function FanWallPage() {
 
       <div className="fade-wrapper">
         {/* ---------- INACTIVE WALL ---------- */}
-        <div className={`fade-child ${!showLive ? 'active' : ''}`}>
+        <div
+          className={`fade-child ${
+            !showLive || event?.countdown_active ? 'active' : ''
+          }`}
+        >
           <InactiveWall event={event} />
         </div>
 
         {/* ---------- LIVE WALL ---------- */}
-        <div className={`fade-child ${showLive ? 'active' : ''}`}>
+        <div
+          className={`fade-child ${
+            showLive && !event?.countdown_active ? 'active' : ''
+          }`}
+        >
           {event.layout_type === '2 Column × 2 Row' ? (
             <Grid2x2Wall event={event} posts={submissions} />
           ) : event.layout_type === '4 Column × 2 Row' ? (

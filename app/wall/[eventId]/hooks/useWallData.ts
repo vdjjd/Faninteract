@@ -47,11 +47,26 @@ export function useWallData(eventId: string | string[] | undefined) {
         .eq('id', eventId)
         .single();
 
-      if (error) console.error('❌ Error loading event:', error);
+      if (error) {
+        console.error('❌ Error loading event:', error);
+        setLoading(false);
+        return;
+      }
+
       if (data) {
         setEvent(data);
-        setShowLive(data.status === 'live');
+
+        // 🧠 determine visibility
+        if (data.status === 'live') {
+          setShowLive(true);
+        } else if (data.countdown_active) {
+          // countdown in progress → stay inactive until updated
+          setShowLive(false);
+        } else {
+          setShowLive(false);
+        }
       }
+
       setLoading(false);
     }
 
@@ -62,14 +77,12 @@ export function useWallData(eventId: string | string[] | undefined) {
   useEffect(() => {
     if (!eventId) return;
 
-    console.log(`📡 Subscribing to realtime updates for wall ${eventId}`);
-
     const channel = supabase
       .channel(`events-wall-${eventId}`)
       .on(
         'postgres_changes',
         {
-          event: '*',
+          event: 'UPDATE',
           schema: 'public',
           table: 'events',
           filter: `id=eq.${eventId}`,
@@ -78,12 +91,19 @@ export function useWallData(eventId: string | string[] | undefined) {
           const updated = payload.new as EventData;
           if (!updated) return;
 
-          console.log('📡 Event update received:', updated.status);
           setEvent((prev) => ({ ...prev, ...updated }));
-          setShowLive(updated.status === 'live');
+
+          // 🧩 determine wall visibility in real time
+          if (updated.status === 'live') {
+            setShowLive(true);
+          } else if (updated.countdown_active) {
+            setShowLive(false);
+          } else {
+            setShowLive(false);
+          }
         }
       )
-      .subscribe((status) => console.log('Realtime channel status:', status));
+      .subscribe();
 
     return () => {
       supabase.removeChannel(channel);
@@ -102,7 +122,10 @@ export function useWallData(eventId: string | string[] | undefined) {
         .eq('status', 'approved')
         .order('created_at', { ascending: true });
 
-      if (error) console.error('❌ Error loading submissions:', error);
+      if (error) {
+        console.error('❌ Error loading submissions:', error);
+        return;
+      }
       if (data) setSubmissions(data);
     }
 
