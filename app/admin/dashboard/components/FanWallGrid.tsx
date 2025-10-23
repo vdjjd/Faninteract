@@ -2,7 +2,7 @@
 
 import { useEffect } from 'react';
 import { supabase } from '@/lib/supabaseClient';
-import { clearEventPosts, deleteEvent } from '@/lib/actions/events';
+import { getEventsByHost, clearEventPosts, deleteEvent } from '@/lib/actions/events';
 
 interface FanWallGridProps {
   events: any[];
@@ -22,6 +22,7 @@ export default function FanWallGrid({ events, host, refreshEvents, onOpenOptions
   /* ---------- PLAY ---------- */
   async function handleStart(id: string) {
     try {
+      // fetch event to check countdown
       const { data: current, error } = await supabase
         .from('events')
         .select('countdown')
@@ -33,8 +34,8 @@ export default function FanWallGrid({ events, host, refreshEvents, onOpenOptions
         return;
       }
 
+      // if countdown is set, activate countdown mode
       if (current?.countdown && current.countdown !== 'none') {
-        // start countdown
         await supabase
           .from('events')
           .update({
@@ -44,7 +45,7 @@ export default function FanWallGrid({ events, host, refreshEvents, onOpenOptions
           })
           .eq('id', id);
       } else {
-        // go live immediately
+        // otherwise go live instantly
         await supabase
           .from('events')
           .update({
@@ -53,6 +54,13 @@ export default function FanWallGrid({ events, host, refreshEvents, onOpenOptions
             updated_at: new Date().toISOString(),
           })
           .eq('id', id);
+
+        // broadcast live change
+        supabase.channel('events-realtime').send({
+          type: 'broadcast',
+          event: 'event_status_changed',
+          payload: { id, status: 'live' },
+        });
       }
 
       await refreshEvents();
@@ -73,6 +81,13 @@ export default function FanWallGrid({ events, host, refreshEvents, onOpenOptions
         })
         .eq('id', id);
 
+      // broadcast stop change
+      supabase.channel('events-realtime').send({
+        type: 'broadcast',
+        event: 'event_status_changed',
+        payload: { id, status: 'inactive' },
+      });
+
       await refreshEvents();
     } catch (err) {
       console.error('❌ Error stopping wall:', err);
@@ -91,15 +106,16 @@ export default function FanWallGrid({ events, host, refreshEvents, onOpenOptions
     await refreshEvents();
   }
 
-  /* ---------- REALTIME PENDING UPDATES ---------- */
+  /* ---------- SUBSCRIBE TO REALTIME PENDING UPDATES ---------- */
   useEffect(() => {
     const channel = supabase
-      .channel('submissions-realtime')
+      .channel('submissions-pending')
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'submissions' },
-        async (payload) => {
-          if (payload.new?.event_id) {
+        async (payload: any) => {
+          // Type-safe guard — if payload has event_id, refresh
+          if (payload?.new && 'event_id' in payload.new) {
             await refreshEvents();
           }
         }
@@ -109,7 +125,7 @@ export default function FanWallGrid({ events, host, refreshEvents, onOpenOptions
     return () => {
       supabase.removeChannel(channel);
     };
-  }, []);
+  }, [refreshEvents]);
 
   /* ---------- RENDER ---------- */
   return (
@@ -129,11 +145,9 @@ export default function FanWallGrid({ events, host, refreshEvents, onOpenOptions
               background:
                 event.background_type === 'image'
                   ? `url(${event.background_value}) center/cover no-repeat`
-                  : event.background_value ||
-                    'linear-gradient(135deg,#0d47a1,#1976d2)',
+                  : event.background_value || 'linear-gradient(135deg,#0d47a1,#1976d2)',
             }}
           >
-            {/* ---------- HEADER ---------- */}
             <div>
               <h3 className="font-bold text-lg text-center drop-shadow-md mb-1">
                 {event.host_title || event.title || 'Untitled Wall'}
@@ -153,7 +167,7 @@ export default function FanWallGrid({ events, host, refreshEvents, onOpenOptions
                 </span>
               </p>
 
-              {/* ---------- PENDING BUTTON ---------- */}
+              {/* Pending Button */}
               <div className="flex justify-center mb-3">
                 <button
                   onClick={() =>
@@ -175,7 +189,7 @@ export default function FanWallGrid({ events, host, refreshEvents, onOpenOptions
               </div>
             </div>
 
-            {/* ---------- CONTROLS ---------- */}
+            {/* Control Buttons */}
             <div className="flex flex-wrap justify-center gap-2 mt-auto pt-2 border-t border-white/10">
               <button
                 onClick={() => handleLaunch(event.id)}
