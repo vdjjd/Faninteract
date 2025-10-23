@@ -16,6 +16,7 @@ interface EventData {
   qr_url: string | null;
   host_id: string;
   layout_type?: string | null;
+  transition_speed?: string | null;
   updated_at?: string;
   _version?: number;
 }
@@ -39,47 +40,39 @@ export function useWallData(eventId: string | string[] | undefined) {
   const [showLive, setShowLive] = useState(false);
 
   /* ---------- LOAD EVENT ---------- */
-  useEffect(() => {
+  async function loadEvent() {
     if (!eventId) return;
+    const { data, error } = await supabase
+      .from('events')
+      .select('*')
+      .eq('id', eventId)
+      .single();
 
-    async function loadEvent() {
-      const { data, error } = await supabase
-        .from('events')
-        .select('*')
-        .eq('id', eventId)
-        .single();
-
-      if (error) {
-        console.error('❌ Error loading event:', error);
-        setLoading(false);
-        return;
-      }
-
-      if (data) {
-        setEvent(data);
-
-        // 🧠 determine visibility
-        if (data.status === 'live') {
-          setShowLive(true);
-        } else if (data.countdown_active) {
-          setShowLive(false);
-        } else {
-          setShowLive(false);
-        }
-      }
-
+    if (error) {
+      console.error('❌ Error loading event:', error);
       setLoading(false);
+      return;
     }
 
+    if (data) {
+      setEvent(data);
+      if (data.status === 'live') setShowLive(true);
+      else setShowLive(false);
+    }
+    setLoading(false);
+  }
+
+  useEffect(() => {
     loadEvent();
   }, [eventId]);
 
-  /* ---------- REALTIME EVENT UPDATES ---------- */
+  /* ---------- REALTIME EVENT UPDATES + BROADCAST LISTENING ---------- */
   useEffect(() => {
     if (!eventId) return;
 
     const channel = supabase
       .channel(`events-wall-${eventId}`)
+      // ✅ Database updates (Postgres changes)
       .on(
         'postgres_changes',
         {
@@ -91,23 +84,22 @@ export function useWallData(eventId: string | string[] | undefined) {
         (payload) => {
           const updated = payload.new as EventData;
           if (!updated) return;
-
           setEvent((prev): EventData => ({
             ...(prev ?? ({} as EventData)),
             ...(updated as Partial<EventData>),
             _version: Date.now(),
           }));
-
-          // 🧩 determine wall visibility in real time
-          if (updated.status === 'live') {
-            setShowLive(true);
-          } else if (updated.countdown_active) {
-            setShowLive(false);
-          } else {
-            setShowLive(false);
-          }
+          setShowLive(updated.status === 'live');
         }
       )
+      // ✅ Broadcast updates (from OptionsModalFanWall)
+      .on('broadcast', { event: 'UPDATE' }, async (payload) => {
+        const data = payload.payload as { id: string };
+        if (data?.id === eventId) {
+          // Re-fetch event so background/layout/speed update instantly
+          await loadEvent();
+        }
+      })
       .subscribe();
 
     return () => {
@@ -148,14 +140,12 @@ export function useWallData(eventId: string | string[] | undefined) {
         },
         (payload) => {
           const updated = payload.new as SubmissionData;
-
           if (payload.eventType === 'DELETE') {
             setSubmissions((prev) =>
               prev.filter((p) => p.id !== payload.old.id)
             );
             return;
           }
-
           if (updated.status === 'approved') {
             setSubmissions((prev) => {
               const exists = prev.find((p) => p.id === updated.id);

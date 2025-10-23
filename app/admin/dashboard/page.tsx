@@ -23,9 +23,9 @@ export default function DashboardPage() {
   const [isFanWallModalOpen, setFanWallModalOpen] = useState(false);
   const [isPollModalOpen, setPollModalOpen] = useState(false);
   const [selectedWall, setSelectedWall] = useState<any | null>(null);
-  const [selectedPoll, setSelectedPoll] = useState<any | null>(null); // 🔹 Added this
+  const [selectedPoll, setSelectedPoll] = useState<any | null>(null);
 
-  /* ---------- LOAD HOST + DATA ---------- */
+  /* ---------- LOAD HOST + INITIAL DATA ---------- */
   useEffect(() => {
     async function load() {
       const { data: { user } } = await supabase.auth.getUser();
@@ -56,6 +56,34 @@ export default function DashboardPage() {
     const updated = await getPollsByHost(host.id);
     setPolls(updated);
   }
+
+  /* ---------- REALTIME SYNC ---------- */
+  useEffect(() => {
+    if (!host) return;
+
+    const channel = supabase
+      .channel(`events-dashboard-${host.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'events',
+          filter: `host_id=eq.${host.id}`,
+        },
+        (payload) => {
+          const updatedEvent = payload.new;
+          setEvents((prev) =>
+            prev.map((ev) => (ev.id === updatedEvent.id ? { ...ev, ...updatedEvent } : ev))
+          );
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [host]);
 
   /* ---------- CREATE HANDLERS ---------- */
   function handleCreateFanWall() {
@@ -102,7 +130,7 @@ export default function DashboardPage() {
         polls={polls}
         host={host}
         refreshPolls={refreshPolls}
-        onOpenOptions={(poll) => setSelectedPoll(poll)} // 🔹 This now opens modal
+        onOpenOptions={(poll) => setSelectedPoll(poll)}
       />
 
       {/* CREATE FAN WALL MODAL */}
