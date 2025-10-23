@@ -34,7 +34,6 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
       clearTimeout(timerRef.current);
       timerRef.current = null;
     }
-    setPairIndex((prev) => (prev + 1) % 4); // force immediate refresh cycle
   }, [event?.transition_speed]);
 
   /* ---------- INITIAL POPULATION ---------- */
@@ -60,10 +59,12 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
       const [top, bottom] = pairs[pairIdx];
       const nextPost = posts[postPointer % posts.length];
 
+      // bottom fades first, then top
       await fadeOutCell(bottom);
       await new Promise((r) => setTimeout(r, 300));
       await fadeOutCell(top);
 
+      // move top → bottom
       setGridPosts((prev) => {
         const updated = [...prev];
         updated[bottom] = prev[top];
@@ -71,6 +72,7 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
       });
       await fadeInCell(bottom);
 
+      // replace top with next post
       setGridPosts((prev) => {
         const updated = [...prev];
         updated[top] = nextPost;
@@ -78,15 +80,14 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
       });
       await fadeInCell(top);
 
+      // advance pointers
       setPostPointer((p) => (p + 1) % posts.length);
       setIsTransitioning(false);
-      setPairIndex((prev) => (prev + 1) % pairs.length);
 
-      timerRef.current = setTimeout(runNext, displayDelay);
-    }
-
-    function runNext() {
-      setPairIndex((prev) => (prev + 1) % pairs.length);
+      // queue next pair properly (no double step)
+      timerRef.current = setTimeout(() => {
+        setPairIndex((prev) => (prev + 1) % pairs.length);
+      }, displayDelay);
     }
 
     runPair(pairIndex);
