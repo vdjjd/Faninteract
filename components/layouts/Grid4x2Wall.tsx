@@ -70,12 +70,12 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
       });
       await fadeInCell(top);
 
-      setPostPointer((p) => (p + 1) % posts.length);
+setPostPointer((p) => (p + 1) % posts.length);
 
-      // ✅ moved delay *after* pairIndex update for pacing between each grouped transition
-      setIsTransitioning(false);
-      setPairIndex((prev) => (prev + 1) % pairs.length);
-      await new Promise((r) =>
+// ✅ moved delay *after* pairIndex update for pacing between each grouped transition
+setIsTransitioning(false);
+setPairIndex((prev) => (prev + 1) % pairs.length);
+await new Promise((r) =>
   setTimeout(r, speedMap[event?.transition_speed || 'Medium'] || 8000)
 );
 
