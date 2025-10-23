@@ -52,6 +52,7 @@ useEffect(() => {
     [3, 7],
   ];
 
+  // 👇 Declare outside so TypeScript recognizes it
   let active = true; // prevents overlap if speed changes mid-loop
 
   async function runPair(pairIdx: number) {
@@ -87,7 +88,9 @@ useEffect(() => {
     await new Promise((r) => setTimeout(r, displayDelay));
 
     // continue only if still active
-    if (active) runPair((pairIdx + 1) % pairs.length);
+    if (active) {
+      runPair((pairIdx + 1) % pairs.length);
+    }
   }
 
   runPair(pairIndex);
