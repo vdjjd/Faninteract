@@ -3,12 +3,10 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
-
-/* ✅ UPDATED IMPORT PATHS */
-import InactiveWall from '@/app/wall/components/wall/InactiveWall';
-import SingleHighlightWall from '@/app/wall/components/wall/layouts/SingleHighlightWall';
-import Grid2x2Wall from '@/app/wall/components/wall/layouts/Grid2x2Wall';
-import Grid4x2Wall from '@/app/wall/components/wall/layouts/Grid4x2Wall';
+import InactiveWall from '@/components/InactiveWall';
+import SingleHighlightWall from '@/components/layouts/SingleHighlightWall';
+import Grid2x2Wall from '@/components/layouts/Grid2x2Wall';
+import Grid4x2Wall from '@/components/layouts/Grid4x2Wall';
 
 /* ---------- TYPES ---------- */
 interface EventData {
