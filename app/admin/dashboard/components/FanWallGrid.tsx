@@ -107,27 +107,41 @@ export default function FanWallGrid({
     await refreshEvents();
   }
 
-  /* ---------- MODERATION POPUP ---------- */
-  function openModerationPopup(eventId: string) {
-    const w = 1280;
-    const h = 720;
-    const left = window.screenX + (window.outerWidth - w) / 2;
-    const top = window.screenY + (window.outerHeight - h) / 2;
-    const popup = window.open(
-      `/admin/moderation/${eventId}`,
-      `moderation_${eventId}`, // unique per wall
-      `width=${w},height=${h},left=${left},top=${top},resizable=yes,scrollbars=yes,menubar=no,toolbar=no,location=no,status=no`
-    );
-    popup?.focus();
+/* ---------- MODERATION POPUP ---------- */
+function openModerationPopup(eventId: string) {
+  const w = 1280;
+  const h = 720;
+  const left = window.screenX + (window.outerWidth - w) / 2;
+  const top = window.screenY + (window.outerHeight - h) / 2;
 
-    // ✅ Auto-refresh when popup closes
-    const checkPopup = setInterval(() => {
-      if (popup?.closed) {
-        clearInterval(checkPopup);
-        refreshEvents();
-      }
-    }, 1000);
-  }
+  const popup = window.open(
+    `/admin/moderation/${eventId}`,
+    `moderation_${eventId}`, // unique window name
+    [
+      `width=${w}`,
+      `height=${h}`,
+      `left=${left}`,
+      `top=${top}`,
+      'resizable=yes',
+      'scrollbars=yes',
+      'menubar=no',
+      'toolbar=no',
+      'location=no',  // hides URL bar
+      'status=no',
+      'titlebar=no',  // hides window title
+    ].join(',')
+  );
+
+  popup?.focus();
+
+  // ✅ Auto-refresh when popup closes
+  const checkPopup = setInterval(() => {
+    if (popup?.closed) {
+      clearInterval(checkPopup);
+      refreshEvents();
+    }
+  }, 1000);
+}
 
   /* ---------- SUBSCRIBE TO REALTIME PENDING UPDATES ---------- */
   useEffect(() => {
