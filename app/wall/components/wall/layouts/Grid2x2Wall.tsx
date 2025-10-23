@@ -47,23 +47,38 @@ export default function Grid2x2Wall({ event, posts }: Grid2x2WallProps) {
     setCellIndex(0);
   }, [posts]);
 
-  /* ---------- CYCLIC ORDER UPDATES ---------- */
+  /* ---------- CYCLIC ORDER UPDATES (FIXED SPEED UPDATE) ---------- */
   useEffect(() => {
     if (!posts || posts.length === 0) return;
+
     const order = [0, 1, 2, 3]; // TL, TR, BL, BR
-    const interval = setInterval(() => {
-      const next = posts[postIndex % posts.length];
-      const cellToUpdate = order[cellIndex % order.length];
-      setGridPosts((prev) => {
-        const newGrid = [...prev];
-        newGrid[cellToUpdate] = next;
-        return newGrid;
-      });
-      setPostIndex((prev) => (prev + 1) % posts.length);
-      setCellIndex((prev) => (prev + 1) % order.length);
-    }, displayDuration);
-    return () => clearInterval(interval);
-  }, [posts, cellIndex, postIndex, displayDuration]); // ✅ depend on displayDuration so new speed applies instantly
+    const activeRef = { current: true };
+
+    async function cycle() {
+      while (activeRef.current) {
+        const next = posts[postIndex % posts.length];
+        const cellToUpdate = order[cellIndex % order.length];
+
+        setGridPosts((prev) => {
+          const newGrid = [...prev];
+          newGrid[cellToUpdate] = next;
+          return newGrid;
+        });
+
+        setPostIndex((prev) => (prev + 1) % posts.length);
+        setCellIndex((prev) => (prev + 1) % order.length);
+
+        // Dynamic delay — reacts instantly when speed changes
+        await new Promise((r) => setTimeout(r, displayDuration));
+      }
+    }
+
+    cycle();
+
+    return () => {
+      activeRef.current = false; // stop on unmount/speed change
+    };
+  }, [posts, postIndex, cellIndex, displayDuration]);
 
   /* ---------- BACKGROUND ---------- */
   const bg =
@@ -94,8 +109,7 @@ export default function Grid2x2Wall({ event, posts }: Grid2x2WallProps) {
           background: 'rgba(255,255,255,0.06)',
           backdropFilter: 'blur(10px)',
           border: '1px solid rgba(255,255,255,0.15)',
-          boxShadow:
-            '0 0 20px rgba(255,255,255,0.1), 0 0 30px rgba(100,180,255,0.15)',
+          boxShadow: '0 0 20px rgba(255,255,255,0.1), 0 0 30px rgba(100,180,255,0.15)',
         }}
       >
         {/* LEFT: PHOTO */}
