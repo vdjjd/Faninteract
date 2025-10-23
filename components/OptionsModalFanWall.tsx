@@ -367,66 +367,19 @@ export default function OptionsModalFanWall({
             {uploading && <p className="text-yellow-400 text-xs mt-2 animate-pulse">Uploading...</p>}
           </div>
 
-         {/* ---- Buttons ---- */}
-<div className="text-center mt-5 flex flex-wrap justify-center gap-3">
-
-  {/* ▶️ PLAY / GO LIVE BUTTON */}
-  <button
-    onClick={async () => {
-      try {
-        if (!localEvent.id) return;
-        if (localEvent.countdown) {
-          // Countdown exists → start countdown
-          await supabase
-            .from('events')
-            .update({
-              countdown_active: true,
-              status: 'inactive',
-              updated_at: new Date().toISOString(),
-            })
-            .eq('id', localEvent.id);
-          alert('⏱ Countdown started!');
-        } else {
-          // No countdown → go live immediately
-          await supabase
-            .from('events')
-            .update({
-              status: 'live',
-              countdown_active: false,
-              updated_at: new Date().toISOString(),
-            })
-            .eq('id', localEvent.id);
-          alert('🚀 Wall is now LIVE!');
-        }
-
-        await refreshEvents();
-        onClose();
-      } catch (err) {
-        console.error('❌ Error going live:', err);
-      }
-    }}
-    className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded font-semibold"
-  >
-    ▶️ Play
-  </button>
-
-  {/* 💾 SAVE BUTTON */}
-  <button
-    disabled={saving}
-    onClick={handleSave}
-    className={`${saving ? 'bg-gray-500' : 'bg-green-600 hover:bg-green-700'} px-4 py-2 rounded font-semibold`}
-  >
-    {saving ? 'Saving…' : '💾 Save'}
-  </button>
-
-  {/* ✖ CLOSE BUTTON */}
-  <button
-    onClick={onClose}
-    className="bg-red-600 hover:bg-red-700 px-4 py-2 rounded font-semibold"
-  >
-    ✖ Close
-  </button>
-</div>
+          {/* ---- Buttons ---- */}
+          <div className="text-center mt-5 flex justify-center gap-4">
+            <button
+              disabled={saving}
+              onClick={handleSave}
+              className={`${saving ? 'bg-gray-500' : 'bg-green-600 hover:bg-green-700'} px-4 py-2 rounded font-semibold`}
+            >
+              {saving ? 'Saving…' : '💾 Save'}
+            </button>
+            <button onClick={onClose} className="bg-red-600 hover:bg-red-700 px-4 py-2 rounded font-semibold">
+              ✖ Close
+            </button>
+          </div>
         </div>
       </div>
     </>
