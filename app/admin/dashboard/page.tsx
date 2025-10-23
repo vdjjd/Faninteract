@@ -10,18 +10,20 @@ import CreatePollModal from '@/components/CreatePollModal';
 import FanWallGrid from './components/FanWallGrid';
 import PollGrid from './components/PollGrid';
 import OptionsModalFanWall from '@/components/OptionsModalFanWall';
+import OptionsModalPoll from '@/components/OptionsModalPoll';
 
-export default function DashboardPage() {  // ✅ renamed from DashboardRefactor
+export default function DashboardPage() {
   const [host, setHost] = useState<any>(null);
   const [events, setEvents] = useState<any[]>([]);
   const [polls, setPolls] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState<string | null>(null);
 
-  // Modal States
+  // 🔸 Modal States
   const [isFanWallModalOpen, setFanWallModalOpen] = useState(false);
   const [isPollModalOpen, setPollModalOpen] = useState(false);
   const [selectedWall, setSelectedWall] = useState<any | null>(null);
+  const [selectedPoll, setSelectedPoll] = useState<any | null>(null); // 🔹 Added this
 
   /* ---------- LOAD HOST + DATA ---------- */
   useEffect(() => {
@@ -100,7 +102,7 @@ export default function DashboardPage() {  // ✅ renamed from DashboardRefactor
         polls={polls}
         host={host}
         refreshPolls={refreshPolls}
-        onOpenOptions={(p) => console.log('Poll Options:', p)}
+        onOpenOptions={(poll) => setSelectedPoll(poll)} // 🔹 This now opens modal
       />
 
       {/* CREATE FAN WALL MODAL */}
@@ -134,11 +136,34 @@ export default function DashboardPage() {  // ✅ renamed from DashboardRefactor
           onBackgroundChange={async (event, newValue) => {
             await supabase
               .from('events')
-              .update({ background_value: newValue, updated_at: new Date().toISOString() })
+              .update({
+                background_value: newValue,
+                updated_at: new Date().toISOString(),
+              })
               .eq('id', event.id);
             await refreshEvents();
           }}
           refreshEvents={refreshEvents}
+        />
+      )}
+
+      {/* OPTIONS MODAL (Poll) */}
+      {selectedPoll && (
+        <OptionsModalPoll
+          event={selectedPoll}
+          hostId={host.id}
+          onClose={() => setSelectedPoll(null)}
+          onBackgroundChange={async (event, newValue) => {
+            await supabase
+              .from('polls')
+              .update({
+                background_value: newValue,
+                updated_at: new Date().toISOString(),
+              })
+              .eq('id', event.id);
+            await refreshPolls();
+          }}
+          refreshEvents={refreshPolls}
         />
       )}
 
