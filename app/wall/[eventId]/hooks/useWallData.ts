@@ -61,34 +61,36 @@ export function useWallData(eventId: string | string[] | undefined) {
   /* ---------- REALTIME EVENT UPDATES ---------- */
   useEffect(() => {
     if (!eventId) return;
-    let mounted = true;
+
+    console.log(`📡 Subscribing to realtime updates for wall ${eventId}`);
 
     const channel = supabase
-      .channel(`events-live-${eventId}`)
+      .channel(`events-wall-${eventId}`)
       .on(
         'postgres_changes',
         {
-          event: 'UPDATE',
+          event: '*',
           schema: 'public',
           table: 'events',
           filter: `id=eq.${eventId}`,
         },
         (payload) => {
-          if (!mounted) return;
           const updated = payload.new as EventData;
+          if (!updated) return;
+
+          console.log('📡 Event update received:', updated.status);
           setEvent((prev) => ({ ...prev, ...updated }));
           setShowLive(updated.status === 'live');
         }
       )
-      .subscribe();
+      .subscribe((status) => console.log('Realtime channel status:', status));
 
     return () => {
-      mounted = false;
       supabase.removeChannel(channel);
     };
   }, [eventId]);
 
-  /* ---------- REALTIME SUBMISSIONS ---------- */
+  /* ---------- LOAD + REALTIME SUBMISSIONS ---------- */
   useEffect(() => {
     if (!eventId) return;
 
@@ -107,7 +109,7 @@ export function useWallData(eventId: string | string[] | undefined) {
     loadSubs();
 
     const channel = supabase
-      .channel(`submissions-realtime-${eventId}`)
+      .channel(`submissions-wall-${eventId}`)
       .on(
         'postgres_changes',
         {
@@ -119,6 +121,13 @@ export function useWallData(eventId: string | string[] | undefined) {
         (payload) => {
           const updated = payload.new as SubmissionData;
 
+          if (payload.eventType === 'DELETE') {
+            setSubmissions((prev) =>
+              prev.filter((p) => p.id !== payload.old.id)
+            );
+            return;
+          }
+
           if (updated.status === 'approved') {
             setSubmissions((prev) => {
               const exists = prev.find((p) => p.id === updated.id);
@@ -126,11 +135,10 @@ export function useWallData(eventId: string | string[] | undefined) {
                 ? prev.map((p) => (p.id === updated.id ? updated : p))
                 : [...prev, updated];
             });
-          } else if (
-            payload.eventType === 'DELETE' ||
-            updated.status !== 'approved'
-          ) {
-            setSubmissions((prev) => prev.filter((p) => p.id !== updated.id));
+          } else {
+            setSubmissions((prev) =>
+              prev.filter((p) => p.id !== updated.id)
+            );
           }
         }
       )
