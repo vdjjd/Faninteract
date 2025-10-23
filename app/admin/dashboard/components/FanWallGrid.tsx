@@ -2,7 +2,7 @@
 
 import { useEffect } from 'react';
 import { supabase } from '@/lib/supabaseClient';
-import { getEventsByHost, clearEventPosts, deleteEvent } from '@/lib/actions/events';
+import { clearEventPosts, deleteEvent } from '@/lib/actions/events';
 
 interface FanWallGridProps {
   events: any[];
@@ -11,11 +11,20 @@ interface FanWallGridProps {
   onOpenOptions: (event: any) => void;
 }
 
-export default function FanWallGrid({ events, host, refreshEvents, onOpenOptions }: FanWallGridProps) {
+export default function FanWallGrid({
+  events,
+  host,
+  refreshEvents,
+  onOpenOptions,
+}: FanWallGridProps) {
   /* ---------- OPEN WALL ---------- */
   async function handleLaunch(id: string) {
     const url = `${window.location.origin}/wall/${id}`;
-    const popup = window.open(url, '_blank', 'width=1280,height=800,left=100,top=100');
+    const popup = window.open(
+      url,
+      '_blank',
+      'width=1280,height=800,left=100,top=100,resizable=yes,scrollbars=yes'
+    );
     popup?.focus();
   }
 
@@ -104,13 +113,20 @@ export default function FanWallGrid({ events, host, refreshEvents, onOpenOptions
     const h = 720;
     const left = window.screenX + (window.outerWidth - w) / 2;
     const top = window.screenY + (window.outerHeight - h) / 2;
-    const url = `/admin/moderation/${eventId}`;
     const popup = window.open(
-      url,
-      'ModerationWindow',
-      `width=${w},height=${h},left=${left},top=${top},resizable=yes,menubar=no,toolbar=no,location=no,status=no`
+      `/admin/moderation/${eventId}`,
+      `moderation_${eventId}`, // unique per wall
+      `width=${w},height=${h},left=${left},top=${top},resizable=yes,scrollbars=yes,menubar=no,toolbar=no,location=no,status=no`
     );
     popup?.focus();
+
+    // ✅ Auto-refresh when popup closes
+    const checkPopup = setInterval(() => {
+      if (popup?.closed) {
+        clearInterval(checkPopup);
+        refreshEvents();
+      }
+    }, 1000);
   }
 
   /* ---------- SUBSCRIBE TO REALTIME PENDING UPDATES ---------- */
@@ -151,7 +167,8 @@ export default function FanWallGrid({ events, host, refreshEvents, onOpenOptions
               background:
                 event.background_type === 'image'
                   ? `url(${event.background_value}) center/cover no-repeat`
-                  : event.background_value || 'linear-gradient(135deg,#0d47a1,#1976d2)',
+                  : event.background_value ||
+                    'linear-gradient(135deg,#0d47a1,#1976d2)',
             }}
           >
             <div>
@@ -173,46 +190,31 @@ export default function FanWallGrid({ events, host, refreshEvents, onOpenOptions
                 </span>
               </p>
 
-              {/* Pending Button */}
-<div className="flex justify-center mb-3">
-  <button
-    onClick={() => {
-      const popup = window.open(
-        `/admin/moderation/${event.id}`,
-        `moderation_${event.id}`, // unique name per wall
-        'width=1280,height=720,left=100,top=100,resizable=yes,scrollbars=yes'
-      );
-      popup?.focus();
+              {/* ---------- Pending Button ---------- */}
+              <div className="flex justify-center mb-3">
+                <button
+                  onClick={() => openModerationPopup(event.id)}
+                  className={`px-3 py-1 rounded-md text-sm font-semibold flex items-center gap-1 shadow-md transition ${
+                    event.pending_posts > 0
+                      ? 'bg-yellow-500 hover:bg-yellow-600 text-black'
+                      : 'bg-gray-600 hover:bg-gray-700 text-white/80'
+                  }`}
+                >
+                  🕓 Pending
+                  <span
+                    className={`px-1.5 py-0.5 rounded-md text-xs font-bold ${
+                      event.pending_posts > 0
+                        ? 'bg-black/70 text-white'
+                        : 'bg-white/20 text-gray-300'
+                    }`}
+                  >
+                    {event.pending_posts}
+                  </span>
+                </button>
+              </div>
+            </div>
 
-      // ✅ Refresh dashboard when popup closes
-      const checkPopup = setInterval(() => {
-        if (popup?.closed) {
-          clearInterval(checkPopup);
-          refreshEvents();
-        }
-      }, 1000);
-    }}
-    className={`px-3 py-1 rounded-md text-sm font-semibold flex items-center gap-1 shadow-md transition ${
-      event.pending_posts > 0
-        ? 'bg-yellow-500 hover:bg-yellow-600 text-black'
-        : 'bg-gray-600 hover:bg-gray-700 text-white/80'
-    }`}
-  >
-    🕓 Pending
-    <span
-      className={`px-1.5 py-0.5 rounded-md text-xs font-bold ${
-        event.pending_posts > 0
-          ? 'bg-black/70 text-white'
-          : 'bg-white/20 text-gray-300'
-      }`}
-    >
-      {event.pending_posts}
-    </span>
-  </button>
-</div>
-
-
-            {/* Control Buttons */}
+            {/* ---------- Control Buttons ---------- */}
             <div className="flex flex-wrap justify-center gap-2 mt-auto pt-2 border-t border-white/10">
               <button
                 onClick={() => handleLaunch(event.id)}
