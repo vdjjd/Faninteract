@@ -4,7 +4,7 @@ import { supabaseAdmin } from '@/lib/supabaseClient';
 const supabase = supabaseAdmin!;
 
 /* -------------------------------------------------------------------------- */
-/* 🟢 CREATE A NEW POLL                                                       */
+/* 🟢 CREATE A NEW POLL WITH AUTO-GENERATED QR URL                            */
 /* -------------------------------------------------------------------------- */
 export async function createPoll(hostId: string, data: any) {
   const { title } = data;
@@ -12,7 +12,7 @@ export async function createPoll(hostId: string, data: any) {
   const newPoll = {
     host_id: hostId,
     title: title || 'Untitled Poll',
-    host_title: title || 'Untitled Poll', // ✅ this line ensures the card title works
+    host_title: title || 'Untitled Poll', // ✅ ensures dashboard card title displays
     status: 'inactive',
     background_type: 'gradient',
     background_value: 'linear-gradient(135deg,#0d47a1,#1976d2)',
@@ -22,20 +22,40 @@ export async function createPoll(hostId: string, data: any) {
     updated_at: new Date().toISOString(),
   };
 
-  // ✅ Must wrap payload in an array for insert + select combo
+  // ✅ Step 1: Insert the poll
   const { data: created, error } = await supabase
     .from('polls')
     .insert([newPoll])
     .select()
     .single();
 
-  if (error) {
-    console.error('❌ Error creating poll:', error.message || error);
+  if (error || !created) {
+    console.error('❌ Error creating poll:', error?.message || error);
     return null;
   }
 
-  console.log('✅ Poll created successfully:', created);
-  return created;
+  // ✅ Step 2: Generate a unique QR URL for this poll
+  // Change this domain/path if your live poll route is different (e.g. /vote/)
+  const qrUrl = `https://faninteract.com/poll/${created.id}`;
+
+  // ✅ Step 3: Save QR URL into the poll
+  const { data: updated, error: updateError } = await supabase
+    .from('polls')
+    .update({
+      qr_url: qrUrl,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', created.id)
+    .select()
+    .single();
+
+  if (updateError) {
+    console.error('⚠️ Poll created but failed to save QR URL:', updateError.message);
+    return created; // return at least the base poll if QR update fails
+  }
+
+  console.log('✅ Poll created with QR URL:', updated.qr_url);
+  return updated;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -60,7 +80,6 @@ export async function getPollsByHost(hostId: string) {
 /* 🔵 UPDATE POLL SETTINGS                                                    */
 /* -------------------------------------------------------------------------- */
 export async function updatePoll(pollId: string, updates: any) {
-  // ✅ Make sure host_title gets updated when saving from the options modal
   const updatedData = {
     ...updates,
     host_title: updates.host_title ?? updates.title ?? 'Untitled Poll',
@@ -97,20 +116,17 @@ export async function deletePoll(pollId: string) {
 /* -------------------------------------------------------------------------- */
 export async function clearPoll(pollId: string) {
   try {
-    // delete all votes
     const { error: voteError } = await supabase
       .from('poll_votes')
       .delete()
       .eq('poll_id', pollId);
     if (voteError) throw voteError;
 
-    // reset vote counts in poll options
     const { data: pollData, error: fetchError } = await supabase
       .from('polls')
       .select('options')
       .eq('id', pollId)
       .single();
-
     if (fetchError) throw fetchError;
 
     const resetOptions = (pollData?.options || []).map((o: any) => ({
@@ -127,7 +143,6 @@ export async function clearPoll(pollId: string) {
         updated_at: new Date().toISOString(),
       })
       .eq('id', pollId);
-
     if (updateError) throw updateError;
 
     console.log(`🧹 Cleared poll ${pollId}`);
@@ -145,7 +160,6 @@ export async function addVote(
   voterHash: string
 ) {
   try {
-    // check if this voter has already voted
     const { data: existing } = await supabase
       .from('poll_votes')
       .select('*')
@@ -158,26 +172,20 @@ export async function addVote(
       return null;
     }
 
-    // insert new vote
     const { error: insertError } = await supabase
       .from('poll_votes')
       .insert([{ poll_id: pollId, option_id: optionId, voter_hash: voterHash }]);
-
     if (insertError) throw insertError;
 
-    // increment count in poll.options JSON
     const { data: pollData, error: fetchError } = await supabase
       .from('polls')
       .select('options')
       .eq('id', pollId)
       .single();
-
     if (fetchError) throw fetchError;
 
     const updatedOptions = (pollData?.options || []).map((o: any) =>
-      o.id === optionId
-        ? { ...o, votes: (o.votes || 0) + 1 }
-        : o
+      o.id === optionId ? { ...o, votes: (o.votes || 0) + 1 } : o
     );
 
     const { error: updateError } = await supabase
@@ -187,7 +195,6 @@ export async function addVote(
         updated_at: new Date().toISOString(),
       })
       .eq('id', pollId);
-
     if (updateError) throw updateError;
 
     console.log(`✅ Vote added for option ${optionId} in poll ${pollId}`);

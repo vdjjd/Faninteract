@@ -90,6 +90,11 @@ export default function InactivePollWall({ poll }: { poll: any }) {
       : poll?.background_value ||
         'linear-gradient(to bottom right,#1b2735,#090a0f)';
 
+  // Optional debug log (you can delete later)
+  // useEffect(() => {
+  //   console.log('🧾 QR for this poll:', poll.qr_url);
+  // }, [poll.qr_url]);
+
   return (
     <>
       <style>{`
@@ -156,7 +161,7 @@ export default function InactivePollWall({ poll }: { poll: any }) {
         >
           {/* ---------- BIG QR (LEFT SIDE) ---------- */}
           <QRCodeCanvas
-            value={`https://faninteract.vercel.app/poll/${poll.id}`}
+            value={poll.qr_url || `https://faninteract.vercel.app/poll/${poll.id}`}
             size={420}
             bgColor="#ffffff"
             fgColor="#000000"
