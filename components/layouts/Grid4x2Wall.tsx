@@ -21,8 +21,16 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
   const [pairIndex, setPairIndex] = useState(0);
   const [postPointer, setPostPointer] = useState(0);
   const [isTransitioning, setIsTransitioning] = useState(false);
+  const [currentSpeed, setCurrentSpeed] = useState('Medium');
 
-  const displayDelay = speedMap[event?.transition_speed || 'Medium'] || 8000;
+  /* ---------- Update current speed when event changes ---------- */
+  useEffect(() => {
+    if (event?.transition_speed) {
+      setCurrentSpeed(event.transition_speed);
+    }
+  }, [event?.transition_speed]);
+
+  const displayDelay = speedMap[currentSpeed] || 8000;
   const fadeDuration = 1200; // 1.2s cinematic fade
 
   /* ---------- INITIAL POPULATION ---------- */
@@ -71,15 +79,15 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
       await fadeInCell(top);
 
       setPostPointer((p) => (p + 1) % posts.length);
-
-      // ✅ moved delay *after* pairIndex update for pacing between each grouped transition
       setIsTransitioning(false);
-      setPairIndex((prev) => (prev + 1) % pairs.length);
+
+      // Wait between grouped transitions
       await new Promise((r) => setTimeout(r, displayDelay));
+      setPairIndex((prev) => (prev + 1) % pairs.length);
     }
 
     runPair(pairIndex);
-  }, [pairIndex, posts, postPointer, event?.transition_speed]);
+  }, [pairIndex, posts, postPointer, displayDelay]);
 
   /* ---------- FADE HELPERS ---------- */
   function fadeOutCell(index: number) {
@@ -140,7 +148,6 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
           backdropFilter: 'blur(10px)',
         }}
       >
-        {/* PHOTO (70%) */}
         <div style={{ height: '70%', position: 'relative', padding: 2 }}>
           <img
             src={post.photo_url}
@@ -156,7 +163,6 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
           />
         </div>
 
-        {/* TEXT (30%) */}
         <div
           style={{
             height: '30%',
@@ -260,7 +266,7 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
         {event.title || 'Fan Zone Wall'}
       </h1>
 
-      {/* GRID 4×2 (FROSTED GLASS) */}
+      {/* GRID */}
       <div
         style={{
           width: '88vw',
@@ -271,7 +277,7 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
           gap: 10,
           borderRadius: 20,
           overflow: 'hidden',
-          background: 'rgba(255,255,255,0.07)', // frosted glass
+          background: 'rgba(255,255,255,0.07)',
           backdropFilter: 'blur(14px) saturate(150%)',
           border: '1px solid rgba(255,255,255,0.18)',
           boxShadow:
@@ -369,3 +375,4 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
     </div>
   );
 }
+
