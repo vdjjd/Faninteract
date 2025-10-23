@@ -70,11 +70,12 @@ useEffect(() => {
     });
     await fadeInCell(top);
 
-    setPostPointer((p) => (p + 1) % posts.length);
+// add a controlled delay between cell groups
+await new Promise((r) => setTimeout(r, displayDelay));
 
-    // ✅ moved delay *after* pairIndex update for pacing between each grouped transition
-    setIsTransitioning(false);
-    setPairIndex((prev) => (prev + 1) % pairs.length);
+setPostPointer((p) => (p + 1) % posts.length);
+setIsTransitioning(false);
+setPairIndex((prev) => (prev + 1) % pairs.length);
     await new Promise((r) =>
       setTimeout(r, speedMap[event?.transition_speed || 'Medium'] || 8000)
     );
