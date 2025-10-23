@@ -36,7 +36,10 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
 
  /* ---------- SEQUENTIAL PAIRED FADE LOGIC ---------- */
 useEffect(() => {
-  if (!posts || posts.length === 0 || isTransitioning) return;
+  if (!posts || posts.length === 0) return;
+
+  let stop = false;
+  if (isTransitioning) return;
 
   const pairs = [
     [0, 4],
@@ -46,7 +49,7 @@ useEffect(() => {
   ];
 
   async function runPair(pairIdx: number) {
-    setIsTransitioning(true);
+    if (stop) return;
     const [top, bottom] = pairs[pairIdx];
     const nextPost = posts[postPointer % posts.length];
 
