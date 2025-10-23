@@ -42,50 +42,60 @@ useEffect(() => {
   }, [posts]);
 
    /* ---------- SEQUENTIAL PAIRED FADE LOGIC (with live speed updates) ---------- */
-  useEffect(() => {
-    if (!posts || posts.length === 0 || isTransitioning) return;
+useEffect(() => {
+  if (!posts || posts.length === 0 || isTransitioning) return;
 
-    const pairs = [
-      [0, 4],
-      [1, 5],
-      [2, 6],
-      [3, 7],
-    ];
+  const pairs = [
+    [0, 4],
+    [1, 5],
+    [2, 6],
+    [3, 7],
+  ];
 
-    let active = true; // prevents overlap if speed changes mid-loop
+  let active = true; // prevents overlap if speed changes mid-loop
 
-    async function runPair(pairIdx: number) {
-      if (!active) return;
-      setIsTransitioning(true);
+  async function runPair(pairIdx: number) {
+    if (!active) return;
+    setIsTransitioning(true);
 
-      const [top, bottom] = pairs[pairIdx];
-      const nextPost = posts[postPointer % posts.length];
+    const [top, bottom] = pairs[pairIdx];
+    const nextPost = posts[postPointer % posts.length];
 
-      await fadeOutCell(bottom);
-      await new Promise((r) => setTimeout(r, 300));
-      await fadeOutCell(top);
+    await fadeOutCell(bottom);
+    await new Promise((r) => setTimeout(r, 300));
+    await fadeOutCell(top);
 
-      setGridPosts((prev) => {
-        const updated = [...prev];
-        updated[bottom] = prev[top];
-        return updated;
-      });
-      await fadeInCell(bottom);
+    setGridPosts((prev) => {
+      const updated = [...prev];
+      updated[bottom] = prev[top];
+      return updated;
+    });
+    await fadeInCell(bottom);
 
-      setGridPosts((prev) => {
-        const updated = [...prev];
-        updated[top] = nextPost;
-        return updated;
-      });
-      await fadeInCell(top);
+    setGridPosts((prev) => {
+      const updated = [...prev];
+      updated[top] = nextPost;
+      return updated;
+    });
+    await fadeInCell(top);
 
-      // advance pointers
-      setPostPointer((p) => (p + 1) % posts.length);
-      setPairIndex((p) => (p + 1) % pairs.length);
-      setIsTransitioning(false);
+    // advance pointers
+    setPostPointer((p) => (p + 1) % posts.length);
+    setIsTransitioning(false);
 
-      // wait using *current* displayDelay (respects new speed live)
-      await new Promise((r) => setTimeout(r, displayDelay));
+    // wait using *current* displayDelay (respects new speed live)
+    await new Promise((r) => setTimeout(r, displayDelay));
+
+    // continue only if still active
+    if (active) runPair((pairIdx + 1) % pairs.length);
+  }
+
+  runPair(pairIndex);
+
+  return () => {
+    active = false; // stop loop cleanly if unmounted or speed changes
+  };
+}, [posts, postPointer, displayDelay]);
 
       // continue only if still active
       if (active) runPair((pairIdx + 1) % pairs.length);
