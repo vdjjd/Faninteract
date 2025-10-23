@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
 import { motion, AnimatePresence } from 'framer-motion';
-import InactivePollWall from '@/components/InactivePollWall';
+import InactivePollWall from '@/app/wall/components/poll/InactivePollWall';
 
 /* ---------- COUNTDOWN DISPLAY ---------- */
 function CountdownDisplay({
