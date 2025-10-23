@@ -39,7 +39,7 @@ function CountdownDisplay({
           (async () => {
             const { error } = await supabase
               .from('polls')
-              .update({ status: 'live', countdown_active: false })
+              .update({ status: 'live', countdown_active: false, updated_at: new Date().toISOString() })
               .eq('id', pollId);
             if (error) console.error('❌ Error setting poll live:', error);
           })();
@@ -80,7 +80,7 @@ export default function PollWallPage() {
   useEffect(() => {
     if (!pollId) return;
 
-    const fetchPoll = async () => {
+    async function fetchPoll() {
       const { data, error } = await supabase
         .from('polls')
         .select('*')
@@ -93,14 +93,14 @@ export default function PollWallPage() {
       }
 
       setPoll(data);
-      setOptions(data.options || []);
-    };
+      setOptions(Array.isArray(data.options) ? data.options : []);
+    }
 
     fetchPoll();
 
-    // 🔄 Real-time updates
+    // 🔄 Real-time updates (unique channel per poll)
     const channel = supabase
-      .channel('poll_realtime')
+      .channel(`poll-updates-${pollId}`)
       .on(
         'postgres_changes',
         {
@@ -110,19 +110,20 @@ export default function PollWallPage() {
           filter: `id=eq.${pollId}`,
         },
         (payload: any) => {
-          // ✅ FIX: Explicitly cast payload.new to expected type
-          const newPoll = payload.new as { [key: string]: any };
+          console.log('📡 Realtime update received:', payload);
+          const newPoll = payload.new as Record<string, any> | null;
           if (newPoll) {
             setPoll(newPoll);
             setOptions(Array.isArray(newPoll.options) ? newPoll.options : []);
           }
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        console.log(`📡 Poll channel ${pollId} status:`, status);
+      });
 
-    // ✅ FIX: Cleanup must be synchronous
     return () => {
-      void supabase.removeChannel(channel);
+      supabase.removeChannel(channel);
     };
   }, [pollId]);
 
