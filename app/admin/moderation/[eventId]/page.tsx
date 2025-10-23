@@ -99,7 +99,11 @@ export default function ModerationPage() {
         }
       )
       .subscribe();
-    return () => supabase.removeChannel(channel);
+
+    // ✅ Fixed cleanup (non-async)
+    return () => {
+      void supabase.removeChannel(channel);
+    };
   }, [eventId]);
 
   const pending = subs.filter((s) => s.status === 'pending');
@@ -121,7 +125,6 @@ export default function ModerationPage() {
         boxSizing: 'border-box',
       }}
     >
-      {/* HEADER */}
       <div style={{ textAlign: 'center', marginBottom: 12 }}>
         <h1 style={{ fontSize: 22, fontWeight: 600, marginBottom: 6 }}>Moderation</h1>
         {isPopup && (
@@ -155,7 +158,6 @@ export default function ModerationPage() {
         </div>
       </div>
 
-      {/* CONTENT */}
       {loading ? (
         <p style={{ textAlign: 'center' }}>Loading...</p>
       ) : (
@@ -187,7 +189,6 @@ export default function ModerationPage() {
         </div>
       )}
 
-      {/* IMAGE PREVIEW */}
       {selectedImg && (
         <div
           onClick={() => setSelectedImg(null)}
@@ -232,7 +233,6 @@ export default function ModerationPage() {
         </div>
       )}
 
-      {/* TOAST */}
       {toast && (
         <div
           style={{
@@ -324,7 +324,6 @@ function Section({
                 height: 110,
               }}
             >
-              {/* Left: Image */}
               <div
                 style={{
                   flex: '0 0 45%',
@@ -356,7 +355,6 @@ function Section({
                 )}
               </div>
 
-              {/* Right: Info */}
               <div
                 style={{
                   flex: 1,
