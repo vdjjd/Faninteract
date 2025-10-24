@@ -6,7 +6,7 @@ import {
   SheetContent,
   SheetHeader,
   SheetTitle,
-  SheetTrigger
+  SheetTrigger,
 } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/lib/supabaseClient";
@@ -16,7 +16,8 @@ import {
   Settings,
   CreditCard,
   LogOut,
-  Image as ImageIcon
+  Image as ImageIcon,
+  Trash2,
 } from 'lucide-react';
 import Image from 'next/image';
 import ChangeEmailModal from '@/components/ChangeEmailModal';
@@ -43,7 +44,6 @@ export default function HostProfilePanel({ host, onLogoUpload }: HostProfilePane
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // ✅ Get the logged-in user ID
     const { data: { user }, error: userError } = await supabase.auth.getUser();
     if (userError || !user) {
       console.error('❌ Unable to retrieve user for upload:', userError?.message);
@@ -52,28 +52,21 @@ export default function HostProfilePanel({ host, onLogoUpload }: HostProfilePane
 
     const filePath = `${user.id}/${file.name}`;
 
-    // ✅ Upload to storage bucket
-    const { data, error } = await supabase.storage
+    const { error: uploadError } = await supabase.storage
       .from('bar-logos')
-      .upload(filePath, file, {
-        cacheControl: '3600',
-        upsert: true, // allow overwriting previous logo
-      });
+      .upload(filePath, file, { cacheControl: '3600', upsert: true });
 
-    if (error) {
-      console.error('❌ Branding logo upload failed:', error.message);
+    if (uploadError) {
+      console.error('❌ Branding logo upload failed:', uploadError.message);
       return;
     }
 
-    // ✅ Get public URL
-    const { data: publicUrlData } = supabase
-      .storage
+    const { data: publicUrlData } = supabase.storage
       .from('bar-logos')
       .getPublicUrl(filePath);
 
     const logoUrl = publicUrlData?.publicUrl;
 
-    // ✅ Update host record
     const { error: updateError } = await supabase
       .from('hosts')
       .update({ branding_logo_url: logoUrl })
@@ -88,10 +81,66 @@ export default function HostProfilePanel({ host, onLogoUpload }: HostProfilePane
     window.location.reload();
   };
 
+  /* ---------- DELETE BRANDING LOGO ---------- */
+  const handleDeleteBrandingLogo = async () => {
+    if (!host?.branding_logo_url) return;
+    try {
+      const pathParts = host.branding_logo_url.split('/');
+      const filePath = `${pathParts.at(-2)}/${pathParts.at(-1)}`;
+
+      const { error: storageError } = await supabase.storage
+        .from('bar-logos')
+        .remove([filePath]);
+
+      if (storageError) throw storageError;
+
+      const { error: updateError } = await supabase
+        .from('hosts')
+        .update({ branding_logo_url: null })
+        .eq('id', host.id);
+
+      if (updateError) throw updateError;
+
+      alert('✅ Branding logo removed.');
+      window.location.reload();
+    } catch (err) {
+      console.error('❌ Failed to delete branding logo:', err);
+      alert('Error removing logo.');
+    }
+  };
+
+  /* ---------- DELETE PROFILE LOGO ---------- */
+  const handleDeleteProfileLogo = async () => {
+    if (!host?.logo_url) return;
+    try {
+      const pathParts = host.logo_url.split('/');
+      const filePath = `${pathParts.at(-2)}/${pathParts.at(-1)}`;
+
+      const { error: storageError } = await supabase.storage
+        .from('host-logos')
+        .remove([filePath]);
+
+      if (storageError) throw storageError;
+
+      const { error: updateError } = await supabase
+        .from('hosts')
+        .update({ logo_url: null })
+        .eq('id', host.id);
+
+      if (updateError) throw updateError;
+
+      alert('✅ Profile logo removed.');
+      window.location.reload();
+    } catch (err) {
+      console.error('❌ Failed to delete profile logo:', err);
+      alert('Error removing profile logo.');
+    }
+  };
+
   /* ---------- LOGOUT ---------- */
   async function handleLogout() {
     await supabase.auth.signOut();
-    window.location.href = '/'; // Redirect to login or landing page
+    window.location.href = '/';
   }
 
   /* ---------- COMPONENT ---------- */
@@ -151,6 +200,15 @@ export default function HostProfilePanel({ host, onLogoUpload }: HostProfilePane
                 />
               </label>
 
+              {host?.logo_url && (
+                <button
+                  onClick={handleDeleteProfileLogo}
+                  className="text-red-400 text-sm hover:text-red-500 hover:underline mt-1 flex items-center justify-center gap-1"
+                >
+                  <Trash2 className="w-4 h-4" /> Remove Logo
+                </button>
+              )}
+
               <div className="text-center mt-3">
                 <p className="font-semibold text-lg text-white">
                   {host?.first_name && host?.last_name
@@ -208,6 +266,15 @@ export default function HostProfilePanel({ host, onLogoUpload }: HostProfilePane
                   onChange={handleBrandingLogoUpload}
                 />
               </label>
+
+              {host?.branding_logo_url && (
+                <button
+                  onClick={handleDeleteBrandingLogo}
+                  className="text-red-400 text-sm hover:text-red-500 hover:underline mt-1 flex items-center justify-center gap-1"
+                >
+                  <Trash2 className="w-4 h-4" /> Remove Logo
+                </button>
+              )}
             </div>
           </section>
 
@@ -247,41 +314,33 @@ export default function HostProfilePanel({ host, onLogoUpload }: HostProfilePane
         </div>
 
         {/* ---------- MODALS ---------- */}
-{showEmailModal && (
-  <div
-    className="fixed inset-0 bg-black/70 flex items-center justify-center z-50"
-    role="dialog"
-    aria-modal="true"
-    aria-labelledby="change-email-title"
-  >
-    <div
-      className="bg-neutral-900 border border-gray-700 rounded-lg shadow-lg w-96"
-    >
-      <div id="change-email-title" className="sr-only">
-        Change Email
-      </div>
-      <ChangeEmailModal onClose={() => setShowEmailModal(false)} />
-    </div>
-  </div>
-)}
+        {showEmailModal && (
+          <div
+            className="fixed inset-0 bg-black/70 flex items-center justify-center z-50"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="change-email-title"
+          >
+            <div className="bg-neutral-900 border border-gray-700 rounded-lg shadow-lg w-96">
+              <div id="change-email-title" className="sr-only">Change Email</div>
+              <ChangeEmailModal onClose={() => setShowEmailModal(false)} />
+            </div>
+          </div>
+        )}
 
-{showPassModal && (
-  <div
-    className="fixed inset-0 bg-black/70 flex items-center justify-center z-50"
-    role="dialog"
-    aria-modal="true"
-    aria-labelledby="change-password-title"
-  >
-    <div
-      className="bg-neutral-900 border border-gray-700 rounded-lg shadow-lg w-96"
-    >
-      <div id="change-password-title" className="sr-only">
-        Change Password
-      </div>
-      <ChangePasswordModal onClose={() => setShowPassModal(false)} />
-    </div>
-  </div>
-)}
+        {showPassModal && (
+          <div
+            className="fixed inset-0 bg-black/70 flex items-center justify-center z-50"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="change-password-title"
+          >
+            <div className="bg-neutral-900 border border-gray-700 rounded-lg shadow-lg w-96">
+              <div id="change-password-title" className="sr-only">Change Password</div>
+              <ChangePasswordModal onClose={() => setShowPassModal(false)} />
+            </div>
+          </div>
+        )}
       </SheetContent>
     </Sheet>
   );
