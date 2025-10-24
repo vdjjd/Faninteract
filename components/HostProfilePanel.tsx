@@ -10,7 +10,14 @@ import {
 } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/lib/supabaseClient";
-import { Upload, User, Settings, CreditCard, LogOut, Image as ImageIcon } from 'lucide-react';
+import {
+  Upload,
+  User,
+  Settings,
+  CreditCard,
+  LogOut,
+  Image as ImageIcon
+} from 'lucide-react';
 import Image from 'next/image';
 import ChangeEmailModal from '@/components/ChangeEmailModal';
 import ChangePasswordModal from '@/components/ChangePasswordModal';
@@ -25,48 +32,69 @@ export default function HostProfilePanel({ host, onLogoUpload }: HostProfilePane
   const [showEmailModal, setShowEmailModal] = useState(false);
   const [showPassModal, setShowPassModal] = useState(false);
 
+  /* ---------- PROFILE LOGO UPLOAD ---------- */
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) await onLogoUpload(file);
   };
 
-  // Branding logo upload handler
+  /* ---------- BRANDING LOGO UPLOAD ---------- */
   const handleBrandingLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || !host) return;
+    if (!file) return;
 
+    // ✅ Get the logged-in user ID
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    if (userError || !user) {
+      console.error('❌ Unable to retrieve user for upload:', userError?.message);
+      return;
+    }
+
+    const filePath = `${user.id}/${file.name}`;
+
+    // ✅ Upload to storage bucket
     const { data, error } = await supabase.storage
       .from('bar-logos')
-      .upload(`${host.id}/${file.name}`, file, { upsert: true });
+      .upload(filePath, file, {
+        cacheControl: '3600',
+        upsert: true, // allow overwriting previous logo
+      });
 
     if (error) {
       console.error('❌ Branding logo upload failed:', error.message);
       return;
     }
 
-    const url = supabase.storage
+    // ✅ Get public URL
+    const { data: publicUrlData } = supabase
+      .storage
       .from('bar-logos')
-      .getPublicUrl(data.path).data.publicUrl;
+      .getPublicUrl(filePath);
 
+    const logoUrl = publicUrlData?.publicUrl;
+
+    // ✅ Update host record
     const { error: updateError } = await supabase
       .from('hosts')
-      .update({ branding_logo_url: url })
-      .eq('id', host.id);
+      .update({ branding_logo_url: logoUrl })
+      .eq('auth_id', user.id);
 
     if (updateError) {
-      console.error('❌ Failed to update branding logo:', updateError.message);
+      console.error('❌ Failed to update branding logo URL:', updateError.message);
       return;
     }
 
-    // Update local host state immediately
+    console.log('✅ Branding logo uploaded successfully:', logoUrl);
     window.location.reload();
   };
 
+  /* ---------- LOGOUT ---------- */
   async function handleLogout() {
     await supabase.auth.signOut();
     window.location.href = '/'; // Redirect to login or landing page
   }
 
+  /* ---------- COMPONENT ---------- */
   return (
     <Sheet open={isOpen} onOpenChange={setIsOpen}>
       {/* Avatar Trigger */}
@@ -94,12 +122,13 @@ export default function HostProfilePanel({ host, onLogoUpload }: HostProfilePane
         </SheetHeader>
 
         <div className="mt-5 flex flex-col gap-6">
-          {/* ACCOUNT */}
+          {/* ---------- ACCOUNT ---------- */}
           <section>
             <div className="flex items-center justify-center gap-3 mb-3 text-blue-400 font-semibold">
               <User className="w-5 h-5" />
               Account
             </div>
+
             <div className="flex flex-col items-center gap-3 text-center">
               <div className="w-24 h-24 rounded-full overflow-hidden border border-gray-600 shadow-md">
                 {host?.logo_url ? (
@@ -142,7 +171,7 @@ export default function HostProfilePanel({ host, onLogoUpload }: HostProfilePane
             </div>
           </section>
 
-          {/* BRANDING */}
+          {/* ---------- BRANDING ---------- */}
           <section className="text-center">
             <div className="flex items-center justify-center gap-3 mb-3 text-blue-400 font-semibold">
               <ImageIcon className="w-5 h-5" />
@@ -182,7 +211,7 @@ export default function HostProfilePanel({ host, onLogoUpload }: HostProfilePane
             </div>
           </section>
 
-          {/* SETTINGS */}
+          {/* ---------- SETTINGS ---------- */}
           <section>
             <div className="flex items-center gap-3 mb-3 text-blue-400 font-semibold">
               <Settings className="w-5 h-5" />
@@ -192,7 +221,7 @@ export default function HostProfilePanel({ host, onLogoUpload }: HostProfilePane
             <p className="text-sm text-gray-400">Contact Phone – coming soon</p>
           </section>
 
-          {/* BILLING */}
+          {/* ---------- BILLING ---------- */}
           <section>
             <div className="flex items-center gap-3 mb-3 text-blue-400 font-semibold">
               <CreditCard className="w-5 h-5" />
@@ -203,7 +232,7 @@ export default function HostProfilePanel({ host, onLogoUpload }: HostProfilePane
             </Button>
           </section>
 
-          {/* LOGOUT */}
+          {/* ---------- LOGOUT ---------- */}
           <section>
             <div className="flex items-center gap-3 mb-3 text-blue-400 font-semibold">
               <LogOut className="w-5 h-5" />
@@ -219,16 +248,40 @@ export default function HostProfilePanel({ host, onLogoUpload }: HostProfilePane
 
         {/* ---------- MODALS ---------- */}
         {showEmailModal && (
-          <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
-            <div className="bg-neutral-900 border border-gray-700 rounded-lg shadow-lg w-96">
+          <div
+            className="fixed inset-0 bg-black/70 flex items-center justify-center z-50"
+            role="dialog"
+            aria-modal="true"
+          >
+            <div
+              className="bg-neutral-900 border border-gray-700 rounded-lg shadow-lg w-96"
+              aria-labelledby="change-email-title"
+            >
+              <SheetHeader>
+                <SheetTitle id="change-email-title" className="sr-only">
+                  Change Email
+                </SheetTitle>
+              </SheetHeader>
               <ChangeEmailModal onClose={() => setShowEmailModal(false)} />
             </div>
           </div>
         )}
 
         {showPassModal && (
-          <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
-            <div className="bg-neutral-900 border border-gray-700 rounded-lg shadow-lg w-96">
+          <div
+            className="fixed inset-0 bg-black/70 flex items-center justify-center z-50"
+            role="dialog"
+            aria-modal="true"
+          >
+            <div
+              className="bg-neutral-900 border border-gray-700 rounded-lg shadow-lg w-96"
+              aria-labelledby="change-password-title"
+            >
+              <SheetHeader>
+                <SheetTitle id="change-password-title" className="sr-only">
+                  Change Password
+                </SheetTitle>
+              </SheetHeader>
               <ChangePasswordModal onClose={() => setShowPassModal(false)} />
             </div>
           </div>
