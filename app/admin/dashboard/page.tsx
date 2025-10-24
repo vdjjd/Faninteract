@@ -11,6 +11,7 @@ import FanWallGrid from './components/FanWallGrid';
 import PollGrid from './components/PollGrid';
 import OptionsModalFanWall from '@/components/OptionsModalFanWall';
 import OptionsModalPoll from '@/components/OptionsModalPoll';
+import HostProfilePanel from '@/components/HostProfilePanel';
 
 export default function DashboardPage() {
   const [host, setHost] = useState<any>(null);
@@ -44,6 +45,27 @@ export default function DashboardPage() {
     load();
   }, []);
 
+  /* ---------- LOGO UPLOAD ---------- */
+  async function handleLogoUpload(file: File) {
+    if (!host) return;
+
+    const { data, error } = await supabase.storage
+      .from('host-logos')
+      .upload(`${host.id}/${file.name}`, file, { upsert: true });
+
+    if (error) {
+      console.error('❌ Logo upload failed:', error.message);
+      return;
+    }
+
+    const url = supabase.storage
+      .from('host-logos')
+      .getPublicUrl(data.path).data.publicUrl;
+
+    await supabase.from('hosts').update({ logo_url: url }).eq('id', host.id);
+    setHost({ ...host, logo_url: url });
+  }
+
   /* ---------- REFRESH HELPERS ---------- */
   async function refreshEvents() {
     if (!host) return;
@@ -74,7 +96,9 @@ export default function DashboardPage() {
         (payload) => {
           const updatedEvent = payload.new;
           setEvents((prev) =>
-            prev.map((ev) => (ev.id === updatedEvent.id ? { ...ev, ...updatedEvent } : ev))
+            prev.map((ev) =>
+              ev.id === updatedEvent.id ? { ...ev, ...updatedEvent } : ev
+            )
           );
         }
       )
@@ -111,7 +135,20 @@ export default function DashboardPage() {
   /* ---------- UI ---------- */
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#0a2540] via-[#1b2b44] to-black text-white flex flex-col items-center p-8">
-      {/* HEADER */}
+
+      {/* HEADER SECTION */}
+      <div className="w-full flex items-center justify-between mb-6">
+        {/* 🟢 Profile Circle (top-left) */}
+        <HostProfilePanel host={host} onLogoUpload={handleLogoUpload} />
+
+        {/* Dashboard Title */}
+        <h1 className="text-2xl font-bold text-center flex-1">FanInteract Dashboard</h1>
+
+        {/* Spacer for alignment */}
+        <div className="w-10"></div>
+      </div>
+
+      {/* DASHBOARD MAIN */}
       <DashboardHeader
         onCreateFanWall={handleCreateFanWall}
         onCreatePoll={handleCreatePoll}
