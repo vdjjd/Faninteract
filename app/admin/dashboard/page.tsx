@@ -26,22 +26,39 @@ export default function DashboardPage() {
   const [selectedWall, setSelectedWall] = useState<any | null>(null);
   const [selectedPoll, setSelectedPoll] = useState<any | null>(null);
 
-  /* ---------- LOAD HOST + INITIAL DATA ---------- */
+  /* ---------- LOAD HOST + INITIAL DATA (RLS LINKED) ---------- */
   useEffect(() => {
     async function load() {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-      setHost(user);
+      // 1️⃣ Get the signed-in Supabase Auth user
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      if (userError || !user) return;
 
+      // 2️⃣ Fetch matching host row by auth_id (new column)
+      const { data: hostRow, error: hostError } = await supabase
+        .from('hosts')
+        .select('*')
+        .eq('auth_id', user.id)
+        .single();
+
+      if (hostError || !hostRow) {
+        console.error('❌ Unable to load host:', hostError?.message);
+        return;
+      }
+
+      // 3️⃣ Store host record for sidebar / logo
+      setHost(hostRow);
+
+      // 4️⃣ Load this host’s events & polls using hostRow.id
       const [fetchedEvents, fetchedPolls] = await Promise.all([
-        getEventsByHost(user.id),
-        getPollsByHost(user.id),
+        getEventsByHost(hostRow.id),
+        getPollsByHost(hostRow.id),
       ]);
 
       setEvents(fetchedEvents);
       setPolls(fetchedPolls);
       setLoading(false);
     }
+
     load();
   }, []);
 
@@ -124,6 +141,7 @@ export default function DashboardPage() {
     setTimeout(() => setToast(null), 3000);
   }
 
+  /* ---------- LOADING STATE ---------- */
   if (loading) {
     return (
       <div className="flex items-center justify-center h-screen bg-black text-white">

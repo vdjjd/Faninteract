@@ -9,16 +9,23 @@ export default function ChangeEmailModal({ onClose }: { onClose: () => void }) {
   const [msg, setMsg] = useState('');
 
   async function handleSubmit() {
+    if (!email.includes('@')) {
+      setMsg('❌ Please enter a valid email address.');
+      return;
+    }
+
     setLoading(true);
     const { error } = await supabase.auth.updateUser({ email });
     setLoading(false);
-    if (error) setMsg(error.message);
+
+    if (error) setMsg(`❌ ${error.message}`);
     else setMsg('✅ Email updated – check your inbox to confirm.');
   }
 
   return (
-    <div className="p-4 space-y-3">
+    <div className="p-4 space-y-4 text-white bg-black/80 rounded-lg border border-gray-700 shadow-lg">
       <h2 className="text-lg font-semibold">Change Email</h2>
+
       <input
         type="email"
         value={email}
@@ -26,11 +33,17 @@ export default function ChangeEmailModal({ onClose }: { onClose: () => void }) {
         className="w-full bg-gray-800 border border-gray-600 rounded p-2 text-white"
         placeholder="New email"
       />
-      <Button onClick={handleSubmit} disabled={loading}>
-        {loading ? 'Updating…' : 'Update Email'}
-      </Button>
+
+      <div className="flex flex-col gap-2">
+        <Button onClick={handleSubmit} disabled={loading}>
+          {loading ? 'Updating…' : 'Update Email'}
+        </Button>
+        <Button variant="outline" onClick={onClose}>
+          Close
+        </Button>
+      </div>
+
       {msg && <p className="text-sm text-gray-400">{msg}</p>}
-      <Button variant="outline" onClick={onClose}>Close</Button>
     </div>
   );
 }
