@@ -247,45 +247,41 @@ export default function HostProfilePanel({ host, onLogoUpload }: HostProfilePane
         </div>
 
         {/* ---------- MODALS ---------- */}
-        {showEmailModal && (
-          <div
-            className="fixed inset-0 bg-black/70 flex items-center justify-center z-50"
-            role="dialog"
-            aria-modal="true"
-          >
-            <div
-              className="bg-neutral-900 border border-gray-700 rounded-lg shadow-lg w-96"
-              aria-labelledby="change-email-title"
-            >
-              <SheetHeader>
-                <SheetTitle id="change-email-title" className="sr-only">
-                  Change Email
-                </SheetTitle>
-              </SheetHeader>
-              <ChangeEmailModal onClose={() => setShowEmailModal(false)} />
-            </div>
-          </div>
-        )}
+{showEmailModal && (
+  <div
+    className="fixed inset-0 bg-black/70 flex items-center justify-center z-50"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="change-email-title"
+  >
+    <div
+      className="bg-neutral-900 border border-gray-700 rounded-lg shadow-lg w-96"
+    >
+      <div id="change-email-title" className="sr-only">
+        Change Email
+      </div>
+      <ChangeEmailModal onClose={() => setShowEmailModal(false)} />
+    </div>
+  </div>
+)}
 
-        {showPassModal && (
-          <div
-            className="fixed inset-0 bg-black/70 flex items-center justify-center z-50"
-            role="dialog"
-            aria-modal="true"
-          >
-            <div
-              className="bg-neutral-900 border border-gray-700 rounded-lg shadow-lg w-96"
-              aria-labelledby="change-password-title"
-            >
-              <SheetHeader>
-                <SheetTitle id="change-password-title" className="sr-only">
-                  Change Password
-                </SheetTitle>
-              </SheetHeader>
-              <ChangePasswordModal onClose={() => setShowPassModal(false)} />
-            </div>
-          </div>
-        )}
+{showPassModal && (
+  <div
+    className="fixed inset-0 bg-black/70 flex items-center justify-center z-50"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="change-password-title"
+  >
+    <div
+      className="bg-neutral-900 border border-gray-700 rounded-lg shadow-lg w-96"
+    >
+      <div id="change-password-title" className="sr-only">
+        Change Password
+      </div>
+      <ChangePasswordModal onClose={() => setShowPassModal(false)} />
+    </div>
+  </div>
+)}
       </SheetContent>
     </Sheet>
   );
