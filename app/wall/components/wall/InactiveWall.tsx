@@ -17,7 +17,6 @@ function CountdownDisplay({
   const [timeLeft, setTimeLeft] = useState<number>(0);
   const [originalTime, setOriginalTime] = useState<number>(0);
 
-  // Convert countdown string ("5 Minutes", "30 Seconds") → seconds
   useEffect(() => {
     if (!countdown) return;
     const num = parseInt(countdown.split(' ')[0]);
@@ -28,36 +27,27 @@ function CountdownDisplay({
     setOriginalTime(total);
   }, [countdown]);
 
-  // When Play clicked → countdown_active = true → start timer
   useEffect(() => {
     if (!countdownActive || timeLeft <= 0) return;
-
     const timer = setInterval(() => {
       setTimeLeft((prev) => {
         if (prev <= 1) {
           clearInterval(timer);
-          // 🟢 When timer hits zero, set wall live
           (async () => {
             const { error } = await supabase
               .from('events')
               .update({ status: 'live', countdown_active: false })
               .eq('id', eventId);
-            if (error) {
-              console.error('❌ Error setting wall live:', error);
-            } else {
-              console.log('✅ Countdown finished — wall set live');
-            }
+            if (error) console.error('❌ Error setting wall live:', error);
           })();
           return 0;
         }
         return prev - 1;
       });
     }, 1000);
-
     return () => clearInterval(timer);
   }, [countdownActive, eventId, timeLeft]);
 
-  // Reset timer if countdown_active set to false (Stop clicked)
   useEffect(() => {
     if (!countdownActive) setTimeLeft(originalTime);
   }, [countdownActive, originalTime]);
@@ -89,6 +79,12 @@ export default function InactiveWall({ event }: { event: any }) {
       ? `url(${event.background_value}) center/cover no-repeat`
       : event?.background_value ||
         'linear-gradient(to bottom right,#1b2735,#090a0f)';
+
+  // pick logo: host branding, event logo, or fallback FanInteract
+  const displayLogo =
+    event?.host?.branding_logo_url ||
+    event?.logo_url ||
+    '/faninteractlogo.png';
 
   return (
     <>
@@ -193,7 +189,7 @@ export default function InactiveWall({ event }: { event: any }) {
               }}
             >
               <img
-                src={event.logo_url || '/faninteractlogo.png'}
+                src={displayLogo}
                 alt="Logo"
                 style={{
                   width: '100%',
@@ -236,7 +232,6 @@ export default function InactiveWall({ event }: { event: any }) {
               Starting Soon!!
             </h2>
 
-            {/* Countdown always visible if set */}
             {event.countdown && (
               <CountdownDisplay
                 countdown={event.countdown}

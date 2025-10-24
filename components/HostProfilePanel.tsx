@@ -30,6 +30,38 @@ export default function HostProfilePanel({ host, onLogoUpload }: HostProfilePane
     if (file) await onLogoUpload(file);
   };
 
+  // Branding logo upload handler
+  const handleBrandingLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !host) return;
+
+    const { data, error } = await supabase.storage
+      .from('bar-logos')
+      .upload(`${host.id}/${file.name}`, file, { upsert: true });
+
+    if (error) {
+      console.error('❌ Branding logo upload failed:', error.message);
+      return;
+    }
+
+    const url = supabase.storage
+      .from('bar-logos')
+      .getPublicUrl(data.path).data.publicUrl;
+
+    const { error: updateError } = await supabase
+      .from('hosts')
+      .update({ branding_logo_url: url })
+      .eq('id', host.id);
+
+    if (updateError) {
+      console.error('❌ Failed to update branding logo:', updateError.message);
+      return;
+    }
+
+    // Update local host state immediately
+    window.location.reload();
+  };
+
   async function handleLogout() {
     await supabase.auth.signOut();
     window.location.href = '/'; // Redirect to login or landing page
@@ -80,7 +112,7 @@ export default function HostProfilePanel({ host, onLogoUpload }: HostProfilePane
               </div>
               <label className="mt-1 cursor-pointer text-sm text-blue-400 hover:underline">
                 <Upload className="inline-block mr-1 w-4 h-4" />
-                Upload Logo
+                Upload Profile Logo
                 <input
                   type="file"
                   accept="image/*"
@@ -111,9 +143,36 @@ export default function HostProfilePanel({ host, onLogoUpload }: HostProfilePane
               <ImageIcon className="w-5 h-5" />
               Branding
             </div>
-            <p className="text-sm text-gray-400">
-              The uploaded logo automatically replaces the FanInteract default across your fan walls.
+            <p className="text-sm text-gray-400 mb-3">
+              Upload your bar or venue logo below. It will automatically replace the FanInteract logo across all your fan walls.
             </p>
+
+            <div className="flex flex-col items-center gap-3">
+              <div className="w-32 h-32 rounded-lg overflow-hidden border border-gray-600 shadow-md flex items-center justify-center bg-gray-800">
+                {host?.branding_logo_url ? (
+                  <Image
+                    src={host.branding_logo_url}
+                    alt="Brand Logo"
+                    width={128}
+                    height={128}
+                    className="object-contain"
+                  />
+                ) : (
+                  <span className="text-gray-500 text-sm">No logo yet</span>
+                )}
+              </div>
+
+              <label className="mt-2 cursor-pointer text-sm text-blue-400 hover:underline">
+                <Upload className="inline-block mr-1 w-4 h-4" />
+                Upload Branding Logo
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleBrandingLogoUpload}
+                />
+              </label>
+            </div>
           </section>
 
           {/* SETTINGS (placeholders for future) */}

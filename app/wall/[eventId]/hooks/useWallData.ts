@@ -4,6 +4,12 @@ import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 
 /* ---------- TYPES ---------- */
+interface HostData {
+  id: string;
+  email: string | null;
+  branding_logo_url?: string | null;
+}
+
 interface EventData {
   id: string;
   title: string | null;
@@ -19,6 +25,7 @@ interface EventData {
   transition_speed?: string | null;
   updated_at?: string;
   _version?: number;
+  host?: HostData | null; // ✅ Added for joined host data
 }
 
 interface SubmissionData {
@@ -42,9 +49,18 @@ export function useWallData(eventId: string | string[] | undefined) {
   /* ---------- LOAD EVENT ---------- */
   async function loadEvent() {
     if (!eventId) return;
+
+    // ✅ Joined query to include host branding_logo_url
     const { data, error } = await supabase
       .from('events')
-      .select('*')
+      .select(`
+        *,
+        host:hosts (
+          id,
+          email,
+          branding_logo_url
+        )
+      `)
       .eq('id', eventId)
       .single();
 
@@ -56,8 +72,7 @@ export function useWallData(eventId: string | string[] | undefined) {
 
     if (data) {
       setEvent(data);
-      if (data.status === 'live') setShowLive(true);
-      else setShowLive(false);
+      setShowLive(data.status === 'live');
     }
     setLoading(false);
   }
@@ -96,7 +111,6 @@ export function useWallData(eventId: string | string[] | undefined) {
       .on('broadcast', { event: 'UPDATE' }, async (payload) => {
         const data = payload.payload as { id: string };
         if (data?.id === eventId) {
-          // Re-fetch event so background/layout/speed update instantly
           await loadEvent();
         }
       })
