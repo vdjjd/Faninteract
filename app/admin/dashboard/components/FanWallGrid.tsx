@@ -107,20 +107,34 @@ export default function FanWallGrid({
     await refreshEvents();
   }
 
-  /* ---------- MODERATION POPUP ---------- */
+  /* ---------- MODERATION POPUP (NO URL BAR) ---------- */
   function openModerationPopup(eventId: string) {
     const w = 1280;
     const h = 720;
     const left = window.screenX + (window.outerWidth - w) / 2;
     const top = window.screenY + (window.outerHeight - h) / 2;
+
     const popup = window.open(
       `/admin/moderation/${eventId}`,
-      `moderation_${eventId}`, // unique window name per wall
-      `width=${w},height=${h},left=${left},top=${top},resizable=yes,scrollbars=yes,menubar=no,toolbar=no,status=no`
+      `moderation_${eventId}`, // unique name per wall
+      [
+        `width=${w}`,
+        `height=${h}`,
+        `left=${left}`,
+        `top=${top}`,
+        'resizable=yes',
+        'scrollbars=yes',
+        'menubar=no',
+        'toolbar=no',
+        'location=no',
+        'status=no',
+        'titlebar=no'
+      ].join(',')
     );
+
     popup?.focus();
 
-    // ✅ Auto-refresh when popup closes
+    // ✅ Auto-refresh dashboard when popup closes
     const checkPopup = setInterval(() => {
       if (popup?.closed) {
         clearInterval(checkPopup);
