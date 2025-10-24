@@ -8,7 +8,7 @@ import { BRAND_LOGO, BRAND_NAME } from '@/lib/constants';
 
 export default function LoginPage() {
   const router = useRouter();
-  const [username, setUsername] = useState('');
+  const [identifier, setIdentifier] = useState(''); // username OR email
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -19,23 +19,30 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      // 🔍 Step 1: Look up email from hosts by username
-      const { data: host, error: lookupError } = await supabase
-        .from('hosts')
-        .select('email')
-        .eq('username', username)
-        .single();
+      let emailToUse = identifier;
 
-      if (lookupError || !host) throw new Error('Invalid username. Please check and try again.');
+      // 🧠 If user entered a username (no "@"), resolve to email via secure API
+      if (!identifier.includes('@')) {
+        const res = await fetch('/api/resolve-username', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username: identifier }),
+        });
 
-      // 🔐 Step 2: Sign in with email/password
+        const result = await res.json();
+        if (!res.ok) throw new Error(result.error || 'Invalid username.');
+        emailToUse = result.email;
+      }
+
+      // 🔐 Sign in with Supabase
       const { error: signInError } = await supabase.auth.signInWithPassword({
-        email: host.email,
+        email: emailToUse,
         password,
       });
+
       if (signInError) throw signInError;
 
-      // 🚀 Step 3: Redirect to dashboard
+      // 🚀 Redirect on success
       router.push('/admin/dashboard');
     } catch (err: any) {
       console.error('Login error:', err.message);
@@ -70,9 +77,9 @@ export default function LoginPage() {
         <form onSubmit={handleLogin} className="flex flex-col w-full gap-4">
           <input
             type="text"
-            placeholder="Username"
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
+            placeholder="Username or Email"
+            value={identifier}
+            onChange={(e) => setIdentifier(e.target.value)}
             className="px-4 py-3 rounded-xl bg-[#111b2f] border border-blue-800/40 text-white focus:outline-none focus:ring-2 focus:ring-sky-500"
             required
           />
