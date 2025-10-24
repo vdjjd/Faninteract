@@ -28,17 +28,17 @@ export async function createPoll(hostId: string, data: any) {
       .from('polls')
       .insert([newPoll])
       .select()
-      .single();
+      .maybeSingle(); // ✅ changed from .single()
 
     if (error || !created) {
       console.error('❌ Error creating poll:', error?.message || error);
       return null;
     }
 
-    // ✅ Step 2: Generate unique QR URL
+    // ✅ Step 2: Generate QR URL
     const qrUrl = `https://faninteract.vercel.app/poll/${created.id}`;
 
-    // ✅ Step 3: Save QR URL back into poll record
+    // ✅ Step 3: Save QR URL back
     const { data: updated, error: updateError } = await supabase
       .from('polls')
       .update({
@@ -47,14 +47,14 @@ export async function createPoll(hostId: string, data: any) {
       })
       .eq('id', created.id)
       .select()
-      .single();
+      .maybeSingle(); // ✅ safe version
 
     if (updateError) {
-      console.error('⚠️ Poll created but failed to save QR URL:', updateError.message);
+      console.warn('⚠️ Poll created but failed to save QR URL:', updateError.message);
       return created;
     }
 
-    console.log('✅ Poll created with QR URL:', updated.qr_url);
+    console.log('✅ Poll created successfully:', updated?.id);
     return updated;
   } catch (err) {
     console.error('❌ Error creating poll:', err);
@@ -63,56 +63,68 @@ export async function createPoll(hostId: string, data: any) {
 }
 
 /* -------------------------------------------------------------------------- */
-/* 🟡 GET POLLS BY HOST                                                       */
+/* 🟡 GET POLLS BY HOST (SAFE, NO .single())                                  */
 /* -------------------------------------------------------------------------- */
 export async function getPollsByHost(hostId: string) {
-  const { data, error } = await supabase
-    .from('polls')
-    .select('*')
-    .eq('host_id', hostId)
-    .order('created_at', { ascending: false });
+  try {
+    const { data, error } = await supabase
+      .from('polls')
+      .select('*')
+      .eq('host_id', hostId)
+      .order('created_at', { ascending: false });
 
-  if (error) {
-    console.error('❌ Error fetching polls:', error.message || error);
+    if (error) {
+      console.error('❌ Error fetching polls:', error.message);
+      return [];
+    }
+
+    return data || [];
+  } catch (err) {
+    console.error('❌ Exception in getPollsByHost:', err);
     return [];
   }
-
-  return data || [];
 }
 
 /* -------------------------------------------------------------------------- */
 /* 🔵 UPDATE POLL SETTINGS                                                    */
 /* -------------------------------------------------------------------------- */
 export async function updatePoll(pollId: string, updates: any) {
-  const updatedData = {
-    ...updates,
-    host_title: updates.host_title ?? updates.title ?? 'Untitled Poll',
-    updated_at: new Date().toISOString(),
-  };
+  try {
+    const updatedData = {
+      ...updates,
+      host_title: updates.host_title ?? updates.title ?? 'Untitled Poll',
+      updated_at: new Date().toISOString(),
+    };
 
-  const { data, error } = await supabase
-    .from('polls')
-    .update(updatedData)
-    .eq('id', pollId)
-    .select()
-    .single();
+    const { data, error } = await supabase
+      .from('polls')
+      .update(updatedData)
+      .eq('id', pollId)
+      .select()
+      .maybeSingle(); // ✅ no 406s
 
-  if (error) {
-    console.error('❌ Error updating poll:', error.message || error);
+    if (error) throw error;
+
+    console.log('✅ Poll updated:', pollId);
+    return data;
+  } catch (err) {
+    console.error('❌ Error updating poll:', err);
     return null;
   }
-
-  return data;
 }
 
 /* -------------------------------------------------------------------------- */
 /* 🔴 DELETE POLL                                                             */
 /* -------------------------------------------------------------------------- */
 export async function deletePoll(pollId: string) {
-  const { error } = await supabase.from('polls').delete().eq('id', pollId);
+  try {
+    const { error } = await supabase.from('polls').delete().eq('id', pollId);
+    if (error) throw error;
 
-  if (error) console.error('❌ Error deleting poll:', error.message || error);
-  else console.log(`🗑️ Poll ${pollId} deleted`);
+    console.log(`🗑️ Poll ${pollId} deleted`);
+  } catch (err) {
+    console.error('❌ Error deleting poll:', err);
+  }
 }
 
 /* -------------------------------------------------------------------------- */
@@ -132,16 +144,16 @@ export async function clearPoll(pollId: string) {
       .from('polls')
       .select('options')
       .eq('id', pollId)
-      .single();
+      .maybeSingle(); // ✅ safe
     if (fetchError) throw fetchError;
 
-    // 3️⃣ Reset vote counts
+    // 3️⃣ Reset votes
     const resetOptions = (pollData?.options || []).map((o: any) => ({
       ...o,
       votes: 0,
     }));
 
-    // 4️⃣ Save reset options
+    // 4️⃣ Save reset
     const { error: updateError } = await supabase
       .from('polls')
       .update({
@@ -151,7 +163,6 @@ export async function clearPoll(pollId: string) {
         updated_at: new Date().toISOString(),
       })
       .eq('id', pollId);
-
     if (updateError) throw updateError;
 
     console.log(`🧹 Cleared poll ${pollId}`);
@@ -169,33 +180,34 @@ export async function addVote(
   voterHash: string
 ) {
   try {
-    // Check for duplicate votes
+    // 1️⃣ Check duplicate
     const { data: existing } = await supabase
       .from('poll_votes')
       .select('*')
       .eq('poll_id', pollId)
       .eq('voter_hash', voterHash)
-      .single();
+      .maybeSingle(); // ✅ safe
 
     if (existing) {
       console.warn('⚠️ Duplicate vote detected — ignoring.');
       return null;
     }
 
-    // Insert new vote
+    // 2️⃣ Insert new vote
     const { error: insertError } = await supabase
       .from('poll_votes')
       .insert([{ poll_id: pollId, option_id: optionId, voter_hash: voterHash }]);
     if (insertError) throw insertError;
 
-    // Update vote count in options
+    // 3️⃣ Fetch poll options
     const { data: pollData, error: fetchError } = await supabase
       .from('polls')
       .select('options')
       .eq('id', pollId)
-      .single();
+      .maybeSingle(); // ✅ safe
     if (fetchError) throw fetchError;
 
+    // 4️⃣ Update votes
     const updatedOptions = (pollData?.options || []).map((o: any) =>
       o.id === optionId ? { ...o, votes: (o.votes || 0) + 1 } : o
     );

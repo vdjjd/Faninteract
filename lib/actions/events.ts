@@ -4,11 +4,11 @@ import { supabase } from '@/lib/supabaseClient';
 /* 🧱 EVENT ACTIONS - For Host Dashboard + Fan Walls                          */
 /* -------------------------------------------------------------------------- */
 
-// ✅ Create new event (auto QR code)
+/* ✅ CREATE EVENT */
 export async function createEvent(host_id: string, { title }: { title: string }) {
   try {
-    // 1️⃣ Create the event
-    const { data: event, error } = await supabase
+    // 1️⃣ Create the base event
+    const { data, error } = await supabase
       .from('events')
       .insert([
         {
@@ -29,30 +29,30 @@ export async function createEvent(host_id: string, { title }: { title: string })
         },
       ])
       .select()
-      .single();
+      .maybeSingle(); // ✅ safe: returns null instead of 406 if missing
 
-    if (error || !event) {
-      console.error('❌ Error creating event:', error?.message || error);
+    if (error || !data) {
+      console.error('❌ Error creating event:', error?.message || 'Unknown error');
       throw error;
     }
 
-    // 2️⃣ Generate its QR URL
-    const qrUrl = `https://faninteract.vercel.app/wall/${event.id}`;
+    // 2️⃣ Generate QR URL
+    const qrUrl = `https://faninteract.vercel.app/wall/${data.id}`;
 
-    // 3️⃣ Update the record with the new QR URL
+    // 3️⃣ Update with QR URL
     const { data: updated, error: updateError } = await supabase
       .from('events')
       .update({ qr_url: qrUrl, updated_at: new Date().toISOString() })
-      .eq('id', event.id)
+      .eq('id', data.id)
       .select()
-      .single();
+      .maybeSingle(); // ✅ same protection here
 
     if (updateError) {
-      console.error('⚠️ Event created but failed to save QR URL:', updateError.message);
-      return event;
+      console.warn('⚠️ Event created but failed to update QR URL:', updateError.message);
+      return data;
     }
 
-    console.log('✅ Event created with QR URL:', updated.qr_url);
+    console.log('✅ Event created successfully:', updated?.id);
     return updated;
   } catch (err) {
     console.error('❌ Error in createEvent:', err);
@@ -61,24 +61,29 @@ export async function createEvent(host_id: string, { title }: { title: string })
 }
 
 /* -------------------------------------------------------------------------- */
-// ✅ Fetch all events for a given host
+/* ✅ FETCH ALL EVENTS FOR A HOST (no .single() = no 406s) */
 export async function getEventsByHost(host_id: string) {
-  const { data, error } = await supabase
-    .from('events')
-    .select('*')
-    .eq('host_id', host_id)
-    .order('created_at', { ascending: false });
+  try {
+    const { data, error } = await supabase
+      .from('events')
+      .select('*')
+      .eq('host_id', host_id)
+      .order('created_at', { ascending: false });
 
-  if (error) {
-    console.error('❌ Error fetching events:', error.message);
+    if (error) {
+      console.error('❌ Error fetching events:', error.message);
+      return [];
+    }
+
+    return data || [];
+  } catch (err) {
+    console.error('❌ Exception in getEventsByHost:', err);
     return [];
   }
-
-  return data;
 }
 
 /* -------------------------------------------------------------------------- */
-// ✅ Update event appearance, titles, or countdown
+/* ✅ UPDATE EVENT SETTINGS */
 export async function updateEventSettings(
   id: string,
   fields: Partial<{
@@ -98,19 +103,19 @@ export async function updateEventSettings(
     })
     .eq('id', id)
     .select()
-    .single();
+    .maybeSingle(); // ✅ switched from .single()
 
   if (error) {
     console.error('❌ Error updating event settings:', error.message);
     throw error;
   }
 
-  console.log('✅ Event updated:', data);
+  console.log('✅ Event updated:', id);
   return data;
 }
 
 /* -------------------------------------------------------------------------- */
-// ✅ Permanently delete an event from DB
+/* ✅ DELETE EVENT */
 export async function deleteEvent(id: string) {
   const { error } = await supabase.from('events').delete().eq('id', id);
 
@@ -119,30 +124,34 @@ export async function deleteEvent(id: string) {
     throw error;
   }
 
-  console.log('🗑️ Event permanently deleted:', id);
+  console.log('🗑️ Event deleted:', id);
 }
 
 /* -------------------------------------------------------------------------- */
-// ✅ Clear posts for a specific wall
+/* ✅ CLEAR POSTS FOR A WALL */
 export async function clearEventPosts(event_id: string) {
-  const { error } = await supabase.from('submissions').delete().eq('event_id', event_id);
+  try {
+    const { error } = await supabase
+      .from('submissions')
+      .delete()
+      .eq('event_id', event_id);
 
-  if (error) {
-    console.error('❌ Error clearing posts:', error.message);
-    throw error;
+    if (error) throw error;
+
+    console.log('🧹 Posts cleared for event:', event_id);
+
+    // Reset pending count
+    await supabase
+      .from('events')
+      .update({ pending_posts: 0, updated_at: new Date().toISOString() })
+      .eq('id', event_id);
+  } catch (err) {
+    console.error('❌ Error clearing posts:', err);
   }
-
-  console.log('🧹 All posts cleared for event:', event_id);
-
-  // Reset pending count
-  await supabase
-    .from('events')
-    .update({ pending_posts: 0, updated_at: new Date().toISOString() })
-    .eq('id', event_id);
 }
 
 /* -------------------------------------------------------------------------- */
-// ✅ Toggle live/inactive state
+/* ✅ TOGGLE LIVE / INACTIVE */
 export async function toggleEventStatus(id: string, makeLive: boolean) {
   const { error } = await supabase
     .from('events')
@@ -153,15 +162,15 @@ export async function toggleEventStatus(id: string, makeLive: boolean) {
     .eq('id', id);
 
   if (error) {
-    console.error('❌ Error updating status:', error.message);
+    console.error('❌ Error toggling event status:', error.message);
     throw error;
   }
 
-  console.log(`🔄 Event ${id} set to ${makeLive ? 'live' : 'inactive'}`);
+  console.log(`🔄 Event ${id} → ${makeLive ? 'LIVE' : 'INACTIVE'}`);
 }
 
 /* -------------------------------------------------------------------------- */
-// ✅ Increment or reset pending post count
+/* ✅ UPDATE PENDING POST COUNT */
 export async function updatePendingPosts(event_id: string, delta: number) {
   const { error } = await supabase.rpc('increment_pending_posts', { event_id, delta });
 
