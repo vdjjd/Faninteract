@@ -76,7 +76,7 @@ export default function HostProfilePanel({ host, onLogoUpload }: HostProfilePane
             <Image src={host.logo_url} alt="Host Logo" width={40} height={40} />
           ) : (
             <div className="bg-gray-700 w-full h-full flex items-center justify-center text-gray-200 font-bold">
-              {host?.name?.[0]?.toUpperCase() || 'H'}
+              {host?.first_name?.[0]?.toUpperCase() || 'H'}
             </div>
           )}
         </button>
@@ -88,7 +88,7 @@ export default function HostProfilePanel({ host, onLogoUpload }: HostProfilePane
         className="w-80 bg-black/80 backdrop-blur-xl border-l border-gray-700 text-gray-100 overflow-y-auto"
       >
         <SheetHeader>
-          <SheetTitle className="text-white font-semibold tracking-wide">
+          <SheetTitle className="text-white font-semibold tracking-wide text-center">
             Host Profile
           </SheetTitle>
         </SheetHeader>
@@ -96,20 +96,21 @@ export default function HostProfilePanel({ host, onLogoUpload }: HostProfilePane
         <div className="mt-5 flex flex-col gap-6">
           {/* ACCOUNT */}
           <section>
-            <div className="flex items-center gap-3 mb-3 text-blue-400 font-semibold">
+            <div className="flex items-center justify-center gap-3 mb-3 text-blue-400 font-semibold">
               <User className="w-5 h-5" />
               Account
             </div>
-            <div className="flex flex-col items-center gap-3">
+            <div className="flex flex-col items-center gap-3 text-center">
               <div className="w-24 h-24 rounded-full overflow-hidden border border-gray-600 shadow-md">
                 {host?.logo_url ? (
                   <Image src={host.logo_url} alt="Logo" width={96} height={96} />
                 ) : (
                   <div className="bg-gray-800 w-full h-full flex items-center justify-center text-gray-500 text-xl">
-                    {host?.name?.[0]?.toUpperCase() || 'H'}
+                    {host?.first_name?.[0]?.toUpperCase() || 'H'}
                   </div>
                 )}
               </div>
+
               <label className="mt-1 cursor-pointer text-sm text-blue-400 hover:underline">
                 <Upload className="inline-block mr-1 w-4 h-4" />
                 Upload Profile Logo
@@ -120,12 +121,16 @@ export default function HostProfilePanel({ host, onLogoUpload }: HostProfilePane
                   onChange={handleFileUpload}
                 />
               </label>
-              <div className="text-center mt-2">
+
+              <div className="text-center mt-3">
                 <p className="font-semibold text-lg text-white">
-                  {host?.name || 'Host'}
+                  {host?.first_name && host?.last_name
+                    ? `${host.first_name} ${host.last_name}`
+                    : 'Host User'}
                 </p>
                 <p className="text-sm text-gray-400">{host?.email}</p>
               </div>
+
               <div className="flex flex-col gap-2 w-full mt-4">
                 <Button variant="outline" onClick={() => setShowEmailModal(true)}>
                   Change Email
@@ -138,13 +143,15 @@ export default function HostProfilePanel({ host, onLogoUpload }: HostProfilePane
           </section>
 
           {/* BRANDING */}
-          <section>
-            <div className="flex items-center gap-3 mb-3 text-blue-400 font-semibold">
+          <section className="text-center">
+            <div className="flex items-center justify-center gap-3 mb-3 text-blue-400 font-semibold">
               <ImageIcon className="w-5 h-5" />
               Branding
             </div>
-            <p className="text-sm text-gray-400 mb-3">
-              Upload your bar or venue logo below. It will automatically replace the FanInteract logo across all your fan walls.
+
+            <p className="text-sm text-gray-400 mb-3 max-w-[85%] mx-auto leading-snug">
+              Upload your bar or venue logo below. It will automatically replace the
+              FanInteract logo across all your fan walls.
             </p>
 
             <div className="flex flex-col items-center gap-3">
@@ -175,7 +182,7 @@ export default function HostProfilePanel({ host, onLogoUpload }: HostProfilePane
             </div>
           </section>
 
-          {/* SETTINGS (placeholders for future) */}
+          {/* SETTINGS */}
           <section>
             <div className="flex items-center gap-3 mb-3 text-blue-400 font-semibold">
               <Settings className="w-5 h-5" />
