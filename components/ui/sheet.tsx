@@ -41,12 +41,26 @@ export const SheetContent = React.forwardRef<
 ));
 SheetContent.displayName = 'SheetContent';
 
-export const SheetHeader = ({ children }: { children: React.ReactNode }) => (
-  <div className="border-b border-gray-200 dark:border-neutral-800 p-4">
+/* ---------- FIXED ---------- */
+
+export const SheetHeader = ({
+  children,
+  className
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) => (
+  <div className={cn('border-b border-gray-200 dark:border-neutral-800 p-4', className)}>
     {children}
   </div>
 );
 
-export const SheetTitle = ({ children }: { children: React.ReactNode }) => (
-  <h2 className="text-lg font-semibold">{children}</h2>
+export const SheetTitle = ({
+  children,
+  className
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) => (
+  <h2 className={cn('text-lg font-semibold', className)}>{children}</h2>
 );
