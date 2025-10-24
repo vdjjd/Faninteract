@@ -27,12 +27,11 @@ export default function DashboardPage() {
   const [selectedPoll, setSelectedPoll] = useState<any | null>(null);
 
   /* -------------------------------------------------------------------------- */
-  /* 🧠 LOAD HOST + INITIAL DATA (handles auth_id link + auto-create)            */
+  /* 🧠 LOAD HOST + INITIAL DATA                                                */
   /* -------------------------------------------------------------------------- */
   useEffect(() => {
     async function load() {
       try {
-        // 1️⃣ Get current Supabase auth user
         const {
           data: { user },
           error: authError,
@@ -44,16 +43,15 @@ export default function DashboardPage() {
           return;
         }
 
-        // 2️⃣ Try to find a host row linked to this user via auth_id
         const { data: hostRow, error: hostError } = await supabase
           .from('hosts')
           .select('*')
           .eq('auth_id', user.id)
-          .maybeSingle(); // ✅ avoids 406 error
+          .maybeSingle();
 
         let activeHost = hostRow;
 
-        // 3️⃣ If no host row exists, create one automatically
+        // 🆕 Auto-create host record if none exists
         if (!hostRow) {
           const { data: newHost, error: insertError } = await supabase
             .from('hosts')
@@ -73,10 +71,7 @@ export default function DashboardPage() {
             .maybeSingle();
 
           if (insertError) {
-            console.error(
-              '❌ Failed to auto-create host record:',
-              insertError.message
-            );
+            console.error('❌ Failed to auto-create host record:', insertError.message);
           } else {
             console.log('🆕 Auto-created host record for', user.email);
             activeHost = newHost;
@@ -89,10 +84,8 @@ export default function DashboardPage() {
           return;
         }
 
-        // 4️⃣ Store host info in state
         setHost(activeHost);
 
-        // 5️⃣ Load events and polls linked to host.id
         const [fetchedEvents, fetchedPolls] = await Promise.all([
           getEventsByHost(activeHost.id),
           getPollsByHost(activeHost.id),
@@ -111,7 +104,7 @@ export default function DashboardPage() {
   }, []);
 
   /* -------------------------------------------------------------------------- */
-  /* 🖼️ LOGO UPLOAD                                                             */
+  /* 🖼️ LOGO UPLOAD                                                            */
   /* -------------------------------------------------------------------------- */
   async function handleLogoUpload(file: File) {
     if (!host) return;
@@ -130,6 +123,8 @@ export default function DashboardPage() {
       .getPublicUrl(data.path).data.publicUrl;
 
     await supabase.from('hosts').update({ logo_url: url }).eq('id', host.id);
+
+    // ✅ Instantly update without reload
     setHost({ ...host, logo_url: url });
   }
 
@@ -215,7 +210,11 @@ export default function DashboardPage() {
       {/* HEADER SECTION */}
       <div className="w-full flex items-center justify-between mb-6">
         {/* 🟢 Host Profile */}
-        <HostProfilePanel host={host} onLogoUpload={handleLogoUpload} />
+        <HostProfilePanel
+          host={host}
+          setHost={setHost}  // ✅ Added to allow instant state updates
+          onLogoUpload={handleLogoUpload}
+        />
 
         <h1 className="text-2xl font-bold text-center flex-1">
           FanInteract Dashboard
