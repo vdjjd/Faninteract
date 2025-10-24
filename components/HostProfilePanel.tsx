@@ -18,10 +18,12 @@ import {
   LogOut,
   Image as ImageIcon,
   Trash2,
+  AlertTriangle,
 } from 'lucide-react';
 import Image from 'next/image';
 import ChangeEmailModal from '@/components/ChangeEmailModal';
 import ChangePasswordModal from '@/components/ChangePasswordModal';
+import { motion } from 'framer-motion';
 
 interface HostProfilePanelProps {
   host: any;
@@ -32,6 +34,8 @@ export default function HostProfilePanel({ host, onLogoUpload }: HostProfilePane
   const [isOpen, setIsOpen] = useState(false);
   const [showEmailModal, setShowEmailModal] = useState(false);
   const [showPassModal, setShowPassModal] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deletingBrandLogo, setDeletingBrandLogo] = useState(false);
 
   /* ---------- PROFILE LOGO UPLOAD ---------- */
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -61,7 +65,8 @@ export default function HostProfilePanel({ host, onLogoUpload }: HostProfilePane
       return;
     }
 
-    const { data: publicUrlData } = supabase.storage
+    const { data: publicUrlData } = supabase
+      .storage
       .from('bar-logos')
       .getPublicUrl(filePath);
 
@@ -78,12 +83,15 @@ export default function HostProfilePanel({ host, onLogoUpload }: HostProfilePane
     }
 
     console.log('✅ Branding logo uploaded successfully:', logoUrl);
-    window.location.reload();
+    // ✅ Live update instead of reload
+    host.branding_logo_url = logoUrl;
   };
 
   /* ---------- DELETE BRANDING LOGO ---------- */
   const handleDeleteBrandingLogo = async () => {
     if (!host?.branding_logo_url) return;
+    setDeletingBrandLogo(true);
+
     try {
       const pathParts = host.branding_logo_url.split('/');
       const filePath = `${pathParts.at(-2)}/${pathParts.at(-1)}`;
@@ -91,21 +99,21 @@ export default function HostProfilePanel({ host, onLogoUpload }: HostProfilePane
       const { error: storageError } = await supabase.storage
         .from('bar-logos')
         .remove([filePath]);
-
       if (storageError) throw storageError;
 
       const { error: updateError } = await supabase
         .from('hosts')
         .update({ branding_logo_url: null })
         .eq('id', host.id);
-
       if (updateError) throw updateError;
 
-      alert('✅ Branding logo removed.');
-      window.location.reload();
+      host.branding_logo_url = null; // ✅ Update locally
+      setShowDeleteConfirm(false);
     } catch (err) {
       console.error('❌ Failed to delete branding logo:', err);
       alert('Error removing logo.');
+    } finally {
+      setDeletingBrandLogo(false);
     }
   };
 
@@ -119,18 +127,15 @@ export default function HostProfilePanel({ host, onLogoUpload }: HostProfilePane
       const { error: storageError } = await supabase.storage
         .from('host-logos')
         .remove([filePath]);
-
       if (storageError) throw storageError;
 
       const { error: updateError } = await supabase
         .from('hosts')
         .update({ logo_url: null })
         .eq('id', host.id);
-
       if (updateError) throw updateError;
 
-      alert('✅ Profile logo removed.');
-      window.location.reload();
+      host.logo_url = null; // ✅ Live update
     } catch (err) {
       console.error('❌ Failed to delete profile logo:', err);
       alert('Error removing profile logo.');
@@ -269,7 +274,7 @@ export default function HostProfilePanel({ host, onLogoUpload }: HostProfilePane
 
               {host?.branding_logo_url && (
                 <button
-                  onClick={handleDeleteBrandingLogo}
+                  onClick={() => setShowDeleteConfirm(true)}
                   className="text-red-400 text-sm hover:text-red-500 hover:underline mt-1 flex items-center justify-center gap-1"
                 >
                   <Trash2 className="w-4 h-4" /> Remove Logo
@@ -312,6 +317,41 @@ export default function HostProfilePanel({ host, onLogoUpload }: HostProfilePane
 
           <div className="h-8"></div>
         </div>
+
+        {/* ---------- DELETE CONFIRM MODAL ---------- */}
+        {showDeleteConfirm && (
+          <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 0.2 }}
+              className="bg-[#0d1625]/90 border border-blue-800/40 rounded-xl shadow-lg shadow-blue-900/40 p-6 text-center w-[360px]"
+            >
+              <AlertTriangle className="text-yellow-400 w-10 h-10 mx-auto mb-3" />
+              <h3 className="text-lg font-semibold text-white mb-2">
+                Remove Branding Logo?
+              </h3>
+              <p className="text-gray-400 text-sm mb-5">
+                This will permanently delete your uploaded brand logo from storage.
+              </p>
+              <div className="flex justify-center gap-3">
+                <Button
+                  variant="destructive"
+                  onClick={handleDeleteBrandingLogo}
+                  disabled={deletingBrandLogo}
+                >
+                  {deletingBrandLogo ? 'Deleting…' : 'Yes, Delete'}
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => setShowDeleteConfirm(false)}
+                >
+                  Cancel
+                </Button>
+              </div>
+            </motion.div>
+          </div>
+        )}
 
         {/* ---------- MODALS ---------- */}
         {showEmailModal && (
