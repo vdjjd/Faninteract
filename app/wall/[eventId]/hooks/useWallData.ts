@@ -62,7 +62,7 @@ export function useWallData(eventId: string | string[] | undefined) {
         )
       `)
       .eq('id', eventId)
-      .single();
+      .maybeSingle();
 
     if (error) {
       console.error('❌ Error loading event:', error);
