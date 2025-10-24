@@ -9,8 +9,11 @@ import {
   SheetTrigger
 } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
+import { supabase } from "@/lib/supabaseClient";
 import { Upload, User, Settings, CreditCard, LogOut, Image as ImageIcon } from 'lucide-react';
 import Image from 'next/image';
+import ChangeEmailModal from '@/components/ChangeEmailModal';
+import ChangePasswordModal from '@/components/ChangePasswordModal';
 
 interface HostProfilePanelProps {
   host: any;
@@ -19,11 +22,18 @@ interface HostProfilePanelProps {
 
 export default function HostProfilePanel({ host, onLogoUpload }: HostProfilePanelProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const [showEmailModal, setShowEmailModal] = useState(false);
+  const [showPassModal, setShowPassModal] = useState(false);
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) await onLogoUpload(file);
   };
+
+  async function handleLogout() {
+    await supabase.auth.signOut();
+    window.location.href = '/'; // Redirect to login or landing page
+  }
 
   return (
     <Sheet open={isOpen} onOpenChange={setIsOpen}>
@@ -85,8 +95,12 @@ export default function HostProfilePanel({ host, onLogoUpload }: HostProfilePane
                 <p className="text-sm text-gray-400">{host?.email}</p>
               </div>
               <div className="flex flex-col gap-2 w-full mt-4">
-                <Button variant="outline">Change Email</Button>
-                <Button variant="outline">Change Password</Button>
+                <Button variant="outline" onClick={() => setShowEmailModal(true)}>
+                  Change Email
+                </Button>
+                <Button variant="outline" onClick={() => setShowPassModal(true)}>
+                  Change Password
+                </Button>
               </div>
             </div>
           </section>
@@ -118,7 +132,9 @@ export default function HostProfilePanel({ host, onLogoUpload }: HostProfilePane
               <CreditCard className="w-5 h-5" />
               Billing
             </div>
-            <Button variant="outline" className="w-full">Manage Billing (coming soon)</Button>
+            <Button variant="outline" className="w-full">
+              Manage Billing (coming soon)
+            </Button>
           </section>
 
           {/* LOGOUT */}
@@ -127,13 +143,30 @@ export default function HostProfilePanel({ host, onLogoUpload }: HostProfilePane
               <LogOut className="w-5 h-5" />
               Security
             </div>
-            <Button variant="destructive" className="w-full">
+            <Button variant="destructive" className="w-full" onClick={handleLogout}>
               Logout
             </Button>
           </section>
 
           <div className="h-8"></div>
         </div>
+
+        {/* ---------- MODALS ---------- */}
+        {showEmailModal && (
+          <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
+            <div className="bg-neutral-900 border border-gray-700 rounded-lg shadow-lg w-96">
+              <ChangeEmailModal onClose={() => setShowEmailModal(false)} />
+            </div>
+          </div>
+        )}
+
+        {showPassModal && (
+          <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
+            <div className="bg-neutral-900 border border-gray-700 rounded-lg shadow-lg w-96">
+              <ChangePasswordModal onClose={() => setShowPassModal(false)} />
+            </div>
+          </div>
+        )}
       </SheetContent>
     </Sheet>
   );
