@@ -15,7 +15,9 @@
     "react-easy-crop": "^5.0.6",
     "qrcode.react": "^3.2.0",
     "browser-image-compression": "^2.0.2",
-    "framer-motion": "^11.0.0"
+    "framer-motion": "^11.0.0",
+    "lucide-react": "^0.474.0",
+    "@radix-ui/react-dialog": "^1.1.1"
   },
   "devDependencies": {
     "tailwindcss": "^3.4.3",
