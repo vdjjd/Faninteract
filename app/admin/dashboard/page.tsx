@@ -26,43 +26,93 @@ export default function DashboardPage() {
   const [selectedWall, setSelectedWall] = useState<any | null>(null);
   const [selectedPoll, setSelectedPoll] = useState<any | null>(null);
 
-  /* ---------- LOAD HOST + INITIAL DATA (RLS LINKED) ---------- */
+  /* -------------------------------------------------------------------------- */
+  /* 🧠 LOAD HOST + INITIAL DATA (handles auth_id link + auto-create)            */
+  /* -------------------------------------------------------------------------- */
   useEffect(() => {
     async function load() {
-      // 1️⃣ Get the signed-in Supabase Auth user
-      const { data: { user }, error: userError } = await supabase.auth.getUser();
-      if (userError || !user) return;
+      try {
+        // 1️⃣ Get current Supabase auth user
+        const {
+          data: { user },
+          error: authError,
+        } = await supabase.auth.getUser();
 
-      // 2️⃣ Fetch matching host row by auth_id (new column)
-      const { data: hostRow, error: hostError } = await supabase
-        .from('hosts')
-        .select('*')
-        .eq('auth_id', user.id)
-        .single();
+        if (authError || !user) {
+          console.error('❌ Unable to get Supabase user:', authError?.message);
+          setLoading(false);
+          return;
+        }
 
-      if (hostError || !hostRow) {
-        console.error('❌ Unable to load host:', hostError?.message);
-        return;
+        // 2️⃣ Try to find a host row linked to this user via auth_id
+        const { data: hostRow, error: hostError } = await supabase
+          .from('hosts')
+          .select('*')
+          .eq('auth_id', user.id)
+          .maybeSingle(); // ✅ avoids 406 error
+
+        let activeHost = hostRow;
+
+        // 3️⃣ If no host row exists, create one automatically
+        if (!hostRow) {
+          const { data: newHost, error: insertError } = await supabase
+            .from('hosts')
+            .insert([
+              {
+                auth_id: user.id,
+                email: user.email,
+                username:
+                  user.user_metadata?.username ||
+                  user.email?.split('@')[0] ||
+                  null,
+                first_name: user.user_metadata?.first_name || null,
+                last_name: user.user_metadata?.last_name || null,
+              },
+            ])
+            .select()
+            .maybeSingle();
+
+          if (insertError) {
+            console.error(
+              '❌ Failed to auto-create host record:',
+              insertError.message
+            );
+          } else {
+            console.log('🆕 Auto-created host record for', user.email);
+            activeHost = newHost;
+          }
+        }
+
+        if (!activeHost) {
+          console.error('⚠️ No valid host record found or created.');
+          setLoading(false);
+          return;
+        }
+
+        // 4️⃣ Store host info in state
+        setHost(activeHost);
+
+        // 5️⃣ Load events and polls linked to host.id
+        const [fetchedEvents, fetchedPolls] = await Promise.all([
+          getEventsByHost(activeHost.id),
+          getPollsByHost(activeHost.id),
+        ]);
+
+        setEvents(fetchedEvents);
+        setPolls(fetchedPolls);
+      } catch (err) {
+        console.error('❌ Error loading dashboard data:', err);
+      } finally {
+        setLoading(false);
       }
-
-      // 3️⃣ Store host record for sidebar / logo
-      setHost(hostRow);
-
-      // 4️⃣ Load this host’s events & polls using hostRow.id
-      const [fetchedEvents, fetchedPolls] = await Promise.all([
-        getEventsByHost(hostRow.id),
-        getPollsByHost(hostRow.id),
-      ]);
-
-      setEvents(fetchedEvents);
-      setPolls(fetchedPolls);
-      setLoading(false);
     }
 
     load();
   }, []);
 
-  /* ---------- LOGO UPLOAD ---------- */
+  /* -------------------------------------------------------------------------- */
+  /* 🖼️ LOGO UPLOAD                                                             */
+  /* -------------------------------------------------------------------------- */
   async function handleLogoUpload(file: File) {
     if (!host) return;
 
@@ -83,7 +133,9 @@ export default function DashboardPage() {
     setHost({ ...host, logo_url: url });
   }
 
-  /* ---------- REFRESH HELPERS ---------- */
+  /* -------------------------------------------------------------------------- */
+  /* 🔄 REFRESH HELPERS                                                         */
+  /* -------------------------------------------------------------------------- */
   async function refreshEvents() {
     if (!host) return;
     const updated = await getEventsByHost(host.id);
@@ -96,7 +148,9 @@ export default function DashboardPage() {
     setPolls(updated);
   }
 
-  /* ---------- REALTIME SYNC ---------- */
+  /* -------------------------------------------------------------------------- */
+  /* 📡 REALTIME SYNC (Events)                                                  */
+  /* -------------------------------------------------------------------------- */
   useEffect(() => {
     if (!host) return;
 
@@ -126,7 +180,9 @@ export default function DashboardPage() {
     };
   }, [host]);
 
-  /* ---------- CREATE HANDLERS ---------- */
+  /* -------------------------------------------------------------------------- */
+  /* ✳️ CREATE HANDLERS + TOASTS                                                */
+  /* -------------------------------------------------------------------------- */
   function handleCreateFanWall() {
     setFanWallModalOpen(true);
   }
@@ -135,13 +191,14 @@ export default function DashboardPage() {
     setPollModalOpen(true);
   }
 
-  /* ---------- TOAST ---------- */
   function showToast(msg: string) {
     setToast(msg);
     setTimeout(() => setToast(null), 3000);
   }
 
-  /* ---------- LOADING STATE ---------- */
+  /* -------------------------------------------------------------------------- */
+  /* ⏳ LOADING STATE                                                           */
+  /* -------------------------------------------------------------------------- */
   if (loading) {
     return (
       <div className="flex items-center justify-center h-screen bg-black text-white">
@@ -150,29 +207,29 @@ export default function DashboardPage() {
     );
   }
 
-  /* ---------- UI ---------- */
+  /* -------------------------------------------------------------------------- */
+  /* 🧱 UI LAYOUT                                                               */
+  /* -------------------------------------------------------------------------- */
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#0a2540] via-[#1b2b44] to-black text-white flex flex-col items-center p-8">
-
       {/* HEADER SECTION */}
       <div className="w-full flex items-center justify-between mb-6">
-        {/* 🟢 Profile Circle (top-left) */}
+        {/* 🟢 Host Profile */}
         <HostProfilePanel host={host} onLogoUpload={handleLogoUpload} />
 
-        {/* Dashboard Title */}
-        <h1 className="text-2xl font-bold text-center flex-1">FanInteract Dashboard</h1>
+        <h1 className="text-2xl font-bold text-center flex-1">
+          FanInteract Dashboard
+        </h1>
 
-        {/* Spacer for alignment */}
-        <div className="w-10"></div>
+        <div className="w-10" /> {/* alignment spacer */}
       </div>
 
-      {/* DASHBOARD MAIN */}
+      {/* MAIN DASHBOARD */}
       <DashboardHeader
         onCreateFanWall={handleCreateFanWall}
         onCreatePoll={handleCreatePoll}
       />
 
-      {/* FAN WALL GRID */}
       <FanWallGrid
         events={events}
         host={host}
@@ -180,7 +237,6 @@ export default function DashboardPage() {
         onOpenOptions={(wall) => setSelectedWall(wall)}
       />
 
-      {/* POLL GRID */}
       <PollGrid
         polls={polls}
         host={host}
@@ -188,7 +244,7 @@ export default function DashboardPage() {
         onOpenOptions={(poll) => setSelectedPoll(poll)}
       />
 
-      {/* CREATE FAN WALL MODAL */}
+      {/* MODALS */}
       <CreateFanWallModal
         isOpen={isFanWallModalOpen}
         onClose={() => setFanWallModalOpen(false)}
@@ -199,7 +255,6 @@ export default function DashboardPage() {
         }}
       />
 
-      {/* CREATE POLL MODAL */}
       <CreatePollModal
         isOpen={isPollModalOpen}
         onClose={() => setPollModalOpen(false)}
@@ -210,7 +265,6 @@ export default function DashboardPage() {
         }}
       />
 
-      {/* OPTIONS MODAL (Fan Wall) */}
       {selectedWall && (
         <OptionsModalFanWall
           event={selectedWall}
@@ -230,7 +284,6 @@ export default function DashboardPage() {
         />
       )}
 
-      {/* OPTIONS MODAL (Poll) */}
       {selectedPoll && (
         <OptionsModalPoll
           event={selectedPoll}
@@ -259,8 +312,14 @@ export default function DashboardPage() {
 
       <style jsx>{`
         @keyframes fadeIn {
-          from { opacity: 0; transform: translateY(8px); }
-          to { opacity: 1; transform: translateY(0); }
+          from {
+            opacity: 0;
+            transform: translateY(8px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
         }
         .animate-fadeIn {
           animation: fadeIn 0.3s ease-out;
