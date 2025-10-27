@@ -43,6 +43,7 @@ export default function DashboardPage() {
           return;
         }
 
+        // Try to find host record
         const { data: hostRow, error: hostError } = await supabase
           .from('hosts')
           .select('*')
@@ -51,7 +52,7 @@ export default function DashboardPage() {
 
         let activeHost = hostRow;
 
-        // 🆕 Auto-create host record if none exists
+        // Auto-create host if none exists
         if (!hostRow) {
           const { data: newHost, error: insertError } = await supabase
             .from('hosts')
@@ -104,28 +105,61 @@ export default function DashboardPage() {
   }, []);
 
   /* -------------------------------------------------------------------------- */
-  /* 🖼️ LOGO UPLOAD                                                            */
+  /* 🖼️ PROFILE LOGO UPLOAD (Fixed & Tested)                                   */
   /* -------------------------------------------------------------------------- */
   async function handleLogoUpload(file: File) {
     if (!host) return;
 
-    const { data, error } = await supabase.storage
-      .from('host-logos')
-      .upload(`${host.id}/${file.name}`, file, { upsert: true });
+    try {
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      if (userError || !user) {
+        console.error('❌ Unable to get user:', userError?.message);
+        return;
+      }
 
-    if (error) {
-      console.error('❌ Logo upload failed:', error.message);
-      return;
+      // Unique path for file
+      const filePath = `${user.id}/${Date.now()}-${file.name}`;
+
+      // Upload to host-logos bucket
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('host-logos')
+        .upload(filePath, file, { cacheControl: '3600', upsert: true });
+
+      if (uploadError) {
+        console.error('❌ Upload failed:', uploadError.message);
+        return;
+      }
+
+      // Get public URL
+      const { data: publicUrlData } = supabase
+        .storage
+        .from('host-logos')
+        .getPublicUrl(filePath);
+
+      const logoUrl = publicUrlData?.publicUrl;
+      if (!logoUrl) {
+        console.error('❌ No public URL generated');
+        return;
+      }
+
+      // Update in hosts table
+      const { error: updateError } = await supabase
+        .from('hosts')
+        .update({ logo_url: logoUrl })
+        .eq('id', host.id);
+
+      if (updateError) {
+        console.error('❌ Database update failed:', updateError.message);
+        return;
+      }
+
+      // Live state update (instant UI refresh)
+      setHost((prev: any) => ({ ...prev, logo_url: logoUrl }));
+      console.log('✅ Profile logo uploaded successfully:', logoUrl);
+
+    } catch (err) {
+      console.error('❌ Unexpected upload error:', err);
     }
-
-    const url = supabase.storage
-      .from('host-logos')
-      .getPublicUrl(data.path).data.publicUrl;
-
-    await supabase.from('hosts').update({ logo_url: url }).eq('id', host.id);
-
-    // ✅ Instantly update without reload
-    setHost({ ...host, logo_url: url });
   }
 
   /* -------------------------------------------------------------------------- */
@@ -212,7 +246,7 @@ export default function DashboardPage() {
         {/* 🟢 Host Profile */}
         <HostProfilePanel
           host={host}
-          setHost={setHost}  // ✅ Added to allow instant state updates
+          setHost={setHost}
           onLogoUpload={handleLogoUpload}
         />
 
@@ -302,7 +336,7 @@ export default function DashboardPage() {
         />
       )}
 
-      {/* TOAST */}
+      {/* ✅ TOAST */}
       {toast && (
         <div className="fixed bottom-6 right-6 bg-green-600/90 text-white px-4 py-2 rounded-lg shadow-lg animate-fadeIn z-50">
           {toast}
