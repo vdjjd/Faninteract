@@ -24,8 +24,8 @@ import Image from 'next/image';
 import ChangeEmailModal from '@/components/ChangeEmailModal';
 import ChangePasswordModal from '@/components/ChangePasswordModal';
 import { motion } from 'framer-motion';
+import { toast } from 'sonner'; // ✅ Toasts added
 
-/* ✅ Props with setHost included */
 interface HostProfilePanelProps {
   host: any;
   onLogoUpload: (file: File) => Promise<void>;
@@ -38,44 +38,47 @@ export default function HostProfilePanel({ host, onLogoUpload, setHost }: HostPr
   const [showPassModal, setShowPassModal] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deletingBrandLogo, setDeletingBrandLogo] = useState(false);
+  const [uploadingProfile, setUploadingProfile] = useState(false);
+  const [uploadingBrand, setUploadingBrand] = useState(false);
 
   /* ---------- PROFILE LOGO UPLOAD ---------- */
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // 🧼 Sanitize filename (remove spaces, ampersands, etc.)
-    const safeName = file.name.replace(/[^a-zA-Z0-9.\-_]/g, '_');
-    const filePath = `${host.id}/${Date.now()}-${safeName}`;
+    const toastId = toast.loading("Uploading profile logo...");
+    setUploadingProfile(true);
 
-    const { error: uploadError } = await supabase.storage
-      .from('host-logos')
-      .upload(filePath, file, { upsert: true });
+    try {
+      const safeName = file.name.replace(/[^a-zA-Z0-9.\-_]/g, '_');
+      const filePath = `${host.id}/${Date.now()}-${safeName}`;
 
-    if (uploadError) {
-      console.error('❌ Profile logo upload failed:', uploadError.message);
-      return;
+      const { error: uploadError } = await supabase.storage
+        .from('host-logos')
+        .upload(filePath, file, { upsert: true });
+      if (uploadError) throw uploadError;
+
+      const { data: publicUrlData } = supabase
+        .storage
+        .from('host-logos')
+        .getPublicUrl(filePath);
+      const logoUrl = publicUrlData?.publicUrl;
+
+      const { error: updateError } = await supabase
+        .from('hosts')
+        .update({ logo_url: logoUrl })
+        .eq('id', host.id);
+      if (updateError) throw updateError;
+
+      setHost((prev: any) => ({ ...prev, logo_url: logoUrl }));
+      toast.success("✅ Profile logo uploaded successfully!", { id: toastId });
+    } catch (err) {
+      console.error("❌ Upload failed:", err);
+      toast.error("Upload failed. Please try again.", { id: toastId });
+    } finally {
+      setUploadingProfile(false);
+      toast.dismiss(toastId);
     }
-
-    const { data: publicUrlData } = supabase
-      .storage
-      .from('host-logos')
-      .getPublicUrl(filePath);
-
-    const logoUrl = publicUrlData?.publicUrl;
-
-    const { error: updateError } = await supabase
-      .from('hosts')
-      .update({ logo_url: logoUrl })
-      .eq('id', host.id);
-
-    if (updateError) {
-      console.error('❌ Database update failed:', updateError.message);
-      return;
-    }
-
-    console.log('✅ Profile logo uploaded successfully:', logoUrl);
-    setHost((prev: any) => ({ ...prev, logo_url: logoUrl }));
   };
 
   /* ---------- BRANDING LOGO UPLOAD ---------- */
@@ -83,44 +86,42 @@ export default function HostProfilePanel({ host, onLogoUpload, setHost }: HostPr
     const file = e.target.files?.[0];
     if (!file) return;
 
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
-    if (userError || !user) {
-      console.error('❌ Unable to retrieve user for upload:', userError?.message);
-      return;
+    const toastId = toast.loading("Uploading branding logo...");
+    setUploadingBrand(true);
+
+    try {
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      if (userError || !user) throw new Error("User not authenticated");
+
+      const safeName = file.name.replace(/[^a-zA-Z0-9.\-_]/g, '_');
+      const filePath = `${user.id}/${Date.now()}-${safeName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('bar-logos')
+        .upload(filePath, file, { cacheControl: '3600', upsert: true });
+      if (uploadError) throw uploadError;
+
+      const { data: publicUrlData } = supabase
+        .storage
+        .from('bar-logos')
+        .getPublicUrl(filePath);
+      const logoUrl = publicUrlData?.publicUrl;
+
+      const { error: updateError } = await supabase
+        .from('hosts')
+        .update({ branding_logo_url: logoUrl })
+        .eq('auth_id', user.id);
+      if (updateError) throw updateError;
+
+      setHost((prev: any) => ({ ...prev, branding_logo_url: logoUrl }));
+      toast.success("✅ Branding logo uploaded successfully!", { id: toastId });
+    } catch (err) {
+      console.error("❌ Branding upload failed:", err);
+      toast.error("Upload failed. Please try again.", { id: toastId });
+    } finally {
+      setUploadingBrand(false);
+      toast.dismiss(toastId);
     }
-
-    // 🧼 Sanitize filename
-    const safeName = file.name.replace(/[^a-zA-Z0-9.\-_]/g, '_');
-    const filePath = `${user.id}/${Date.now()}-${safeName}`;
-
-    const { error: uploadError } = await supabase.storage
-      .from('bar-logos')
-      .upload(filePath, file, { cacheControl: '3600', upsert: true });
-
-    if (uploadError) {
-      console.error('❌ Branding logo upload failed:', uploadError.message);
-      return;
-    }
-
-    const { data: publicUrlData } = supabase
-      .storage
-      .from('bar-logos')
-      .getPublicUrl(filePath);
-
-    const logoUrl = publicUrlData?.publicUrl;
-
-    const { error: updateError } = await supabase
-      .from('hosts')
-      .update({ branding_logo_url: logoUrl })
-      .eq('auth_id', user.id);
-
-    if (updateError) {
-      console.error('❌ Failed to update branding logo URL:', updateError.message);
-      return;
-    }
-
-    console.log('✅ Branding logo uploaded successfully:', logoUrl);
-    setHost((prev: any) => ({ ...prev, branding_logo_url: logoUrl }));
   };
 
   /* ---------- DELETE BRANDING LOGO ---------- */
@@ -178,13 +179,11 @@ export default function HostProfilePanel({ host, onLogoUpload, setHost }: HostPr
     }
   };
 
-  /* ---------- LOGOUT ---------- */
   async function handleLogout() {
     await supabase.auth.signOut();
     window.location.href = '/';
   }
 
-  /* ---------- COMPONENT ---------- */
   if (!host) {
     return (
       <div className="flex items-center justify-center text-gray-400 text-sm py-6">
@@ -236,14 +235,27 @@ export default function HostProfilePanel({ host, onLogoUpload, setHost }: HostPr
                 )}
               </div>
 
-              <label className="mt-1 cursor-pointer text-sm text-blue-400 hover:underline">
-                <Upload className="inline-block mr-1 w-4 h-4" />
-                Upload Profile Logo
+              <label className="mt-1 cursor-pointer text-sm text-blue-400 hover:underline flex items-center justify-center gap-1">
+                {uploadingProfile ? (
+                  <div className="flex items-center gap-2 text-blue-400">
+                    <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                    </svg>
+                    Uploading…
+                  </div>
+                ) : (
+                  <>
+                    <Upload className="w-4 h-4" />
+                    Upload Profile Logo
+                  </>
+                )}
                 <input
                   type="file"
                   accept="image/*"
                   className="hidden"
                   onChange={handleFileUpload}
+                  disabled={uploadingProfile}
                 />
               </label>
 
@@ -284,8 +296,7 @@ export default function HostProfilePanel({ host, onLogoUpload, setHost }: HostPr
             </div>
 
             <p className="text-sm text-gray-400 mb-3 max-w-[85%] mx-auto leading-snug">
-              Upload your bar or venue logo below. It will automatically replace the
-              FanInteract logo across all your fan walls.
+              Upload your bar or venue logo below. It will automatically replace the FanInteract logo across all your fan walls.
             </p>
 
             <div className="flex flex-col items-center gap-3">
@@ -304,14 +315,27 @@ export default function HostProfilePanel({ host, onLogoUpload, setHost }: HostPr
                 )}
               </div>
 
-              <label className="mt-2 cursor-pointer text-sm text-blue-400 hover:underline">
-                <Upload className="inline-block mr-1 w-4 h-4" />
-                Upload Branding Logo
+              <label className="mt-2 cursor-pointer text-sm text-blue-400 hover:underline flex items-center justify-center gap-1">
+                {uploadingBrand ? (
+                  <div className="flex items-center gap-2 text-blue-400">
+                    <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                    </svg>
+                    Uploading…
+                  </div>
+                ) : (
+                  <>
+                    <Upload className="w-4 h-4" />
+                    Upload Branding Logo
+                  </>
+                )}
                 <input
                   type="file"
                   accept="image/*"
                   className="hidden"
                   onChange={handleBrandingLogoUpload}
+                  disabled={uploadingBrand}
                 />
               </label>
 
@@ -361,41 +385,26 @@ export default function HostProfilePanel({ host, onLogoUpload, setHost }: HostPr
           <div className="h-8"></div>
         </div>
 
-        {/* ---------- DELETE CONFIRM MODAL (accessible fix) ---------- */}
+        {/* ---------- DELETE CONFIRM MODAL ---------- */}
         {showDeleteConfirm && (
           <div
             className="fixed inset-0 bg-black/70 flex items-center justify-center z-50"
             role="dialog"
             aria-modal="true"
-            aria-labelledby="delete-branding-logo-title"
-            aria-describedby="delete-branding-logo-desc"
           >
             <motion.div
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ duration: 0.2 }}
-              className="bg-[#0d1625]/90 border border-blue-800/40 rounded-xl shadow-lg shadow-blue-900/40 p-6 text-center w-[360px]"
+              className="bg-[#0d1625]/90 border border-blue-800/40 rounded-xl shadow-lg p-6 text-center w-[360px]"
             >
-              <h2 id="delete-branding-logo-title" className="sr-only">
-                Delete Branding Logo
-              </h2>
-              <p id="delete-branding-logo-desc" className="sr-only">
-                This will permanently delete your uploaded brand logo from storage.
-              </p>
-
               <AlertTriangle className="text-yellow-400 w-10 h-10 mx-auto mb-3" />
-              <h3 className="text-lg font-semibold text-white mb-2">
-                Remove Branding Logo?
-              </h3>
+              <h3 className="text-lg font-semibold text-white mb-2">Remove Branding Logo?</h3>
               <p className="text-gray-400 text-sm mb-5">
                 This will permanently delete your uploaded brand logo from storage.
               </p>
               <div className="flex justify-center gap-3">
-                <Button
-                  variant="destructive"
-                  onClick={handleDeleteBrandingLogo}
-                  disabled={deletingBrandLogo}
-                >
+                <Button variant="destructive" onClick={handleDeleteBrandingLogo} disabled={deletingBrandLogo}>
                   {deletingBrandLogo ? 'Deleting…' : 'Yes, Delete'}
                 </Button>
                 <Button variant="outline" onClick={() => setShowDeleteConfirm(false)}>
@@ -408,28 +417,16 @@ export default function HostProfilePanel({ host, onLogoUpload, setHost }: HostPr
 
         {/* ---------- EMAIL + PASSWORD MODALS ---------- */}
         {showEmailModal && (
-          <div
-            className="fixed inset-0 bg-black/70 flex items-center justify-center z-50"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="change-email-title"
-          >
+          <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
             <div className="bg-neutral-900 border border-gray-700 rounded-lg shadow-lg w-96">
-              <div id="change-email-title" className="sr-only">Change Email</div>
               <ChangeEmailModal onClose={() => setShowEmailModal(false)} />
             </div>
           </div>
         )}
 
         {showPassModal && (
-          <div
-            className="fixed inset-0 bg-black/70 flex items-center justify-center z-50"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="change-password-title"
-          >
+          <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
             <div className="bg-neutral-900 border border-gray-700 rounded-lg shadow-lg w-96">
-              <div id="change-password-title" className="sr-only">Change Password</div>
               <ChangePasswordModal onClose={() => setShowPassModal(false)} />
             </div>
           </div>
