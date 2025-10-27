@@ -1,23 +1,33 @@
 'use client';
 
-import { useState, useCallback } from 'react';
-import { useRouter, useParams } from 'next/navigation';
+import { useState, useCallback, useEffect } from 'react';
+import { useParams } from 'next/navigation';
 import Cropper from 'react-easy-crop';
 import imageCompression from 'browser-image-compression';
 import { supabase } from '@/lib/supabaseClient';
 
 export default function GuestPostPage() {
-  const router = useRouter();
   const { eventId } = useParams();
-
   const [imageSrc, setImageSrc] = useState<string | null>(null);
   const [crop, setCrop] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
   const [croppedAreaPixels, setCroppedAreaPixels] = useState<any>(null);
   const [message, setMessage] = useState('');
-  const [nickname, setNickname] = useState('');
-  const [firstName, setFirstName] = useState(''); // ✅ new
+  const [firstName, setFirstName] = useState('');
   const [submitting, setSubmitting] = useState(false);
+
+  /* ---------- Load guest name from localStorage ---------- */
+  useEffect(() => {
+    const guestData = localStorage.getItem('guestInfo');
+    if (guestData) {
+      try {
+        const parsed = JSON.parse(guestData);
+        if (parsed.firstName) setFirstName(parsed.firstName);
+      } catch (err) {
+        console.error('Error loading guest info:', err);
+      }
+    }
+  }, []);
 
   /* ---------- File Handling ---------- */
   async function handleFileSelect(e: any) {
@@ -82,7 +92,9 @@ export default function GuestPostPage() {
   /* ---------- Submit ---------- */
   async function handleSubmit(e: any) {
     e.preventDefault();
-    if (!imageSrc || !message.trim()) return alert('Please add a photo and message.');
+    if (!imageSrc || !message.trim())
+      return alert('Please add a photo and message.');
+
     setSubmitting(true);
     const croppedImg = await getCroppedImage();
     if (!croppedImg) return alert('Error processing image.');
@@ -93,28 +105,27 @@ export default function GuestPostPage() {
     const { error: uploadError } = await supabase.storage
       .from('uploads')
       .upload(fileName, blob, { contentType: 'image/jpeg' });
+
     if (uploadError) return alert('Upload failed.');
 
-    const { data: publicUrl } = supabase.storage.from('uploads').getPublicUrl(fileName);
-
-    // ✅ Nickname fallback logic
-    const nicknameToSave =
-      nickname.trim() || firstName.trim() || 'Guest';
+    const { data: publicUrl } = supabase.storage
+      .from('uploads')
+      .getPublicUrl(fileName);
 
     const { error: insertError } = await supabase.from('submissions').insert([
       {
         event_id: eventId,
         photo_url: publicUrl.publicUrl,
         message: message.trim(),
-        nickname: nicknameToSave,
+        nickname: firstName || 'Guest', // ✅ use stored first name
         status: 'pending',
       },
     ]);
 
     if (insertError) return alert('Error submitting post.');
 
-    alert('✅ Your photo has been submitted for approval!');
-    setTimeout(() => window.close(), 2000);
+    alert('✅ Thank you for submitting!');
+    setTimeout(() => window.close(), 4000);
   }
 
   /* ---------- UI ---------- */
@@ -158,17 +169,42 @@ export default function GuestPostPage() {
           }}
         />
 
-        <h2 style={{ marginBottom: 14, fontWeight: 700 }}>Add Your Photo to the Wall</h2>
+        <h2 style={{ marginBottom: 14, fontWeight: 700 }}>
+          Add Your Photo to the Wall
+        </h2>
 
         {/* Buttons Row */}
-        <div style={{ display: 'flex', justifyContent: 'center', gap: 12, marginBottom: 12 }}>
-          <button type="button" onClick={handleCameraCapture} style={buttonStyle}>
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'center',
+            gap: 12,
+            marginBottom: 12,
+          }}
+        >
+          <button
+            type="button"
+            onClick={handleCameraCapture}
+            style={buttonStyle}
+          >
             📷 Camera
           </button>
-          <button type="button" onClick={() => document.getElementById('file-input')?.click()} style={buttonStyle}>
+          <button
+            type="button"
+            onClick={() =>
+              document.getElementById('file-input')?.click()
+            }
+            style={buttonStyle}
+          >
             📁 Upload
           </button>
-          <input type="file" id="file-input" accept="image/*" onChange={handleFileSelect} style={{ display: 'none' }} />
+          <input
+            type="file"
+            id="file-input"
+            accept="image/*"
+            onChange={handleFileSelect}
+            style={{ display: 'none' }}
+          />
         </div>
 
         {/* Crop Box */}
@@ -212,12 +248,11 @@ export default function GuestPostPage() {
           )}
         </div>
 
-        {/* First Name */}
+        {/* First Name (auto-filled + locked) */}
         <input
           type="text"
-          placeholder="First Name"
           value={firstName}
-          onChange={(e) => setFirstName(e.target.value)}
+          readOnly
           style={{
             width: '90%',
             margin: '0 auto 12px',
@@ -225,10 +260,11 @@ export default function GuestPostPage() {
             padding: 10,
             borderRadius: 8,
             border: '1px solid #666',
-            background: 'rgba(0,0,0,0.4)',
+            background: 'rgba(255,255,255,0.1)',
             color: '#fff',
             fontSize: 15,
             textAlign: 'center',
+            opacity: 0.7,
           }}
         />
 
@@ -250,26 +286,6 @@ export default function GuestPostPage() {
             textAlign: 'center',
             resize: 'none',
             minHeight: 70,
-          }}
-        />
-
-        {/* Nickname */}
-        <input
-          type="text"
-          placeholder="Nickname (optional)"
-          value={nickname}
-          onChange={(e) => setNickname(e.target.value)}
-          style={{
-            width: '90%',
-            margin: '0 auto 16px',
-            display: 'block',
-            padding: 10,
-            borderRadius: 8,
-            border: '1px solid #666',
-            background: 'rgba(0,0,0,0.4)',
-            color: '#fff',
-            fontSize: 15,
-            textAlign: 'center',
           }}
         />
 
