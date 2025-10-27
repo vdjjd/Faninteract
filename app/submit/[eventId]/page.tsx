@@ -22,20 +22,39 @@ export default function GuestInfoPage() {
   });
   const [error, setError] = useState('');
 
-  /* ---------------- 🧠 CHECK FOR EXISTING GUEST ---------------- */
+  /* ---------------- VERIFY EXISTING GUEST ---------------- */
   useEffect(() => {
-    try {
+    async function verifyGuest() {
       const stored = localStorage.getItem('guestInfo');
-      if (stored) {
+      if (!stored) return; // no local data, show signup
+
+      try {
         const guest = JSON.parse(stored);
-        if (guest.firstName) {
-          console.log('✅ Returning guest detected:', guest.firstName);
+        if (!guest.firstName || !guest.lastName) return;
+
+        // ✅ Check if this guest actually exists for this event in Supabase
+        const { data, error } = await supabase
+          .from('guests')
+          .select('id')
+          .eq('event_id', eventUUID)
+          .eq('first_name', guest.firstName)
+          .eq('last_name', guest.lastName)
+          .limit(1)
+          .maybeSingle();
+
+        if (data && !error) {
+          console.log('✅ Verified returning guest:', guest.firstName);
           router.replace(`/submit/${eventUUID}/post`);
+        } else {
+          console.log('🧹 Clearing stale guest info.');
+          localStorage.removeItem('guestInfo');
         }
+      } catch (err) {
+        console.error('Error verifying guest:', err);
+        localStorage.removeItem('guestInfo');
       }
-    } catch (err) {
-      console.error('LocalStorage check failed:', err);
     }
+    verifyGuest();
   }, [eventUUID, router]);
 
   /* ---------------- LOAD EVENT ---------------- */
@@ -125,7 +144,7 @@ export default function GuestInfoPage() {
     }
 
     // ✅ Save guest info locally
-    localStorage.setItem('guestInfo', JSON.stringify(form));
+    localStorage.setItem('guestInfo', JSON.stringify({ ...form, event_id: eventUUID }));
 
     // ✅ Redirect to submission page
     router.push(`/submit/${eventUUID}/post`);
