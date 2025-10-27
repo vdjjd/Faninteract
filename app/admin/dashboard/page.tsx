@@ -9,7 +9,7 @@ import { getPrizeWheelsByHost } from '@/lib/actions/prizewheels';
 import DashboardHeader from './components/DashboardHeader';
 import CreateFanWallModal from '@/components/CreateFanWallModal';
 import CreatePollModal from '@/components/CreatePollModal';
-import CreatePrizeWheelModal from '@/components/CreatePrizeWheelModal'; // ✅ NEW
+import CreatePrizeWheelModal from '@/components/CreatePrizeWheelModal';
 import FanWallGrid from './components/FanWallGrid';
 import PollGrid from './components/PollGrid';
 import PrizeWheelGrid from './components/PrizeWheelGrid';
@@ -28,7 +28,7 @@ export default function DashboardPage() {
   // 🔸 Modal States
   const [isFanWallModalOpen, setFanWallModalOpen] = useState(false);
   const [isPollModalOpen, setPollModalOpen] = useState(false);
-  const [isPrizeWheelModalOpen, setPrizeWheelModalOpen] = useState(false); // ✅ NEW
+  const [isPrizeWheelModalOpen, setPrizeWheelModalOpen] = useState(false);
   const [selectedWall, setSelectedWall] = useState<any | null>(null);
   const [selectedPoll, setSelectedPoll] = useState<any | null>(null);
 
@@ -168,6 +168,7 @@ export default function DashboardPage() {
   /* -------------------------------------------------------------------------- */
   useEffect(() => {
     if (!host) return;
+
     const channel = supabase
       .channel(`events-dashboard-${host.id}`)
       .on(
@@ -189,7 +190,10 @@ export default function DashboardPage() {
       )
       .subscribe();
 
-    return () => supabase.removeChannel(channel);
+    // ✅ FIX: don’t return async promise
+    return () => {
+      void supabase.removeChannel(channel);
+    };
   }, [host]);
 
   /* -------------------------------------------------------------------------- */
@@ -204,7 +208,7 @@ export default function DashboardPage() {
   }
 
   function handleCreatePrizeWheel() {
-    setPrizeWheelModalOpen(true); // ✅ NEW
+    setPrizeWheelModalOpen(true);
   }
 
   function showToast(msg: string) {
@@ -235,11 +239,10 @@ export default function DashboardPage() {
         <div className="w-10" />
       </div>
 
-      {/* MAIN DASHBOARD */}
       <DashboardHeader
         onCreateFanWall={handleCreateFanWall}
         onCreatePoll={handleCreatePoll}
-        onCreatePrizeWheel={handleCreatePrizeWheel} // ✅ NEW
+        onCreatePrizeWheel={handleCreatePrizeWheel}
       />
 
       <FanWallGrid
@@ -287,16 +290,15 @@ export default function DashboardPage() {
       />
 
       <CreatePrizeWheelModal
-        isOpen={isPrizeWheelModalOpen} // ✅ NEW
-        onClose={() => setPrizeWheelModalOpen(false)} // ✅ NEW
-        hostId={host?.id} // ✅ NEW
+        isOpen={isPrizeWheelModalOpen}
+        onClose={() => setPrizeWheelModalOpen(false)}
+        hostId={host?.id}
         refreshPrizeWheels={async () => {
           await refreshWheels();
           showToast('✅ Prize Wheel created!');
         }}
       />
 
-      {/* Options Modals */}
       {selectedWall && (
         <OptionsModalFanWall
           event={selectedWall}
