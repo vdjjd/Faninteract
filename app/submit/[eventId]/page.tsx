@@ -12,7 +12,7 @@ export default function GuestInfoPage() {
   const [event, setEvent] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
-  const [agree, setAgree] = useState(false); // ✅ TOS checkbox
+  const [agree, setAgree] = useState(false);
   const [form, setForm] = useState({
     firstName: '',
     lastName: '',
@@ -26,7 +26,7 @@ export default function GuestInfoPage() {
   useEffect(() => {
     if (!eventUUID) return;
 
-    async function fetchEvent() {
+    const fetchEvent = async () => {
       const { data, error } = await supabase
         .from('events')
         .select('title, background_value, logo_url')
@@ -36,27 +36,37 @@ export default function GuestInfoPage() {
       if (error) console.error('Error loading event:', error);
       if (data) setEvent(data);
       setLoading(false);
-    }
-    fetchEvent();
+    };
+
+    fetchEvent(); // ✅ Correct way — call async function, don’t return it
 
     const ch = supabase
       .channel(`events-${eventUUID}`)
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: 'events', filter: `id=eq.${eventUUID}` },
-        (payload) => setEvent((prev: any) => (prev ? { ...prev, ...payload.new } : payload.new))
+        {
+          event: '*',
+          schema: 'public',
+          table: 'events',
+          filter: `id=eq.${eventUUID}`,
+        },
+        (payload) =>
+          setEvent((prev: any) =>
+            prev ? { ...prev, ...payload.new } : payload.new
+          )
       )
       .subscribe();
 
-    return () => supabase.removeChannel(ch);
+    return () => {
+      supabase.removeChannel(ch);
+    };
   }, [eventUUID]);
 
   /* ---------------- FORM HANDLERS ---------------- */
-  function handleChange(e: any) {
+  const handleChange = (e: any) =>
     setForm({ ...form, [e.target.name]: e.target.value });
-  }
 
-  async function handleJoin(e: any) {
+  const handleJoin = async (e: any) => {
     e.preventDefault();
     setError('');
 
@@ -78,8 +88,7 @@ export default function GuestInfoPage() {
 
     setSubmitting(true);
 
-    /* ---------------- INSERT INTO GUESTS TABLE ---------------- */
-    const { data, error: insertError } = await supabase
+    const { error: insertError } = await supabase
       .from('guests')
       .insert([
         {
@@ -100,12 +109,10 @@ export default function GuestInfoPage() {
       return;
     }
 
-    // Save locally for continuity
     localStorage.setItem('guestInfo', JSON.stringify(form));
 
-    // ✅ Redirect to the next page (photo/message submission)
     router.push(`/submit/${eventUUID}/post`);
-  }
+  };
 
   if (loading)
     return <p style={{ textAlign: 'center', color: '#fff' }}>Loading...</p>;
@@ -142,7 +149,6 @@ export default function GuestInfoPage() {
           alignItems: 'center',
         }}
       >
-        {/* ---------- LOGO ---------- */}
         <img
           src={event?.logo_url || '/faninteractlogo.png'}
           alt="Logo"
@@ -201,7 +207,6 @@ export default function GuestInfoPage() {
           />
         ))}
 
-        {/* ✅ Terms of Service Checkbox */}
         <label
           style={{
             display: 'flex',
