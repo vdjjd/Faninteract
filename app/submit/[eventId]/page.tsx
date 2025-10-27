@@ -7,21 +7,22 @@ import { supabase } from '@/lib/supabaseClient';
 export default function GuestInfoPage() {
   const router = useRouter();
   const { eventId } = useParams();
-  const eventUUID = Array.isArray(eventId) ? eventId[0] : eventId; // ✅ clean UUID
+  const eventUUID = Array.isArray(eventId) ? eventId[0] : eventId;
+
   const [event, setEvent] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [agree, setAgree] = useState(false); // ✅ TOS checkbox
   const [form, setForm] = useState({
     firstName: '',
     lastName: '',
     email: '',
     phone: '',
-    nickname: '',
     age: '',
   });
   const [error, setError] = useState('');
 
-  /* ---------------- LOAD + SUBSCRIBE TO EVENT ---------------- */
+  /* ---------------- LOAD EVENT ---------------- */
   useEffect(() => {
     if (!eventUUID) return;
 
@@ -31,6 +32,7 @@ export default function GuestInfoPage() {
         .select('title, background_value, logo_url')
         .eq('id', eventUUID)
         .single();
+
       if (error) console.error('Error loading event:', error);
       if (data) setEvent(data);
       setLoading(false);
@@ -42,16 +44,11 @@ export default function GuestInfoPage() {
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'events', filter: `id=eq.${eventUUID}` },
-        (payload) => {
-          const updated = payload.new;
-          setEvent((prev: any) => (prev ? { ...prev, ...updated } : updated));
-        }
+        (payload) => setEvent((prev: any) => (prev ? { ...prev, ...payload.new } : payload.new))
       )
       .subscribe();
 
-    return () => {
-      supabase.removeChannel(ch);
-    };
+    return () => supabase.removeChannel(ch);
   }, [eventUUID]);
 
   /* ---------------- FORM HANDLERS ---------------- */
@@ -62,31 +59,24 @@ export default function GuestInfoPage() {
   async function handleJoin(e: any) {
     e.preventDefault();
     setError('');
-    const { firstName, lastName, email, phone, nickname, age } = form;
 
-    // Simple validation
+    const { firstName, lastName, email, phone, age } = form;
+
+    // ✅ Validation rules
     if (!firstName || !lastName) {
-      setError('Please enter your first and last name.');
+      setError('Please enter both your first and last name.');
       return;
     }
     if (!email && !phone) {
-      setError('Please enter either an email or phone.');
+      setError('Please provide either an email or phone number.');
+      return;
+    }
+    if (!agree) {
+      setError('You must agree to the Terms of Service to continue.');
       return;
     }
 
     setSubmitting(true);
-
-    // Animate form fade out
-    const formEl = document.getElementById('guest-form');
-    formEl?.animate(
-      [
-        { opacity: 1, transform: 'translateY(0)' },
-        { opacity: 0, transform: 'translateY(-40px)' },
-      ],
-      { duration: 600, easing: 'ease-in-out', fill: 'forwards' }
-    );
-
-    await new Promise((res) => setTimeout(res, 600));
 
     /* ---------------- INSERT INTO GUESTS TABLE ---------------- */
     const { data, error: insertError } = await supabase
@@ -94,33 +84,26 @@ export default function GuestInfoPage() {
       .insert([
         {
           event_id: eventUUID,
-          first_name: firstName?.trim(),
-          last_name: lastName?.trim(),
+          first_name: firstName.trim(),
+          last_name: lastName.trim(),
           email: email?.trim() || null,
           phone: phone?.trim() || null,
-          nickname: nickname?.trim() || null,
           age: age ? parseInt(age) : null,
         },
       ])
       .select();
 
-    console.log('🧠 Supabase insert result:', { data, insertError });
-
     if (insertError) {
       console.error('❌ Insert error:', insertError);
-      alert(`Insert failed: ${insertError.message}`);
       setError('Something went wrong. Please try again.');
       setSubmitting(false);
       return;
-    } else {
-  console.log('✅ Guest added successfully:', data);
-}
+    }
 
-// Save locally for continuity
-localStorage.setItem('guestInfo', JSON.stringify(form));
+    // Save locally for continuity
+    localStorage.setItem('guestInfo', JSON.stringify(form));
 
-
-    // ✅ Redirect to the “post submission” page
+    // ✅ Redirect to the next page (photo/message submission)
     router.push(`/submit/${eventUUID}/post`);
   }
 
@@ -157,7 +140,6 @@ localStorage.setItem('guestInfo', JSON.stringify(form));
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
-          justifyContent: 'center',
         }}
       >
         {/* ---------- LOGO ---------- */}
@@ -174,14 +156,12 @@ localStorage.setItem('guestInfo', JSON.stringify(form));
           }}
         />
 
-        {/* ---------- WALL TITLE ---------- */}
         <h2
           style={{
             fontSize: 'clamp(1.5rem, 2.5vw, 2.2rem)',
             marginTop: -12,
             marginBottom: 10,
             fontWeight: 700,
-            textShadow: '0 0 12px rgba(0,0,0,0.6)',
           }}
         >
           {event?.title || 'FanInteract Wall'}
@@ -196,7 +176,6 @@ localStorage.setItem('guestInfo', JSON.stringify(form));
           { name: 'lastName', placeholder: 'Last Name' },
           { name: 'email', placeholder: 'Email (optional)' },
           { name: 'phone', placeholder: 'Phone (optional)' },
-          { name: 'nickname', placeholder: 'Nickname (optional)' },
           { name: 'age', placeholder: 'Age (optional)', type: 'number' },
         ].map((field) => (
           <input
@@ -219,10 +198,35 @@ localStorage.setItem('guestInfo', JSON.stringify(form));
               outline: 'none',
               transition: 'all 0.3s ease',
             }}
-            onFocus={(e) => (e.currentTarget.style.boxShadow = '0 0 10px #fff')}
-            onBlur={(e) => (e.currentTarget.style.boxShadow = 'none')}
           />
         ))}
+
+        {/* ✅ Terms of Service Checkbox */}
+        <label
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            color: '#ccc',
+            fontSize: 13,
+            margin: '10px 0 20px 0',
+          }}
+        >
+          <input
+            type="checkbox"
+            checked={agree}
+            onChange={(e) => setAgree(e.target.checked)}
+            style={{ accentColor: '#1e90ff', width: 18, height: 18 }}
+          />
+          I agree to the{' '}
+          <a href="/terms" target="_blank" style={{ color: '#1e90ff' }}>
+            Terms of Service
+          </a>{' '}
+          and{' '}
+          <a href="/privacy" target="_blank" style={{ color: '#1e90ff' }}>
+            Privacy Policy
+          </a>
+        </label>
 
         {error && <p style={{ color: 'salmon', marginBottom: 8 }}>{error}</p>}
 
@@ -237,19 +241,11 @@ localStorage.setItem('guestInfo', JSON.stringify(form));
             borderRadius: 10,
             color: '#fff',
             fontWeight: 600,
-            marginTop: 10,
             cursor: submitting ? 'not-allowed' : 'pointer',
-            transition: 'background 0.3s ease',
           }}
         >
           {submitting ? 'Joining...' : 'Join'}
         </button>
-
-        <p style={{ fontSize: 11, color: '#bbb', marginTop: 14 }}>
-          By joining, you accept our{' '}
-          <a href="#" style={{ color: '#1e90ff' }}>Terms</a> &{' '}
-          <a href="#" style={{ color: '#1e90ff' }}>Privacy Policy</a>.
-        </p>
       </form>
     </div>
   );
