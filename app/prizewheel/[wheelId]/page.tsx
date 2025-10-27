@@ -3,9 +3,9 @@
 import { useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
-import InactiveWall from '../../components/wall/InactiveWall'; // ✅ fixed path
-// (Future) — when you create the live spinning wall, import it here:
-// import ActiveWall from '../../components/wall/ActiveWall';
+import InactiveWall from '../components/wall/InactiveWall'; // ✅ Correct path (was one level too high)
+// (Future)
+import ActiveWall from '../components/wall/ActiveWall'; // ✅ Ready for live view
 
 interface PrizeWheelData {
   id: string;
@@ -100,12 +100,7 @@ export default function PrizeWheelPage() {
 
   /* ---------- RENDER WALL ---------- */
   if (wheel.status === 'live') {
-    return (
-      <div className="flex items-center justify-center h-screen bg-black text-white">
-        {/* 🔮 Placeholder for Live Wheel display */}
-        <h1 className="text-4xl font-bold">🎡 Prize Wheel Live Mode Coming Soon</h1>
-      </div>
-    );
+    return <ActiveWall event={wheel} />; // ✅ future live mode
   }
 
   // Default to inactive wall
