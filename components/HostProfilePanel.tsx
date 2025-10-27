@@ -42,7 +42,40 @@ export default function HostProfilePanel({ host, onLogoUpload, setHost }: HostPr
   /* ---------- PROFILE LOGO UPLOAD ---------- */
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) await onLogoUpload(file);
+    if (!file) return;
+
+    // 🧼 Sanitize filename (remove spaces, ampersands, etc.)
+    const safeName = file.name.replace(/[^a-zA-Z0-9.\-_]/g, '_');
+    const filePath = `${host.id}/${Date.now()}-${safeName}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from('host-logos')
+      .upload(filePath, file, { upsert: true });
+
+    if (uploadError) {
+      console.error('❌ Profile logo upload failed:', uploadError.message);
+      return;
+    }
+
+    const { data: publicUrlData } = supabase
+      .storage
+      .from('host-logos')
+      .getPublicUrl(filePath);
+
+    const logoUrl = publicUrlData?.publicUrl;
+
+    const { error: updateError } = await supabase
+      .from('hosts')
+      .update({ logo_url: logoUrl })
+      .eq('id', host.id);
+
+    if (updateError) {
+      console.error('❌ Database update failed:', updateError.message);
+      return;
+    }
+
+    console.log('✅ Profile logo uploaded successfully:', logoUrl);
+    setHost((prev: any) => ({ ...prev, logo_url: logoUrl }));
   };
 
   /* ---------- BRANDING LOGO UPLOAD ---------- */
@@ -56,7 +89,10 @@ export default function HostProfilePanel({ host, onLogoUpload, setHost }: HostPr
       return;
     }
 
-    const filePath = `${user.id}/${file.name}`;
+    // 🧼 Sanitize filename
+    const safeName = file.name.replace(/[^a-zA-Z0-9.\-_]/g, '_');
+    const filePath = `${user.id}/${Date.now()}-${safeName}`;
+
     const { error: uploadError } = await supabase.storage
       .from('bar-logos')
       .upload(filePath, file, { cacheControl: '3600', upsert: true });
@@ -162,7 +198,7 @@ export default function HostProfilePanel({ host, onLogoUpload, setHost }: HostPr
       <SheetTrigger asChild>
         <button className="rounded-full w-10 h-10 overflow-hidden border border-gray-500 hover:ring-2 hover:ring-blue-500 transition-all">
           {host?.logo_url ? (
-            <Image src={host.logo_url} alt="Host Logo" width={40} height={40} />
+            <Image src={host.logo_url} alt="Host Logo" width={40} height={40} unoptimized />
           ) : (
             <div className="bg-gray-700 w-full h-full flex items-center justify-center text-gray-200 font-bold">
               {host?.first_name?.[0]?.toUpperCase() || 'H'}
@@ -192,7 +228,7 @@ export default function HostProfilePanel({ host, onLogoUpload, setHost }: HostPr
             <div className="flex flex-col items-center gap-3 text-center">
               <div className="w-24 h-24 rounded-full overflow-hidden border border-gray-600 shadow-md">
                 {host?.logo_url ? (
-                  <Image src={host.logo_url} alt="Logo" width={96} height={96} />
+                  <Image src={host.logo_url} alt="Logo" width={96} height={96} unoptimized />
                 ) : (
                   <div className="bg-gray-800 w-full h-full flex items-center justify-center text-gray-500 text-xl">
                     {host?.first_name?.[0]?.toUpperCase() || 'H'}
@@ -261,6 +297,7 @@ export default function HostProfilePanel({ host, onLogoUpload, setHost }: HostPr
                     width={128}
                     height={128}
                     className="object-contain"
+                    unoptimized
                   />
                 ) : (
                   <span className="text-gray-500 text-sm">No logo yet</span>
