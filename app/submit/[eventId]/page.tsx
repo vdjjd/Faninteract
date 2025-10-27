@@ -26,13 +26,13 @@ export default function GuestInfoPage() {
   useEffect(() => {
     async function verifyGuest() {
       const stored = localStorage.getItem('guestInfo');
-      if (!stored) return; // no local data, show signup
+      if (!stored) return;
 
       try {
         const guest = JSON.parse(stored);
         if (!guest.firstName || !guest.lastName) return;
 
-        // ✅ Check if this guest actually exists for this event in Supabase
+        // ✅ Check if this guest exists for this event
         const { data, error } = await supabase
           .from('guests')
           .select('id')
@@ -122,11 +122,46 @@ export default function GuestInfoPage() {
 
     setSubmitting(true);
 
-    const { error: insertError } = await supabase
+    /* ---------- Create or find guest_profile ---------- */
+    let guestProfileId: string | null = null;
+
+    if (email || phone) {
+      const { data: existing, error: findError } = await supabase
+        .from('guest_profiles')
+        .select('id')
+        .or(`email.eq.${email},phone.eq.${phone}`)
+        .maybeSingle();
+
+      if (findError) console.error('Find guest_profile error:', findError);
+
+      if (existing) {
+        guestProfileId = existing.id;
+      } else {
+        const { data: newProfile, error: insertError } = await supabase
+          .from('guest_profiles')
+          .insert([
+            {
+              first_name: firstName.trim(),
+              last_name: lastName.trim(),
+              email: email?.trim() || null,
+              phone: phone?.trim() || null,
+            },
+          ])
+          .select()
+          .single();
+
+        if (insertError) console.error('Insert guest_profile error:', insertError);
+        guestProfileId = newProfile?.id || null;
+      }
+    }
+
+    /* ---------- Insert guest record for this event ---------- */
+    const { error: guestInsertError } = await supabase
       .from('guests')
       .insert([
         {
           event_id: eventUUID,
+          guest_profile_id: guestProfileId, // 🔗 link to universal profile
           first_name: firstName.trim(),
           last_name: lastName.trim(),
           email: email?.trim() || null,
@@ -136,15 +171,18 @@ export default function GuestInfoPage() {
       ])
       .select();
 
-    if (insertError) {
-      console.error('❌ Insert error:', insertError);
+    if (guestInsertError) {
+      console.error('❌ Insert guest error:', guestInsertError);
       setError('Something went wrong. Please try again.');
       setSubmitting(false);
       return;
     }
 
-    // ✅ Save guest info locally
-    localStorage.setItem('guestInfo', JSON.stringify({ ...form, event_id: eventUUID }));
+    // ✅ Save guest info locally (for next scans)
+    localStorage.setItem(
+      'guestInfo',
+      JSON.stringify({ ...form, guest_profile_id: guestProfileId, event_id: eventUUID })
+    );
 
     // ✅ Redirect to submission page
     router.push(`/submit/${eventUUID}/post`);
