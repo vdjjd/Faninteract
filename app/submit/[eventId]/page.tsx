@@ -22,6 +22,22 @@ export default function GuestInfoPage() {
   });
   const [error, setError] = useState('');
 
+  /* ---------------- 🧠 CHECK FOR EXISTING GUEST ---------------- */
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem('guestInfo');
+      if (stored) {
+        const guest = JSON.parse(stored);
+        if (guest.firstName) {
+          console.log('✅ Returning guest detected:', guest.firstName);
+          router.replace(`/submit/${eventUUID}/post`);
+        }
+      }
+    } catch (err) {
+      console.error('LocalStorage check failed:', err);
+    }
+  }, [eventUUID, router]);
+
   /* ---------------- LOAD EVENT ---------------- */
   useEffect(() => {
     if (!eventUUID) return;
@@ -38,7 +54,7 @@ export default function GuestInfoPage() {
       setLoading(false);
     };
 
-    fetchEvent(); // ✅ Correct way — call async function, don’t return it
+    fetchEvent();
 
     const ch = supabase
       .channel(`events-${eventUUID}`)
@@ -72,7 +88,6 @@ export default function GuestInfoPage() {
 
     const { firstName, lastName, email, phone, age } = form;
 
-    // ✅ Validation rules
     if (!firstName || !lastName) {
       setError('Please enter both your first and last name.');
       return;
@@ -109,8 +124,10 @@ export default function GuestInfoPage() {
       return;
     }
 
+    // ✅ Save guest info locally
     localStorage.setItem('guestInfo', JSON.stringify(form));
 
+    // ✅ Redirect to submission page
     router.push(`/submit/${eventUUID}/post`);
   };
 
