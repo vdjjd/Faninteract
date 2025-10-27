@@ -15,6 +15,7 @@ export default function GuestPostPage() {
   const [message, setMessage] = useState('');
   const [firstName, setFirstName] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [fadeOut, setFadeOut] = useState(false);
 
   /* ---------- Load guest name from localStorage ---------- */
   useEffect(() => {
@@ -96,6 +97,10 @@ export default function GuestPostPage() {
       return alert('Please add a photo and message.');
 
     setSubmitting(true);
+
+    // 🔹 Start fade-out animation
+    setFadeOut(true);
+
     const croppedImg = await getCroppedImage();
     if (!croppedImg) return alert('Error processing image.');
 
@@ -106,7 +111,12 @@ export default function GuestPostPage() {
       .from('uploads')
       .upload(fileName, blob, { contentType: 'image/jpeg' });
 
-    if (uploadError) return alert('Upload failed.');
+    if (uploadError) {
+      alert('Upload failed.');
+      setSubmitting(false);
+      setFadeOut(false);
+      return;
+    }
 
     const { data: publicUrl } = supabase.storage
       .from('uploads')
@@ -117,15 +127,22 @@ export default function GuestPostPage() {
         event_id: eventId,
         photo_url: publicUrl.publicUrl,
         message: message.trim(),
-        nickname: firstName || 'Guest', // ✅ use stored first name
+        nickname: firstName || 'Guest',
         status: 'pending',
       },
     ]);
 
-    if (insertError) return alert('Error submitting post.');
+    if (insertError) {
+      alert('Error submitting post.');
+      setSubmitting(false);
+      setFadeOut(false);
+      return;
+    }
 
-    alert('✅ Thank you for submitting!');
-    setTimeout(() => window.close(), 4000);
+    // Wait for fade to finish before redirect
+    setTimeout(() => {
+      window.location.href = `/thanks/${eventId}`;
+    }, 800);
   }
 
   /* ---------- UI ---------- */
@@ -140,6 +157,8 @@ export default function GuestPostPage() {
         justifyContent: 'center',
         padding: 20,
         fontFamily: 'system-ui, sans-serif',
+        opacity: fadeOut ? 0 : 1,
+        transition: 'opacity 0.8s ease-in-out',
       }}
     >
       <form
