@@ -3,10 +3,9 @@
 import { useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
-import InactiveWall from '@/app/prizewheel/components/wall/InactiveWall'; // ✅ your new file
-
+import InactiveWall from '../components/wall/InactiveWall'; // ✅ fixed relative path
 // (Future) — when you create the live spinning wall, import it here:
-// import ActiveWall from '@/app/prizewheel/components/wall/ActiveWall';
+ // import ActiveWall from '../components/wall/ActiveWall';
 
 interface PrizeWheelData {
   id: string;
