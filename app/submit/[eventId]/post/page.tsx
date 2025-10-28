@@ -6,7 +6,7 @@ import Cropper from 'react-easy-crop';
 import imageCompression from 'browser-image-compression';
 import { supabase } from '@/lib/supabaseClient';
 
-export default function GuestPostPage() {
+export default function SubmitPostPage() {
   const { eventId } = useParams();
   const eventUUID = Array.isArray(eventId) ? eventId[0] : eventId;
 
@@ -23,51 +23,34 @@ export default function GuestPostPage() {
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
-    // Small delay to ensure localStorage is ready after redirect
-    setTimeout(() => {
-      async function loadName() {
-        // Step 1: Try localStorage
-        const stored = localStorage.getItem('guestProfile');
-        if (stored) {
-          try {
-            const parsed = JSON.parse(stored);
-            const name = parsed.first_name || parsed.firstName;
-            if (name) {
-              setFirstName(name.trim());
-              console.log('✅ Loaded name from localStorage:', name);
-              return;
-            }
-          } catch (err) {
-            console.error('Error parsing guestProfile from localStorage:', err);
-          }
-        }
+    // Wait a bit to ensure storage is available after redirect
+    const timer = setTimeout(() => {
+      try {
+        // Check both possible key cases
+        const stored =
+          localStorage.getItem('guestProfile') ||
+          localStorage.getItem('guestprofile');
 
-        // Step 2: Fallback to Supabase (device_id)
-        const deviceId = stored ? JSON.parse(stored).device_id : null;
-        if (!deviceId) {
-          console.warn('⚠ No device_id found for fallback lookup');
+        if (!stored) {
+          console.warn('⚠ No guestProfile found in localStorage');
           return;
         }
 
-        const { data, error } = await supabase
-          .from('guest_profiles')
-          .select('first_name')
-          .eq('device_id', deviceId)
-          .single();
+        const parsed = JSON.parse(stored);
+        const name = parsed.first_name || parsed.firstName;
 
-        if (error) {
-          console.error('❌ Fallback lookup failed:', error);
-          return;
+        if (name) {
+          setFirstName(name.trim());
+          console.log('✅ Loaded first name from localStorage:', name);
+        } else {
+          console.warn('⚠ guestProfile found but missing first_name field', parsed);
         }
-
-        if (data?.first_name) {
-          setFirstName(data.first_name.trim());
-          console.log('✅ Loaded name from Supabase fallback:', data.first_name);
-        }
+      } catch (err) {
+        console.error('❌ Error reading guestProfile from localStorage:', err);
       }
+    }, 400);
 
-      loadName();
-    }, 500);
+    return () => clearTimeout(timer);
   }, []);
 
   /* ---------- Image Logic ---------- */
@@ -99,7 +82,7 @@ export default function GuestPostPage() {
       const img = new Image();
       img.src = url;
       img.onload = () => resolve(img);
-      img.onerror = (err) => reject(err);
+      img.onerror = reject;
     });
   }
 
@@ -132,6 +115,7 @@ export default function GuestPostPage() {
   /* ---------- Submit ---------- */
   async function handleSubmit(e: any) {
     e.preventDefault();
+
     if (!imageSrc || !message.trim() || !firstName.trim()) {
       alert('Please add a photo, write a message, and ensure your name is set.');
       return;
@@ -275,7 +259,7 @@ export default function GuestPostPage() {
           )}
         </div>
 
-        {/* Auto-Filled First Name (Read-Only) */}
+        {/* Auto-Filled First Name */}
         <input
           type="text"
           name="first_name"
