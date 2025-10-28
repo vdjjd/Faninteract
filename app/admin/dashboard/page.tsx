@@ -13,7 +13,7 @@ import CreatePrizeWheelModal from '@/components/CreatePrizeWheelModal';
 import FanWallGrid from './components/FanWallGrid';
 import PollGrid from './components/PollGrid';
 import PrizeWheelGrid from './components/PrizeWheelGrid';
-import OptionsModalFanWall from '@/components/OptionsModalFanWall';
+import OptionsModalFanWallOnly from '@/components/OptionsModalFanWallOnly';
 import OptionsModalPoll from '@/components/OptionsModalPoll';
 import OptionsModalPrizeWheel from '@/components/OptionsModalPrizeWheel';
 import HostProfilePanel from '@/components/HostProfilePanel';
@@ -204,17 +204,17 @@ export default function DashboardPage() {
       />
 
       {/* ---------- OPTIONS MODALS ---------- */}
-      {selectedWheel && (
-        <OptionsModalPrizeWheel
-          event={selectedWheel}
+      {selectedWall && (
+        <OptionsModalFanWallOnly
+          event={selectedWall}
           hostId={host.id}
-          onClose={() => setSelectedWheel(null)}
-          onBackgroundChange={async (wheel, val) => {
-            await handleBackgroundChange('prize_wheels', wheel.id, val);
-            await refreshPrizeWheels();
-            showToast('✅ Prize Wheel updated!');
+          onClose={() => setSelectedWall(null)}
+          onBackgroundChange={async (event, val) => {
+            await handleBackgroundChange('events', event.id, val);
+            await refreshEvents();
+            showToast('✅ Fan Wall updated!');
           }}
-          refreshPrizeWheels={refreshPrizeWheels}
+          refreshEvents={refreshEvents}
         />
       )}
 
@@ -228,6 +228,20 @@ export default function DashboardPage() {
             await refreshPolls();
           }}
           refreshPolls={refreshPolls}
+        />
+      )}
+
+      {selectedWheel && (
+        <OptionsModalPrizeWheel
+          event={selectedWheel}
+          hostId={host.id}
+          onClose={() => setSelectedWheel(null)}
+          onBackgroundChange={async (wheel, val) => {
+            await handleBackgroundChange('prize_wheels', wheel.id, val);
+            await refreshPrizeWheels();
+            showToast('✅ Prize Wheel updated!');
+          }}
+          refreshPrizeWheels={refreshPrizeWheels}
         />
       )}
 
