@@ -14,13 +14,60 @@ export default function GuestPostPage() {
   const [crop, setCrop] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
   const [croppedAreaPixels, setCroppedAreaPixels] = useState<any>(null);
-
   const [message, setMessage] = useState('');
   const [firstName, setFirstName] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [fadeOut, setFadeOut] = useState(false);
 
-  /* ---------- File & Crop Logic ---------- */
+  /* ---------- Load First Name ---------- */
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    async function loadName() {
+      // Step 1: Try localStorage
+      const stored = localStorage.getItem('guestProfile');
+      if (stored) {
+        try {
+          const parsed = JSON.parse(stored);
+          const name = parsed.first_name || parsed.firstName;
+          if (name) {
+            setFirstName(name.trim());
+            console.log('✅ Loaded name from localStorage:', name);
+            return;
+          }
+        } catch (err) {
+          console.error('Error parsing guestProfile from localStorage:', err);
+        }
+      }
+
+      // Step 2: Fallback to Supabase
+      const deviceId = stored ? JSON.parse(stored).device_id : null;
+      if (!deviceId) {
+        console.warn('⚠ No device_id found for fallback lookup');
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from('guest_profiles')
+        .select('first_name')
+        .eq('device_id', deviceId)
+        .single();
+
+      if (error) {
+        console.error('❌ Fallback lookup failed:', error);
+        return;
+      }
+
+      if (data?.first_name) {
+        setFirstName(data.first_name.trim());
+        console.log('✅ Loaded name from Supabase fallback:', data.first_name);
+      }
+    }
+
+    loadName();
+  }, []);
+
+  /* ---------- Image Logic ---------- */
   async function handleFileSelect(e: any) {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -83,7 +130,7 @@ export default function GuestPostPage() {
   async function handleSubmit(e: any) {
     e.preventDefault();
     if (!imageSrc || !message.trim() || !firstName.trim()) {
-      alert('Please add a photo, write a message, and enter your first name.');
+      alert('Please add a photo, write a message, and ensure your name is set.');
       return;
     }
 
@@ -101,6 +148,7 @@ export default function GuestPostPage() {
     const fileName = `submission_${Date.now()}.jpg`;
     const response = await fetch(croppedImg);
     const blob = await response.blob();
+
     const { error: uploadError } = await supabase.storage
       .from('uploads')
       .upload(fileName, blob, { contentType: 'image/jpeg' });
@@ -112,7 +160,7 @@ export default function GuestPostPage() {
       return;
     }
 
-    const { data: publicUrl } = await supabase.storage
+    const { data: publicUrl } = supabase.storage
       .from('uploads')
       .getPublicUrl(fileName);
 
@@ -172,6 +220,7 @@ export default function GuestPostPage() {
           Add Your Photo to the Wall
         </h2>
 
+        {/* File Upload Buttons */}
         <div style={{ display: 'flex', justifyContent: 'center', gap: 12, marginBottom: 12 }}>
           <button type="button" onClick={handleCameraCapture} style={buttonStyle}>
             📷 Camera
@@ -179,15 +228,10 @@ export default function GuestPostPage() {
           <button type="button" onClick={() => document.getElementById('file-input')?.click()} style={buttonStyle}>
             📁 Upload
           </button>
-          <input
-            type="file"
-            id="file-input"
-            accept="image/*"
-            onChange={handleFileSelect}
-            style={{ display: 'none' }}
-          />
+          <input type="file" id="file-input" accept="image/*" onChange={handleFileSelect} style={{ display: 'none' }} />
         </div>
 
+        {/* Image Cropper */}
         <div
           style={{
             position: 'relative',
@@ -228,13 +272,13 @@ export default function GuestPostPage() {
           )}
         </div>
 
+        {/* Auto-Filled First Name (Read-Only) */}
         <input
           type="text"
           name="first_name"
           id="first_name"
           value={firstName}
-          onChange={(e) => setFirstName(e.target.value)}
-          placeholder="First Name"
+          readOnly
           style={{
             width: '90%',
             margin: '0 auto 12px',
@@ -242,12 +286,13 @@ export default function GuestPostPage() {
             padding: 10,
             borderRadius: 8,
             border: '1px solid #666',
-            background: 'rgba(255,255,255,0.1)',
+            background: 'rgba(255,255,255,0.15)',
             color: '#fff',
             fontSize: 15,
             textAlign: 'center',
-            opacity: 0.7,
+            opacity: 0.8,
           }}
+          placeholder="First Name"
         />
 
         <textarea
