@@ -11,7 +11,10 @@ interface OptionsModalProps {
   hostId: string;
   onClose: () => void;
   onBackgroundChange: (event: any, newValue: string) => Promise<void>;
+
+  // ✅ all refresh props included and optional
   refreshEvents?: () => Promise<void>;
+  refreshPolls?: () => Promise<void>;
   refreshPrizeWheels?: () => Promise<void>;
 }
 
@@ -21,7 +24,6 @@ interface OptionsModalProps {
 const OptionsModalFanWall = dynamic(() => import('./OptionsModalFanWall'));
 const OptionsModalPoll = dynamic(() => import('./OptionsModalPoll'));
 const OptionsModalPrizeWheel = dynamic(() => import('./OptionsModalPrizeWheel'));
-// const OptionsModalTrivia = dynamic(() => import('./OptionsModalTrivia')); // future
 
 /* -------------------------------------------------------------------------- */
 /* ⚙️ Main Component                                                          */
@@ -33,6 +35,7 @@ export default function OptionsModal({
   onClose,
   onBackgroundChange,
   refreshEvents,
+  refreshPolls,
   refreshPrizeWheels,
 }: OptionsModalProps) {
   switch (type) {
@@ -56,7 +59,7 @@ export default function OptionsModal({
           hostId={hostId}
           onClose={onClose}
           onBackgroundChange={onBackgroundChange}
-          refreshEvents={refreshEvents!}
+          refreshEvents={refreshPolls ?? refreshEvents!}
         />
       );
 
