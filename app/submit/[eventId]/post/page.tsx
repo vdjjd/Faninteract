@@ -8,6 +8,8 @@ import { supabase } from '@/lib/supabaseClient';
 
 export default function GuestPostPage() {
   const { eventId } = useParams();
+  const eventUUID = Array.isArray(eventId) ? eventId[0] : eventId;
+
   const [imageSrc, setImageSrc] = useState<string | null>(null);
   const [crop, setCrop] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
@@ -19,7 +21,11 @@ export default function GuestPostPage() {
 
   /* ---------- Load guest name from localStorage ---------- */
   useEffect(() => {
+    if (typeof window === 'undefined') return;
+
     const stored = localStorage.getItem('guestProfile');
+    console.log('🧪 [SubmitPage] guestProfile from localStorage:', stored);
+
     if (!stored) {
       console.warn('⚠ No guestProfile found in localStorage');
       return;
@@ -34,12 +40,12 @@ export default function GuestPostPage() {
         '';
       if (name) {
         setFirstName(name.trim());
-        console.log('✅ Auto-filled name:', name);
+        console.log('✅ Auto-filled name:', name.trim());
       } else {
-        console.warn('⚠ guestProfile found but missing name:', parsed);
+        console.warn('⚠ guestProfile found but missing name field:', parsed);
       }
     } catch (err) {
-      console.error('❌ Error parsing guestProfile:', err);
+      console.error('❌ Error parsing guestProfile from localStorage:', err);
     }
   }, []);
 
@@ -106,14 +112,21 @@ export default function GuestPostPage() {
   /* ---------- Submit ---------- */
   async function handleSubmit(e: any) {
     e.preventDefault();
-    if (!imageSrc || !message.trim())
-      return alert('Please add a photo and message.');
+    if (!imageSrc || !message.trim()) {
+      alert('Please add a photo and message.');
+      return;
+    }
 
     setSubmitting(true);
     setFadeOut(true);
 
     const croppedImg = await getCroppedImage();
-    if (!croppedImg) return alert('Error processing image.');
+    if (!croppedImg) {
+      alert('Error processing image.');
+      setSubmitting(false);
+      setFadeOut(false);
+      return;
+    }
 
     const fileName = `submission_${Date.now()}.jpg`;
     const response = await fetch(croppedImg);
@@ -143,13 +156,13 @@ export default function GuestPostPage() {
         guest_profile_id = parsed.id || null;
         guest_id = parsed.guest_id || null;
       } catch (err) {
-        console.error('Error parsing guestProfile:', err);
+        console.error('Error parsing guestProfile in submit page:', err);
       }
     }
 
     const { error: insertError } = await supabase.from('submissions').insert([
       {
-        event_id: eventId,
+        event_id: eventUUID,
         photo_url: publicUrl.publicUrl,
         message: message.trim(),
         nickname: firstName || 'Guest',
@@ -167,7 +180,7 @@ export default function GuestPostPage() {
     }
 
     setTimeout(() => {
-      window.location.href = `/thanks/${eventId}`;
+      window.location.href = `/thanks/${eventUUID}`;
     }, 800);
   }
 
@@ -218,7 +231,6 @@ export default function GuestPostPage() {
           Add Your Photo to the Wall
         </h2>
 
-        {/* Camera / Upload Buttons */}
         <div
           style={{
             display: 'flex',
@@ -246,7 +258,6 @@ export default function GuestPostPage() {
           />
         </div>
 
-        {/* Image Cropper */}
         <div
           style={{
             position: 'relative',
@@ -291,7 +302,7 @@ export default function GuestPostPage() {
         <input
           type="text"
           value={firstName}
-          readOnly
+          onChange={(e) => setFirstName(e.target.value)}
           style={{
             width: '90%',
             margin: '0 auto 12px',
@@ -305,6 +316,7 @@ export default function GuestPostPage() {
             textAlign: 'center',
             opacity: 0.7,
           }}
+          placeholder="First Name"
         />
 
         {/* Message Input */}
@@ -328,7 +340,6 @@ export default function GuestPostPage() {
           }}
         />
 
-        {/* Submit */}
         <button
           type="submit"
           disabled={submitting}
@@ -340,14 +351,13 @@ export default function GuestPostPage() {
             cursor: submitting ? 'not-allowed' : 'pointer',
           }}
         >
-          {submitting ? 'Submitting...' : 'Submit'}
+          {submitting ? 'Submitting…' : 'Submit'}
         </button>
       </form>
     </div>
   );
 }
 
-/* ---------- Shared Styles ---------- */
 const buttonStyle: React.CSSProperties = {
   backgroundColor: '#1e90ff',
   border: 'none',
