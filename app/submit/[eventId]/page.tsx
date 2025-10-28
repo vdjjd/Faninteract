@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useParams } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
 
@@ -94,20 +94,24 @@ export default function GuestSignupPage() {
     }
 
     // ✅ Save guest profile locally for auto-fill
-    localStorage.setItem(
-      'guestProfile',
-      JSON.stringify({
-        id: profileData.id,
-        device_id: profileData.device_id,
-        first_name: profileData.first_name,
-        guest_id: guestData.id,
-      })
-    );
+    const profileToSave = {
+      id: profileData.id,
+      device_id: profileData.device_id,
+      first_name: profileData.first_name,
+      guest_id: guestData.id,
+    };
+    try {
+      localStorage.setItem('guestProfile', JSON.stringify(profileToSave));
+      console.log('✅ Saved guestProfile to localStorage:', profileToSave);
+    } catch (err) {
+      console.error('❌ Failed to write to localStorage:', err);
+    }
+
+    // ✅ Small delay to guarantee write before redirect
+    await new Promise((resolve) => setTimeout(resolve, 400));
 
     // Redirect to post submission page
-    setTimeout(() => {
-      window.location.href = `/submit/${eventUUID}/post`;
-    }, 800);
+    window.location.href = `/submit/${eventUUID}/post`;
   }
 
   return (
