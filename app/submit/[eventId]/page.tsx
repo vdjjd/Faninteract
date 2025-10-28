@@ -23,43 +23,7 @@ export default function GuestInfoPage() {
   });
   const [error, setError] = useState('');
 
-  /* ---------------- VERIFY EXISTING GUEST ---------------- */
-  useEffect(() => {
-    async function verifyGuest() {
-      const stored = localStorage.getItem('guestProfile');
-      if (!stored) return;
-
-      try {
-        const guest = JSON.parse(stored);
-        if (!guest.id) return;
-
-        const { data, error } = await supabase
-          .from('guests')
-          .select('id')
-          .eq('event_id', eventUUID)
-          .eq('guest_profile_id', guest.id)
-          .maybeSingle();
-
-        if (error) console.error('verifyGuest error:', error);
-
-        if (data) {
-          // ✅ Guest found, skip signup
-          router.replace(`/submit/${eventUUID}/post`);
-        } else {
-          // ❌ No match in Supabase → clear stale cache
-          localStorage.removeItem('guestProfile');
-          localStorage.removeItem('device_id');
-        }
-      } catch (err) {
-        console.error('Error verifying guest:', err);
-        localStorage.removeItem('guestProfile');
-        localStorage.removeItem('device_id');
-      }
-    }
-    verifyGuest();
-  }, [eventUUID, router]);
-
-  /* ---------------- LOAD EVENT ---------------- */
+  /* ---------------- LOAD EVENT DATA ---------------- */
   useEffect(() => {
     if (!eventUUID) return;
 
@@ -124,10 +88,8 @@ export default function GuestInfoPage() {
 
     setSubmitting(true);
 
-    /* ---------- Always create or find guest_profile (device-first) ---------- */
+    /* ---------- Create or Find Guest Profile ---------- */
     let guestProfileId: string | null = null;
-
-    // Ensure device_id exists
     const device_id =
       localStorage.getItem('device_id') ||
       (() => {
@@ -136,66 +98,43 @@ export default function GuestInfoPage() {
         return id;
       })();
 
-    // Try to find by device_id first
-    const { data: byDevice } = await supabase
+    // Find existing by device_id
+    const { data: existingProfile } = await supabase
       .from('guest_profiles')
       .select('id')
       .eq('device_id', device_id)
       .maybeSingle();
 
-    if (byDevice) {
-      guestProfileId = byDevice.id;
+    if (existingProfile) {
+      guestProfileId = existingProfile.id;
     } else {
-      // Optional: try by email/phone
-      let filter = '';
-      if (email && phone) filter = `email.eq.${email},phone.eq.${phone}`;
-      else if (email) filter = `email.eq.${email}`;
-      else if (phone) filter = `phone.eq.${phone}`;
+      const { data: newProfile, error: insertError } = await supabase
+        .from('guest_profiles')
+        .insert([
+          {
+            device_id,
+            first_name: firstName.trim(),
+            last_name: lastName.trim(),
+            email: email?.trim() || null,
+            phone: phone?.trim() || null,
+          },
+        ])
+        .select()
+        .single();
 
-      let existingId: string | null = null;
-      if (filter) {
-        const { data: byContact } = await supabase
-          .from('guest_profiles')
-          .select('id')
-          .or(filter)
-          .maybeSingle();
-        existingId = byContact?.id ?? null;
-      }
+      if (insertError)
+        console.error('Insert guest_profile error:', insertError);
 
-      if (existingId) {
-        await supabase
-          .from('guest_profiles')
-          .update({ device_id })
-          .eq('id', existingId);
-        guestProfileId = existingId;
-      } else {
-        const { data: newProfile, error: insertError } = await supabase
-          .from('guest_profiles')
-          .insert([
-            {
-              device_id,
-              first_name: firstName.trim(),
-              last_name: lastName.trim(),
-              email: email?.trim() || null,
-              phone: phone?.trim() || null,
-            },
-          ])
-          .select()
-          .single();
-
-        if (insertError)
-          console.error('Insert guest_profile error:', insertError);
-        guestProfileId = newProfile?.id || null;
-      }
+      guestProfileId = newProfile?.id || null;
     }
 
-    /* ---------- Insert guest record for this event ---------- */
-    const { error: guestInsertError } = await supabase
+    /* ---------- Create Guest Record for Event ---------- */
+    const { data: guestInsert, error: guestInsertError } = await supabase
       .from('guests')
       .insert([
         {
           event_id: eventUUID,
-          guest_profile_id: guestProfileId, // link to universal profile
+          guest_profile_id: guestProfileId,
           first_name: firstName.trim(),
           last_name: lastName.trim(),
           email: email?.trim() || null,
@@ -203,7 +142,8 @@ export default function GuestInfoPage() {
           age: age ? parseInt(age) : null,
         },
       ])
-      .select();
+      .select('id')
+      .single();
 
     if (guestInsertError) {
       console.error('❌ Insert guest error:', guestInsertError);
@@ -212,11 +152,12 @@ export default function GuestInfoPage() {
       return;
     }
 
-    // ✅ Save guest info locally (for next scans)
+    // Save to localStorage so post page can auto-fill
     localStorage.setItem(
       'guestProfile',
       JSON.stringify({
         id: guestProfileId,
+        guest_id: guestInsert?.id || null,
         device_id,
         firstName,
         lastName,
@@ -226,14 +167,13 @@ export default function GuestInfoPage() {
       })
     );
 
-    // ✅ Redirect to submission page
     router.push(`/submit/${eventUUID}/post`);
   };
 
   if (loading)
     return <p style={{ textAlign: 'center', color: '#fff' }}>Loading...</p>;
 
-  /* ---------------- RENDER ---------------- */
+  /* ---------------- UI ---------------- */
   return (
     <div
       style={{
@@ -242,7 +182,7 @@ export default function GuestInfoPage() {
         display: 'flex',
         justifyContent: 'center',
         alignItems: 'center',
-        padding: '20px',
+        padding: 20,
         fontFamily: 'system-ui, sans-serif',
       }}
     >

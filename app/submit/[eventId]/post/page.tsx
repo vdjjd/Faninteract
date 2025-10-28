@@ -19,14 +19,27 @@ export default function GuestPostPage() {
 
   /* ---------- Load guest name from localStorage ---------- */
   useEffect(() => {
-    const guestData = localStorage.getItem('guestInfo');
-    if (guestData) {
-      try {
-        const parsed = JSON.parse(guestData);
-        if (parsed.firstName) setFirstName(parsed.firstName);
-      } catch (err) {
-        console.error('Error loading guest info:', err);
+    const stored = localStorage.getItem('guestProfile');
+    if (!stored) {
+      console.warn('⚠ No guestProfile found in localStorage');
+      return;
+    }
+
+    try {
+      const parsed = JSON.parse(stored);
+      const name =
+        parsed.firstName ||
+        parsed.first_name ||
+        parsed?.form?.firstName ||
+        '';
+      if (name) {
+        setFirstName(name.trim());
+        console.log('✅ Auto-filled name:', name);
+      } else {
+        console.warn('⚠ guestProfile found but missing name:', parsed);
       }
+    } catch (err) {
+      console.error('❌ Error parsing guestProfile:', err);
     }
   }, []);
 
@@ -97,8 +110,6 @@ export default function GuestPostPage() {
       return alert('Please add a photo and message.');
 
     setSubmitting(true);
-
-    // 🔹 Start fade-out animation
     setFadeOut(true);
 
     const croppedImg = await getCroppedImage();
@@ -122,6 +133,20 @@ export default function GuestPostPage() {
       .from('uploads')
       .getPublicUrl(fileName);
 
+    const stored = localStorage.getItem('guestProfile');
+    let guest_profile_id = null;
+    let guest_id = null;
+
+    if (stored) {
+      try {
+        const parsed = JSON.parse(stored);
+        guest_profile_id = parsed.id || null;
+        guest_id = parsed.guest_id || null;
+      } catch (err) {
+        console.error('Error parsing guestProfile:', err);
+      }
+    }
+
     const { error: insertError } = await supabase.from('submissions').insert([
       {
         event_id: eventId,
@@ -129,6 +154,8 @@ export default function GuestPostPage() {
         message: message.trim(),
         nickname: firstName || 'Guest',
         status: 'pending',
+        guest_profile_id,
+        guest_id,
       },
     ]);
 
@@ -139,7 +166,6 @@ export default function GuestPostPage() {
       return;
     }
 
-    // Wait for fade to finish before redirect
     setTimeout(() => {
       window.location.href = `/thanks/${eventId}`;
     }, 800);
@@ -192,7 +218,7 @@ export default function GuestPostPage() {
           Add Your Photo to the Wall
         </h2>
 
-        {/* Buttons Row */}
+        {/* Camera / Upload Buttons */}
         <div
           style={{
             display: 'flex',
@@ -201,18 +227,12 @@ export default function GuestPostPage() {
             marginBottom: 12,
           }}
         >
-          <button
-            type="button"
-            onClick={handleCameraCapture}
-            style={buttonStyle}
-          >
+          <button type="button" onClick={handleCameraCapture} style={buttonStyle}>
             📷 Camera
           </button>
           <button
             type="button"
-            onClick={() =>
-              document.getElementById('file-input')?.click()
-            }
+            onClick={() => document.getElementById('file-input')?.click()}
             style={buttonStyle}
           >
             📁 Upload
@@ -226,7 +246,7 @@ export default function GuestPostPage() {
           />
         </div>
 
-        {/* Crop Box */}
+        {/* Image Cropper */}
         <div
           style={{
             position: 'relative',
@@ -267,7 +287,7 @@ export default function GuestPostPage() {
           )}
         </div>
 
-        {/* First Name (auto-filled + locked) */}
+        {/* Auto-Filled First Name */}
         <input
           type="text"
           value={firstName}
@@ -287,7 +307,7 @@ export default function GuestPostPage() {
           }}
         />
 
-        {/* Message */}
+        {/* Message Input */}
         <textarea
           placeholder="Write a message..."
           value={message}
@@ -308,6 +328,7 @@ export default function GuestPostPage() {
           }}
         />
 
+        {/* Submit */}
         <button
           type="submit"
           disabled={submitting}
@@ -326,7 +347,7 @@ export default function GuestPostPage() {
   );
 }
 
-/* ---------- Styles ---------- */
+/* ---------- Shared Styles ---------- */
 const buttonStyle: React.CSSProperties = {
   backgroundColor: '#1e90ff',
   border: 'none',
