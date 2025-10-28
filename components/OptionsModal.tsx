@@ -16,7 +16,7 @@ interface OptionsModalProps {
 const OptionsModalFanWall = dynamic(() => import('./OptionsModalFanWall'));
 const OptionsModalPoll = dynamic(() => import('./OptionsModalPoll'));
 const OptionsModalPrizeWheel = dynamic(() => import('./OptionsModalPrizeWheel'));
-// const OptionsModalTrivia = dynamic(() => import('./OptionsModalTrivia')); // future
+// const OptionsModalTrivia = dynamic(() => import('./OptionsModalTrivia')); // reserved for future
 
 export default function OptionsModal({
   type,
@@ -28,6 +28,7 @@ export default function OptionsModal({
   refreshPrizeWheels,
 }: OptionsModalProps) {
   switch (type) {
+    /* ---------- FAN WALL ---------- */
     case 'fanwall':
       return (
         <OptionsModalFanWall
@@ -39,6 +40,7 @@ export default function OptionsModal({
         />
       );
 
+    /* ---------- POLL ---------- */
     case 'poll':
       return (
         <OptionsModalPoll
@@ -50,6 +52,7 @@ export default function OptionsModal({
         />
       );
 
+    /* ---------- PRIZE WHEEL ---------- */
     case 'prizewheel':
       return (
         <OptionsModalPrizeWheel
@@ -57,10 +60,11 @@ export default function OptionsModal({
           hostId={hostId}
           onClose={onClose}
           onBackgroundChange={onBackgroundChange}
-          refreshPrizeWheels={refreshPrizeWheels!} // ✅ CORRECT PROP HERE
+          refreshPrizeWheels={refreshPrizeWheels!} // ✅ correct prop
         />
       );
 
+    /* ---------- TRIVIA (COMING SOON) ---------- */
     case 'trivia':
       return (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 text-white">
@@ -76,6 +80,7 @@ export default function OptionsModal({
         </div>
       );
 
+    /* ---------- DEFAULT ---------- */
     default:
       return null;
   }
