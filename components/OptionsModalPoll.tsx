@@ -15,7 +15,7 @@ interface OptionsModalPollProps {
   hostId: string;
   onClose: () => void;
   onBackgroundChange: (event: any, newValue: string) => Promise<void>;
-  refreshEvents: () => Promise<void>;
+  refreshPolls: () => Promise<void>; // ✅ FIXED
 }
 
 interface PollOption {
@@ -29,13 +29,13 @@ export default function OptionsModalPoll({
   hostId,
   onClose,
   onBackgroundChange,
-  refreshEvents,
+  refreshPolls, // ✅ FIXED
 }: OptionsModalPollProps) {
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [localEvent, setLocalEvent] = useState<any>({
     ...event,
-    layout: event.layout || 'horizontal', // ✅ match DB column
+    layout: event.layout || 'horizontal',
   });
 
   const [pollOptions, setPollOptions] = useState<PollOption[]>(
@@ -101,7 +101,7 @@ export default function OptionsModalPoll({
           typeof localEvent.duration === 'string'
             ? parseInt(localEvent.duration)
             : localEvent.duration || 0,
-        layout: localEvent.layout || 'horizontal', // ✅ correct field
+        layout: localEvent.layout || 'horizontal',
         options: pollOptions,
         updated_at: new Date().toISOString(),
       };
@@ -115,7 +115,7 @@ export default function OptionsModalPoll({
       if (error) throw error;
 
       console.log('✅ Poll saved successfully:', data);
-      await refreshEvents();
+      await refreshPolls(); // ✅ FIXED
       onClose();
     } catch (err) {
       console.error('❌ Error saving poll:', err);
@@ -186,7 +186,7 @@ export default function OptionsModalPoll({
   ) {
     localEvent.background_type = type;
     await onBackgroundChange(localEvent, value);
-    await refreshEvents();
+    await refreshPolls(); // ✅ FIXED
     setLocalEvent({
       ...localEvent,
       background_type: type,
@@ -260,7 +260,6 @@ export default function OptionsModalPoll({
           )}
         </select>
 
-        {/* ✅ Correct layout field */}
         <label className="block text-sm mt-3">Poll Layout Direction:</label>
         <select
           className="w-full p-2 rounded-md text-black mt-1"
@@ -275,9 +274,6 @@ export default function OptionsModalPoll({
           <option value="horizontal">Horizontal (Left to Right)</option>
           <option value="vertical">Vertical (Bottom to Top)</option>
         </select>
-
-        {/* Rest of UI unchanged */}
-        {/* ... same as before ... */}
       </div>
     </div>
   );

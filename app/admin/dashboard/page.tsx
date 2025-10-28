@@ -155,9 +155,24 @@ export default function DashboardPage() {
         onCreatePrizeWheel={() => setPrizeWheelModalOpen(true)}
       />
 
-      <FanWallGrid events={events} host={host} refreshEvents={refreshEvents} onOpenOptions={setSelectedWall} />
-      <PollGrid polls={polls} host={host} refreshPolls={refreshPolls} onOpenOptions={setSelectedPoll} />
-      <PrizeWheelGrid wheels={wheels} host={host} refreshPrizeWheels={refreshPrizeWheels} onOpenOptions={setSelectedWheel} />
+      <FanWallGrid
+        events={events}
+        host={host}
+        refreshEvents={refreshEvents}
+        onOpenOptions={setSelectedWall}
+      />
+      <PollGrid
+        polls={polls}
+        host={host}
+        refreshPolls={refreshPolls}
+        onOpenOptions={setSelectedPoll}
+      />
+      <PrizeWheelGrid
+        wheels={wheels}
+        host={host}
+        refreshPrizeWheels={refreshPrizeWheels}
+        onOpenOptions={setSelectedWheel}
+      />
 
       {/* ---------- CREATE MODALS ---------- */}
       <CreateFanWallModal
@@ -212,7 +227,7 @@ export default function DashboardPage() {
             await handleBackgroundChange('polls', event.id, val);
             await refreshPolls();
           }}
-          refreshEvents={refreshPolls}
+          refreshPolls={refreshPolls}
         />
       )}
 
