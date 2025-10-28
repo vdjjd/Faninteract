@@ -13,7 +13,7 @@ import CreatePrizeWheelModal from '@/components/CreatePrizeWheelModal';
 import FanWallGrid from './components/FanWallGrid';
 import PollGrid from './components/PollGrid';
 import PrizeWheelGrid from './components/PrizeWheelGrid';
-import OptionsModalFanWallOnly from '@/components/OptionsModalFanWallOnly';
+import OptionsModalFanWall from '@/components/OptionsModalFanWall';
 import OptionsModalPoll from '@/components/OptionsModalPoll';
 import OptionsModalPrizeWheel from '@/components/OptionsModalPrizeWheel';
 import HostProfilePanel from '@/components/HostProfilePanel';
@@ -205,7 +205,7 @@ export default function DashboardPage() {
 
       {/* ---------- OPTIONS MODALS ---------- */}
       {selectedWall && (
-        <OptionsModalFanWallOnly
+        <OptionsModalFanWall
           event={selectedWall}
           hostId={host.id}
           onClose={() => setSelectedWall(null)}
