@@ -3,19 +3,20 @@
 import dynamic from 'next/dynamic';
 
 interface OptionsModalProps {
-  type: 'fanwall' | 'poll' | 'trivia';
+  type: 'fanwall' | 'poll' | 'prizewheel' | 'trivia';
   event: any;
   hostId: string;
   onClose: () => void;
   onBackgroundChange: (event: any, newValue: string) => Promise<void>;
-  refreshEvents: () => Promise<void>;
+  refreshEvents?: () => Promise<void>;
+  refreshPrizeWheels?: () => Promise<void>;
 }
 
 /* ---------- Lazy Load the Specific Modals ---------- */
 const OptionsModalFanWall = dynamic(() => import('./OptionsModalFanWall'));
 const OptionsModalPoll = dynamic(() => import('./OptionsModalPoll'));
-// Placeholder for future trivia modal
-// const OptionsModalTrivia = dynamic(() => import('./OptionsModalTrivia'));
+const OptionsModalPrizeWheel = dynamic(() => import('./OptionsModalPrizeWheel'));
+// const OptionsModalTrivia = dynamic(() => import('./OptionsModalTrivia')); // future
 
 export default function OptionsModal({
   type,
@@ -24,6 +25,7 @@ export default function OptionsModal({
   onClose,
   onBackgroundChange,
   refreshEvents,
+  refreshPrizeWheels,
 }: OptionsModalProps) {
   switch (type) {
     case 'fanwall':
@@ -33,7 +35,7 @@ export default function OptionsModal({
           hostId={hostId}
           onClose={onClose}
           onBackgroundChange={onBackgroundChange}
-          refreshEvents={refreshEvents}
+          refreshEvents={refreshEvents!}
         />
       );
 
@@ -44,12 +46,22 @@ export default function OptionsModal({
           hostId={hostId}
           onClose={onClose}
           onBackgroundChange={onBackgroundChange}
-          refreshEvents={refreshEvents}
+          refreshEvents={refreshEvents!}
+        />
+      );
+
+    case 'prizewheel':
+      return (
+        <OptionsModalPrizeWheel
+          event={event}
+          hostId={hostId}
+          onClose={onClose}
+          onBackgroundChange={onBackgroundChange}
+          refreshPrizeWheels={refreshPrizeWheels!}
         />
       );
 
     case 'trivia':
-      // Future-proof: when Trivia modal is ready
       return (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 text-white">
           <div className="bg-gray-800 p-10 rounded-xl shadow-2xl text-center">
