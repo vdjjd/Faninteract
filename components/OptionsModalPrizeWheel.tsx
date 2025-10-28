@@ -65,6 +65,28 @@ export default function OptionsModalPrizeWheel({
     }
   }
 
+  /* ---------- LAUNCH (OPEN SAFE POPUP) ---------- */
+  async function handleLaunch() {
+    const popup = window.open(
+      '',
+      '_blank',
+      'width=1280,height=800,left=100,top=100,resizable=yes,scrollbars=yes,noopener,noreferrer'
+    );
+
+    if (popup && popup.document) {
+      popup.document.write(`
+        <body style="background:#000;color:#fff;display:flex;align-items:center;justify-content:center;font-family:sans-serif">
+          Loading Prize Wheel...
+        </body>
+      `);
+    }
+
+    const url = `${window.location.origin}/prizewheel/${localWheel.id}`;
+    setTimeout(() => {
+      if (popup) popup.location.href = url;
+    }, 300);
+  }
+
   /* ---------- IMAGE UPLOAD ---------- */
   async function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
     try {
@@ -296,13 +318,22 @@ export default function OptionsModalPrizeWheel({
           {/* Buttons */}
           <div className="text-center mt-5 flex justify-center gap-4">
             <button
+              onClick={handleLaunch}
+              className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded font-semibold"
+            >
+              🚀 Launch
+            </button>
+            <button
               disabled={saving}
               onClick={handleSave}
               className={`${saving ? 'bg-gray-500' : 'bg-green-600 hover:bg-green-700'} px-4 py-2 rounded font-semibold`}
             >
               {saving ? 'Saving…' : '💾 Save'}
             </button>
-            <button onClick={onClose} className="bg-red-600 hover:bg-red-700 px-4 py-2 rounded font-semibold">
+            <button
+              onClick={onClose}
+              className="bg-red-600 hover:bg-red-700 px-4 py-2 rounded font-semibold"
+            >
               ✖ Close
             </button>
           </div>
