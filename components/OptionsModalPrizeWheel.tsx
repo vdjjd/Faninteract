@@ -1,8 +1,10 @@
 'use client';
 
-import Modal from './Modal';
 import { useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
+import imageCompression from 'browser-image-compression';
+
+const DEFAULT_GRADIENT = 'linear-gradient(135deg,#0d47a1,#1976d2)';
 
 export default function OptionsModalPrizeWheel({
   event,
@@ -17,171 +19,292 @@ export default function OptionsModalPrizeWheel({
   onBackgroundChange: (wheel: any, newValue: string) => Promise<void>;
   refreshPrizeWheels: () => Promise<void>;
 }) {
-  const [bgValue, setBgValue] = useState(event.background_value || '');
-  const [publicTitle, setPublicTitle] = useState(event.title || '');
-  const [privateTitle, setPrivateTitle] = useState(event.host_title || '');
-  const [visibility, setVisibility] = useState(event.visibility || 'public');
-  const [passphrase, setPassphrase] = useState(event.passphrase || '');
-  const [spinSpeed, setSpinSpeed] = useState(event.spin_speed || 'Medium');
+  const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [localWheel, setLocalWheel] = useState<any>({ ...event });
 
-  /* ---------- Upload Background ---------- */
-  async function handleBackgroundUpload(file: File) {
+  const [showWarning, setShowWarning] = useState(false);
+  const [pendingChange, setPendingChange] = useState<{ type: 'solid' | 'gradient'; value: string } | null>(null);
+
+  /* ---------- BROADCAST UTILITY ---------- */
+  async function broadcastWheelChange() {
     try {
-      setUploading(true);
-      const filePath = `${event.id}/background-${Date.now()}-${file.name}`;
-      const { error } = await supabase.storage
-        .from('wall-backgrounds')
-        .upload(filePath, file, { cacheControl: '3600', upsert: true });
-      if (error) throw error;
-
-      const { data: publicUrlData } = supabase.storage
-        .from('wall-backgrounds')
-        .getPublicUrl(filePath);
-
-      const newUrl = publicUrlData.publicUrl;
-      setBgValue(newUrl);
-      await onBackgroundChange(event, newUrl);
-      await refreshPrizeWheels();
+      await supabase.channel(`prize-wheel-${localWheel.id}`).send({
+        type: 'broadcast',
+        event: 'UPDATE',
+        payload: { id: localWheel.id, updated_at: new Date().toISOString() },
+      });
     } catch (err) {
-      console.error('❌ Background upload failed:', err);
+      console.warn('⚠️ Broadcast failed (safe to ignore locally):', err);
+    }
+  }
+
+  /* ---------- SAVE ---------- */
+  async function handleSave() {
+    setSaving(true);
+    try {
+      const updates = {
+        title: localWheel.title || '',
+        host_title: localWheel.host_title || '',
+        visibility: localWheel.visibility || 'public',
+        passphrase: localWheel.visibility === 'private' ? localWheel.passphrase || '' : null,
+        spin_speed: localWheel.spin_speed || 'Medium',
+        background_type: localWheel.background_type || 'gradient',
+        background_value: localWheel.background_value || DEFAULT_GRADIENT,
+        updated_at: new Date().toISOString(),
+      };
+
+      const { error } = await supabase.from('prize_wheels').update(updates).eq('id', localWheel.id);
+      if (error) console.error('❌ Save error:', error);
+
+      await refreshPrizeWheels();
+      await broadcastWheelChange();
+      onClose();
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  /* ---------- IMAGE UPLOAD ---------- */
+  async function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    try {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+        alert('Please upload a JPG, PNG, or WEBP file.');
+        return;
+      }
+
+      setUploading(true);
+      const compressed = await imageCompression(file, { maxWidthOrHeight: 1920, useWebWorker: true });
+
+      const ext = file.type.split('/')[1];
+      const filePath = `${localWheel.id}/background-${Date.now()}.${ext}`;
+      const { error: uploadError } = await supabase.storage
+        .from('wall-backgrounds')
+        .upload(filePath, compressed, { upsert: true });
+      if (uploadError) throw uploadError;
+
+      const { data: publicUrl } = supabase.storage.from('wall-backgrounds').getPublicUrl(filePath);
+      await supabase
+        .from('prize_wheels')
+        .update({
+          background_type: 'image',
+          background_value: publicUrl.publicUrl,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', localWheel.id);
+
+      setLocalWheel({ ...localWheel, background_type: 'image', background_value: publicUrl.publicUrl });
+      await refreshPrizeWheels();
+      await broadcastWheelChange();
+    } catch (err) {
+      console.error('❌ Upload error:', err);
+      alert('Upload failed.');
     } finally {
       setUploading(false);
     }
   }
 
-  /* ---------- Save Changes ---------- */
-  async function handleSave() {
-    try {
-      await supabase
-        .from('prize_wheels')
-        .update({
-          title: publicTitle,
-          host_title: privateTitle,
-          visibility,
-          passphrase: visibility === 'private' ? passphrase : null,
-          spin_speed: spinSpeed,
-          background_value: bgValue,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', event.id);
-
-      await refreshPrizeWheels();
-      onClose();
-    } catch (err) {
-      console.error('❌ Error saving prize wheel options:', err);
+  /* ---------- BACKGROUND CHANGE ---------- */
+  async function handleBackgroundChange(type: 'solid' | 'gradient', value: string) {
+    if (localWheel.background_type === 'image') {
+      setPendingChange({ type, value });
+      setShowWarning(true);
+      return;
     }
+
+    await supabase
+      .from('prize_wheels')
+      .update({
+        background_type: type,
+        background_value: value,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', localWheel.id);
+
+    setLocalWheel({ ...localWheel, background_type: type, background_value: value });
+    await refreshPrizeWheels();
+    await broadcastWheelChange();
   }
 
-  /* ---------- Render ---------- */
+  async function confirmChange() {
+    if (!pendingChange) return;
+    await supabase
+      .from('prize_wheels')
+      .update({
+        background_type: pendingChange.type,
+        background_value: pendingChange.value,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', localWheel.id);
+
+    setLocalWheel({ ...localWheel, background_type: pendingChange.type, background_value: pendingChange.value });
+    setShowWarning(false);
+    setPendingChange(null);
+    await refreshPrizeWheels();
+    await broadcastWheelChange();
+  }
+
+  function cancelChange() {
+    setShowWarning(false);
+    setPendingChange(null);
+  }
+
+  /* ---------- UI ---------- */
   return (
-    <Modal isOpen={true} onClose={onClose}>
-      <div className="text-white space-y-4">
-        <h2 className="text-2xl font-bold text-center mb-4">
-          ⚙ Prize Wheel Options
-        </h2>
+    <>
+      {showWarning && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[60]">
+          <div className="bg-gray-900 border border-yellow-500 p-6 rounded-2xl shadow-2xl text-white w-[90%] max-w-sm text-center">
+            <h2 className="text-lg font-bold text-yellow-400 mb-3">Warning</h2>
+            <p className="text-sm mb-5">
+              Changing to a color or gradient will delete your current background image.
+            </p>
+            <div className="flex justify-center gap-4">
+              <button
+                onClick={confirmChange}
+                className="bg-green-600 hover:bg-green-700 px-4 py-2 rounded font-semibold"
+              >
+                Continue
+              </button>
+              <button
+                onClick={cancelChange}
+                className="bg-red-600 hover:bg-red-700 px-4 py-2 rounded font-semibold"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
-        {/* PUBLIC TITLE */}
-        <div>
-          <label className="block text-sm font-semibold mb-1">Public Title</label>
+      <div
+        className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 backdrop-blur-md"
+        style={{ background: localWheel.background_value || DEFAULT_GRADIENT }}
+      >
+        <div className="bg-gradient-to-br from-[#0a2540] to-[#1b2b44] border border-blue-400 p-6 rounded-2xl shadow-2xl w-96 text-white animate-fadeIn overflow-y-auto max-h-[90vh]">
+          <h3 className="text-center text-xl font-bold mb-3">⚙ Edit Prize Wheel</h3>
+
+          {/* Titles */}
+          <label className="block mt-2 text-sm">Public Title:</label>
           <input
             type="text"
-            value={publicTitle}
-            onChange={(e) => setPublicTitle(e.target.value)}
-            placeholder="Shown on wheel"
-            className="w-full p-2 text-black rounded"
+            value={localWheel.title || ''}
+            onChange={(e) => setLocalWheel({ ...localWheel, title: e.target.value })}
+            className="w-full p-2 rounded-md text-black mt-1"
           />
-        </div>
 
-        {/* PRIVATE TITLE */}
-        <div>
-          <label className="block text-sm font-semibold mb-1">Private Title</label>
+          <label className="block mt-3 text-sm">Private Title:</label>
           <input
             type="text"
-            value={privateTitle}
-            onChange={(e) => setPrivateTitle(e.target.value)}
-            placeholder="Shown on dashboard"
-            className="w-full p-2 text-black rounded"
+            value={localWheel.host_title || ''}
+            onChange={(e) => setLocalWheel({ ...localWheel, host_title: e.target.value })}
+            className="w-full p-2 rounded-md text-black mt-1"
           />
-        </div>
 
-        {/* VISIBILITY */}
-        <div>
-          <label className="block text-sm font-semibold mb-1">Visibility</label>
+          {/* Visibility */}
+          <label className="block mt-3 text-sm">Visibility:</label>
           <select
-            value={visibility}
-            onChange={(e) => setVisibility(e.target.value)}
-            className="w-full p-2 text-black rounded"
+            value={localWheel.visibility || 'public'}
+            onChange={(e) => setLocalWheel({ ...localWheel, visibility: e.target.value })}
+            className="w-full p-2 rounded-md text-black mt-1"
           >
             <option value="public">Public</option>
             <option value="private">Private (requires passphrase)</option>
           </select>
-        </div>
 
-        {visibility === 'private' && (
-          <div>
-            <label className="block text-sm font-semibold mb-1">Passphrase</label>
-            <input
-              type="text"
-              value={passphrase}
-              onChange={(e) => setPassphrase(e.target.value)}
-              placeholder="Enter passphrase"
-              className="w-full p-2 text-black rounded"
-            />
-          </div>
-        )}
+          {localWheel.visibility === 'private' && (
+            <>
+              <label className="block mt-3 text-sm">Passphrase:</label>
+              <input
+                type="text"
+                value={localWheel.passphrase || ''}
+                onChange={(e) => setLocalWheel({ ...localWheel, passphrase: e.target.value })}
+                className="w-full p-2 rounded-md text-black mt-1"
+              />
+            </>
+          )}
 
-        {/* SPIN SPEED */}
-        <div>
-          <label className="block text-sm font-semibold mb-1">Spin Speed</label>
+          {/* Spin Speed */}
+          <label className="block mt-3 text-sm">Spin Speed:</label>
           <select
-            value={spinSpeed}
-            onChange={(e) => setSpinSpeed(e.target.value)}
-            className="w-full p-2 text-black rounded"
+            value={localWheel.spin_speed || 'Medium'}
+            onChange={(e) => setLocalWheel({ ...localWheel, spin_speed: e.target.value })}
+            className="w-full p-2 rounded-md text-black mt-1"
           >
-            <option value="Quick">Quick (5s spin + 5s slowdown)</option>
-            <option value="Medium">Medium (10s spin + 5s slowdown)</option>
-            <option value="Long">Long (15s spin + 5s slowdown)</option>
+            <option value="Quick">Quick</option>
+            <option value="Medium">Medium</option>
+            <option value="Long">Long</option>
           </select>
-        </div>
 
-        {/* BACKGROUND */}
-        <div>
-          <label className="block text-sm font-semibold mb-1">Background</label>
-          <input
-            type="text"
-            value={bgValue}
-            onChange={(e) => setBgValue(e.target.value)}
-            placeholder="linear-gradient(...) or image URL"
-            className="w-full p-2 text-black rounded mb-2"
-          />
-          <label className="block text-xs mb-1">Upload background image:</label>
-          <input
-            type="file"
-            accept="image/*"
-            onChange={(e) => e.target.files && handleBackgroundUpload(e.target.files[0])}
-            className="w-full text-sm text-gray-300"
-            disabled={uploading}
-          />
-        </div>
+          {/* Background Color Options */}
+          <h4 className="mt-5 text-sm font-semibold">🎨 Solid Colors</h4>
+          <div className="grid grid-cols-8 gap-2 mt-2">
+            {[
+              '#e53935', '#d81b60', '#8e24aa', '#5e35b1', '#3949ab', '#1e88e5', '#039be5', '#00acc1',
+              '#00897b', '#43a047', '#7cb342', '#c0ca33', '#fdd835', '#fb8c00', '#f4511e', '#6d4c41',
+            ].map((c) => (
+              <div
+                key={c}
+                className="w-5 h-5 rounded-full cursor-pointer border border-white/30 hover:scale-110 transition"
+                style={{ background: c }}
+                onClick={() => handleBackgroundChange('solid', c)}
+              />
+            ))}
+          </div>
 
-        {/* BUTTONS */}
-        <div className="flex justify-center gap-3 mt-6">
-          <button
-            onClick={handleSave}
-            disabled={uploading}
-            className="bg-green-600 hover:bg-green-700 px-4 py-2 rounded font-semibold"
-          >
-            ✅ Save
-          </button>
-          <button
-            onClick={onClose}
-            className="bg-red-600 hover:bg-red-700 px-4 py-2 rounded font-semibold"
-          >
-            ✖ Cancel
-          </button>
+          <h4 className="mt-4 text-sm font-semibold">🌈 Gradients</h4>
+          <div className="grid grid-cols-8 gap-2 mt-2">
+            {[
+              'linear-gradient(135deg,#002244,#69BE28)',
+              'linear-gradient(135deg,#00338D,#C60C30)',
+              'linear-gradient(135deg,#203731,#FFB612)',
+              'linear-gradient(135deg,#0B2265,#A71930)',
+              'linear-gradient(135deg,#241773,#9E7C0C)',
+              'linear-gradient(135deg,#03202F,#FB4F14)',
+              'linear-gradient(135deg,#002244,#B0B7BC)',
+              'linear-gradient(135deg,#002C5F,#FFC20E)',
+              'linear-gradient(135deg,#E31837,#C60C30)',
+              'linear-gradient(135deg,#002C5F,#A5ACAF)',
+              'linear-gradient(135deg,#5A1414,#D3BC8D)',
+              'linear-gradient(135deg,#4F2683,#FFC62F)',
+              'linear-gradient(135deg,#A71930,#FFB612)',
+              'linear-gradient(135deg,#000000,#FB4F14)',
+              'linear-gradient(135deg,#004C54,#A5ACAF)',
+              'linear-gradient(135deg,#A5ACAF,#0B2265)',
+            ].map((g) => (
+              <div
+                key={g}
+                className="w-5 h-5 rounded-full cursor-pointer border border-white/30 hover:scale-110 transition"
+                style={{ background: g }}
+                onClick={() => handleBackgroundChange('gradient', g)}
+              />
+            ))}
+          </div>
+
+          {/* Upload */}
+          <div className="mt-6 text-center">
+            <p className="text-sm font-semibold mb-2">Upload Custom Background</p>
+            <input type="file" accept="image/jpeg,image/png,image/webp" onChange={handleImageUpload} />
+            {uploading && <p className="text-yellow-400 text-xs mt-2 animate-pulse">Uploading...</p>}
+          </div>
+
+          {/* Buttons */}
+          <div className="text-center mt-5 flex justify-center gap-4">
+            <button
+              disabled={saving}
+              onClick={handleSave}
+              className={`${saving ? 'bg-gray-500' : 'bg-green-600 hover:bg-green-700'} px-4 py-2 rounded font-semibold`}
+            >
+              {saving ? 'Saving…' : '💾 Save'}
+            </button>
+            <button onClick={onClose} className="bg-red-600 hover:bg-red-700 px-4 py-2 rounded font-semibold">
+              ✖ Close
+            </button>
+          </div>
         </div>
       </div>
-    </Modal>
+    </>
   );
 }
