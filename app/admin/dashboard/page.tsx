@@ -205,18 +205,19 @@ export default function DashboardPage() {
       />
 
       {/* ---------- OPTIONS MODALS ---------- */}
-      {selectedWall && (
-        <OptionsModalFanWall
-          event={selectedWall}
-          hostId={host.id}
-          onClose={() => setSelectedWall(null)}
-          onBackgroundChange={async (event, val) => {
-            await handleBackgroundChange('events', event.id, val);
-            await refreshEvents();
-          }}
-          refreshEvents={refreshEvents}
-        />
-      )}
+      {selectedWheel && (
+  <OptionsModalPrizeWheel
+    event={selectedWheel}
+    hostId={host.id}
+    onClose={() => setSelectedWheel(null)}
+    onBackgroundChange={async (wheel, val) => {
+      await handleBackgroundChange('prizewheels', wheel.id, val);
+      await refreshWheels();
+      showToast('✅ Prize Wheel updated!');
+    }}
+    refreshPrizeWheels={refreshWheels}
+  />
+)}
 
       {selectedPoll && (
         <OptionsModalPoll
