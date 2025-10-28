@@ -22,40 +22,55 @@ export default function GuestPostPage() {
   const [submitting, setSubmitting] = useState(false);
   const [fadeOut, setFadeOut] = useState(false);
 
-  /* ---------- Load guest name from localStorage ---------- */
+  /* ---------- Load guest name from guest_profiles table ---------- */
   useEffect(() => {
-    if (typeof window === 'undefined') {
+    if (!eventUUID) {
       setIsNameLoaded(true);
       return;
     }
 
-    const stored = localStorage.getItem('guestProfile');
+    // Use device_id or some identifier from localStorage to find the guest profile
+    const stored = typeof window !== 'undefined' ? localStorage.getItem('guestProfile') : null;
     console.log('🧪 [SubmitPage] guestProfile from localStorage:', stored);
 
-    if (!stored) {
-      console.warn('⚠ No guestProfile found in localStorage');
+    let device_id: string | null = null;
+    if (stored) {
+      try {
+        const parsed = JSON.parse(stored);
+        device_id = parsed.device_id || null;
+        console.log('🔍 parsed device_id:', device_id);
+      } catch (err) {
+        console.error('❌ Error parsing guestProfile from localStorage:', err);
+      }
+    }
+
+    if (!device_id) {
+      console.warn('⚠ No device_id found in localStorage; cannot auto-fetch first name');
       setIsNameLoaded(true);
       return;
     }
 
-    try {
-      const parsed = JSON.parse(stored);
-      console.log('🔍 parsed object keys:', Object.keys(parsed));
-      console.log('🔍 parsed.firstName:', parsed.firstName);
-      console.log('🔍 parsed.first_name:', parsed.first_name);
-
-      const name = parsed.firstName || parsed.first_name || '';
-      if (name) {
-        setFirstName(name.trim());
-        console.log('✅ Auto-filled name:', name.trim());
-      } else {
-        console.warn('⚠ guestProfile found but missing firstName/first_name:', parsed);
+    // Fetch from guest_profiles table where device_id = stored device_id
+    (async () => {
+      try {
+        const { data, error } = await supabase
+          .from('guest_profiles')
+          .select('first_name')
+          .eq('device_id', device_id)
+          .single();
+        if (error) {
+          console.error('❌ Error fetching guest_profiles first_name:', error);
+        } else if (data) {
+          const name = data.first_name;
+          setFirstName(name.trim());
+          console.log('✅ Auto-filled name from guest_profiles:', name.trim());
+        }
+      } catch (err) {
+        console.error('❌ Unexpected error fetching guest_profiles:', err);
+      } finally {
+        setIsNameLoaded(true);
       }
-    } catch (err) {
-      console.error('❌ Error parsing guestProfile from localStorage:', err);
-    } finally {
-      setIsNameLoaded(true);
-    }
+    })();
   }, [eventUUID]);
 
   /* ---------- File & Crop Logic ---------- */
@@ -154,15 +169,15 @@ export default function GuestPostPage() {
       .from('uploads')
       .getPublicUrl(fileName);
 
-    const stored = localStorage.getItem('guestProfile');
-    let guest_profile_id = null;
-    let guest_id = null;
+    let guest_profile_id: string | null = null;
+    let guest_id: string | null = null;
 
-    if (stored) {
+    const stored2 = typeof window !== 'undefined' ? localStorage.getItem('guestProfile') : null;
+    if (stored2) {
       try {
-        const parsed = JSON.parse(stored);
-        guest_profile_id = parsed.id || null;
-        guest_id = parsed.guest_id || null;
+        const parsed2 = JSON.parse(stored2);
+        guest_profile_id = parsed2.id || null;
+        guest_id = parsed2.guest_id || null;
       } catch (err) {
         console.error('Error parsing guestProfile in submit page:', err);
       }
@@ -210,66 +225,54 @@ export default function GuestPostPage() {
   }
 
   return (
-    <div
-      style={{
-        background: '#000',
-        color: '#fff',
-        minHeight: '100vh',
+    <div style={{
+      background: '#000',
+      color: '#fff',
+      minHeight: '100vh',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: 20,
+      fontFamily: 'system-ui, sans-serif',
+      opacity: fadeOut ? 0 : 1,
+      transition: 'opacity 0.8s ease-in-out',
+    }}>
+      <form onSubmit={handleSubmit} style={{
+        width: '100%',
+        maxWidth: 420,
+        background: 'linear-gradient(180deg,#0d1b2a,#1b263b)',
+        borderRadius: 16,
+        padding: 24,
+        textAlign: 'center',
+        boxShadow: '0 0 20px rgba(0,0,0,0.6)',
         display: 'flex',
+        flexDirection: 'column',
         alignItems: 'center',
-        justifyContent: 'center',
-        padding: 20,
-        fontFamily: 'system-ui, sans-serif',
-        opacity: fadeOut ? 0 : 1,
-        transition: 'opacity 0.8s ease-in-out',
-      }}
-    >
-      <form
-        onSubmit={handleSubmit}
-        style={{
-          width: '100%',
-          maxWidth: 420,
-          background: 'linear-gradient(180deg,#0d1b2a,#1b263b)',
-          borderRadius: 16,
-          padding: 24,
-          textAlign: 'center',
-          boxShadow: '0 0 20px rgba(0,0,0,0.6)',
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-        }}
-      >
-
+      }}>
         <h2 style={{ marginBottom: 14, fontWeight: 700 }}>
           Add Your Photo to the Wall
         </h2>
 
-        <div style={{ display: 'flex', justifyContent: 'center', gap: 12, marginBottom: 12 }}>
+        <div style={{ display: 'flex', justifyContent: 'center', gap:12, marginBottom:12 }}>
           <button type="button" onClick={handleCameraCapture} style={buttonStyle}>
             📷 Camera
           </button>
           <button type="button" onClick={() => document.getElementById('file-input')?.click()} style={buttonStyle}>
             📁 Upload
           </button>
-          <input
-            type="file"
-            id="file-input"
-            accept="image/*"
-            onChange={handleFileSelect}
-            style={{ display: 'none' }}
-          />
+          <input type="file" id="file-input" accept="image/*" onChange={handleFileSelect} style={{ display:'none' }} />
         </div>
 
         <div style={{
-          position: 'relative',
-          width: 280,
-          height: 280,
-          background: '#111',
-          borderRadius: 12,
-          overflow: 'hidden',
-          marginBottom: 16
+          position:'relative',
+          width:280,
+          height:280,
+          background:'#111',
+          borderRadius:12,
+          overflow:'hidden',
+          marginBottom:16
         }}>
-          {imageSrc ? (
+          { imageSrc ? (
             <Cropper
               image={imageSrc}
               crop={crop}
@@ -283,20 +286,19 @@ export default function GuestPostPage() {
             />
           ) : (
             <div style={{
-              position: 'absolute',
-              inset: 0,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: '#888',
-              fontSize: 14,
+              position:'absolute',
+              inset:0,
+              display:'flex',
+              alignItems:'center',
+              justifyContent:'center',
+              color:'#888',
+              fontSize:14
             }}>
               Take a photo or upload one to begin
             </div>
           )}
         </div>
 
-        {/* Auto-Filled First Name */}
         <input
           type="text"
           name="first_name"
@@ -305,17 +307,17 @@ export default function GuestPostPage() {
           onChange={(e) => setFirstName(e.target.value)}
           placeholder="First Name"
           style={{
-            width: '90%',
-            margin: '0 auto 12px',
-            display: 'block',
-            padding: 10,
-            borderRadius: 8,
-            border: '1px solid #666',
-            background: 'rgba(255,255,255,0.1)',
-            color: '#fff',
-            fontSize: 15,
-            textAlign: 'center',
-            opacity: 0.7,
+            width:'90%',
+            margin:'0 auto 12px',
+            display:'block',
+            padding:10,
+            borderRadius:8,
+            border:'1px solid #666',
+            background:'rgba(255,255,255,0.1)',
+            color:'#fff',
+            fontSize:15,
+            textAlign:'center',
+            opacity:0.7
           }}
         />
 
@@ -326,33 +328,29 @@ export default function GuestPostPage() {
           value={message}
           onChange={(e) => setMessage(e.target.value)}
           style={{
-            width: '90%',
-            margin: '0 auto 10px',
-            display: 'block',
-            padding: 10,
-            borderRadius: 8,
-            border: '1px solid #666',
-            background: 'rgba(0,0,0,0.4)',
-            color: '#fff',
-            fontSize: 15,
-            textAlign: 'center',
-            resize: 'none',
-            minHeight: 70,
+            width:'90%',
+            margin:'0 auto 10px',
+            display:'block',
+            padding:10,
+            borderRadius:8,
+            border:'1px solid #666',
+            background:'rgba(0,0,0,0.4)',
+            color:'#fff',
+            fontSize:15,
+            textAlign:'center',
+            resize:'none',
+            minHeight:70
           }}
         />
 
-        <button
-          type="submit"
-          disabled={submitting}
-          style={{
-            ...buttonStyle,
-            width: '90%',
-            padding: '12px 0',
-            fontSize: 16,
-            cursor: submitting ? 'not-allowed' : 'pointer',
-          }}
-        >
-          {submitting ? 'Submitting…' : 'Submit'}
+        <button type="submit" disabled={submitting} style={{
+          ...buttonStyle,
+          width:'90%',
+          padding:'12px 0',
+          fontSize:16,
+          cursor: submitting ? 'not-allowed' : 'pointer'
+        }}>
+          { submitting ? 'Submitting…' : 'Submit' }
         </button>
       </form>
     </div>
@@ -360,13 +358,13 @@ export default function GuestPostPage() {
 }
 
 const buttonStyle: React.CSSProperties = {
-  backgroundColor: '#1e90ff',
-  border: 'none',
-  borderRadius: 8,
-  color: '#fff',
-  fontWeight: 600,
-  padding: '10px 18px',
-  cursor: 'pointer',
-  fontSize: 14,
-  transition: 'background 0.3s ease',
+  backgroundColor:'#1e90ff',
+  border:'none',
+  borderRadius:8,
+  color:'#fff',
+  fontWeight:600,
+  padding:'10px 18px',
+  cursor:'pointer',
+  fontSize:14,
+  transition:'background 0.3s ease'
 };
