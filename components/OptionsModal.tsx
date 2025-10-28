@@ -6,15 +6,12 @@ import dynamic from 'next/dynamic';
 /* 🧩 Props Interface                                                          */
 /* -------------------------------------------------------------------------- */
 interface OptionsModalProps {
-  type: 'fanwall' | 'poll' | 'prizewheel' | 'trivia';
+  type: 'fanwall' | 'prizewheel' | 'trivia';
   event: any;
   hostId: string;
   onClose: () => void;
   onBackgroundChange: (event: any, newValue: string) => Promise<void>;
-
-  // ✅ all refresh props included and optional
   refreshEvents?: () => Promise<void>;
-  refreshPolls?: () => Promise<void>;
   refreshPrizeWheels?: () => Promise<void>;
 }
 
@@ -22,7 +19,6 @@ interface OptionsModalProps {
 /* 🔄 Lazy Load Specific Modals                                                */
 /* -------------------------------------------------------------------------- */
 const OptionsModalFanWall = dynamic(() => import('./OptionsModalFanWall'));
-const OptionsModalPoll = dynamic(() => import('./OptionsModalPoll'));
 const OptionsModalPrizeWheel = dynamic(() => import('./OptionsModalPrizeWheel'));
 
 /* -------------------------------------------------------------------------- */
@@ -35,7 +31,6 @@ export default function OptionsModal({
   onClose,
   onBackgroundChange,
   refreshEvents,
-  refreshPolls,
   refreshPrizeWheels,
 }: OptionsModalProps) {
   switch (type) {
@@ -48,18 +43,6 @@ export default function OptionsModal({
           onClose={onClose}
           onBackgroundChange={onBackgroundChange}
           refreshEvents={refreshEvents!}
-        />
-      );
-
-    /* ---------- POLL ---------- */
-    case 'poll':
-      return (
-        <OptionsModalPoll
-          event={event}
-          hostId={hostId}
-          onClose={onClose}
-          onBackgroundChange={onBackgroundChange}
-          refreshEvents={refreshPolls ?? refreshEvents!}
         />
       );
 
