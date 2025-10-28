@@ -14,9 +14,11 @@ export default function GuestPostPage() {
   const [crop, setCrop] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
   const [croppedAreaPixels, setCroppedAreaPixels] = useState<any>(null);
+
   const [message, setMessage] = useState('');
   const [firstName, setFirstName] = useState('');
   const [isNameLoaded, setIsNameLoaded] = useState(false);
+
   const [submitting, setSubmitting] = useState(false);
   const [fadeOut, setFadeOut] = useState(false);
 
@@ -39,17 +41,16 @@ export default function GuestPostPage() {
 
     try {
       const parsed = JSON.parse(stored);
-      const name =
-        parsed.firstName ||
-        parsed.first_name ||
-        '';
+      console.log('🔍 parsed object keys:', Object.keys(parsed));
       console.log('🔍 parsed.firstName:', parsed.firstName);
       console.log('🔍 parsed.first_name:', parsed.first_name);
+
+      const name = parsed.firstName || parsed.first_name || '';
       if (name) {
         setFirstName(name.trim());
         console.log('✅ Auto-filled name:', name.trim());
       } else {
-        console.warn('⚠ guestProfile found but missing name field:', parsed);
+        console.warn('⚠ guestProfile found but missing firstName/first_name:', parsed);
       }
     } catch (err) {
       console.error('❌ Error parsing guestProfile from localStorage:', err);
@@ -58,7 +59,7 @@ export default function GuestPostPage() {
     }
   }, [eventUUID]);
 
-  /* ---------- File Handling ---------- */
+  /* ---------- File & Crop Logic ---------- */
   async function handleFileSelect(e: any) {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -260,8 +261,13 @@ export default function GuestPostPage() {
         </div>
 
         <div style={{
-          position: 'relative', width: 280, height: 280, background: '#111',
-          borderRadius: 12, overflow: 'hidden', marginBottom: 16
+          position: 'relative',
+          width: 280,
+          height: 280,
+          background: '#111',
+          borderRadius: 12,
+          overflow: 'hidden',
+          marginBottom: 16
         }}>
           {imageSrc ? (
             <Cropper
@@ -277,22 +283,27 @@ export default function GuestPostPage() {
             />
           ) : (
             <div style={{
-              position: 'absolute', inset: 0, display: 'flex',
-              alignItems: 'center', justifyContent: 'center', color: '#888',
-              fontSize: 14
+              position: 'absolute',
+              inset: 0,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#888',
+              fontSize: 14,
             }}>
               Take a photo or upload one to begin
             </div>
           )}
         </div>
 
-        {/* Auto-Filled First Name */}
+        {/* First Name Field (auto-filled) */}
         <input
           type="text"
           name="first_name"
           id="first_name"
           value={firstName}
           onChange={(e) => setFirstName(e.target.value)}
+          placeholder="First Name"
           style={{
             width: '90%',
             margin: '0 auto 12px',
@@ -306,7 +317,6 @@ export default function GuestPostPage() {
             textAlign: 'center',
             opacity: 0.7,
           }}
-          placeholder="First Name"
         />
 
         <textarea
