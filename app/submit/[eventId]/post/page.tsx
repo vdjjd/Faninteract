@@ -22,8 +22,12 @@ export default function GuestPostPage() {
 
   /* ---------- Load guest name from localStorage ---------- */
   useEffect(() => {
-    if (typeof window === 'undefined') return;
+    if (typeof window === 'undefined') {
+      setIsNameLoaded(true);
+      return;
+    }
 
+    console.log('🔍 SubmitPage rendered for event:', eventUUID);
     const stored = localStorage.getItem('guestProfile');
     console.log('🧪 [SubmitPage] guestProfile from localStorage:', stored);
 
@@ -51,7 +55,7 @@ export default function GuestPostPage() {
     } finally {
       setIsNameLoaded(true);
     }
-  }, []);
+  }, [eventUUID]);
 
   /* ---------- File Handling ---------- */
   async function handleFileSelect(e: any) {
@@ -73,7 +77,6 @@ export default function GuestPostPage() {
     input.click();
   };
 
-  /* ---------- Crop Logic ---------- */
   const onCropComplete = useCallback((_: any, area: any) => {
     setCroppedAreaPixels(area);
   }, []);
@@ -188,8 +191,6 @@ export default function GuestPostPage() {
     }, 800);
   }
 
-  /* ---------- UI ---------- */
-  // Wait until name loaded to avoid mismatch
   if (!isNameLoaded) {
     return (
       <div style={{
@@ -202,7 +203,7 @@ export default function GuestPostPage() {
         padding: 20,
         fontFamily: 'system-ui, sans-serif',
       }}>
-        <p>Loading…</p>
+        <p>Loading …</p>
       </div>
     );
   }
@@ -341,7 +342,6 @@ export default function GuestPostPage() {
           placeholder="First Name"
         />
 
-        {/* Message Input */}
         <textarea
           placeholder="Write a message..."
           value={message}
@@ -373,7 +373,7 @@ export default function GuestPostPage() {
             cursor: submitting ? 'not-allowed' : 'pointer',
           }}
         >
-          {submitting ? 'Submitting…' : 'Submit'}
+          {submitting ? 'Submitting …' : 'Submit'}
         </button>
       </form>
     </div>
