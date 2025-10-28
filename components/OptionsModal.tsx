@@ -51,15 +51,15 @@ export default function OptionsModal({
       );
 
     case 'prizewheel':
-  return (
-    <OptionsModalPrizeWheel
-      event={event}
-      hostId={hostId}
-      onClose={onClose}
-      onBackgroundChange={onBackgroundChange}
-      refreshPrizeWheels={refreshPrizeWheels!}   // ✅ correct prop name
-    />
-  );
+      return (
+        <OptionsModalPrizeWheel
+          event={event}
+          hostId={hostId}
+          onClose={onClose}
+          onBackgroundChange={onBackgroundChange}
+          refreshPrizeWheels={refreshPrizeWheels!} // ✅ CORRECT PROP HERE
+        />
+      );
 
     case 'trivia':
       return (
