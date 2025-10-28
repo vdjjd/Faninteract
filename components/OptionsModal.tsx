@@ -2,6 +2,9 @@
 
 import dynamic from 'next/dynamic';
 
+/* -------------------------------------------------------------------------- */
+/* 🧩 Props Interface                                                          */
+/* -------------------------------------------------------------------------- */
 interface OptionsModalProps {
   type: 'fanwall' | 'poll' | 'prizewheel' | 'trivia';
   event: any;
@@ -12,12 +15,17 @@ interface OptionsModalProps {
   refreshPrizeWheels?: () => Promise<void>;
 }
 
-/* ---------- Lazy Load Specific Modals ---------- */
+/* -------------------------------------------------------------------------- */
+/* 🔄 Lazy Load Specific Modals                                                */
+/* -------------------------------------------------------------------------- */
 const OptionsModalFanWall = dynamic(() => import('./OptionsModalFanWall'));
 const OptionsModalPoll = dynamic(() => import('./OptionsModalPoll'));
 const OptionsModalPrizeWheel = dynamic(() => import('./OptionsModalPrizeWheel'));
 // const OptionsModalTrivia = dynamic(() => import('./OptionsModalTrivia')); // future
 
+/* -------------------------------------------------------------------------- */
+/* ⚙️ Main Component                                                          */
+/* -------------------------------------------------------------------------- */
 export default function OptionsModal({
   type,
   event,
@@ -28,6 +36,7 @@ export default function OptionsModal({
   refreshPrizeWheels,
 }: OptionsModalProps) {
   switch (type) {
+    /* ---------- FAN WALL ---------- */
     case 'fanwall':
       return (
         <OptionsModalFanWall
@@ -39,6 +48,7 @@ export default function OptionsModal({
         />
       );
 
+    /* ---------- POLL ---------- */
     case 'poll':
       return (
         <OptionsModalPoll
@@ -50,6 +60,7 @@ export default function OptionsModal({
         />
       );
 
+    /* ---------- PRIZE WHEEL ---------- */
     case 'prizewheel':
       return (
         <OptionsModalPrizeWheel
@@ -61,6 +72,7 @@ export default function OptionsModal({
         />
       );
 
+    /* ---------- TRIVIA PLACEHOLDER ---------- */
     case 'trivia':
       return (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 text-white">
@@ -76,7 +88,13 @@ export default function OptionsModal({
         </div>
       );
 
+    /* ---------- DEFAULT ---------- */
     default:
       return null;
   }
 }
+
+/* -------------------------------------------------------------------------- */
+/* 🧼 Force rebuild to refresh cached TS types                                 */
+/* -------------------------------------------------------------------------- */
+export type __ForceRebuild = true;
