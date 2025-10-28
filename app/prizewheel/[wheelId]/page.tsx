@@ -5,11 +5,13 @@ import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { motion, AnimatePresence } from 'framer-motion';
 
-// 👇 UPDATED IMPORT PATHS to match your folder structure
-import InactivePrizeWall from '../components/wall/InactiveWall';
-import ActivePrizeWall from '../components/wall/ActiveWall';
+/* ✅ Corrected imports to match real file names */
+import InactiveWall from '../components/wall/InactiveWall';
+import ActiveWall from '../components/wall/ActiveWall';
 
-/* ---------- Data Type ---------- */
+/* -------------------------------------------------------------------------- */
+/* 🎡 Prize Wheel Data Type                                                   */
+/* -------------------------------------------------------------------------- */
 interface PrizeWheelData {
   id: string;
   title: string | null;
@@ -26,13 +28,15 @@ interface PrizeWheelData {
   };
 }
 
-/* ---------- Main Page ---------- */
+/* -------------------------------------------------------------------------- */
+/* 🎡 MAIN PAGE                                                               */
+/* -------------------------------------------------------------------------- */
 export default function PrizeWheelPage() {
   const { wheelId } = useParams();
   const [wheel, setWheel] = useState<PrizeWheelData | null>(null);
   const [loading, setLoading] = useState(true);
 
-  /* --- Load Wheel --- */
+  /* ---------- LOAD WHEEL ---------- */
   async function loadWheel() {
     if (!wheelId) return;
 
@@ -58,7 +62,7 @@ export default function PrizeWheelPage() {
     setLoading(false);
   }
 
-  /* --- Realtime Updates --- */
+  /* ---------- REALTIME UPDATES ---------- */
   useEffect(() => {
     loadWheel();
 
@@ -84,7 +88,7 @@ export default function PrizeWheelPage() {
     };
   }, [wheelId]);
 
-  /* --- Loading --- */
+  /* ---------- LOADING STATE ---------- */
   if (loading) {
     return (
       <div className="flex items-center justify-center h-screen bg-black text-white text-2xl">
@@ -93,7 +97,7 @@ export default function PrizeWheelPage() {
     );
   }
 
-  /* --- Not Found --- */
+  /* ---------- FALLBACK ---------- */
   if (!wheel) {
     return (
       <div className="flex items-center justify-center h-screen bg-black text-white text-2xl">
@@ -102,7 +106,7 @@ export default function PrizeWheelPage() {
     );
   }
 
-  /* --- Render --- */
+  /* ---------- RENDER ---------- */
   return (
     <AnimatePresence mode="wait">
       {wheel.status === 'live' ? (
@@ -113,7 +117,7 @@ export default function PrizeWheelPage() {
           exit={{ opacity: 0 }}
           transition={{ duration: 0.8 }}
         >
-          <ActivePrizeWall event={wheel} />
+          <ActiveWall event={wheel} />
         </motion.div>
       ) : (
         <motion.div
@@ -123,7 +127,7 @@ export default function PrizeWheelPage() {
           exit={{ opacity: 0 }}
           transition={{ duration: 0.8 }}
         >
-          <InactivePrizeWall event={wheel} />
+          <InactiveWall event={wheel} />
         </motion.div>
       )}
     </AnimatePresence>
