@@ -42,7 +42,6 @@ export default function GuestPostPage() {
       const name =
         parsed.firstName ||
         parsed.first_name ||
-        (parsed.form && parsed.form.firstName) ||
         '';
       console.log('🔍 parsed.firstName:', parsed.firstName);
       console.log('🔍 parsed.first_name:', parsed.first_name);
@@ -240,38 +239,15 @@ export default function GuestPostPage() {
           alignItems: 'center',
         }}
       >
-        <img
-          src="/faninteractlogo.png"
-          alt="FanInteract"
-          style={{
-            width: 140,
-            height: 140,
-            objectFit: 'contain',
-            marginBottom: 6,
-            filter: 'drop-shadow(0 0 8px rgba(255,255,255,0.4))',
-          }}
-        />
-
         <h2 style={{ marginBottom: 14, fontWeight: 700 }}>
           Add Your Photo to the Wall
         </h2>
 
-        <div
-          style={{
-            display: 'flex',
-            justifyContent: 'center',
-            gap: 12,
-            marginBottom: 12,
-          }}
-        >
+        <div style={{ display: 'flex', justifyContent: 'center', gap: 12, marginBottom: 12 }}>
           <button type="button" onClick={handleCameraCapture} style={buttonStyle}>
             📷 Camera
           </button>
-          <button
-            type="button"
-            onClick={() => document.getElementById('file-input')?.click()}
-            style={buttonStyle}
-          >
+          <button type="button" onClick={() => document.getElementById('file-input')?.click()} style={buttonStyle}>
             📁 Upload
           </button>
           <input
@@ -283,17 +259,10 @@ export default function GuestPostPage() {
           />
         </div>
 
-        <div
-          style={{
-            position: 'relative',
-            width: 280,
-            height: 280,
-            background: '#111',
-            borderRadius: 12,
-            overflow: 'hidden',
-            marginBottom: 16,
-          }}
-        >
+        <div style={{
+          position: 'relative', width: 280, height: 280, background: '#111',
+          borderRadius: 12, overflow: 'hidden', marginBottom: 16
+        }}>
           {imageSrc ? (
             <Cropper
               image={imageSrc}
@@ -307,17 +276,11 @@ export default function GuestPostPage() {
               restrictPosition={false}
             />
           ) : (
-            <div
-              style={{
-                position: 'absolute',
-                inset: 0,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: '#888',
-                fontSize: 14,
-              }}
-            >
+            <div style={{
+              position: 'absolute', inset: 0, display: 'flex',
+              alignItems: 'center', justifyContent: 'center', color: '#888',
+              fontSize: 14
+            }}>
               Take a photo or upload one to begin
             </div>
           )}
