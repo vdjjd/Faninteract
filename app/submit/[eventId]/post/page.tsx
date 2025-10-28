@@ -16,6 +16,7 @@ export default function GuestPostPage() {
   const [croppedAreaPixels, setCroppedAreaPixels] = useState<any>(null);
   const [message, setMessage] = useState('');
   const [firstName, setFirstName] = useState('');
+  const [isNameLoaded, setIsNameLoaded] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [fadeOut, setFadeOut] = useState(false);
 
@@ -28,6 +29,7 @@ export default function GuestPostPage() {
 
     if (!stored) {
       console.warn('⚠ No guestProfile found in localStorage');
+      setIsNameLoaded(true);
       return;
     }
 
@@ -36,7 +38,7 @@ export default function GuestPostPage() {
       const name =
         parsed.firstName ||
         parsed.first_name ||
-        parsed?.form?.firstName ||
+        (parsed.form && parsed.form.firstName) ||
         '';
       if (name) {
         setFirstName(name.trim());
@@ -46,6 +48,8 @@ export default function GuestPostPage() {
       }
     } catch (err) {
       console.error('❌ Error parsing guestProfile from localStorage:', err);
+    } finally {
+      setIsNameLoaded(true);
     }
   }, []);
 
@@ -185,6 +189,24 @@ export default function GuestPostPage() {
   }
 
   /* ---------- UI ---------- */
+  // Wait until name loaded to avoid mismatch
+  if (!isNameLoaded) {
+    return (
+      <div style={{
+        background: '#000',
+        color: '#fff',
+        minHeight: '100vh',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 20,
+        fontFamily: 'system-ui, sans-serif',
+      }}>
+        <p>Loading…</p>
+      </div>
+    );
+  }
+
   return (
     <div
       style={{
