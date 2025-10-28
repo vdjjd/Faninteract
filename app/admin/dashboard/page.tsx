@@ -56,7 +56,6 @@ export default function DashboardPage() {
 
         let activeHost = hostRow;
 
-        // Auto-create host if missing
         if (!hostRow) {
           const { data: newHost, error: insertError } = await supabase
             .from('hosts')
@@ -78,7 +77,6 @@ export default function DashboardPage() {
         }
 
         if (!activeHost) throw new Error('No valid host found');
-
         setHost(activeHost);
 
         const [fetchedEvents, fetchedPolls, fetchedWheels] = await Promise.all([
@@ -308,7 +306,7 @@ export default function DashboardPage() {
             await refreshWheels();
             showToast('✅ Prize Wheel updated!');
           }}
-          refreshPrizeWheels={refreshWheels}
+          refreshPrizeWheels={refreshWheels} // ✅ fixed prop name
         />
       )}
 
