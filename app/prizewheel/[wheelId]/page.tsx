@@ -3,10 +3,14 @@
 import { useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
-import InactiveWall from '../components/wall/InactiveWall'; // ✅ Correct path (was one level too high)
-// (Future)
-import ActiveWall from '../components/wall/ActiveWall'; // ✅ Ready for live view
+import { motion, AnimatePresence } from 'framer-motion';
 
+import InactiveWall from '../components/wall/InactiveWall';
+import ActiveWall from '../components/wall/ActiveWall';
+
+/* -------------------------------------------------------------------------- */
+/* 🎡 Prize Wheel Type                                                        */
+/* -------------------------------------------------------------------------- */
 interface PrizeWheelData {
   id: string;
   title: string | null;
@@ -23,7 +27,7 @@ interface PrizeWheelData {
 }
 
 /* -------------------------------------------------------------------------- */
-/* 🎡 MAIN PAGE                                                                */
+/* 🎡 MAIN PAGE                                                               */
 /* -------------------------------------------------------------------------- */
 export default function PrizeWheelPage() {
   const { wheelId } = useParams();
@@ -36,12 +40,14 @@ export default function PrizeWheelPage() {
 
     const { data, error } = await supabase
       .from('prize_wheels')
-      .select(`
+      .select(
+        `
         *,
         host:hosts (
           branding_logo_url
         )
-      `)
+      `
+      )
       .eq('id', wheelId)
       .maybeSingle();
 
@@ -56,24 +62,28 @@ export default function PrizeWheelPage() {
 
   /* ---------- REALTIME UPDATES ---------- */
   useEffect(() => {
-    loadWheel();
+    loadWheel(); // initial load
 
     const channel = supabase
-      .channel(`prizewheel-${wheelId}`)
+      .channel(`realtime:prize_wheels:id=eq.${wheelId}`)
       .on(
         'postgres_changes',
         {
-          event: 'UPDATE',
+          event: '*',
           schema: 'public',
           table: 'prize_wheels',
           filter: `id=eq.${wheelId}`,
         },
         (payload) => {
-          const updated = payload.new as PrizeWheelData;
-          setWheel(updated);
+          console.log('🔄 Realtime update received for Prize Wheel:', payload);
+          setWheel(payload.new as PrizeWheelData);
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          console.log(`✅ Listening for live updates on wheel ${wheelId}`);
+        }
+      });
 
     return () => {
       supabase.removeChannel(channel);
@@ -98,11 +108,30 @@ export default function PrizeWheelPage() {
     );
   }
 
-  /* ---------- RENDER WALL ---------- */
-  if (wheel.status === 'live') {
-    return <ActiveWall event={wheel} />; // ✅ future live mode
-  }
-
-  // Default to inactive wall
-  return <InactiveWall event={wheel} />;
+  /* ---------- RENDER WALLS WITH FADE TRANSITION ---------- */
+  return (
+    <AnimatePresence mode="wait">
+      {wheel.status === 'live' ? (
+        <motion.div
+          key="active"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.8 }}
+        >
+          <ActiveWall event={wheel} />
+        </motion.div>
+      ) : (
+        <motion.div
+          key="inactive"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.8 }}
+        >
+          <InactiveWall event={wheel} />
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
 }
