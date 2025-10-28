@@ -34,8 +34,11 @@ export default function GuestInfoPage() {
         .eq('id', eventUUID)
         .single();
 
-      if (error) console.error('Error loading event:', error);
-      if (data) setEvent(data);
+      if (error) {
+        console.error('Error loading event:', error);
+      } else {
+        setEvent(data);
+      }
       setLoading(false);
     };
 
@@ -51,10 +54,11 @@ export default function GuestInfoPage() {
           table: 'events',
           filter: `id=eq.${eventUUID}`,
         },
-        (payload) =>
+        (payload) => {
           setEvent((prev: any) =>
             prev ? { ...prev, ...payload.new } : payload.new
-          )
+          );
+        }
       )
       .subscribe();
 
@@ -98,7 +102,6 @@ export default function GuestInfoPage() {
         return id;
       })();
 
-    // Find existing by device_id
     const { data: existingProfile } = await supabase
       .from('guest_profiles')
       .select('id')
@@ -122,9 +125,9 @@ export default function GuestInfoPage() {
         .select()
         .single();
 
-      if (insertError)
+      if (insertError) {
         console.error('Insert guest_profile error:', insertError);
-
+      }
       guestProfileId = newProfile?.id || null;
     }
 
@@ -152,26 +155,35 @@ export default function GuestInfoPage() {
       return;
     }
 
-    // Save to localStorage so post page can auto-fill
+    /* ---------- Save to localStorage ---------- */
     localStorage.setItem(
       'guestProfile',
       JSON.stringify({
         id: guestProfileId,
         guest_id: guestInsert?.id || null,
         device_id,
-        firstName,
-        lastName,
-        email,
-        phone,
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
+        email: email?.trim() || null,
+        phone: phone?.trim() || null,
         event_id: eventUUID,
       })
     );
+    console.log('✅ Stored guestProfile for auto-fill:', {
+      id: guestProfileId,
+      firstName: firstName.trim(),
+      lastName: lastName.trim(),
+      email,
+      phone,
+      event_id: eventUUID,
+    });
 
+    /* ---------- Redirect to Submit Page ---------- */
     router.push(`/submit/${eventUUID}/post`);
   };
 
   if (loading)
-    return <p style={{ textAlign: 'center', color: '#fff' }}>Loading...</p>;
+    return <p style={{ textAlign: 'center', color: '#fff' }}>Loading…</p>;
 
   /* ---------------- UI ---------------- */
   return (
@@ -305,7 +317,7 @@ export default function GuestInfoPage() {
             cursor: submitting ? 'not-allowed' : 'pointer',
           }}
         >
-          {submitting ? 'Joining...' : 'Join'}
+          {submitting ? 'Joining…' : 'Join'}
         </button>
       </form>
     </div>
