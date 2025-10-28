@@ -179,11 +179,14 @@ export default function OptionsModalPrizeWheel({
         </div>
       )}
 
-      <div
-        className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 backdrop-blur-md"
-        style={{ background: localWheel.background_value || DEFAULT_GRADIENT }}
-      >
-        <div className="bg-gradient-to-br from-[#0a2540] to-[#1b2b44] border border-blue-400 p-6 rounded-2xl shadow-2xl w-96 text-white animate-fadeIn overflow-y-auto max-h-[90vh]">
+      {/* ---------- MAIN MODAL ---------- */}
+      <div className="fixed inset-0 bg-black/70 backdrop-blur-md flex items-center justify-center z-50">
+        <div
+          className="border border-blue-400 p-6 rounded-2xl shadow-2xl w-96 text-white animate-fadeIn overflow-y-auto max-h-[90vh]"
+          style={{
+            background: localWheel.background_value || DEFAULT_GRADIENT,
+          }}
+        >
           <h3 className="text-center text-xl font-bold mb-3">⚙ Edit Prize Wheel</h3>
 
           {/* Titles */}
