@@ -22,7 +22,7 @@ export default function PrizeWheelGrid({
   refreshPrizeWheels,
   onOpenOptions,
 }: PrizeWheelGridProps) {
-  /* ---------- OPEN WALL ---------- */
+  /* ---------- OPEN WHEEL VIEW ---------- */
   async function handleLaunch(id: string) {
     const url = `${window.location.origin}/prizewheel/${id}`;
     const popup = window.open(
@@ -33,13 +33,13 @@ export default function PrizeWheelGrid({
     popup?.focus();
   }
 
-  /* ---------- PLAY (make wall active) ---------- */
+  /* ---------- PLAY (activate wheel) ---------- */
   async function handlePlay(id: string) {
     await updatePrizeWheelStatus(id, 'live');
     await refreshPrizeWheels();
   }
 
-  /* ---------- STOP (return to inactive) ---------- */
+  /* ---------- STOP (deactivate wheel) ---------- */
   async function handleStop(id: string) {
     await updatePrizeWheelStatus(id, 'inactive');
     await refreshPrizeWheels();
@@ -85,6 +85,7 @@ export default function PrizeWheelGrid({
                     'linear-gradient(135deg,#0d47a1,#1976d2)',
             }}
           >
+            {/* ---------- Wheel Titles ---------- */}
             <div>
               <h3 className="font-bold text-lg text-center drop-shadow-md mb-1">
                 {wheel.host_title || wheel.title || 'Untitled Prize Wheel'}
@@ -102,6 +103,11 @@ export default function PrizeWheelGrid({
                 >
                   {wheel.status}
                 </span>
+              </p>
+
+              {/* 🌀 Spin Speed Display */}
+              <p className="text-xs text-gray-200 italic">
+                Spin Speed: {wheel.spin_speed || 'Medium'}
               </p>
             </div>
 

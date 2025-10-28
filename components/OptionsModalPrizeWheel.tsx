@@ -17,26 +17,21 @@ export default function OptionsModalPrizeWheel({
   onBackgroundChange: (wheel: any, newValue: string) => Promise<void>;
   refreshPrizeWheels: () => Promise<void>;
 }) {
-  /* -------------------------------------------------------------------------- */
-  /* 🧠 STATE                                                                   */
-  /* -------------------------------------------------------------------------- */
   const [bgValue, setBgValue] = useState(event.background_value || '');
-  const [publicTitle, setPublicTitle] = useState(event.public_title || '');
-  const [privateTitle, setPrivateTitle] = useState(event.private_title || '');
+  const [publicTitle, setPublicTitle] = useState(event.title || '');
+  const [privateTitle, setPrivateTitle] = useState(event.host_title || '');
   const [visibility, setVisibility] = useState(event.visibility || 'public');
   const [passphrase, setPassphrase] = useState(event.passphrase || '');
-  const [spinLength, setSpinLength] = useState(event.spin_length || 'medium');
+  const [spinSpeed, setSpinSpeed] = useState(event.spin_speed || 'Medium');
   const [uploading, setUploading] = useState(false);
 
-  /* -------------------------------------------------------------------------- */
-  /* 📤 UPLOAD BACKGROUND                                                       */
-  /* -------------------------------------------------------------------------- */
+  /* ---------- Upload Background ---------- */
   async function handleBackgroundUpload(file: File) {
     try {
       setUploading(true);
       const filePath = `${event.id}/background-${Date.now()}-${file.name}`;
       const { error } = await supabase.storage
-        .from('wall-backgrounds') // ✅ same bucket as Fan Wall
+        .from('wall-backgrounds')
         .upload(filePath, file, { cacheControl: '3600', upsert: true });
       if (error) throw error;
 
@@ -55,19 +50,17 @@ export default function OptionsModalPrizeWheel({
     }
   }
 
-  /* -------------------------------------------------------------------------- */
-  /* 💾 SAVE CHANGES                                                            */
-  /* -------------------------------------------------------------------------- */
+  /* ---------- Save Changes ---------- */
   async function handleSave() {
     try {
       await supabase
-        .from('prizewheels')
+        .from('prize_wheels')
         .update({
-          public_title: publicTitle,
-          private_title: privateTitle,
+          title: publicTitle,
+          host_title: privateTitle,
           visibility,
           passphrase: visibility === 'private' ? passphrase : null,
-          spin_length: spinLength,
+          spin_speed: spinSpeed,
           background_value: bgValue,
           updated_at: new Date().toISOString(),
         })
@@ -80,9 +73,7 @@ export default function OptionsModalPrizeWheel({
     }
   }
 
-  /* -------------------------------------------------------------------------- */
-  /* 🎨 RENDER                                                                  */
-  /* -------------------------------------------------------------------------- */
+  /* ---------- Render ---------- */
   return (
     <Modal isOpen={true} onClose={onClose}>
       <div className="text-white space-y-4">
@@ -97,7 +88,7 @@ export default function OptionsModalPrizeWheel({
             type="text"
             value={publicTitle}
             onChange={(e) => setPublicTitle(e.target.value)}
-            placeholder="Title shown on wall"
+            placeholder="Shown on wheel"
             className="w-full p-2 text-black rounded"
           />
         </div>
@@ -109,14 +100,14 @@ export default function OptionsModalPrizeWheel({
             type="text"
             value={privateTitle}
             onChange={(e) => setPrivateTitle(e.target.value)}
-            placeholder="Title shown on dashboard card"
+            placeholder="Shown on dashboard"
             className="w-full p-2 text-black rounded"
           />
         </div>
 
         {/* VISIBILITY */}
         <div>
-          <label className="block text-sm font-semibold mb-1">Wall Visibility</label>
+          <label className="block text-sm font-semibold mb-1">Visibility</label>
           <select
             value={visibility}
             onChange={(e) => setVisibility(e.target.value)}
@@ -127,7 +118,6 @@ export default function OptionsModalPrizeWheel({
           </select>
         </div>
 
-        {/* PASSPHRASE */}
         {visibility === 'private' && (
           <div>
             <label className="block text-sm font-semibold mb-1">Passphrase</label>
@@ -135,27 +125,27 @@ export default function OptionsModalPrizeWheel({
               type="text"
               value={passphrase}
               onChange={(e) => setPassphrase(e.target.value)}
-              placeholder="Enter passphrase to join"
+              placeholder="Enter passphrase"
               className="w-full p-2 text-black rounded"
             />
           </div>
         )}
 
-        {/* SPIN LENGTH */}
+        {/* SPIN SPEED */}
         <div>
-          <label className="block text-sm font-semibold mb-1">Spin Length</label>
+          <label className="block text-sm font-semibold mb-1">Spin Speed</label>
           <select
-            value={spinLength}
-            onChange={(e) => setSpinLength(e.target.value)}
+            value={spinSpeed}
+            onChange={(e) => setSpinSpeed(e.target.value)}
             className="w-full p-2 text-black rounded"
           >
-            <option value="quick">Quick (5s spin + 5s slowdown)</option>
-            <option value="medium">Medium (15s spin + 5s slowdown)</option>
-            <option value="long">Long (20s spin + 5s slowdown)</option>
+            <option value="Quick">Quick (5s spin + 5s slowdown)</option>
+            <option value="Medium">Medium (10s spin + 5s slowdown)</option>
+            <option value="Long">Long (15s spin + 5s slowdown)</option>
           </select>
         </div>
 
-        {/* BACKGROUND CONTROLS */}
+        {/* BACKGROUND */}
         <div>
           <label className="block text-sm font-semibold mb-1">Background</label>
           <input
@@ -165,7 +155,6 @@ export default function OptionsModalPrizeWheel({
             placeholder="linear-gradient(...) or image URL"
             className="w-full p-2 text-black rounded mb-2"
           />
-
           <label className="block text-xs mb-1">Upload background image:</label>
           <input
             type="file"

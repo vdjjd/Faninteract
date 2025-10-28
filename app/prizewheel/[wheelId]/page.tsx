@@ -19,6 +19,7 @@ interface PrizeWheelData {
   background_type: string | null;
   background_value: string | null;
   logo_url: string | null;
+  spin_speed?: string | null;
   countdown?: string | null;
   countdown_active?: boolean;
   host?: {

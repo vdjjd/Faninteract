@@ -112,24 +112,8 @@ export default function DashboardPage() {
   /* ------------------ REFRESH HELPERS ------------------ */
   const refreshEvents = async () => host && setEvents(await getEventsByHost(host.id));
   const refreshPolls = async () => host && setPolls(await getPollsByHost(host.id));
-  const refreshWheels = async () => host && setWheels(await getPrizeWheelsByHost(host.id));
-
-  /* ------------------ REALTIME SYNC ------------------ */
-  useEffect(() => {
-    if (!host) return;
-    const channel = supabase
-      .channel(`events-dashboard-${host.id}`)
-      .on(
-        'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'events', filter: `host_id=eq.${host.id}` },
-        (payload) => {
-          const updated = payload.new;
-          setEvents((prev) => prev.map((e) => (e.id === updated.id ? { ...e, ...updated } : e)));
-        }
-      )
-      .subscribe();
-    return () => void supabase.removeChannel(channel);
-  }, [host]);
+  const refreshPrizeWheels = async () =>
+    host && setWheels(await getPrizeWheelsByHost(host.id));
 
   /* ------------------ HANDLERS ------------------ */
   const handleBackgroundChange = async (table: string, id: string, newValue: string) => {
@@ -173,7 +157,7 @@ export default function DashboardPage() {
 
       <FanWallGrid events={events} host={host} refreshEvents={refreshEvents} onOpenOptions={setSelectedWall} />
       <PollGrid polls={polls} host={host} refreshPolls={refreshPolls} onOpenOptions={setSelectedPoll} />
-      <PrizeWheelGrid wheels={wheels} host={host} refreshPrizeWheels={refreshWheels} onOpenOptions={setSelectedWheel} />
+      <PrizeWheelGrid wheels={wheels} host={host} refreshPrizeWheels={refreshPrizeWheels} onOpenOptions={setSelectedWheel} />
 
       {/* ---------- CREATE MODALS ---------- */}
       <CreateFanWallModal
@@ -199,25 +183,25 @@ export default function DashboardPage() {
         onClose={() => setPrizeWheelModalOpen(false)}
         hostId={host?.id}
         refreshPrizeWheels={async () => {
-          await refreshWheels();
+          await refreshPrizeWheels();
           showToast('✅ Prize Wheel created!');
         }}
       />
 
       {/* ---------- OPTIONS MODALS ---------- */}
       {selectedWheel && (
-  <OptionsModalPrizeWheel
-    event={selectedWheel}
-    hostId={host.id}
-    onClose={() => setSelectedWheel(null)}
-    onBackgroundChange={async (wheel, val) => {
-      await handleBackgroundChange('prizewheels', wheel.id, val);
-      await refreshWheels();
-      showToast('✅ Prize Wheel updated!');
-    }}
-    refreshPrizeWheels={refreshWheels}
-  />
-)}
+        <OptionsModalPrizeWheel
+          event={selectedWheel}
+          hostId={host.id}
+          onClose={() => setSelectedWheel(null)}
+          onBackgroundChange={async (wheel, val) => {
+            await handleBackgroundChange('prize_wheels', wheel.id, val);
+            await refreshPrizeWheels();
+            showToast('✅ Prize Wheel updated!');
+          }}
+          refreshPrizeWheels={refreshPrizeWheels}
+        />
+      )}
 
       {selectedPoll && (
         <OptionsModalPoll
@@ -229,21 +213,6 @@ export default function DashboardPage() {
             await refreshPolls();
           }}
           refreshEvents={refreshPolls}
-        />
-      )}
-
-      {/* ✅ FIXED PRIZE WHEEL OPTIONS */}
-      {selectedWheel && (
-        <OptionsModalPrizeWheel
-          event={selectedWheel}
-          hostId={host.id}
-          onClose={() => setSelectedWheel(null)}
-          onBackgroundChange={async (wheel, val) => {
-            await handleBackgroundChange('prizewheels', wheel.id, val);
-            await refreshWheels();
-            showToast('✅ Prize Wheel updated!');
-          }}
-          refreshPrizeWheels={refreshWheels}
         />
       )}
 
