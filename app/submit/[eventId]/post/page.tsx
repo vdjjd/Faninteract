@@ -29,7 +29,6 @@ export default function GuestPostPage() {
       return;
     }
 
-    console.log('🔍 SubmitPage rendered for event:', eventUUID);
     const stored = localStorage.getItem('guestProfile');
     console.log('🧪 [SubmitPage] guestProfile from localStorage:', stored);
 
@@ -240,6 +239,7 @@ export default function GuestPostPage() {
           alignItems: 'center',
         }}
       >
+
         <h2 style={{ marginBottom: 14, fontWeight: 700 }}>
           Add Your Photo to the Wall
         </h2>
@@ -296,7 +296,7 @@ export default function GuestPostPage() {
           )}
         </div>
 
-        {/* First Name Field (auto-filled) */}
+        {/* Auto-Filled First Name */}
         <input
           type="text"
           name="first_name"
