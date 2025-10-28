@@ -12,31 +12,27 @@ export default function GuestPostPage() {
 
   const [event, setEvent] = useState<any>(null);
   const [loadingEvent, setLoadingEvent] = useState(true);
-
   const [imageSrc, setImageSrc] = useState<string | null>(null);
   const [crop, setCrop] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
   const [croppedAreaPixels, setCroppedAreaPixels] = useState<any>(null);
-
   const [message, setMessage] = useState('');
   const [firstName, setFirstName] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [fadeOut, setFadeOut] = useState(false);
 
-  // Load event data
+  // Load event details
   useEffect(() => {
     if (!eventUUID) {
       setLoadingEvent(false);
       return;
     }
-
     const fetchEvent = async () => {
       const { data, error } = await supabase
         .from('events')
         .select('title, background_value, logo_url')
         .eq('id', eventUUID)
         .single();
-
       if (error) {
         console.error('❌ Error loading event:', error);
       } else {
@@ -44,28 +40,23 @@ export default function GuestPostPage() {
       }
       setLoadingEvent(false);
     };
-
     fetchEvent();
   }, [eventUUID]);
 
-  // Load guest name from localStorage to pre-fill firstName
+  // Load guest name from localStorage
   useEffect(() => {
     if (typeof window === 'undefined') return;
-
     const stored = localStorage.getItem('guestProfile');
     console.log('🧪 [SubmitPage] guestProfile from localStorage:', stored);
-
     if (!stored) {
       console.warn('⚠ No guestProfile found in localStorage');
       return;
     }
-
     try {
       const parsed = JSON.parse(stored);
       console.log('🔍 stored keys:', Object.keys(parsed));
       console.log('🔍 parsed.firstName:', parsed.firstName);
       console.log('🔍 parsed.first_name:', parsed.first_name);
-
       const name =
         parsed.firstName ||
         parsed.first_name ||
@@ -83,7 +74,10 @@ export default function GuestPostPage() {
 
   if (loadingEvent) {
     return (
-      <div style={{ background: '#000', color: '#fff', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div style={{
+        background: '#000', color: '#fff', minHeight: '100vh',
+        display: 'flex', alignItems: 'center', justifyContent: 'center'
+      }}>
         <p>Loading event …</p>
       </div>
     );
@@ -91,13 +85,16 @@ export default function GuestPostPage() {
 
   if (!event) {
     return (
-      <div style={{ background: '#000', color: '#fff', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div style={{
+        background: '#000', color: '#fff', minHeight: '100vh',
+        display: 'flex', alignItems: 'center', justifyContent: 'center'
+      }}>
         <p>Event not found.</p>
       </div>
     );
   }
 
-  // File & cropping logic
+  // File / image logic
   async function handleFileSelect(e: any) {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -156,14 +153,13 @@ export default function GuestPostPage() {
     });
   }
 
-  // Submit handler
+  // Handle form submission
   async function handleSubmit(e: any) {
     e.preventDefault();
     if (!imageSrc || !message.trim()) {
       alert('Please add a photo and message.');
       return;
     }
-
     setSubmitting(true);
     setFadeOut(true);
 
@@ -174,22 +170,18 @@ export default function GuestPostPage() {
       setFadeOut(false);
       return;
     }
-
     const fileName = `submission_${Date.now()}.jpg`;
     const response = await fetch(croppedImg);
     const blob = await response.blob();
-
     const { error: uploadError } = await supabase.storage
       .from('uploads')
       .upload(fileName, blob, { contentType: 'image/jpeg' });
-
     if (uploadError) {
       alert('Upload failed.');
       setSubmitting(false);
       setFadeOut(false);
       return;
     }
-
     const { data: publicUrl } = supabase.storage
       .from('uploads')
       .getPublicUrl(fileName);
@@ -197,7 +189,6 @@ export default function GuestPostPage() {
     const stored = localStorage.getItem('guestProfile');
     let guest_profile_id = null;
     let guest_id = null;
-
     if (stored) {
       try {
         const parsed = JSON.parse(stored);
@@ -219,14 +210,12 @@ export default function GuestPostPage() {
         guest_id,
       },
     ]);
-
     if (insertError) {
       alert('Error submitting post.');
       setSubmitting(false);
       setFadeOut(false);
       return;
     }
-
     setTimeout(() => {
       window.location.href = `/thanks/${eventUUID}`;
     }, 800);
@@ -235,31 +224,20 @@ export default function GuestPostPage() {
   return (
     <div
       style={{
-        background: '#000',
-        color: '#fff',
-        minHeight: '100vh',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: 20,
-        fontFamily: 'system-ui, sans-serif',
-        opacity: fadeOut ? 0 : 1,
-        transition: 'opacity 0.8s ease-in-out',
+        background: '#000', color: '#fff', minHeight: '100vh',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        padding: 20, fontFamily: 'system-ui, sans-serif',
+        opacity: fadeOut ? 0 : 1, transition: 'opacity 0.8s ease-in-out'
       }}
     >
       <form
         onSubmit={handleSubmit}
         style={{
-          width: '100%',
-          maxWidth: 420,
+          width: '100%', maxWidth: 420,
           background: 'linear-gradient(180deg,#0d1b2a,#1b263b)',
-          borderRadius: 16,
-          padding: 24,
-          textAlign: 'center',
+          borderRadius: 16, padding: 24, textAlign: 'center',
           boxShadow: '0 0 20px rgba(0,0,0,0.6)',
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
+          display: 'flex', flexDirection: 'column', alignItems: 'center'
         }}
       >
         {event.logo_url && (
@@ -267,11 +245,8 @@ export default function GuestPostPage() {
             src={event.logo_url}
             alt="Event Logo"
             style={{
-              width: 140,
-              height: 140,
-              objectFit: 'contain',
-              marginBottom: 6,
-              filter: 'drop-shadow(0 0 8px rgba(255,255,255,0.4))',
+              width: 140, height: 140, objectFit: 'contain', marginBottom: 6,
+              filter: 'drop-shadow(0 0 8px rgba(255,255,255,0.4))'
             }}
           />
         )}
@@ -280,21 +255,11 @@ export default function GuestPostPage() {
           Add Your Photo to {event.title}
         </h2>
 
-        <div
-          style={{
-            display: 'flex',
-            justifyContent: 'center',
-            gap: 12,
-            marginBottom: 12,
-          }}
-        >
+        <div style={{ display: 'flex', justifyContent: 'center', gap: 12, marginBottom: 12 }}>
           <button type="button" onClick={handleCameraCapture} style={buttonStyle}>
             📷 Camera
           </button>
-          <button
-            type="button"
-            onClick={() => document.getElementById('file-input')?.click()}
-            style={buttonStyle}>
+          <button type="button" onClick={() => document.getElementById('file-input')?.click()} style={buttonStyle}>
             📁 Upload
           </button>
           <input
@@ -306,17 +271,10 @@ export default function GuestPostPage() {
           />
         </div>
 
-        <div
-          style={{
-            position: 'relative',
-            width: 280,
-            height: 280,
-            background: '#111',
-            borderRadius: 12,
-            overflow: 'hidden',
-            marginBottom: 16,
-          }}
-        >
+        <div style={{
+          position: 'relative', width: 280, height: 280, background: '#111',
+          borderRadius: 12, overflow: 'hidden', marginBottom: 16
+        }}>
           {imageSrc ? (
             <Cropper
               image={imageSrc}
@@ -330,59 +288,41 @@ export default function GuestPostPage() {
               restrictPosition={false}
             />
           ) : (
-            <div
-              style={{
-                position: 'absolute',
-                inset: 0,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: '#888',
-                fontSize: 14,
-              }}
-            >
+            <div style={{
+              position: 'absolute', inset: 0, display: 'flex',
+              alignItems: 'center', justifyContent: 'center', color: '#888',
+              fontSize: 14
+            }}>
               Take a photo or upload one to begin
             </div>
           )}
         </div>
 
+        {/* Auto-Filled First Name */}
         <input
           type="text"
+          name="first_name"
+          id="first_name"
           value={firstName}
           onChange={(e) => setFirstName(e.target.value)}
           style={{
-            width: '90%',
-            margin: '0 auto 12px',
-            display: 'block',
-            padding: 10,
-            borderRadius: 8,
-            border: '1px solid #666',
-            background: 'rgba(255,255,255,0.1)',
-            color: '#fff',
-            fontSize: 15,
-            textAlign: 'center',
-            opacity: 0.7,
+            width: '90%', margin: '0 auto 12px', display: 'block', padding: 10,
+            borderRadius: 8, border: '1px solid #666', background: 'rgba(255,255,255,0.1)',
+            color: '#fff', fontSize: 15, textAlign: 'center', opacity: 0.7
           }}
           placeholder="First Name"
         />
 
         <textarea
+          name="message"
+          id="message"
           placeholder="Write a message..."
           value={message}
           onChange={(e) => setMessage(e.target.value)}
           style={{
-            width: '90%',
-            margin: '0 auto 10px',
-            display: 'block',
-            padding: 10,
-            borderRadius: 8,
-            border: '1px solid #666',
-            background: 'rgba(0,0,0,0.4)',
-            color: '#fff',
-            fontSize: 15,
-            textAlign: 'center',
-            resize: 'none',
-            minHeight: 70,
+            width: '90%', margin: '0 auto 10px', display: 'block', padding: 10,
+            borderRadius: 8, border: '1px solid #666', background: 'rgba(0,0,0,0.4)',
+            color: '#fff', fontSize: 15, textAlign: 'center', resize: 'none', minHeight: 70
           }}
         />
 
@@ -390,11 +330,8 @@ export default function GuestPostPage() {
           type="submit"
           disabled={submitting}
           style={{
-            ...buttonStyle,
-            width: '90%',
-            padding: '12px 0',
-            fontSize: 16,
-            cursor: submitting ? 'not-allowed' : 'pointer',
+            ...buttonStyle, width: '90%', padding: '12px 0', fontSize: 16,
+            cursor: submitting ? 'not-allowed' : 'pointer'
           }}
         >
           {submitting ? 'Submitting …' : 'Submit'}
