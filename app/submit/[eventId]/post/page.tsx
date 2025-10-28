@@ -23,48 +23,51 @@ export default function GuestPostPage() {
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
-    async function loadName() {
-      // Step 1: Try localStorage
-      const stored = localStorage.getItem('guestProfile');
-      if (stored) {
-        try {
-          const parsed = JSON.parse(stored);
-          const name = parsed.first_name || parsed.firstName;
-          if (name) {
-            setFirstName(name.trim());
-            console.log('✅ Loaded name from localStorage:', name);
-            return;
+    // Small delay to ensure localStorage is ready after redirect
+    setTimeout(() => {
+      async function loadName() {
+        // Step 1: Try localStorage
+        const stored = localStorage.getItem('guestProfile');
+        if (stored) {
+          try {
+            const parsed = JSON.parse(stored);
+            const name = parsed.first_name || parsed.firstName;
+            if (name) {
+              setFirstName(name.trim());
+              console.log('✅ Loaded name from localStorage:', name);
+              return;
+            }
+          } catch (err) {
+            console.error('Error parsing guestProfile from localStorage:', err);
           }
-        } catch (err) {
-          console.error('Error parsing guestProfile from localStorage:', err);
+        }
+
+        // Step 2: Fallback to Supabase (device_id)
+        const deviceId = stored ? JSON.parse(stored).device_id : null;
+        if (!deviceId) {
+          console.warn('⚠ No device_id found for fallback lookup');
+          return;
+        }
+
+        const { data, error } = await supabase
+          .from('guest_profiles')
+          .select('first_name')
+          .eq('device_id', deviceId)
+          .single();
+
+        if (error) {
+          console.error('❌ Fallback lookup failed:', error);
+          return;
+        }
+
+        if (data?.first_name) {
+          setFirstName(data.first_name.trim());
+          console.log('✅ Loaded name from Supabase fallback:', data.first_name);
         }
       }
 
-      // Step 2: Fallback to Supabase
-      const deviceId = stored ? JSON.parse(stored).device_id : null;
-      if (!deviceId) {
-        console.warn('⚠ No device_id found for fallback lookup');
-        return;
-      }
-
-      const { data, error } = await supabase
-        .from('guest_profiles')
-        .select('first_name')
-        .eq('device_id', deviceId)
-        .single();
-
-      if (error) {
-        console.error('❌ Fallback lookup failed:', error);
-        return;
-      }
-
-      if (data?.first_name) {
-        setFirstName(data.first_name.trim());
-        console.log('✅ Loaded name from Supabase fallback:', data.first_name);
-      }
-    }
-
-    loadName();
+      loadName();
+    }, 500);
   }, []);
 
   /* ---------- Image Logic ---------- */
