@@ -2,7 +2,7 @@
 
 import { useParams } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
-import { usePrizeWheelData } from '@/hooks/usePrizeWheelData'; // ✅ make sure path matches your actual hook folder
+import { usePrizeWheelData } from './hooks/usePrizeWheelData'; // ✅ fixed path
 import InactiveWall from '../components/wall/InactiveWall';
 import ActiveWall from '../components/wall/ActiveWall';
 
