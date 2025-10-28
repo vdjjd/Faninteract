@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useParams } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
+import { getOrCreateGuestDeviceId } from '@/lib/syncGuest';
 
 export default function GuestSignupPage() {
   const { eventId } = useParams();
@@ -15,16 +16,6 @@ export default function GuestSignupPage() {
   const [submitting, setSubmitting] = useState(false);
   const [fadeOut, setFadeOut] = useState(false);
 
-  /* ---------- Device ID ---------- */
-  function getDeviceId() {
-    let existing = localStorage.getItem('deviceId');
-    if (!existing) {
-      existing = crypto.randomUUID();
-      localStorage.setItem('deviceId', existing);
-    }
-    return existing;
-  }
-
   /* ---------- Submit ---------- */
   async function handleSubmit(e: any) {
     e.preventDefault();
@@ -34,7 +25,6 @@ export default function GuestSignupPage() {
       return;
     }
 
-    // Require either email or phone
     if (!email.trim() && !phone.trim()) {
       alert('Please provide either an email or a phone number.');
       return;
@@ -43,14 +33,14 @@ export default function GuestSignupPage() {
     setSubmitting(true);
     setFadeOut(true);
 
-    const deviceId = getDeviceId();
+    const device_id = getOrCreateGuestDeviceId();
 
-    // Upsert guest profile
+    // 1️⃣ Upsert guest_profiles
     const { data: profileData, error: profileError } = await supabase
       .from('guest_profiles')
       .upsert(
         {
-          device_id: deviceId,
+          device_id,
           first_name: firstName.trim(),
           last_name: lastName.trim() || null,
           email: email.trim() || null,
@@ -62,14 +52,14 @@ export default function GuestSignupPage() {
       .single();
 
     if (profileError) {
-      console.error('❌ Error creating guest profile:', profileError);
+      console.error('❌ guest_profiles error:', profileError);
       alert('Error saving profile.');
       setSubmitting(false);
       setFadeOut(false);
       return;
     }
 
-    // Insert guest record linked to this event
+    // 2️⃣ Insert into guests (per event)
     const { data: guestData, error: guestError } = await supabase
       .from('guests')
       .insert([
@@ -86,32 +76,27 @@ export default function GuestSignupPage() {
       .single();
 
     if (guestError) {
-      console.error('❌ Error creating guest entry:', guestError);
+      console.error('❌ guests error:', guestError);
       alert('Error submitting guest info.');
       setSubmitting(false);
       setFadeOut(false);
       return;
     }
 
-    // ✅ Save guest profile locally for auto-fill
-    const profileToSave = {
+    // 3️⃣ Save unified local profile
+    const profileObj = {
       id: profileData.id,
-      device_id: profileData.device_id,
+      device_id,
       first_name: profileData.first_name,
       guest_id: guestData.id,
     };
-    try {
-      localStorage.setItem('guestProfile', JSON.stringify(profileToSave));
-      console.log('✅ Saved guestProfile to localStorage:', profileToSave);
-    } catch (err) {
-      console.error('❌ Failed to write to localStorage:', err);
-    }
+    localStorage.setItem('faninteract_guest_profile', JSON.stringify(profileObj));
+    console.log('✅ Stored faninteract_guest_profile:', profileObj);
 
-    // ✅ Small delay to guarantee write before redirect
-    await new Promise((resolve) => setTimeout(resolve, 400));
-
-    // Redirect to post submission page
-    window.location.href = `/submit/${eventUUID}/post`;
+    // 4️⃣ Redirect to Fan Zone post page
+    setTimeout(() => {
+      window.location.href = `/submit/${eventUUID}/post`;
+    }, 600);
   }
 
   return (

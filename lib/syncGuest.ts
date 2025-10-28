@@ -1,7 +1,10 @@
+'use client';
+
 import { supabase } from '@/lib/supabaseClient';
 
-/* ---------- Local identity helpers ---------- */
-function getOrCreateGuestDeviceId(): string {
+/* ---------- Local identity helper ---------- */
+export function getOrCreateGuestDeviceId(): string {
+  if (typeof window === 'undefined') return ''; // guard for SSR
   let id = localStorage.getItem('faninteract_guest_id');
   if (!id) {
     id = crypto.randomUUID();
@@ -17,32 +20,42 @@ export async function syncGuestProfile(
   guestData: {
     first_name: string;
     last_name?: string;
-    nickname?: string;
+    email?: string;
+    phone?: string;
   }
 ) {
-  const device_id = getOrCreateGuestDeviceId();
+  if (!guestData.first_name?.trim()) {
+    throw new Error('Missing first name for guest');
+  }
 
-  /* ----- 1. Create or update global guest_profiles ----- */
+  const device_id = getOrCreateGuestDeviceId();
+  if (!device_id) {
+    console.error('❌ Could not generate or load device_id');
+    throw new Error('Device ID unavailable');
+  }
+
+  // 1️⃣ Upsert into guest_profiles
   const { data: profile, error: profileError } = await supabase
     .from('guest_profiles')
     .upsert(
       {
         device_id,
-        first_name: guestData.first_name,
-        last_name: guestData.last_name || null,
-        nickname: guestData.nickname || null,
+        first_name: guestData.first_name.trim(),
+        last_name: guestData.last_name?.trim() || null,
+        email: guestData.email?.trim() || null,
+        phone: guestData.phone?.trim() || null,
       },
       { onConflict: 'device_id' }
     )
     .select()
     .single();
 
-  if (profileError) {
-    console.error('❌ Error upserting guest_profile:', profileError);
+  if (profileError || !profile) {
+    console.error('❌ guest_profiles error:', profileError);
     throw profileError;
   }
 
-  /* ----- 2. Log / update guest_visits for this host ----- */
+  // 2️⃣ Record visit (optional analytics)
   const { error: visitError } = await supabase
     .from('guest_visits')
     .upsert(
@@ -53,20 +66,18 @@ export async function syncGuestProfile(
       { onConflict: 'guest_profile_id,host_id' }
     );
 
-  if (visitError) {
-    console.error('❌ Error upserting guest_visit:', visitError);
-    throw visitError;
-  }
+  if (visitError) console.warn('⚠ guest_visits error:', visitError);
 
-  /* ----- 3. Upsert guests record for this event ----- */
+  // 3️⃣ Upsert into guests (per-event)
   const { data: guestRecord, error: guestError } = await supabase
     .from('guests')
     .upsert(
       {
         event_id: eventId,
-        first_name: guestData.first_name,
-        last_name: guestData.last_name || null,
-        nickname: guestData.nickname || null,
+        first_name: guestData.first_name.trim(),
+        last_name: guestData.last_name?.trim() || null,
+        email: guestData.email?.trim() || null,
+        phone: guestData.phone?.trim() || null,
         guest_profile_id: profile.id,
       },
       { onConflict: 'event_id,guest_profile_id' }
@@ -74,14 +85,29 @@ export async function syncGuestProfile(
     .select()
     .single();
 
-  if (guestError) {
-    console.error('❌ Error upserting guest:', guestError);
+  if (guestError || !guestRecord) {
+    console.error('❌ guests error:', guestError);
     throw guestError;
   }
 
-  return {
-    profile,       // global guest_profiles row
-    guestRecord,   // per-event guest row
-    device_id,     // local device identity
-  };
+  // 4️⃣ Save local identity for Fan Zone auto-fill
+  try {
+    localStorage.setItem(
+      'guestProfile',
+      JSON.stringify({
+        id: profile.id,
+        device_id,
+        first_name: profile.first_name,
+        guest_id: guestRecord.id,
+      })
+    );
+    console.log('✅ guestProfile saved locally:', {
+      id: profile.id,
+      first_name: profile.first_name,
+    });
+  } catch (e) {
+    console.error('⚠ localStorage save failed:', e);
+  }
+
+  return { profile, guestRecord, device_id };
 }

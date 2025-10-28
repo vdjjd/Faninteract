@@ -1,12 +1,12 @@
 'use client';
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams } from 'next/navigation';
 import Cropper from 'react-easy-crop';
 import imageCompression from 'browser-image-compression';
 import { supabase } from '@/lib/supabaseClient';
 
-export default function SubmitPostPage() {
+export default function FanZonePostPage() {
   const { eventId } = useParams();
   const eventUUID = Array.isArray(eventId) ? eventId[0] : eventId;
 
@@ -19,41 +19,48 @@ export default function SubmitPostPage() {
   const [submitting, setSubmitting] = useState(false);
   const [fadeOut, setFadeOut] = useState(false);
 
-  /* ---------- Load First Name ---------- */
+  /* ---------- Auto-Fill Name ---------- */
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
-    // Wait a bit to ensure storage is available after redirect
-    const timer = setTimeout(() => {
+    const timer = setTimeout(async () => {
       try {
-        // Check both possible key cases
-        const stored =
-          localStorage.getItem('guestProfile') ||
-          localStorage.getItem('guestprofile');
-
-        if (!stored) {
-          console.warn('⚠ No guestProfile found in localStorage');
-          return;
+        const stored = localStorage.getItem('faninteract_guest_profile');
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          if (parsed?.first_name) {
+            setFirstName(parsed.first_name.trim());
+            console.log('✅ Loaded first_name from faninteract_guest_profile:', parsed.first_name);
+            return;
+          }
         }
 
-        const parsed = JSON.parse(stored);
-        const name = parsed.first_name || parsed.firstName;
+        // Fallback to Supabase by device_id
+        const device_id =
+          (stored && JSON.parse(stored)?.device_id) ||
+          localStorage.getItem('faninteract_guest_id');
 
-        if (name) {
-          setFirstName(name.trim());
-          console.log('✅ Loaded first name from localStorage:', name);
-        } else {
-          console.warn('⚠ guestProfile found but missing first_name field', parsed);
+        if (!device_id) return;
+
+        const { data, error } = await supabase
+          .from('guest_profiles')
+          .select('first_name')
+          .eq('device_id', device_id)
+          .single();
+
+        if (!error && data?.first_name) {
+          setFirstName(data.first_name.trim());
+          console.log('✅ Fallback loaded first_name from Supabase:', data.first_name);
         }
       } catch (err) {
-        console.error('❌ Error reading guestProfile from localStorage:', err);
+        console.error('❌ Name load error:', err);
       }
-    }, 400);
+    }, 150);
 
     return () => clearTimeout(timer);
   }, []);
 
-  /* ---------- Image Logic ---------- */
+  /* ---------- Image Handling ---------- */
   async function handleFileSelect(e: any) {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -82,7 +89,7 @@ export default function SubmitPostPage() {
       const img = new Image();
       img.src = url;
       img.onload = () => resolve(img);
-      img.onerror = reject;
+      img.onerror = (err) => reject(err);
     });
   }
 
@@ -115,7 +122,6 @@ export default function SubmitPostPage() {
   /* ---------- Submit ---------- */
   async function handleSubmit(e: any) {
     e.preventDefault();
-
     if (!imageSrc || !message.trim() || !firstName.trim()) {
       alert('Please add a photo, write a message, and ensure your name is set.');
       return;
@@ -207,7 +213,6 @@ export default function SubmitPostPage() {
           Add Your Photo to the Wall
         </h2>
 
-        {/* File Upload Buttons */}
         <div style={{ display: 'flex', justifyContent: 'center', gap: 12, marginBottom: 12 }}>
           <button type="button" onClick={handleCameraCapture} style={buttonStyle}>
             📷 Camera
@@ -218,7 +223,6 @@ export default function SubmitPostPage() {
           <input type="file" id="file-input" accept="image/*" onChange={handleFileSelect} style={{ display: 'none' }} />
         </div>
 
-        {/* Image Cropper */}
         <div
           style={{
             position: 'relative',
@@ -259,7 +263,6 @@ export default function SubmitPostPage() {
           )}
         </div>
 
-        {/* Auto-Filled First Name */}
         <input
           type="text"
           name="first_name"
