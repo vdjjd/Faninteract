@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { motion, AnimatePresence } from 'framer-motion';
 
-/* ✅ Corrected imports to match real file names */
+/* ✅ MATCH YOUR ACTUAL FILE NAMES */
 import InactiveWall from '../components/wall/InactiveWall';
 import ActiveWall from '../components/wall/ActiveWall';
 
@@ -38,7 +38,12 @@ export default function PrizeWheelPage() {
 
   /* ---------- LOAD WHEEL ---------- */
   async function loadWheel() {
-    if (!wheelId) return;
+    console.log('🧭 Params:', wheelId);
+
+    if (!wheelId) {
+      console.warn('⚠️ No wheelId found in URL');
+      return;
+    }
 
     const { data, error } = await supabase
       .from('prize_wheels')
@@ -53,12 +58,10 @@ export default function PrizeWheelPage() {
       .eq('id', wheelId)
       .maybeSingle();
 
-    if (error) {
-      console.error('❌ Error loading prize wheel:', error);
-    } else {
-      setWheel(data);
-    }
+    console.log('🎯 Loaded wheel data:', data);
+    if (error) console.error('❌ Error loading prize wheel:', error);
 
+    setWheel(data);
     setLoading(false);
   }
 
@@ -77,7 +80,7 @@ export default function PrizeWheelPage() {
           filter: `id=eq.${wheelId}`,
         },
         (payload) => {
-          console.log('🔄 Live update:', payload);
+          console.log('🔄 Live update received:', payload);
           setWheel(payload.new as PrizeWheelData);
         }
       )
@@ -90,6 +93,7 @@ export default function PrizeWheelPage() {
 
   /* ---------- LOADING STATE ---------- */
   if (loading) {
+    console.log('⏳ Loading Prize Wheel page...');
     return (
       <div className="flex items-center justify-center h-screen bg-black text-white text-2xl">
         Loading Prize Wheel...
@@ -97,14 +101,17 @@ export default function PrizeWheelPage() {
     );
   }
 
-  /* ---------- FALLBACK ---------- */
+  /* ---------- NOT FOUND ---------- */
   if (!wheel) {
+    console.log('🚫 Prize wheel not found or returned null');
     return (
       <div className="flex items-center justify-center h-screen bg-black text-white text-2xl">
         Prize Wheel Not Found
       </div>
     );
   }
+
+  console.log('✅ Rendering wheel with status:', wheel.status);
 
   /* ---------- RENDER ---------- */
   return (
