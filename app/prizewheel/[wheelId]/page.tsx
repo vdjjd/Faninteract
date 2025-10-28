@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { motion, AnimatePresence } from 'framer-motion';
 
-// ✅ Updated imports (new folder structure)
+// ✅ Correct import paths
 import InactiveWall from '../components/InactiveWall';
 import ActiveWall from '../components/ActiveWall';
 
