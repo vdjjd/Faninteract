@@ -173,10 +173,14 @@ export default function DashboardPage() {
   /* ⚙️ OPTIONS HANDLERS                                                       */
   /* -------------------------------------------------------------------------- */
   const handleBackgroundChange = async (table: string, id: string, newValue: string) => {
-    await supabase
-      .from(table)
-      .update({ background_value: newValue, updated_at: new Date().toISOString() })
-      .eq('id', id);
+    try {
+      await supabase
+        .from(table)
+        .update({ background_value: newValue, updated_at: new Date().toISOString() })
+        .eq('id', id);
+    } catch (error) {
+      console.error(`❌ Failed to update background for ${table}:`, error);
+    }
   };
 
   const showToast = (msg: string) => {
@@ -231,7 +235,7 @@ export default function DashboardPage() {
         wheels={wheels}
         host={host}
         refreshPrizeWheels={refreshWheels}
-        onOpenOptions={setSelectedWheel} // ✅ now opens modal
+        onOpenOptions={setSelectedWheel}
       />
 
       {/* ---------- MODALS ---------- */}
