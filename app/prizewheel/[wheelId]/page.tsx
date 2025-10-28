@@ -5,8 +5,9 @@ import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { motion, AnimatePresence } from 'framer-motion';
 
-import InactivePrizeWall from '@/components/wall/InactivePrizeWall';
-import ActivePrizeWall from '@/components/wall/ActivePrizeWall';
+// 👇 UPDATED IMPORT PATHS to match your folder structure
+import InactivePrizeWall from '../components/wall/InactiveWall';
+import ActivePrizeWall from '../components/wall/ActiveWall';
 
 /* ---------- Data Type ---------- */
 interface PrizeWheelData {
