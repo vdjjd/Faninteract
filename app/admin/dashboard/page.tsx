@@ -15,9 +15,13 @@ import PollGrid from './components/PollGrid';
 import PrizeWheelGrid from './components/PrizeWheelGrid';
 import OptionsModalFanWall from '@/components/OptionsModalFanWall';
 import OptionsModalPoll from '@/components/OptionsModalPoll';
+import OptionsModalPrizeWheel from '@/components/OptionsModalPrizeWheel';
 import HostProfilePanel from '@/components/HostProfilePanel';
 
 export default function DashboardPage() {
+  /* -------------------------------------------------------------------------- */
+  /* 📦 STATE                                                                  */
+  /* -------------------------------------------------------------------------- */
   const [host, setHost] = useState<any>(null);
   const [events, setEvents] = useState<any[]>([]);
   const [polls, setPolls] = useState<any[]>([]);
@@ -25,12 +29,15 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState<string | null>(null);
 
-  // 🔸 Modal States
+  // Modals
   const [isFanWallModalOpen, setFanWallModalOpen] = useState(false);
   const [isPollModalOpen, setPollModalOpen] = useState(false);
   const [isPrizeWheelModalOpen, setPrizeWheelModalOpen] = useState(false);
+
+  // Selected Items
   const [selectedWall, setSelectedWall] = useState<any | null>(null);
   const [selectedPoll, setSelectedPoll] = useState<any | null>(null);
+  const [selectedWheel, setSelectedWheel] = useState<any | null>(null);
 
   /* -------------------------------------------------------------------------- */
   /* 🧠 LOAD HOST + INITIAL DATA                                                */
@@ -39,11 +46,7 @@ export default function DashboardPage() {
     async function load() {
       try {
         const { data: { user }, error: authError } = await supabase.auth.getUser();
-        if (authError || !user) {
-          console.error('❌ Unable to get Supabase user:', authError?.message);
-          setLoading(false);
-          return;
-        }
+        if (authError || !user) throw new Error(authError?.message || 'No user');
 
         const { data: hostRow } = await supabase
           .from('hosts')
@@ -53,6 +56,7 @@ export default function DashboardPage() {
 
         let activeHost = hostRow;
 
+        // Auto-create host if missing
         if (!hostRow) {
           const { data: newHost, error: insertError } = await supabase
             .from('hosts')
@@ -60,10 +64,7 @@ export default function DashboardPage() {
               {
                 auth_id: user.id,
                 email: user.email,
-                username:
-                  user.user_metadata?.username ||
-                  user.email?.split('@')[0] ||
-                  null,
+                username: user.user_metadata?.username || user.email?.split('@')[0],
                 first_name: user.user_metadata?.first_name || null,
                 last_name: user.user_metadata?.last_name || null,
               },
@@ -71,19 +72,12 @@ export default function DashboardPage() {
             .select()
             .maybeSingle();
 
-          if (insertError) {
-            console.error('❌ Failed to auto-create host record:', insertError.message);
-          } else {
-            console.log('🆕 Auto-created host record for', user.email);
-            activeHost = newHost;
-          }
+          if (insertError) throw insertError;
+          console.log('🆕 Auto-created host record for', user.email);
+          activeHost = newHost;
         }
 
-        if (!activeHost) {
-          console.error('⚠️ No valid host record found or created.');
-          setLoading(false);
-          return;
-        }
+        if (!activeHost) throw new Error('No valid host found');
 
         setHost(activeHost);
 
@@ -102,7 +96,6 @@ export default function DashboardPage() {
         setLoading(false);
       }
     }
-
     load();
   }, []);
 
@@ -111,7 +104,6 @@ export default function DashboardPage() {
   /* -------------------------------------------------------------------------- */
   async function handleLogoUpload(file: File) {
     if (!host) return;
-
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
@@ -125,9 +117,8 @@ export default function DashboardPage() {
       const { data: publicUrlData } = supabase.storage
         .from('host-logos')
         .getPublicUrl(filePath);
-
       const logoUrl = publicUrlData?.publicUrl;
-      if (!logoUrl) throw new Error('❌ No public URL generated');
+      if (!logoUrl) throw new Error('No public URL generated');
 
       const { error: updateError } = await supabase
         .from('hosts')
@@ -145,30 +136,15 @@ export default function DashboardPage() {
   /* -------------------------------------------------------------------------- */
   /* 🔄 REFRESH HELPERS                                                         */
   /* -------------------------------------------------------------------------- */
-  async function refreshEvents() {
-    if (!host) return;
-    const updated = await getEventsByHost(host.id);
-    setEvents(updated);
-  }
-
-  async function refreshPolls() {
-    if (!host) return;
-    const updated = await getPollsByHost(host.id);
-    setPolls(updated);
-  }
-
-  async function refreshWheels() {
-    if (!host) return;
-    const updated = await getPrizeWheelsByHost(host.id);
-    setWheels(updated);
-  }
+  const refreshEvents = async () => host && setEvents(await getEventsByHost(host.id));
+  const refreshPolls = async () => host && setPolls(await getPollsByHost(host.id));
+  const refreshWheels = async () => host && setWheels(await getPrizeWheelsByHost(host.id));
 
   /* -------------------------------------------------------------------------- */
-  /* 📡 REALTIME SYNC (Fan Walls only for now)                                  */
+  /* 📡 REALTIME SYNC (Fan Walls)                                               */
   /* -------------------------------------------------------------------------- */
   useEffect(() => {
     if (!host) return;
-
     const channel = supabase
       .channel(`events-dashboard-${host.id}`)
       .on(
@@ -180,41 +156,33 @@ export default function DashboardPage() {
           filter: `host_id=eq.${host.id}`,
         },
         (payload) => {
-          const updatedEvent = payload.new;
+          const updated = payload.new;
           setEvents((prev) =>
-            prev.map((ev) =>
-              ev.id === updatedEvent.id ? { ...ev, ...updatedEvent } : ev
-            )
+            prev.map((e) => (e.id === updated.id ? { ...e, ...updated } : e))
           );
         }
       )
       .subscribe();
 
-    // ✅ FIX: don’t return async promise
     return () => {
       void supabase.removeChannel(channel);
     };
   }, [host]);
 
   /* -------------------------------------------------------------------------- */
-  /* ✳️ CREATE HANDLERS + TOASTS                                                */
+  /* ⚙️ OPTIONS HANDLERS                                                       */
   /* -------------------------------------------------------------------------- */
-  function handleCreateFanWall() {
-    setFanWallModalOpen(true);
-  }
+  const handleBackgroundChange = async (table: string, id: string, newValue: string) => {
+    await supabase
+      .from(table)
+      .update({ background_value: newValue, updated_at: new Date().toISOString() })
+      .eq('id', id);
+  };
 
-  function handleCreatePoll() {
-    setPollModalOpen(true);
-  }
-
-  function handleCreatePrizeWheel() {
-    setPrizeWheelModalOpen(true);
-  }
-
-  function showToast(msg: string) {
+  const showToast = (msg: string) => {
     setToast(msg);
     setTimeout(() => setToast(null), 3000);
-  }
+  };
 
   /* -------------------------------------------------------------------------- */
   /* ⏳ LOADING STATE                                                           */
@@ -232,7 +200,7 @@ export default function DashboardPage() {
   /* -------------------------------------------------------------------------- */
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#0a2540] via-[#1b2b44] to-black text-white flex flex-col items-center p-8">
-      {/* HEADER SECTION */}
+      {/* HEADER */}
       <div className="w-full flex items-center justify-between mb-6">
         <HostProfilePanel host={host} setHost={setHost} onLogoUpload={handleLogoUpload} />
         <h1 className="text-2xl font-bold text-center flex-1">FanInteract Dashboard</h1>
@@ -240,35 +208,33 @@ export default function DashboardPage() {
       </div>
 
       <DashboardHeader
-        onCreateFanWall={handleCreateFanWall}
-        onCreatePoll={handleCreatePoll}
-        onCreatePrizeWheel={handleCreatePrizeWheel}
+        onCreateFanWall={() => setFanWallModalOpen(true)}
+        onCreatePoll={() => setPollModalOpen(true)}
+        onCreatePrizeWheel={() => setPrizeWheelModalOpen(true)}
       />
 
       <FanWallGrid
         events={events}
         host={host}
         refreshEvents={refreshEvents}
-        onOpenOptions={(wall) => setSelectedWall(wall)}
+        onOpenOptions={setSelectedWall}
       />
 
       <PollGrid
         polls={polls}
         host={host}
         refreshPolls={refreshPolls}
-        onOpenOptions={(poll) => setSelectedPoll(poll)}
+        onOpenOptions={setSelectedPoll}
       />
 
       <PrizeWheelGrid
         wheels={wheels}
         host={host}
         refreshPrizeWheels={refreshWheels}
-        onOpenOptions={(wheel) =>
-          console.log('⚙️ Open options for Prize Wheel:', wheel)
-        }
+        onOpenOptions={setSelectedWheel} // ✅ now opens modal
       />
 
-      {/* MODALS */}
+      {/* ---------- MODALS ---------- */}
       <CreateFanWallModal
         isOpen={isFanWallModalOpen}
         onClose={() => setFanWallModalOpen(false)}
@@ -299,35 +265,46 @@ export default function DashboardPage() {
         }}
       />
 
+      {/* Fan Wall Options */}
       {selectedWall && (
         <OptionsModalFanWall
           event={selectedWall}
           hostId={host.id}
           onClose={() => setSelectedWall(null)}
-          onBackgroundChange={async (event, newValue) => {
-            await supabase.from('events').update({
-              background_value: newValue,
-              updated_at: new Date().toISOString(),
-            }).eq('id', event.id);
+          onBackgroundChange={async (event, val) => {
+            await handleBackgroundChange('events', event.id, val);
             await refreshEvents();
           }}
           refreshEvents={refreshEvents}
         />
       )}
 
+      {/* Poll Options */}
       {selectedPoll && (
         <OptionsModalPoll
           event={selectedPoll}
           hostId={host.id}
           onClose={() => setSelectedPoll(null)}
-          onBackgroundChange={async (event, newValue) => {
-            await supabase.from('polls').update({
-              background_value: newValue,
-              updated_at: new Date().toISOString(),
-            }).eq('id', event.id);
+          onBackgroundChange={async (event, val) => {
+            await handleBackgroundChange('polls', event.id, val);
             await refreshPolls();
           }}
           refreshEvents={refreshPolls}
+        />
+      )}
+
+      {/* ✅ Prize Wheel Options */}
+      {selectedWheel && (
+        <OptionsModalPrizeWheel
+          event={selectedWheel}
+          hostId={host.id}
+          onClose={() => setSelectedWheel(null)}
+          onBackgroundChange={async (wheel, val) => {
+            await handleBackgroundChange('prizewheels', wheel.id, val);
+            await refreshWheels();
+            showToast('✅ Prize Wheel updated!');
+          }}
+          refreshPrizeWheels={refreshWheels}
         />
       )}
 
