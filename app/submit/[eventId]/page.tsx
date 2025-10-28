@@ -34,7 +34,7 @@ export default function GuestSignupPage() {
       return;
     }
 
-    // Enforce: one of email or phone must be filled
+    // Require either email or phone
     if (!email.trim() && !phone.trim()) {
       alert('Please provide either an email or a phone number.');
       return;
@@ -45,7 +45,7 @@ export default function GuestSignupPage() {
 
     const deviceId = getDeviceId();
 
-    // Insert or upsert guest profile
+    // Upsert guest profile
     const { data: profileData, error: profileError } = await supabase
       .from('guest_profiles')
       .upsert(
@@ -69,7 +69,7 @@ export default function GuestSignupPage() {
       return;
     }
 
-    // Insert guest record linked to event
+    // Insert guest record linked to this event
     const { data: guestData, error: guestError } = await supabase
       .from('guests')
       .insert([
@@ -93,7 +93,7 @@ export default function GuestSignupPage() {
       return;
     }
 
-    // ✅ Save profile locally for post-page auto-fill
+    // ✅ Save guest profile locally for auto-fill
     localStorage.setItem(
       'guestProfile',
       JSON.stringify({
@@ -104,7 +104,7 @@ export default function GuestSignupPage() {
       })
     );
 
-    // Move to the post submission page
+    // Redirect to post submission page
     setTimeout(() => {
       window.location.href = `/submit/${eventUUID}/post`;
     }, 800);

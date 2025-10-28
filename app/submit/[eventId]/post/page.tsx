@@ -169,7 +169,7 @@ export default function GuestPostPage() {
         event_id: eventUUID,
         photo_url: publicUrl.publicUrl,
         message: message.trim(),
-        nickname: firstName.trim(),
+        first_name: firstName.trim(),
         status: 'pending',
       },
     ]);
