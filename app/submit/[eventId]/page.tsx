@@ -23,7 +23,7 @@ export default function GuestPostPage() {
   const [submitting, setSubmitting] = useState(false);
   const [fadeOut, setFadeOut] = useState(false);
 
-  /* ---------- Load event data ---------- */
+  // Load event data
   useEffect(() => {
     if (!eventUUID) {
       setLoadingEvent(false);
@@ -48,7 +48,7 @@ export default function GuestPostPage() {
     fetchEvent();
   }, [eventUUID]);
 
-  /* ---------- Load guest name from localStorage ---------- */
+  // Load guest name from localStorage to pre-fill firstName
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
@@ -97,7 +97,7 @@ export default function GuestPostPage() {
     );
   }
 
-  /* ---------- File Handling ---------- */
+  // File & cropping logic
   async function handleFileSelect(e: any) {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -156,7 +156,7 @@ export default function GuestPostPage() {
     });
   }
 
-  /* ---------- Submit ---------- */
+  // Submit handler
   async function handleSubmit(e: any) {
     e.preventDefault();
     if (!imageSrc || !message.trim()) {
