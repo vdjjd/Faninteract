@@ -44,6 +44,8 @@ export default function GuestPostPage() {
         parsed.first_name ||
         (parsed.form && parsed.form.firstName) ||
         '';
+      console.log('🔍 parsed.firstName:', parsed.firstName);
+      console.log('🔍 parsed.first_name:', parsed.first_name);
       if (name) {
         setFirstName(name.trim());
         console.log('✅ Auto-filled name:', name.trim());
@@ -324,6 +326,8 @@ export default function GuestPostPage() {
         {/* Auto-Filled First Name */}
         <input
           type="text"
+          name="first_name"
+          id="first_name"
           value={firstName}
           onChange={(e) => setFirstName(e.target.value)}
           style={{
@@ -343,6 +347,8 @@ export default function GuestPostPage() {
         />
 
         <textarea
+          name="message"
+          id="message"
           placeholder="Write a message..."
           value={message}
           onChange={(e) => setMessage(e.target.value)}
@@ -373,7 +379,7 @@ export default function GuestPostPage() {
             cursor: submitting ? 'not-allowed' : 'pointer',
           }}
         >
-          {submitting ? 'Submitting …' : 'Submit'}
+          {submitting ? 'Submitting…' : 'Submit'}
         </button>
       </form>
     </div>
