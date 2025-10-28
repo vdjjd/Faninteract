@@ -231,6 +231,7 @@ export default function DashboardPage() {
         />
       )}
 
+      {/* ✅ FIXED PRIZE WHEEL OPTIONS */}
       {selectedWheel && (
         <OptionsModalPrizeWheel
           event={selectedWheel}
