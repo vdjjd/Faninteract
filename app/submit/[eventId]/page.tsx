@@ -10,43 +10,65 @@ export default function GuestPostPage() {
   const { eventId } = useParams();
   const eventUUID = Array.isArray(eventId) ? eventId[0] : eventId;
 
+  const [event, setEvent] = useState<any>(null);
+  const [loadingEvent, setLoadingEvent] = useState(true);
+
   const [imageSrc, setImageSrc] = useState<string | null>(null);
   const [crop, setCrop] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
   const [croppedAreaPixels, setCroppedAreaPixels] = useState<any>(null);
+
   const [message, setMessage] = useState('');
   const [firstName, setFirstName] = useState('');
-  const [isNameLoaded, setIsNameLoaded] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [fadeOut, setFadeOut] = useState(false);
 
-  /* ---------- Load guest name from localStorage ---------- */
+  /* ---------- Load event data ---------- */
   useEffect(() => {
-    if (typeof window === 'undefined') {
-      setIsNameLoaded(true);
+    if (!eventUUID) {
+      setLoadingEvent(false);
       return;
     }
 
-    console.log('🔍 SubmitPage rendered for event:', eventUUID);
+    const fetchEvent = async () => {
+      const { data, error } = await supabase
+        .from('events')
+        .select('title, background_value, logo_url')
+        .eq('id', eventUUID)
+        .single();
+
+      if (error) {
+        console.error('❌ Error loading event:', error);
+      } else {
+        setEvent(data);
+      }
+      setLoadingEvent(false);
+    };
+
+    fetchEvent();
+  }, [eventUUID]);
+
+  /* ---------- Load guest name from localStorage ---------- */
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
     const stored = localStorage.getItem('guestProfile');
     console.log('🧪 [SubmitPage] guestProfile from localStorage:', stored);
 
     if (!stored) {
       console.warn('⚠ No guestProfile found in localStorage');
-      setIsNameLoaded(true);
       return;
     }
 
     try {
       const parsed = JSON.parse(stored);
-      console.log('🔍 Check stored object keys:', Object.keys(parsed));
+      console.log('🔍 stored keys:', Object.keys(parsed));
       console.log('🔍 parsed.firstName:', parsed.firstName);
       console.log('🔍 parsed.first_name:', parsed.first_name);
 
       const name =
         parsed.firstName ||
         parsed.first_name ||
-        (parsed.form && parsed.form.firstName) ||
         '';
       if (name) {
         setFirstName(name.trim());
@@ -56,10 +78,24 @@ export default function GuestPostPage() {
       }
     } catch (err) {
       console.error('❌ Error parsing guestProfile from localStorage:', err);
-    } finally {
-      setIsNameLoaded(true);
     }
-  }, [eventUUID]);
+  }, []);
+
+  if (loadingEvent) {
+    return (
+      <div style={{ background: '#000', color: '#fff', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <p>Loading event …</p>
+      </div>
+    );
+  }
+
+  if (!event) {
+    return (
+      <div style={{ background: '#000', color: '#fff', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <p>Event not found.</p>
+      </div>
+    );
+  }
 
   /* ---------- File Handling ---------- */
   async function handleFileSelect(e: any) {
@@ -142,6 +178,7 @@ export default function GuestPostPage() {
     const fileName = `submission_${Date.now()}.jpg`;
     const response = await fetch(croppedImg);
     const blob = await response.blob();
+
     const { error: uploadError } = await supabase.storage
       .from('uploads')
       .upload(fileName, blob, { contentType: 'image/jpeg' });
@@ -195,23 +232,6 @@ export default function GuestPostPage() {
     }, 800);
   }
 
-  if (!isNameLoaded) {
-    return (
-      <div style={{
-        background: '#000',
-        color: '#fff',
-        minHeight: '100vh',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: 20,
-        fontFamily: 'system-ui, sans-serif',
-      }}>
-        <p>Loading …</p>
-      </div>
-    );
-  }
-
   return (
     <div
       style={{
@@ -242,20 +262,22 @@ export default function GuestPostPage() {
           alignItems: 'center',
         }}
       >
-        <img
-          src="/faninteractlogo.png"
-          alt="FanInteract"
-          style={{
-            width: 140,
-            height: 140,
-            objectFit: 'contain',
-            marginBottom: 6,
-            filter: 'drop-shadow(0 0 8px rgba(255,255,255,0.4))',
-          }}
-        />
+        {event.logo_url && (
+          <img
+            src={event.logo_url}
+            alt="Event Logo"
+            style={{
+              width: 140,
+              height: 140,
+              objectFit: 'contain',
+              marginBottom: 6,
+              filter: 'drop-shadow(0 0 8px rgba(255,255,255,0.4))',
+            }}
+          />
+        )}
 
         <h2 style={{ marginBottom: 14, fontWeight: 700 }}>
-          Add Your Photo to the Wall
+          Add Your Photo to {event.title}
         </h2>
 
         <div
@@ -293,7 +315,8 @@ export default function GuestPostPage() {
             borderRadius: 12,
             overflow: 'hidden',
             marginBottom: 16,
-          }}>
+          }}
+        >
           {imageSrc ? (
             <Cropper
               image={imageSrc}
@@ -316,13 +339,13 @@ export default function GuestPostPage() {
                 justifyContent: 'center',
                 color: '#888',
                 fontSize: 14,
-              }}>
+              }}
+            >
               Take a photo or upload one to begin
             </div>
           )}
         </div>
 
-        {/* Auto-Filled First Name */}
         <input
           type="text"
           value={firstName}
@@ -343,7 +366,6 @@ export default function GuestPostPage() {
           placeholder="First Name"
         />
 
-        {/* Message Input */}
         <textarea
           placeholder="Write a message..."
           value={message}
@@ -373,7 +395,8 @@ export default function GuestPostPage() {
             padding: '12px 0',
             fontSize: 16,
             cursor: submitting ? 'not-allowed' : 'pointer',
-          }}>
+          }}
+        >
           {submitting ? 'Submitting …' : 'Submit'}
         </button>
       </form>
