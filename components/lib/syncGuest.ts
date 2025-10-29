@@ -39,24 +39,26 @@ export async function syncGuestProfile(
     .select()
     .single();
 
-  if (profileError) {
+  if (profileError || !profile) {
     console.error('❌ guest_profiles upsert error:', profileError);
     throw profileError;
   }
 
-  /* 2️⃣  Log or update guest_visits (if this table exists) */
+  /* 2️⃣  Log or update guest_visits (optional analytics) */
   try {
     const { error: visitError } = await supabase
       .from('guest_visits')
       .upsert(
         {
           guest_profile_id: profile.id,
-          host_id: hostId,
+          host_id: hostId || null,
         },
         { onConflict: 'guest_profile_id,host_id' }
       );
 
-    if (visitError) console.warn('⚠ guest_visits warning:', visitError.message);
+    if (visitError) {
+      console.warn('⚠ guest_visits warning:', visitError.message);
+    }
   } catch {
     console.warn('⚠ guest_visits table not found — skipping analytics.');
   }
@@ -78,7 +80,7 @@ export async function syncGuestProfile(
     .select()
     .single();
 
-  if (guestError) {
+  if (guestError || !guestRecord) {
     console.error('❌ guests upsert error:', guestError);
     throw guestError;
   }
