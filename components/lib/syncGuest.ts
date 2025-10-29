@@ -1,7 +1,7 @@
 import { supabase } from '@/lib/supabaseClient';
 
-/* ---------- Local identity helpers ---------- */
-function getOrCreateGuestDeviceId(): string {
+/* ---------- Local identity helper ---------- */
+export function getOrCreateGuestDeviceId(): string {
   let id = localStorage.getItem('faninteract_guest_id');
   if (!id) {
     id = crypto.randomUUID();
@@ -17,20 +17,22 @@ export async function syncGuestProfile(
   guestData: {
     first_name: string;
     last_name?: string;
-    nickname?: string;
+    email?: string;
+    phone?: string;
   }
 ) {
   const device_id = getOrCreateGuestDeviceId();
 
-  /* ----- 1. Create or update global guest_profiles ----- */
+  /* 1️⃣  Upsert guest_profiles (universal identity) */
   const { data: profile, error: profileError } = await supabase
     .from('guest_profiles')
     .upsert(
       {
         device_id,
-        first_name: guestData.first_name,
-        last_name: guestData.last_name || null,
-        nickname: guestData.nickname || null,
+        first_name: guestData.first_name.trim(),
+        last_name: guestData.last_name?.trim() || null,
+        email: guestData.email?.trim() || null,
+        phone: guestData.phone?.trim() || null,
       },
       { onConflict: 'device_id' }
     )
@@ -38,35 +40,37 @@ export async function syncGuestProfile(
     .single();
 
   if (profileError) {
-    console.error('❌ Error upserting guest_profile:', profileError);
+    console.error('❌ guest_profiles upsert error:', profileError);
     throw profileError;
   }
 
-  /* ----- 2. Log / update guest_visits for this host ----- */
-  const { error: visitError } = await supabase
-    .from('guest_visits')
-    .upsert(
-      {
-        guest_profile_id: profile.id,
-        host_id: hostId,
-      },
-      { onConflict: 'guest_profile_id,host_id' }
-    );
+  /* 2️⃣  Log or update guest_visits (if this table exists) */
+  try {
+    const { error: visitError } = await supabase
+      .from('guest_visits')
+      .upsert(
+        {
+          guest_profile_id: profile.id,
+          host_id: hostId,
+        },
+        { onConflict: 'guest_profile_id,host_id' }
+      );
 
-  if (visitError) {
-    console.error('❌ Error upserting guest_visit:', visitError);
-    throw visitError;
+    if (visitError) console.warn('⚠ guest_visits warning:', visitError.message);
+  } catch {
+    console.warn('⚠ guest_visits table not found — skipping analytics.');
   }
 
-  /* ----- 3. Upsert guests record for this event ----- */
+  /* 3️⃣  Upsert guests record for this event */
   const { data: guestRecord, error: guestError } = await supabase
     .from('guests')
     .upsert(
       {
         event_id: eventId,
-        first_name: guestData.first_name,
-        last_name: guestData.last_name || null,
-        nickname: guestData.nickname || null,
+        first_name: guestData.first_name.trim(),
+        last_name: guestData.last_name?.trim() || '',
+        email: guestData.email?.trim() || null,
+        phone: guestData.phone?.trim() || null,
         guest_profile_id: profile.id,
       },
       { onConflict: 'event_id,guest_profile_id' }
@@ -75,13 +79,22 @@ export async function syncGuestProfile(
     .single();
 
   if (guestError) {
-    console.error('❌ Error upserting guest:', guestError);
+    console.error('❌ guests upsert error:', guestError);
     throw guestError;
   }
 
-  return {
-    profile,       // global guest_profiles row
-    guestRecord,   // per-event guest row
-    device_id,     // local device identity
+  /* 4️⃣  Store unified local identity */
+  const profileObj = {
+    id: profile.id,
+    device_id,
+    first_name: profile.first_name,
+    last_name: profile.last_name,
+    guest_id: guestRecord.id,
   };
+
+  localStorage.setItem('faninteract_guest_profile', JSON.stringify(profileObj));
+
+  console.log('✅ Stored faninteract_guest_profile:', profileObj);
+
+  return { profile, guestRecord, device_id };
 }

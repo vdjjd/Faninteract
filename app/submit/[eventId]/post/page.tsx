@@ -6,8 +6,10 @@ import Cropper from 'react-easy-crop';
 import imageCompression from 'browser-image-compression';
 import { supabase } from '@/lib/supabaseClient';
 
-export default function GuestPostPage() {
+export default function FanZonePostPage() {
   const { eventId } = useParams();
+  const eventUUID = Array.isArray(eventId) ? eventId[0] : eventId;
+
   const [imageSrc, setImageSrc] = useState<string | null>(null);
   const [crop, setCrop] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
@@ -17,20 +19,34 @@ export default function GuestPostPage() {
   const [submitting, setSubmitting] = useState(false);
   const [fadeOut, setFadeOut] = useState(false);
 
-  /* ---------- Load guest name from localStorage ---------- */
+  /* ---------- Auto-Fill Name from guestInfo ---------- */
   useEffect(() => {
-    const guestData = localStorage.getItem('guestInfo');
-    if (guestData) {
-      try {
-        const parsed = JSON.parse(guestData);
-        if (parsed.firstName) setFirstName(parsed.firstName);
-      } catch (err) {
-        console.error('Error loading guest info:', err);
+    try {
+      const stored = localStorage.getItem('guestInfo');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (parsed.firstName) {
+          setFirstName(parsed.firstName.trim());
+          console.log('✅ Loaded first name:', parsed.firstName);
+          return;
+        }
       }
+
+      // fallback: try the universal key
+      const universal = localStorage.getItem('faninteract_guest_profile');
+      if (universal) {
+        const parsed = JSON.parse(universal);
+        if (parsed.first_name) {
+          setFirstName(parsed.first_name.trim());
+          console.log('✅ Loaded fallback first name:', parsed.first_name);
+        }
+      }
+    } catch (err) {
+      console.error('Error reading name from storage:', err);
     }
   }, []);
 
-  /* ---------- File Handling ---------- */
+  /* ---------- File Upload ---------- */
   async function handleFileSelect(e: any) {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -50,7 +66,6 @@ export default function GuestPostPage() {
     input.click();
   };
 
-  /* ---------- Crop Logic ---------- */
   const onCropComplete = useCallback((_: any, area: any) => {
     setCroppedAreaPixels(area);
   }, []);
@@ -93,20 +108,27 @@ export default function GuestPostPage() {
   /* ---------- Submit ---------- */
   async function handleSubmit(e: any) {
     e.preventDefault();
-    if (!imageSrc || !message.trim())
-      return alert('Please add a photo and message.');
+
+    if (!imageSrc || !message.trim() || !firstName.trim()) {
+      alert('Please add a photo, message, and ensure your name is set.');
+      return;
+    }
 
     setSubmitting(true);
-
-    // 🔹 Start fade-out animation
     setFadeOut(true);
 
     const croppedImg = await getCroppedImage();
-    if (!croppedImg) return alert('Error processing image.');
+    if (!croppedImg) {
+      alert('Error processing image.');
+      setSubmitting(false);
+      setFadeOut(false);
+      return;
+    }
 
     const fileName = `submission_${Date.now()}.jpg`;
     const response = await fetch(croppedImg);
     const blob = await response.blob();
+
     const { error: uploadError } = await supabase.storage
       .from('uploads')
       .upload(fileName, blob, { contentType: 'image/jpeg' });
@@ -124,24 +146,24 @@ export default function GuestPostPage() {
 
     const { error: insertError } = await supabase.from('submissions').insert([
       {
-        event_id: eventId,
+        event_id: eventUUID,
         photo_url: publicUrl.publicUrl,
         message: message.trim(),
-        nickname: firstName || 'Guest',
+        first_name: firstName.trim(),
         status: 'pending',
       },
     ]);
 
     if (insertError) {
       alert('Error submitting post.');
+      console.error('❌ Submission insert error:', insertError);
       setSubmitting(false);
       setFadeOut(false);
       return;
     }
 
-    // Wait for fade to finish before redirect
     setTimeout(() => {
-      window.location.href = `/thanks/${eventId}`;
+      window.location.href = `/thanks/${eventUUID}`;
     }, 800);
   }
 
@@ -176,23 +198,10 @@ export default function GuestPostPage() {
           alignItems: 'center',
         }}
       >
-        <img
-          src="/faninteractlogo.png"
-          alt="FanInteract"
-          style={{
-            width: 140,
-            height: 140,
-            objectFit: 'contain',
-            marginBottom: 6,
-            filter: 'drop-shadow(0 0 8px rgba(255,255,255,0.4))',
-          }}
-        />
-
         <h2 style={{ marginBottom: 14, fontWeight: 700 }}>
           Add Your Photo to the Wall
         </h2>
 
-        {/* Buttons Row */}
         <div
           style={{
             display: 'flex',
@@ -201,18 +210,12 @@ export default function GuestPostPage() {
             marginBottom: 12,
           }}
         >
-          <button
-            type="button"
-            onClick={handleCameraCapture}
-            style={buttonStyle}
-          >
+          <button type="button" onClick={handleCameraCapture} style={buttonStyle}>
             📷 Camera
           </button>
           <button
             type="button"
-            onClick={() =>
-              document.getElementById('file-input')?.click()
-            }
+            onClick={() => document.getElementById('file-input')?.click()}
             style={buttonStyle}
           >
             📁 Upload
@@ -226,7 +229,6 @@ export default function GuestPostPage() {
           />
         </div>
 
-        {/* Crop Box */}
         <div
           style={{
             position: 'relative',
@@ -267,7 +269,6 @@ export default function GuestPostPage() {
           )}
         </div>
 
-        {/* First Name (auto-filled + locked) */}
         <input
           type="text"
           value={firstName}
@@ -279,15 +280,15 @@ export default function GuestPostPage() {
             padding: 10,
             borderRadius: 8,
             border: '1px solid #666',
-            background: 'rgba(255,255,255,0.1)',
+            background: 'rgba(255,255,255,0.15)',
             color: '#fff',
             fontSize: 15,
             textAlign: 'center',
-            opacity: 0.7,
+            opacity: 0.8,
           }}
+          placeholder="First Name"
         />
 
-        {/* Message */}
         <textarea
           placeholder="Write a message..."
           value={message}
@@ -319,14 +320,13 @@ export default function GuestPostPage() {
             cursor: submitting ? 'not-allowed' : 'pointer',
           }}
         >
-          {submitting ? 'Submitting...' : 'Submit'}
+          {submitting ? 'Submitting…' : 'Submit'}
         </button>
       </form>
     </div>
   );
 }
 
-/* ---------- Styles ---------- */
 const buttonStyle: React.CSSProperties = {
   backgroundColor: '#1e90ff',
   border: 'none',

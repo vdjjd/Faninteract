@@ -1,10 +1,11 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
+import { syncGuestProfile } from '@/lib/syncGuest';
 
-export default function GuestInfoPage() {
+export default function GuestSignupPage() {
   const router = useRouter();
   const { eventId } = useParams();
   const eventUUID = Array.isArray(eventId) ? eventId[0] : eventId;
@@ -14,54 +15,17 @@ export default function GuestInfoPage() {
   const [submitting, setSubmitting] = useState(false);
   const [agree, setAgree] = useState(false);
   const [form, setForm] = useState({
-    firstName: '',
-    lastName: '',
+    first_name: '',
+    last_name: '',
     email: '',
     phone: '',
     age: '',
   });
   const [error, setError] = useState('');
 
-  /* ---------------- VERIFY EXISTING GUEST ---------------- */
+  /* ---------- Load Event Info ---------- */
   useEffect(() => {
-    async function verifyGuest() {
-      const stored = localStorage.getItem('guestInfo');
-      if (!stored) return;
-
-      try {
-        const guest = JSON.parse(stored);
-        if (!guest.firstName || !guest.lastName) return;
-
-        // ✅ Check if this guest exists for this event
-        const { data, error } = await supabase
-          .from('guests')
-          .select('id')
-          .eq('event_id', eventUUID)
-          .eq('first_name', guest.firstName)
-          .eq('last_name', guest.lastName)
-          .limit(1)
-          .maybeSingle();
-
-        if (data && !error) {
-          console.log('✅ Verified returning guest:', guest.firstName);
-          router.replace(`/submit/${eventUUID}/post`);
-        } else {
-          console.log('🧹 Clearing stale guest info.');
-          localStorage.removeItem('guestInfo');
-        }
-      } catch (err) {
-        console.error('Error verifying guest:', err);
-        localStorage.removeItem('guestInfo');
-      }
-    }
-    verifyGuest();
-  }, [eventUUID, router]);
-
-  /* ---------------- LOAD EVENT ---------------- */
-  useEffect(() => {
-    if (!eventUUID) return;
-
-    const fetchEvent = async () => {
+    async function fetchEvent() {
       const { data, error } = await supabase
         .from('events')
         .select('title, background_value, logo_url')
@@ -71,50 +35,32 @@ export default function GuestInfoPage() {
       if (error) console.error('Error loading event:', error);
       if (data) setEvent(data);
       setLoading(false);
-    };
-
+    }
     fetchEvent();
-
-    const ch = supabase
-      .channel(`events-${eventUUID}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'events',
-          filter: `id=eq.${eventUUID}`,
-        },
-        (payload) =>
-          setEvent((prev: any) =>
-            prev ? { ...prev, ...payload.new } : payload.new
-          )
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(ch);
-    };
   }, [eventUUID]);
 
-  /* ---------------- FORM HANDLERS ---------------- */
-  const handleChange = (e: any) =>
+  /* ---------- Handle Input Changes ---------- */
+  const handleChange = (e: any) => {
     setForm({ ...form, [e.target.name]: e.target.value });
+  };
 
-  const handleJoin = async (e: any) => {
+  /* ---------- Handle Submit ---------- */
+  const handleSubmit = async (e: any) => {
     e.preventDefault();
     setError('');
 
-    const { firstName, lastName, email, phone, age } = form;
+    const { first_name, last_name, email, phone, age } = form;
 
-    if (!firstName || !lastName) {
+    if (!first_name || !last_name) {
       setError('Please enter both your first and last name.');
       return;
     }
+
     if (!email && !phone) {
-      setError('Please provide either an email or phone number.');
+      setError('Please provide either an email or a phone number.');
       return;
     }
+
     if (!agree) {
       setError('You must agree to the Terms of Service to continue.');
       return;
@@ -122,76 +68,45 @@ export default function GuestInfoPage() {
 
     setSubmitting(true);
 
-    /* ---------- Create or find guest_profile ---------- */
-    let guestProfileId: string | null = null;
-
-    if (email || phone) {
-      const { data: existing, error: findError } = await supabase
-        .from('guest_profiles')
-        .select('id')
-        .or(`email.eq.${email},phone.eq.${phone}`)
-        .maybeSingle();
-
-      if (findError) console.error('Find guest_profile error:', findError);
-
-      if (existing) {
-        guestProfileId = existing.id;
-      } else {
-        const { data: newProfile, error: insertError } = await supabase
-          .from('guest_profiles')
-          .insert([
-            {
-              first_name: firstName.trim(),
-              last_name: lastName.trim(),
-              email: email?.trim() || null,
-              phone: phone?.trim() || null,
-            },
-          ])
-          .select()
-          .single();
-
-        if (insertError) console.error('Insert guest_profile error:', insertError);
-        guestProfileId = newProfile?.id || null;
-      }
-    }
-
-    /* ---------- Insert guest record for this event ---------- */
-    const { error: guestInsertError } = await supabase
-      .from('guests')
-      .insert([
+    try {
+      // 🔹 Use the new universal sync helper
+      const { profile } = await syncGuestProfile(
+        event?.host_id || '', // optional if host_id column exists
+        eventUUID,
         {
-          event_id: eventUUID,
-          guest_profile_id: guestProfileId, // 🔗 link to universal profile
-          first_name: firstName.trim(),
-          last_name: lastName.trim(),
-          email: email?.trim() || null,
-          phone: phone?.trim() || null,
-          age: age ? parseInt(age) : null,
-        },
-      ])
-      .select();
+          first_name,
+          last_name,
+          email,
+          phone,
+        }
+      );
 
-    if (guestInsertError) {
-      console.error('❌ Insert guest error:', guestInsertError);
+      // ✅ Store a simple local profile (for wall auto-fill)
+      localStorage.setItem(
+        'guestInfo',
+        JSON.stringify({
+          firstName: profile.first_name,
+          lastName: profile.last_name,
+          email: profile.email,
+          phone: profile.phone,
+          guest_profile_id: profile.id,
+        })
+      );
+
+      console.log('✅ Guest registered:', profile.first_name);
+      router.push(`/submit/${eventUUID}/post`);
+    } catch (err) {
+      console.error('❌ Guest signup error:', err);
       setError('Something went wrong. Please try again.');
+    } finally {
       setSubmitting(false);
-      return;
     }
-
-    // ✅ Save guest info locally (for next scans)
-    localStorage.setItem(
-      'guestInfo',
-      JSON.stringify({ ...form, guest_profile_id: guestProfileId, event_id: eventUUID })
-    );
-
-    // ✅ Redirect to submission page
-    router.push(`/submit/${eventUUID}/post`);
   };
 
   if (loading)
     return <p style={{ textAlign: 'center', color: '#fff' }}>Loading...</p>;
 
-  /* ---------------- RENDER ---------------- */
+  /* ---------- UI ---------- */
   return (
     <div
       style={{
@@ -200,13 +115,12 @@ export default function GuestInfoPage() {
         display: 'flex',
         justifyContent: 'center',
         alignItems: 'center',
-        padding: '20px',
+        padding: 20,
         fontFamily: 'system-ui, sans-serif',
       }}
     >
       <form
-        id="guest-form"
-        onSubmit={handleJoin}
+        onSubmit={handleSubmit}
         style={{
           width: '100%',
           maxWidth: 420,
@@ -218,42 +132,35 @@ export default function GuestInfoPage() {
           color: '#fff',
           textAlign: 'center',
           boxShadow: '0 0 30px rgba(0,0,0,0.6)',
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
         }}
       >
         <img
           src={event?.logo_url || '/faninteractlogo.png'}
           alt="Logo"
           style={{
-            width: 300,
-            height: 300,
+            width: 220,
+            height: 220,
             objectFit: 'contain',
-            marginBottom: -6,
+            marginBottom: -10,
             marginTop: -20,
-            filter: 'drop-shadow(0 0 14px rgba(255,255,255,0.3))',
+            filter: 'drop-shadow(0 0 12px rgba(255,255,255,0.3))',
           }}
         />
 
         <h2
           style={{
-            fontSize: 'clamp(1.5rem, 2.5vw, 2.2rem)',
-            marginTop: -12,
-            marginBottom: 10,
+            fontSize: 'clamp(1.4rem, 2.5vw, 2.1rem)',
+            marginTop: -10,
+            marginBottom: 12,
             fontWeight: 700,
           }}
         >
-          {event?.title || 'FanInteract Wall'}
+          {event?.title || 'Join the Fan Zone Wall'}
         </h2>
 
-        <p style={{ fontSize: 14, color: '#ddd', marginBottom: 20 }}>
-          Please complete the fields below to join the wall.
-        </p>
-
         {[
-          { name: 'firstName', placeholder: 'First Name' },
-          { name: 'lastName', placeholder: 'Last Name' },
+          { name: 'first_name', placeholder: 'First Name *' },
+          { name: 'last_name', placeholder: 'Last Name *' },
           { name: 'email', placeholder: 'Email (optional)' },
           { name: 'phone', placeholder: 'Phone (optional)' },
           { name: 'age', placeholder: 'Age (optional)', type: 'number' },
