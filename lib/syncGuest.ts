@@ -1,24 +1,25 @@
-// /lib/syncGuest.ts
 import { supabase } from '@/lib/supabaseClient';
 
-/* -------------------------
-   Get or create device ID
--------------------------- */
+/* -------------------------------------------------------------------------- */
+/* 🧩 1. Device ID helper                                                      */
+/* -------------------------------------------------------------------------- */
 export function getOrCreateGuestDeviceId(): string {
-  let deviceId = localStorage.getItem('faninteract_device_id');
-  if (!deviceId) {
-    deviceId = crypto.randomUUID();
-    localStorage.setItem('faninteract_device_id', deviceId);
-    console.log('🧠 New device_id created:', deviceId);
+  if (typeof window === 'undefined') return 'server-runtime';
+
+  let device_id = localStorage.getItem('guest_device_id');
+  if (!device_id) {
+    device_id = crypto.randomUUID();
+    localStorage.setItem('guest_device_id', device_id);
+    console.log('🆕 Created new device_id:', device_id);
   } else {
-    console.log('🔁 Existing device_id:', deviceId);
+    console.log('♻️ Using existing device_id:', device_id);
   }
-  return deviceId;
+  return device_id;
 }
 
-/* -------------------------
-   Sync Guest Profile ONLY
--------------------------- */
+/* -------------------------------------------------------------------------- */
+/* 🧠 2. Guest profile sync helper (NO guest table access)                     */
+/* -------------------------------------------------------------------------- */
 export async function syncGuestProfile(
   hostId: string,
   eventId: string,
@@ -29,28 +30,32 @@ export async function syncGuestProfile(
     phone?: string;
   }
 ) {
-  const deviceId = getOrCreateGuestDeviceId();
-  console.log('🧠 syncGuestProfile →', { deviceId, guestData });
+  const device_id = getOrCreateGuestDeviceId();
+  console.log('🧠 syncGuestProfile → guest_profiles only', {
+    hostId,
+    eventId,
+    device_id,
+    guestData,
+  });
 
-  // Step 1️⃣ Check if profile already exists
-  const { data: existingProfile, error: checkError } = await supabase
+  // ✅ Step 1: find existing guest_profile by device_id
+  const { data: existingProfile, error: findError } = await supabase
     .from('guest_profiles')
     .select('*')
-    .eq('device_id', deviceId)
+    .eq('device_id', device_id)
     .maybeSingle();
 
-  if (checkError) {
-    console.error('❌ guest_profiles check error:', checkError);
-  }
+  if (findError) throw new Error(`Find guest_profile failed: ${findError.message}`);
 
-  // Step 2️⃣ Create or update
   let profile = existingProfile;
+
+  // ✅ Step 2: insert or update guest_profiles
   if (!profile) {
     const { data: newProfile, error: insertError } = await supabase
       .from('guest_profiles')
       .insert([
         {
-          device_id: deviceId,
+          device_id,
           first_name: guestData.first_name,
           last_name: guestData.last_name,
           email: guestData.email,
@@ -60,16 +65,27 @@ export async function syncGuestProfile(
       .select()
       .single();
 
-    if (insertError) {
-      console.error('❌ Insert guest_profile failed:', insertError);
-      throw insertError;
-    }
-
+    if (insertError) throw new Error(`Insert guest_profile failed: ${insertError.message}`);
     profile = newProfile;
-    console.log('✅ Inserted guest_profile:', profile);
+    console.log('✅ Created new guest_profile:', profile);
   } else {
-    console.log('♻️ Existing profile found:', profile);
+    const { data: updatedProfile, error: updateError } = await supabase
+      .from('guest_profiles')
+      .update({
+        first_name: guestData.first_name,
+        last_name: guestData.last_name,
+        email: guestData.email,
+        phone: guestData.phone,
+      })
+      .eq('device_id', device_id)
+      .select()
+      .single();
+
+    if (updateError) throw new Error(`Update guest_profile failed: ${updateError.message}`);
+    profile = updatedProfile;
+    console.log('♻️ Updated guest_profile:', profile);
   }
 
+  // ✅ Step 3: return guest profile only
   return { profile };
 }

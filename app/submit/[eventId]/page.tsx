@@ -3,12 +3,16 @@
 import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
-import { getOrCreateGuestDeviceId } from '@/lib/syncGuest';
+
+/**
+ * ⚙️ This page ONLY writes to guest_profiles.
+ * No guest table logic exists anywhere in this file.
+ */
 
 export default function GuestSignupPage() {
   const router = useRouter();
   const { eventId } = useParams();
-  const eventUUID = (Array.isArray(eventId) ? eventId[0] : eventId) as string;
+  const eventUUID = Array.isArray(eventId) ? eventId[0] : eventId;
 
   const [event, setEvent] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -23,12 +27,12 @@ export default function GuestSignupPage() {
   });
   const [error, setError] = useState('');
 
-  /* ---------- 🧠 Load Event Info ---------- */
+  /* ---------- Load Event Info ---------- */
   useEffect(() => {
     async function fetchEvent() {
       const { data, error } = await supabase
         .from('events')
-        .select('id, title, background_value, host_id')
+        .select('id, title, background_value')
         .eq('id', eventUUID)
         .single();
 
@@ -39,12 +43,26 @@ export default function GuestSignupPage() {
     if (eventUUID) fetchEvent();
   }, [eventUUID]);
 
-  /* ---------- Handle Form Input ---------- */
+  /* ---------- Get or Create Device ID ---------- */
+  const getDeviceId = () => {
+    if (typeof window === 'undefined') return 'server';
+    let device_id = localStorage.getItem('guest_device_id');
+    if (!device_id) {
+      device_id = crypto.randomUUID();
+      localStorage.setItem('guest_device_id', device_id);
+      console.log('🆕 Created new device_id:', device_id);
+    } else {
+      console.log('♻️ Existing device_id:', device_id);
+    }
+    return device_id;
+  };
+
+  /* ---------- Handle Form Change ---------- */
   const handleChange = (e: any) => {
     setForm({ ...form, [e.target.name]: e.target.value });
   };
 
-  /* ---------- Submit Handler ---------- */
+  /* ---------- Submit ---------- */
   const handleSubmit = async (e: any) => {
     e.preventDefault();
     setError('');
@@ -67,11 +85,9 @@ export default function GuestSignupPage() {
     setSubmitting(true);
 
     try {
-      // ✅ Get or create device ID
-      const device_id = getOrCreateGuestDeviceId();
-      console.log('🧠 Using device_id:', device_id);
+      const device_id = getDeviceId();
 
-      // ✅ Try to find existing guest_profile
+      // 🔹 Insert or update guest_profiles ONLY
       const { data: existingProfile } = await supabase
         .from('guest_profiles')
         .select('*')
@@ -80,7 +96,6 @@ export default function GuestSignupPage() {
 
       let profile = existingProfile;
 
-      // ✅ If not found, insert new one
       if (!profile) {
         const { data: inserted, error: insertError } = await supabase
           .from('guest_profiles')
@@ -96,17 +111,28 @@ export default function GuestSignupPage() {
           .select()
           .single();
 
-        if (insertError) {
-          console.error('❌ Insert error:', insertError);
-          throw insertError;
-        }
+        if (insertError) throw insertError;
         profile = inserted;
         console.log('✅ Created new guest_profile:', profile);
       } else {
-        console.log('♻️ Existing guest_profile found:', profile);
+        const { data: updated, error: updateError } = await supabase
+          .from('guest_profiles')
+          .update({
+            first_name,
+            last_name,
+            email,
+            phone,
+          })
+          .eq('device_id', device_id)
+          .select()
+          .single();
+
+        if (updateError) throw updateError;
+        profile = updated;
+        console.log('♻️ Updated existing guest_profile:', profile);
       }
 
-      // ✅ Save locally for later use (post page autofill)
+      // ✅ Save to local storage
       localStorage.setItem(
         'guestInfo',
         JSON.stringify({
@@ -118,12 +144,12 @@ export default function GuestSignupPage() {
         })
       );
 
-      console.log('✅ guest_profiles entry written successfully');
+      console.log('🎯 guest_profiles written successfully');
 
-      // ✅ Go to the Fan Zone post page
+      // ✅ Redirect to photo/message post page
       router.push(`/submit/${eventUUID}/post`);
-    } catch (err) {
-      console.error('❌ Guest signup error:', err);
+    } catch (err: any) {
+      console.error('❌ Insert guest_profile failed:', err.message || err);
       setError('Something went wrong. Please try again.');
     } finally {
       setSubmitting(false);
