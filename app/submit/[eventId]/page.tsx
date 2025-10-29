@@ -8,7 +8,9 @@ import { syncGuestProfile } from '@/lib/syncGuest';
 export default function GuestSignupPage() {
   const router = useRouter();
   const { eventId } = useParams();
-  const eventUUID = Array.isArray(eventId) ? eventId[0] : eventId;
+
+  // ✅ Stronger TypeScript-safe version
+  const eventUUID = (Array.isArray(eventId) ? eventId[0] : eventId) as string;
 
   const [event, setEvent] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -28,7 +30,7 @@ export default function GuestSignupPage() {
     async function fetchEvent() {
       const { data, error } = await supabase
         .from('events')
-        .select('title, background_value, logo_url')
+        .select('title, background_value, logo_url, host_id')
         .eq('id', eventUUID)
         .single();
 
@@ -69,9 +71,9 @@ export default function GuestSignupPage() {
     setSubmitting(true);
 
     try {
-      // 🔹 Use the new universal sync helper
+      // 🔹 Use the universal sync helper
       const { profile } = await syncGuestProfile(
-        event?.host_id || '', // optional if host_id column exists
+        event?.host_id || '',
         eventUUID,
         {
           first_name,
