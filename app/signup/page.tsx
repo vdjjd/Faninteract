@@ -1,208 +1,181 @@
-'use client'
+'use client';
 
-import { useState } from 'react'
-import { supabase } from '@/lib/supabaseClient'
-import { useRouter } from 'next/navigation'
+import { useState } from 'react';
+import { supabase } from '@/lib/supabaseClient';
+import { cn } from "../../lib/utils";
 
 export default function SignUpPage() {
-  const router = useRouter()
-  const [firstName, setFirstName] = useState('')
-  const [lastName, setLastName] = useState('')
-  const [username, setUsername] = useState('')
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [showPopup, setShowPopup] = useState(false)
+  const [accountType, setAccountType] = useState<'master' | 'host'>('host');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [companyName, setCompanyName] = useState('');
+  const [contactName, setContactName] = useState('');
+  const [venueName, setVenueName] = useState('');
+  const [username, setUsername] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState('');
 
   const handleSignUp = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setError(null)
-    setLoading(true)
+    e.preventDefault();
+    setMessage('');
+    setLoading(true);
 
     try {
-      // ✅ Step 1: Create Supabase Auth user
+      // ✅ Create user in Supabase Auth
       const { data, error: signUpError } = await supabase.auth.signUp({
         email,
         password,
-        options: {
-          emailRedirectTo: 'https://www.faninteract.com/login', // ✅ live domain
-        },
-      })
+      });
+      if (signUpError) throw signUpError;
+      const userId = data.user?.id;
+      if (!userId) throw new Error('No user ID returned from Supabase.');
 
-      if (signUpError) throw signUpError
-      const userId = data.user?.id
-      if (!userId) throw new Error('No user ID returned from Supabase.')
-
-      // ✅ Step 2: Insert into hosts table
-      const { error: insertError } = await supabase.from('hosts').insert([
-        {
-          id: userId,
-          first_name: firstName,
-          last_name: lastName,
-          username,
-          email,
-        },
-      ])
-
-      if (insertError) throw insertError
-
-      // ✅ Step 3: Show popup
-      setShowPopup(true)
+      if (accountType === 'master') {
+        // ✅ Insert into master_accounts
+        const { error } = await supabase.from('master_accounts').insert([
+          {
+            id: userId,
+            company_name: companyName,
+            contact_name: contactName,
+            contact_email: email,
+            role: 'master',
+          },
+        ]);
+        if (error) throw error;
+        setMessage('✅ Master account created! Please verify your email.');
+      } else {
+        // ✅ Insert into hosts
+        const { error } = await supabase.from('hosts').insert([
+          {
+            id: userId,
+            username,
+            venue_name: venueName,
+            email,
+            role: 'host',
+          },
+        ]);
+        if (error) throw error;
+        setMessage('✅ Host account created! Please verify your email.');
+      }
     } catch (err: any) {
-      console.error('Signup error:', err.message)
-      setError(err.message)
+      console.error(err);
+      setMessage(`❌ Error: ${err.message}`);
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   return (
-    <div style={pageStyle}>
-      <h1>Host Sign Up</h1>
+    <div className={cn('min-h-screen', 'flex', 'flex-col', 'items-center', 'justify-center', 'bg-[linear-gradient(135deg,#0a2540,#1b2b44,#000000)]', 'text-white', 'p-6')}>
+      <h1 className={cn('text-4xl', 'font-bold', 'mb-6')}>Create Your Account</h1>
 
-      <form onSubmit={handleSignUp} style={formStyle}>
-        {/* ✅ Corrected order */}
-        <input
-          type="text"
-          placeholder="First Name"
-          value={firstName}
-          onChange={(e) => setFirstName(e.target.value)}
-          style={inputStyle}
-          required
-        />
-        <input
-          type="text"
-          placeholder="Last Name"
-          value={lastName}
-          onChange={(e) => setLastName(e.target.value)}
-          style={inputStyle}
-          required
-        />
+      <form
+        onSubmit={handleSignUp}
+        className={cn('w-full', 'max-w-md', 'bg-[#0b111d]', 'p-8', 'rounded-2xl', 'border', 'border-blue-900/40', 'shadow-lg', 'space-y-4')}
+      >
+        {/* Account Type Selection */}
+        <div className={cn('flex', 'justify-center', 'gap-4', 'mb-4')}>
+          <label className={cn('flex', 'items-center', 'gap-2', 'cursor-pointer')}>
+            <input
+              type="radio"
+              name="accountType"
+              value="host"
+              checked={accountType === 'host'}
+              onChange={() => setAccountType('host')}
+              className="accent-sky-500"
+            />
+            Host Account
+          </label>
+          <label className={cn('flex', 'items-center', 'gap-2', 'cursor-pointer')}>
+            <input
+              type="radio"
+              name="accountType"
+              value="master"
+              checked={accountType === 'master'}
+              onChange={() => setAccountType('master')}
+              className="accent-sky-500"
+            />
+            Master Account
+          </label>
+        </div>
+
+        {accountType === 'master' ? (
+          <>
+            <input
+              type="text"
+              placeholder="Company Name"
+              value={companyName}
+              onChange={(e) => setCompanyName(e.target.value)}
+              className={cn('w-full', 'p-3', 'rounded-md', 'bg-[#1b2b44]', 'border', 'border-blue-900/40')}
+              required
+            />
+            <input
+              type="text"
+              placeholder="Contact Name"
+              value={contactName}
+              onChange={(e) => setContactName(e.target.value)}
+              className={cn('w-full', 'p-3', 'rounded-md', 'bg-[#1b2b44]', 'border', 'border-blue-900/40')}
+              required
+            />
+          </>
+        ) : (
+          <>
+            <input
+              type="text"
+              placeholder="Venue Name"
+              value={venueName}
+              onChange={(e) => setVenueName(e.target.value)}
+              className={cn('w-full', 'p-3', 'rounded-md', 'bg-[#1b2b44]', 'border', 'border-blue-900/40')}
+              required
+            />
+            <input
+              type="text"
+              placeholder="Username"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              className={cn('w-full', 'p-3', 'rounded-md', 'bg-[#1b2b44]', 'border', 'border-blue-900/40')}
+              required
+            />
+          </>
+        )}
+
         <input
           type="email"
           placeholder="Email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          style={inputStyle}
+          className={cn('w-full', 'p-3', 'rounded-md', 'bg-[#1b2b44]', 'border', 'border-blue-900/40')}
           required
         />
-        <input
-          type="text"
-          placeholder="Username"
-          value={username}
-          onChange={(e) => setUsername(e.target.value)}
-          style={inputStyle}
-          required
-        />
+
         <input
           type="password"
           placeholder="Password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          style={inputStyle}
+          className={cn('w-full', 'p-3', 'rounded-md', 'bg-[#1b2b44]', 'border', 'border-blue-900/40')}
           required
         />
-        <button disabled={loading} style={buttonStyle}>
+
+        <button
+          type="submit"
+          disabled={loading}
+          className={cn('w-full', 'bg-gradient-to-r', 'from-sky-500', 'to-blue-600', 'py-3', 'rounded-lg', 'font-semibold', 'shadow-md', 'hover:scale-105', 'transition-transform')}
+        >
           {loading ? 'Creating Account...' : 'Sign Up'}
         </button>
-        {error && <p style={{ color: 'red', marginTop: '10px' }}>{error}</p>}
+
+        {message && (
+          <p className={cn('text-center', 'mt-4', 'text-sm', 'text-gray-300')}>{message}</p>
+        )}
       </form>
 
-      <p>
+      <p className={cn('mt-6', 'text-gray-400')}>
         Already have an account?{' '}
-        <a href="/login" style={{ color: '#1e90ff' }}>
+        <a href="/login" className={cn('text-sky-400', 'hover:underline')}>
           Log in
         </a>
       </p>
-
-      {/* 🔔 Popup for email verification */}
-      {showPopup && (
-        <div style={overlayStyle}>
-          <div style={popupStyle}>
-            <h2 style={{ color: '#5cc9ff', marginBottom: '10px' }}>
-              Verification Sent
-            </h2>
-            <p style={{ lineHeight: 1.5 }}>
-              A verification link has been sent to <strong>{email}</strong>.
-              <br />
-              Click the link in your email to verify your account, then log in
-              with your username and password.
-            </p>
-            <button
-              style={{
-                ...buttonStyle,
-                marginTop: '20px',
-                backgroundColor: '#5cc9ff',
-              }}
-              onClick={() => {
-                setShowPopup(false)
-                router.push('/login')
-              }}
-            >
-              OK
-            </button>
-          </div>
-        </div>
-      )}
     </div>
-  )
-}
-
-/* ---------- Styles ---------- */
-
-const pageStyle: React.CSSProperties = {
-  display: 'flex',
-  flexDirection: 'column',
-  alignItems: 'center',
-  justifyContent: 'center',
-  minHeight: '100vh',
-  background: 'linear-gradient(135deg,#0a2540,#1b2b44,#000000)',
-  color: 'white',
-}
-
-const formStyle: React.CSSProperties = {
-  display: 'flex',
-  flexDirection: 'column',
-  gap: '10px',
-  width: '300px',
-}
-
-const inputStyle: React.CSSProperties = {
-  padding: '10px',
-  borderRadius: '8px',
-  border: '1px solid #333',
-  backgroundColor: '#1a1a1a',
-  color: 'white',
-}
-
-const buttonStyle: React.CSSProperties = {
-  padding: '10px',
-  borderRadius: '8px',
-  border: 'none',
-  backgroundColor: '#1e90ff',
-  color: 'white',
-  fontWeight: 600,
-  cursor: 'pointer',
-}
-
-const overlayStyle: React.CSSProperties = {
-  position: 'fixed',
-  inset: 0,
-  backgroundColor: 'rgba(0,0,0,0.8)',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  zIndex: 1000,
-}
-
-const popupStyle: React.CSSProperties = {
-  backgroundColor: '#0d1625',
-  border: '1px solid #1e90ff',
-  borderRadius: '12px',
-  padding: '30px',
-  width: '90%',
-  maxWidth: '400px',
-  textAlign: 'center',
-  boxShadow: '0 0 25px rgba(56,189,248,0.3)',
+  );
 }
