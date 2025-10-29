@@ -84,7 +84,7 @@ export default function GuestSignupPage() {
 );
 
       console.log('✅ guest_profiles entry:', profile);
-      console.log('✅ guests entry:', guestRecord);
+   
 
       // ✅ Store local info for post-page autofill
       localStorage.setItem(
