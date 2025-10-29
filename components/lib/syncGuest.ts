@@ -2,7 +2,7 @@ import { supabase } from '@/lib/supabaseClient';
 
 /* ---------- Device ID Helper ---------- */
 export function getOrCreateGuestDeviceId(): string {
-  // Try to reuse existing device_id
+  if (typeof window === 'undefined') return 'server-runtime'; // prevents build errors
   let device_id = localStorage.getItem('guest_device_id');
   if (!device_id) {
     device_id = crypto.randomUUID();
@@ -29,19 +29,15 @@ export async function syncGuestProfile(
 
   console.log('🧠 syncGuestProfile →', { hostId, eventId, device_id, guestData });
 
-  /* --- Step 1: Ensure guest_profiles record --- */
-  const { data: existingProfile, error: fetchError } = await supabase
+  // --- Step 1: create or find profile ---
+  const { data: existingProfile } = await supabase
     .from('guest_profiles')
     .select('*')
     .eq('device_id', device_id)
     .maybeSingle();
 
-  if (fetchError) throw new Error(`Fetch guest_profile failed: ${fetchError.message}`);
-
   let profile = existingProfile;
-
   if (!profile) {
-    console.log('🆕 Creating new guest_profile...');
     const { data: newProfile, error: insertError } = await supabase
       .from('guest_profiles')
       .insert([
@@ -58,11 +54,9 @@ export async function syncGuestProfile(
 
     if (insertError) throw new Error(`Insert guest_profile failed: ${insertError.message}`);
     profile = newProfile;
-  } else {
-    console.log('✅ Found existing guest_profile:', profile.id);
   }
 
-  /* --- Step 2: Ensure guests event link --- */
+  // --- Step 2: link to guests table ---
   const { data: existingGuest } = await supabase
     .from('guests')
     .select('*')
@@ -71,9 +65,7 @@ export async function syncGuestProfile(
     .maybeSingle();
 
   let guestRecord = existingGuest;
-
   if (!guestRecord) {
-    console.log('🆕 Linking guest to event...');
     const { data: newGuest, error: linkError } = await supabase
       .from('guests')
       .insert([
@@ -89,10 +81,8 @@ export async function syncGuestProfile(
       .select()
       .single();
 
-    if (linkError) throw new Error(`Insert guest record failed: ${linkError.message}`);
+    if (linkError) throw new Error(`Insert guest failed: ${linkError.message}`);
     guestRecord = newGuest;
-  } else {
-    console.log('✅ Existing guest link found:', guestRecord.id);
   }
 
   return { profile, guestRecord };
