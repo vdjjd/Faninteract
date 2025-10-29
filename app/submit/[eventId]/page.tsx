@@ -3,12 +3,35 @@
 import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
-import { getOrCreateGuestDeviceId } from '@/lib/syncGuest'; // ✅ use shared device helper
 
-/**
- * ⚙️ This page ONLY writes to guest_profiles.
- * It does not touch the guests table.
- */
+/* -------------------------------------------------------------------------- */
+/* ✅ FIXED: Local helper for safe device ID                                  */
+/* -------------------------------------------------------------------------- */
+function getOrCreateGuestDeviceId(): string | null {
+  if (typeof window === 'undefined') {
+    console.warn('⚠️ getOrCreateGuestDeviceId called on server');
+    return null;
+  }
+
+  try {
+    let device_id = localStorage.getItem('guest_device_id');
+    if (!device_id) {
+      device_id = crypto.randomUUID();
+      localStorage.setItem('guest_device_id', device_id);
+      console.log('🆕 Created new device_id:', device_id);
+    } else {
+      console.log('♻️ Using existing device_id:', device_id);
+    }
+    return device_id;
+  } catch (err) {
+    console.error('❌ Error generating device_id:', err);
+    return null;
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/* 🎯 Guest Signup Page — Writes ONLY to guest_profiles                       */
+/* -------------------------------------------------------------------------- */
 export default function GuestSignupPage() {
   const router = useRouter();
   const { eventId } = useParams();
@@ -43,6 +66,13 @@ export default function GuestSignupPage() {
     if (eventUUID) fetchEvent();
   }, [eventUUID]);
 
+  /* ---------- Ensure Device ID Exists ---------- */
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      getOrCreateGuestDeviceId();
+    }
+  }, []);
+
   /* ---------- Handle Form Change ---------- */
   const handleChange = (e: any) => {
     setForm({ ...form, [e.target.name]: e.target.value });
@@ -68,13 +98,16 @@ export default function GuestSignupPage() {
       return;
     }
 
+    const device_id = getOrCreateGuestDeviceId();
+    if (!device_id) {
+      setError('Could not get device ID. Please refresh and try again.');
+      return;
+    }
+
     setSubmitting(true);
 
     try {
-      // ✅ Get device ID (shared universal identifier)
-      const device_id = getOrCreateGuestDeviceId();
-
-      // ✅ Find existing guest_profile
+      // ✅ Check if guest_profile exists
       const { data: existingProfile, error: findError } = await supabase
         .from('guest_profiles')
         .select('*')
@@ -82,11 +115,10 @@ export default function GuestSignupPage() {
         .maybeSingle();
 
       if (findError) throw findError;
-
       let profile = existingProfile;
 
-      // ✅ Create or update
       if (!profile) {
+        // ✅ Create new guest_profile
         const { data: inserted, error: insertError } = await supabase
           .from('guest_profiles')
           .insert([
@@ -105,6 +137,7 @@ export default function GuestSignupPage() {
         profile = inserted;
         console.log('✅ Created new guest_profile:', profile);
       } else {
+        // ✅ Update existing guest_profile
         const { data: updated, error: updateError } = await supabase
           .from('guest_profiles')
           .update({
@@ -122,7 +155,7 @@ export default function GuestSignupPage() {
         console.log('♻️ Updated guest_profile:', profile);
       }
 
-      // ✅ Save to local storage
+      // ✅ Save locally
       localStorage.setItem(
         'guestInfo',
         JSON.stringify({
@@ -136,7 +169,7 @@ export default function GuestSignupPage() {
 
       console.log('🎯 guest_profiles write successful');
 
-      // ✅ Redirect to Fan Zone Wall post page
+      // ✅ Redirect to post page
       router.push(`/submit/${eventUUID}/post`);
     } catch (err: any) {
       console.error('❌ guest_profile write failed:', err.message || err);
