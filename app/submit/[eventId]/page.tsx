@@ -50,12 +50,12 @@ export default function GuestSignupPage() {
   });
   const [error, setError] = useState('');
 
-  /* ---------- Load Event Info ---------- */
+  /* ---------- Load Event Info (includes host_id) ---------- */
   useEffect(() => {
     async function fetchEvent() {
       const { data, error } = await supabase
         .from('events')
-        .select('id, title, background_value')
+        .select('id, title, background_value, host_id')
         .eq('id', eventUUID)
         .single();
 
@@ -107,7 +107,7 @@ export default function GuestSignupPage() {
     setSubmitting(true);
 
     try {
-      // ✅ Check if guest_profile exists
+      // ✅ Check for existing profile
       const { data: existingProfile, error: findError } = await supabase
         .from('guest_profiles')
         .select('*')
@@ -118,11 +118,12 @@ export default function GuestSignupPage() {
       let profile = existingProfile;
 
       if (!profile) {
-        // ✅ Create new guest_profile
+        // ✅ Create new guest_profile (includes host_id)
         const { data: inserted, error: insertError } = await supabase
           .from('guest_profiles')
           .insert([
             {
+              host_id: event?.host_id || null, // 👈 Added host link
               device_id,
               first_name,
               last_name,
@@ -145,6 +146,7 @@ export default function GuestSignupPage() {
             last_name,
             email,
             phone,
+            host_id: event?.host_id || profile.host_id || null,
           })
           .eq('device_id', device_id)
           .select()
