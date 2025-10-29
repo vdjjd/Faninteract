@@ -1,12 +1,14 @@
 'use client';
 
 import { useState, useCallback, useEffect } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import Cropper from 'react-easy-crop';
 import imageCompression from 'browser-image-compression';
 import { supabase } from '@/lib/supabaseClient';
+import { getOrCreateGuestDeviceId } from '@/lib/syncGuest';
 
 export default function FanZonePostPage() {
+  const router = useRouter();
   const { eventId } = useParams();
   const eventUUID = Array.isArray(eventId) ? eventId[0] : eventId;
 
@@ -18,33 +20,57 @@ export default function FanZonePostPage() {
   const [firstName, setFirstName] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [fadeOut, setFadeOut] = useState(false);
+  const [checkingProfile, setCheckingProfile] = useState(true);
 
-  /* ---------- Auto-Fill Name from guestInfo ---------- */
+  /* ---------- Profile Check (MUST exist) ---------- */
   useEffect(() => {
-    try {
-      const stored = localStorage.getItem('guestInfo');
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        if (parsed.firstName) {
-          setFirstName(parsed.firstName.trim());
-          console.log('✅ Loaded first name:', parsed.firstName);
-          return;
-        }
+    async function verifyGuestProfile() {
+      const device_id = getOrCreateGuestDeviceId();
+      console.log('🧠 Checking guest_profiles for device_id:', device_id);
+
+      const { data: profile, error } = await supabase
+        .from('guest_profiles')
+        .select('first_name')
+        .eq('device_id', device_id)
+        .maybeSingle();
+
+      if (error) {
+        console.error('❌ Error verifying guest profile:', error.message);
+        router.push(`/submit/${eventUUID}`); // fallback to signup
+        return;
       }
 
-      // fallback: try the universal key
-      const universal = localStorage.getItem('faninteract_guest_profile');
-      if (universal) {
-        const parsed = JSON.parse(universal);
-        if (parsed.first_name) {
-          setFirstName(parsed.first_name.trim());
-          console.log('✅ Loaded fallback first name:', parsed.first_name);
-        }
+      if (!profile) {
+        console.warn('🚫 No guest_profile found. Redirecting to signup.');
+        router.push(`/submit/${eventUUID}`);
+        return;
       }
-    } catch (err) {
-      console.error('Error reading name from storage:', err);
+
+      console.log('✅ Verified guest_profile:', profile);
+      setFirstName(profile.first_name || '');
+      setCheckingProfile(false);
     }
-  }, []);
+
+    verifyGuestProfile();
+  }, [router, eventUUID]);
+
+  if (checkingProfile) {
+    return (
+      <div
+        style={{
+          background: '#000',
+          color: '#fff',
+          minHeight: '100vh',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          fontFamily: 'system-ui, sans-serif',
+        }}
+      >
+        Checking profile...
+      </div>
+    );
+  }
 
   /* ---------- File Upload ---------- */
   async function handleFileSelect(e: any) {

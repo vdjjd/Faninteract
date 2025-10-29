@@ -3,12 +3,12 @@
 import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
+import { getOrCreateGuestDeviceId } from '@/lib/syncGuest'; // ✅ use shared device helper
 
 /**
  * ⚙️ This page ONLY writes to guest_profiles.
- * No guest table logic exists anywhere in this file.
+ * It does not touch the guests table.
  */
-
 export default function GuestSignupPage() {
   const router = useRouter();
   const { eventId } = useParams();
@@ -43,20 +43,6 @@ export default function GuestSignupPage() {
     if (eventUUID) fetchEvent();
   }, [eventUUID]);
 
-  /* ---------- Get or Create Device ID ---------- */
-  const getDeviceId = () => {
-    if (typeof window === 'undefined') return 'server';
-    let device_id = localStorage.getItem('guest_device_id');
-    if (!device_id) {
-      device_id = crypto.randomUUID();
-      localStorage.setItem('guest_device_id', device_id);
-      console.log('🆕 Created new device_id:', device_id);
-    } else {
-      console.log('♻️ Existing device_id:', device_id);
-    }
-    return device_id;
-  };
-
   /* ---------- Handle Form Change ---------- */
   const handleChange = (e: any) => {
     setForm({ ...form, [e.target.name]: e.target.value });
@@ -85,17 +71,21 @@ export default function GuestSignupPage() {
     setSubmitting(true);
 
     try {
-      const device_id = getDeviceId();
+      // ✅ Get device ID (shared universal identifier)
+      const device_id = getOrCreateGuestDeviceId();
 
-      // 🔹 Insert or update guest_profiles ONLY
-      const { data: existingProfile } = await supabase
+      // ✅ Find existing guest_profile
+      const { data: existingProfile, error: findError } = await supabase
         .from('guest_profiles')
         .select('*')
         .eq('device_id', device_id)
         .maybeSingle();
 
+      if (findError) throw findError;
+
       let profile = existingProfile;
 
+      // ✅ Create or update
       if (!profile) {
         const { data: inserted, error: insertError } = await supabase
           .from('guest_profiles')
@@ -129,7 +119,7 @@ export default function GuestSignupPage() {
 
         if (updateError) throw updateError;
         profile = updated;
-        console.log('♻️ Updated existing guest_profile:', profile);
+        console.log('♻️ Updated guest_profile:', profile);
       }
 
       // ✅ Save to local storage
@@ -144,12 +134,12 @@ export default function GuestSignupPage() {
         })
       );
 
-      console.log('🎯 guest_profiles written successfully');
+      console.log('🎯 guest_profiles write successful');
 
-      // ✅ Redirect to photo/message post page
+      // ✅ Redirect to Fan Zone Wall post page
       router.push(`/submit/${eventUUID}/post`);
     } catch (err: any) {
-      console.error('❌ Insert guest_profile failed:', err.message || err);
+      console.error('❌ guest_profile write failed:', err.message || err);
       setError('Something went wrong. Please try again.');
     } finally {
       setSubmitting(false);

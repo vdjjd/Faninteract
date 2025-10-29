@@ -1,10 +1,10 @@
 import { supabase } from '@/lib/supabaseClient';
 
 /* -------------------------------------------------------------------------- */
-/* 🧩 1. Device ID helper                                                      */
+/* 🔹 1. Generate or reuse device_id (universal identifier)                   */
 /* -------------------------------------------------------------------------- */
 export function getOrCreateGuestDeviceId(): string {
-  if (typeof window === 'undefined') return 'server-runtime';
+  if (typeof window === 'undefined') return 'server-runtime'; // SSR safeguard
 
   let device_id = localStorage.getItem('guest_device_id');
   if (!device_id) {
@@ -18,7 +18,7 @@ export function getOrCreateGuestDeviceId(): string {
 }
 
 /* -------------------------------------------------------------------------- */
-/* 🧠 2. Guest profile sync helper (NO guest table access)                     */
+/* 🧠 2. Sync guest_profiles table ONLY                                       */
 /* -------------------------------------------------------------------------- */
 export async function syncGuestProfile(
   hostId: string,
@@ -31,26 +31,29 @@ export async function syncGuestProfile(
   }
 ) {
   const device_id = getOrCreateGuestDeviceId();
-  console.log('🧠 syncGuestProfile → guest_profiles only', {
+  console.log('🧠 syncGuestProfile (guest_profiles only) →', {
     hostId,
     eventId,
     device_id,
     guestData,
   });
 
-  // ✅ Step 1: find existing guest_profile by device_id
+  // 1️⃣ Find existing profile
   const { data: existingProfile, error: findError } = await supabase
     .from('guest_profiles')
     .select('*')
     .eq('device_id', device_id)
     .maybeSingle();
 
-  if (findError) throw new Error(`Find guest_profile failed: ${findError.message}`);
+  if (findError) {
+    console.error('❌ Error finding guest_profile:', findError.message);
+    throw findError;
+  }
 
-  let profile = existingProfile;
+  let profile;
 
-  // ✅ Step 2: insert or update guest_profiles
-  if (!profile) {
+  // 2️⃣ Insert or update
+  if (!existingProfile) {
     const { data: newProfile, error: insertError } = await supabase
       .from('guest_profiles')
       .insert([
@@ -65,7 +68,11 @@ export async function syncGuestProfile(
       .select()
       .single();
 
-    if (insertError) throw new Error(`Insert guest_profile failed: ${insertError.message}`);
+    if (insertError) {
+      console.error('❌ Insert guest_profile failed:', insertError.message);
+      throw insertError;
+    }
+
     profile = newProfile;
     console.log('✅ Created new guest_profile:', profile);
   } else {
@@ -81,11 +88,15 @@ export async function syncGuestProfile(
       .select()
       .single();
 
-    if (updateError) throw new Error(`Update guest_profile failed: ${updateError.message}`);
+    if (updateError) {
+      console.error('❌ Update guest_profile failed:', updateError.message);
+      throw updateError;
+    }
+
     profile = updatedProfile;
     console.log('♻️ Updated guest_profile:', profile);
   }
 
-  // ✅ Step 3: return guest profile only
+  // 3️⃣ Return the profile (used by signup page + future features)
   return { profile };
 }
