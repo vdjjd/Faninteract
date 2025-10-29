@@ -1,11 +1,12 @@
+// /lib/supabaseClient.ts
 import { createClient } from '@supabase/supabase-js';
 
-// ✅ Pull from environment (must exist in .env.local or Vercel)
+// ✅ These come directly from your Vercel environment variables
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-// ✅ Public client — safe for client-side use
+// ✅ Public client (used by frontend components)
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
     persistSession: true,
@@ -14,8 +15,7 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   },
 });
 
-// ✅ Server-only admin client (never bundled to browser)
-export const supabaseAdmin =
-  typeof window === 'undefined' && supabaseServiceKey
-    ? createClient(supabaseUrl, supabaseServiceKey)
-    : null;
+// ✅ Admin client (used only for server-side actions — not in the browser)
+export const supabaseAdmin = supabaseServiceKey
+  ? createClient(supabaseUrl, supabaseServiceKey)
+  : null;
