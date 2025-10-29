@@ -8,7 +8,7 @@ import { syncGuestProfile, getOrCreateGuestDeviceId } from '@/lib/syncGuest';
 export default function GuestSignupPage() {
   const router = useRouter();
   const { eventId } = useParams();
-  const eventUUID = (Array.isArray(eventId) ? eventId[0] : eventId) as string;
+  const eventUUID = Array.isArray(eventId) ? eventId[0] : eventId;
 
   const [event, setEvent] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -23,7 +23,7 @@ export default function GuestSignupPage() {
   });
   const [error, setError] = useState('');
 
-  /* ---------- Load Event Info ---------- */
+  /* ---------- 🧠 Load Event Info ---------- */
   useEffect(() => {
     async function fetchEvent() {
       const { data, error } = await supabase
@@ -39,7 +39,39 @@ export default function GuestSignupPage() {
     fetchEvent();
   }, [eventUUID]);
 
-  /* ---------- Handle Form Change ---------- */
+  /* ---------- 🧩 Auto-check guest_profiles (not guests) ---------- */
+  useEffect(() => {
+    async function checkExistingProfile() {
+      try {
+        const device_id = getOrCreateGuestDeviceId();
+        const { data: existingProfile } = await supabase
+          .from('guest_profiles')
+          .select('id, first_name')
+          .eq('device_id', device_id)
+          .maybeSingle();
+
+        if (existingProfile) {
+          console.log('🔁 Existing guest_profile found:', existingProfile);
+          // ✅ Auto-fill and redirect to post page
+          localStorage.setItem(
+            'guestInfo',
+            JSON.stringify({
+              firstName: existingProfile.first_name,
+              guest_profile_id: existingProfile.id,
+            })
+          );
+          router.push(`/submit/${eventUUID}/post`);
+        } else {
+          console.log('🆕 No existing guest_profile found for device.');
+        }
+      } catch (err) {
+        console.error('Error checking guest_profiles:', err);
+      }
+    }
+    checkExistingProfile();
+  }, [eventUUID, router]);
+
+  /* ---------- Form Change ---------- */
   const handleChange = (e: any) => {
     setForm({ ...form, [e.target.name]: e.target.value });
   };
@@ -67,11 +99,11 @@ export default function GuestSignupPage() {
     setSubmitting(true);
 
     try {
-      // ✅ Ensure device_id exists before calling syncGuestProfile
+      // ✅ Ensure device_id exists
       const device_id = getOrCreateGuestDeviceId();
       console.log('🧠 Using device_id:', device_id);
 
-      // ✅ Create or update guest_profiles entry only
+      // ✅ Write to guest_profiles only
       const { profile } = await syncGuestProfile(
         event?.host_id || '',
         eventUUID,
@@ -85,7 +117,7 @@ export default function GuestSignupPage() {
 
       console.log('✅ guest_profiles entry:', profile);
 
-      // ✅ Store local info for autofill on next page
+      // ✅ Save to localStorage for next step
       localStorage.setItem(
         'guestInfo',
         JSON.stringify({
