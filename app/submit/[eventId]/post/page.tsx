@@ -1,212 +1,180 @@
 'use client';
 
-import { useState, useCallback, useEffect } from 'react';
-import { useParams, useRouter } from 'next/navigation';
-import Cropper from 'react-easy-crop';
-import imageCompression from 'browser-image-compression';
+import { useState, useEffect } from 'react';
+import { useRouter, useParams } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
-import { getOrCreateGuestDeviceId } from '@/lib/syncGuest';
 
-export default function FanZonePostPage() {
+/* -------------------------------------------------------------------------- */
+/* 🧠 SAFE DEVICE ID HANDLER                                                  */
+/* -------------------------------------------------------------------------- */
+function getOrCreateGuestDeviceId(): string | null {
+  if (typeof window === 'undefined') return null;
+
+  try {
+    let device_id = localStorage.getItem('guest_device_id');
+    if (!device_id) {
+      device_id = crypto.randomUUID();
+      localStorage.setItem('guest_device_id', device_id);
+      console.log('🆕 Created new device_id:', device_id);
+    } else {
+      console.log('♻️ Using existing device_id:', device_id);
+    }
+    return device_id;
+  } catch (err) {
+    console.error('❌ Failed to get device_id:', err);
+    return null;
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/* 🎯 Guest Signup Page — Writes ONLY to guest_profiles                       */
+/* -------------------------------------------------------------------------- */
+export default function GuestSignupPage() {
   const router = useRouter();
   const { eventId } = useParams();
   const eventUUID = Array.isArray(eventId) ? eventId[0] : eventId;
 
-  const [imageSrc, setImageSrc] = useState<string | null>(null);
-  const [crop, setCrop] = useState({ x: 0, y: 0 });
-  const [zoom, setZoom] = useState(1);
-  const [croppedAreaPixels, setCroppedAreaPixels] = useState<any>(null);
-  const [message, setMessage] = useState('');
-  const [firstName, setFirstName] = useState('');
   const [submitting, setSubmitting] = useState(false);
-  const [fadeOut, setFadeOut] = useState(false);
-  const [checkingProfile, setCheckingProfile] = useState(true);
+  const [agree, setAgree] = useState(false);
+  const [error, setError] = useState('');
 
-  /* ---------- Profile Check (MUST exist) ---------- */
+  const [form, setForm] = useState({
+    first_name: '',
+    last_name: '',
+    email: '',
+    phone: '',
+    age: '',
+  });
+
+  /* ---------------------------------------------------------------------- */
+  /* 🔹 Ensure device_id exists                                             */
+  /* ---------------------------------------------------------------------- */
   useEffect(() => {
-    async function verifyGuestProfile() {
-      const device_id = getOrCreateGuestDeviceId();
-      console.log('🧠 Checking guest_profiles for device_id:', device_id);
-
-      const { data: profile, error } = await supabase
-        .from('guest_profiles')
-        .select('first_name')
-        .eq('device_id', device_id)
-        .maybeSingle();
-
-      if (error) {
-        console.error('❌ Error verifying guest profile:', error.message);
-        router.push(`/submit/${eventUUID}`); // fallback to signup
-        return;
-      }
-
-      if (!profile) {
-        console.warn('🚫 No guest_profile found. Redirecting to signup.');
-        router.push(`/submit/${eventUUID}`);
-        return;
-      }
-
-      console.log('✅ Verified guest_profile:', profile);
-      setFirstName(profile.first_name || '');
-      setCheckingProfile(false);
-    }
-
-    verifyGuestProfile();
-  }, [router, eventUUID]);
-
-  if (checkingProfile) {
-    return (
-      <div
-        style={{
-          background: '#000',
-          color: '#fff',
-          minHeight: '100vh',
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center',
-          fontFamily: 'system-ui, sans-serif',
-        }}
-      >
-        Checking profile...
-      </div>
-    );
-  }
-
-  /* ---------- File Upload ---------- */
-  async function handleFileSelect(e: any) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const options = { maxSizeMB: 1, maxWidthOrHeight: 1080, useWebWorker: true };
-    const compressed = await imageCompression(file, options);
-    const reader = new FileReader();
-    reader.onload = () => setImageSrc(reader.result as string);
-    reader.readAsDataURL(compressed);
-  }
-
-  const handleCameraCapture = () => {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = 'image/*';
-    input.capture = 'environment';
-    input.onchange = handleFileSelect;
-    input.click();
-  };
-
-  const onCropComplete = useCallback((_: any, area: any) => {
-    setCroppedAreaPixels(area);
+    if (typeof window !== 'undefined') getOrCreateGuestDeviceId();
   }, []);
 
-  async function createImage(url: string): Promise<HTMLImageElement> {
-    return new Promise((resolve, reject) => {
-      const img = new Image();
-      img.src = url;
-      img.onload = () => resolve(img);
-      img.onerror = (err) => reject(err);
-    });
-  }
+  /* ---------------------------------------------------------------------- */
+  /* 🔹 Handle input changes                                                */
+  /* ---------------------------------------------------------------------- */
+  const handleChange = (e: any) => {
+    setForm({ ...form, [e.target.name]: e.target.value });
+  };
 
-  async function getCroppedImage() {
-    if (!imageSrc || !croppedAreaPixels) return null;
-    const image = await createImage(imageSrc);
-    const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return null;
-    canvas.width = croppedAreaPixels.width;
-    canvas.height = croppedAreaPixels.height;
-    ctx.drawImage(
-      image,
-      croppedAreaPixels.x,
-      croppedAreaPixels.y,
-      croppedAreaPixels.width,
-      croppedAreaPixels.height,
-      0,
-      0,
-      croppedAreaPixels.width,
-      croppedAreaPixels.height
-    );
-    return new Promise<string>((resolve) => {
-      canvas.toBlob((blob) => {
-        if (blob) resolve(URL.createObjectURL(blob));
-      }, 'image/jpeg');
-    });
-  }
-
-  /* ---------- Submit ---------- */
-  async function handleSubmit(e: any) {
+  /* ---------------------------------------------------------------------- */
+  /* 🔹 Submit form                                                        */
+  /* ---------------------------------------------------------------------- */
+  const handleSubmit = async (e: any) => {
     e.preventDefault();
+    setError('');
 
-    if (!imageSrc || !message.trim() || !firstName.trim()) {
-      alert('Please add a photo, message, and ensure your name is set.');
+    const { first_name, last_name, email, phone } = form;
+
+    if (!first_name || !last_name) {
+      setError('Please enter both first and last name.');
+      return;
+    }
+    if (!email && !phone) {
+      setError('Please provide either an email or phone number.');
+      return;
+    }
+    if (!agree) {
+      setError('You must agree to the Terms of Service.');
+      return;
+    }
+
+    const device_id = localStorage.getItem('guest_device_id');
+    if (!device_id) {
+      setError('No device ID found. Please refresh and try again.');
       return;
     }
 
     setSubmitting(true);
-    setFadeOut(true);
 
-    const croppedImg = await getCroppedImage();
-    if (!croppedImg) {
-      alert('Error processing image.');
+    try {
+      // 🔍 Check existing guest_profile
+      const { data: existingProfile, error: findError } = await supabase
+        .from('guest_profiles')
+        .select('*')
+        .eq('device_id', device_id)
+        .maybeSingle();
+
+      if (findError) throw findError;
+
+      let profile = existingProfile;
+
+      if (!profile) {
+        // 🧾 Create new
+        const { data: inserted, error: insertError } = await supabase
+          .from('guest_profiles')
+          .insert([
+            {
+              device_id,
+              first_name,
+              last_name,
+              email,
+              phone,
+            },
+          ])
+          .select()
+          .single();
+
+        if (insertError) throw insertError;
+        profile = inserted;
+        console.log('✅ Created new guest_profile:', profile);
+      } else {
+        // 🔁 Update existing
+        const { data: updated, error: updateError } = await supabase
+          .from('guest_profiles')
+          .update({
+            first_name,
+            last_name,
+            email,
+            phone,
+          })
+          .eq('device_id', device_id)
+          .select()
+          .single();
+
+        if (updateError) throw updateError;
+        profile = updated;
+        console.log('♻️ Updated guest_profile:', profile);
+      }
+
+      // 💾 Cache locally
+      localStorage.setItem(
+        'guestInfo',
+        JSON.stringify({
+          firstName: profile.first_name,
+          lastName: profile.last_name,
+          email: profile.email,
+          phone: profile.phone,
+          guest_profile_id: profile.id,
+        })
+      );
+
+      console.log('🎯 guest_profiles write successful');
+      router.push(`/submit/${eventUUID}/post`);
+    } catch (err: any) {
+      console.error('❌ guest_profile write failed:', err.message || err);
+      setError('Something went wrong. Please try again.');
+    } finally {
       setSubmitting(false);
-      setFadeOut(false);
-      return;
     }
+  };
 
-    const fileName = `submission_${Date.now()}.jpg`;
-    const response = await fetch(croppedImg);
-    const blob = await response.blob();
-
-    const { error: uploadError } = await supabase.storage
-      .from('uploads')
-      .upload(fileName, blob, { contentType: 'image/jpeg' });
-
-    if (uploadError) {
-      alert('Upload failed.');
-      setSubmitting(false);
-      setFadeOut(false);
-      return;
-    }
-
-    const { data: publicUrl } = supabase.storage
-      .from('uploads')
-      .getPublicUrl(fileName);
-
-    const { error: insertError } = await supabase.from('submissions').insert([
-      {
-        event_id: eventUUID,
-        photo_url: publicUrl.publicUrl,
-        message: message.trim(),
-        first_name: firstName.trim(),
-        status: 'pending',
-      },
-    ]);
-
-    if (insertError) {
-      alert('Error submitting post.');
-      console.error('❌ Submission insert error:', insertError);
-      setSubmitting(false);
-      setFadeOut(false);
-      return;
-    }
-
-    setTimeout(() => {
-      window.location.href = `/thanks/${eventUUID}`;
-    }, 800);
-  }
-
-  /* ---------- UI ---------- */
+  /* ---------------------------------------------------------------------- */
+  /* 🔹 Render — No event branding                                         */
+  /* ---------------------------------------------------------------------- */
   return (
     <div
       style={{
-        background: '#000',
-        color: '#fff',
         minHeight: '100vh',
+        background: 'linear-gradient(180deg,#0d1b2a,#1b263b)', // static background
         display: 'flex',
-        alignItems: 'center',
         justifyContent: 'center',
+        alignItems: 'center',
         padding: 20,
         fontFamily: 'system-ui, sans-serif',
-        opacity: fadeOut ? 0 : 1,
-        transition: 'opacity 0.8s ease-in-out',
       }}
     >
       <form
@@ -214,153 +182,92 @@ export default function FanZonePostPage() {
         style={{
           width: '100%',
           maxWidth: 420,
-          background: 'linear-gradient(180deg,#0d1b2a,#1b263b)',
+          background: 'rgba(0,0,0,0.75)',
           borderRadius: 16,
-          padding: 24,
+          padding: 30,
+          color: '#fff',
           textAlign: 'center',
-          boxShadow: '0 0 20px rgba(0,0,0,0.6)',
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
+          boxShadow: '0 0 30px rgba(0,0,0,0.6)',
         }}
       >
-        <h2 style={{ marginBottom: 14, fontWeight: 700 }}>
-          Add Your Photo to the Wall
+        <h2 style={{ marginBottom: 16, fontWeight: 700 }}>
+          Join the Fan Zone
         </h2>
 
-        <div
+        {['first_name', 'last_name', 'email', 'phone', 'age'].map((field) => (
+          <input
+            key={field}
+            name={field}
+            type={field === 'age' ? 'number' : 'text'}
+            placeholder={
+              field === 'first_name'
+                ? 'First Name *'
+                : field === 'last_name'
+                ? 'Last Name *'
+                : field === 'email'
+                ? 'Email (optional)'
+                : field === 'phone'
+                ? 'Phone (optional)'
+                : 'Age (optional)'
+            }
+            value={(form as any)[field]}
+            onChange={handleChange}
+            style={{
+              width: '85%',
+              padding: '12px',
+              marginBottom: 12,
+              borderRadius: 10,
+              border: '1px solid #777',
+              background: 'rgba(0,0,0,0.3)',
+              color: '#fff',
+              fontSize: 16,
+              textAlign: 'center',
+            }}
+          />
+        ))}
+
+        <label
           style={{
             display: 'flex',
+            alignItems: 'center',
             justifyContent: 'center',
-            gap: 12,
-            marginBottom: 12,
+            gap: 8,
+            color: '#ccc',
+            fontSize: 13,
+            margin: '10px 0 20px 0',
           }}
         >
-          <button type="button" onClick={handleCameraCapture} style={buttonStyle}>
-            📷 Camera
-          </button>
-          <button
-            type="button"
-            onClick={() => document.getElementById('file-input')?.click()}
-            style={buttonStyle}
-          >
-            📁 Upload
-          </button>
           <input
-            type="file"
-            id="file-input"
-            accept="image/*"
-            onChange={handleFileSelect}
-            style={{ display: 'none' }}
+            type="checkbox"
+            checked={agree}
+            onChange={(e) => setAgree(e.target.checked)}
+            style={{ accentColor: '#1e90ff', width: 18, height: 18 }}
           />
-        </div>
+          I agree to the&nbsp;
+          <a href="/terms" target="_blank" style={{ color: '#1e90ff' }}>
+            Terms of Service
+          </a>
+        </label>
 
-        <div
-          style={{
-            position: 'relative',
-            width: 280,
-            height: 280,
-            background: '#111',
-            borderRadius: 12,
-            overflow: 'hidden',
-            marginBottom: 16,
-          }}
-        >
-          {imageSrc ? (
-            <Cropper
-              image={imageSrc}
-              crop={crop}
-              onCropChange={setCrop}
-              cropShape="rect"
-              aspect={1}
-              zoom={zoom}
-              onZoomChange={setZoom}
-              onCropComplete={onCropComplete}
-              restrictPosition={false}
-            />
-          ) : (
-            <div
-              style={{
-                position: 'absolute',
-                inset: 0,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: '#888',
-                fontSize: 14,
-              }}
-            >
-              Take a photo or upload one to begin
-            </div>
-          )}
-        </div>
-
-        <input
-          type="text"
-          value={firstName}
-          readOnly
-          style={{
-            width: '90%',
-            margin: '0 auto 12px',
-            display: 'block',
-            padding: 10,
-            borderRadius: 8,
-            border: '1px solid #666',
-            background: 'rgba(255,255,255,0.15)',
-            color: '#fff',
-            fontSize: 15,
-            textAlign: 'center',
-            opacity: 0.8,
-          }}
-          placeholder="First Name"
-        />
-
-        <textarea
-          placeholder="Write a message..."
-          value={message}
-          onChange={(e) => setMessage(e.target.value)}
-          style={{
-            width: '90%',
-            margin: '0 auto 10px',
-            display: 'block',
-            padding: 10,
-            borderRadius: 8,
-            border: '1px solid #666',
-            background: 'rgba(0,0,0,0.4)',
-            color: '#fff',
-            fontSize: 15,
-            textAlign: 'center',
-            resize: 'none',
-            minHeight: 70,
-          }}
-        />
+        {error && <p style={{ color: 'salmon', marginBottom: 8 }}>{error}</p>}
 
         <button
           type="submit"
           disabled={submitting}
           style={{
-            ...buttonStyle,
-            width: '90%',
+            width: '85%',
+            backgroundColor: submitting ? '#444' : '#1e90ff',
+            border: 'none',
             padding: '12px 0',
-            fontSize: 16,
+            borderRadius: 10,
+            color: '#fff',
+            fontWeight: 600,
             cursor: submitting ? 'not-allowed' : 'pointer',
           }}
         >
-          {submitting ? 'Submitting…' : 'Submit'}
+          {submitting ? 'Joining...' : 'Join'}
         </button>
       </form>
     </div>
   );
 }
-
-const buttonStyle: React.CSSProperties = {
-  backgroundColor: '#1e90ff',
-  border: 'none',
-  borderRadius: 8,
-  color: '#fff',
-  fontWeight: 600,
-  padding: '10px 18px',
-  cursor: 'pointer',
-  fontSize: 14,
-  transition: 'background 0.3s ease',
-};
