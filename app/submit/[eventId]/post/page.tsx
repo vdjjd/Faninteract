@@ -6,6 +6,8 @@ import Cropper from 'react-easy-crop';
 import imageCompression from 'browser-image-compression';
 import { supabase } from '@/lib/supabaseClient';
 
+const LOCAL_KEY = 'faninteract_guest_profile'; // ✅ same everywhere
+
 export default function FanZonePostPage() {
   const { eventId } = useParams();
   const eventUUID = Array.isArray(eventId) ? eventId[0] : eventId;
@@ -23,24 +25,27 @@ export default function FanZonePostPage() {
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
-    const timer = setTimeout(async () => {
+    const loadName = async () => {
       try {
-        const stored = localStorage.getItem('faninteract_guest_profile');
+        const stored = localStorage.getItem(LOCAL_KEY);
         if (stored) {
           const parsed = JSON.parse(stored);
           if (parsed?.first_name) {
             setFirstName(parsed.first_name.trim());
-            console.log('✅ Loaded first_name from faninteract_guest_profile:', parsed.first_name);
+            console.log('✅ Loaded first_name from localStorage:', parsed.first_name);
             return;
           }
         }
 
-        // Fallback to Supabase by device_id
+        // Fallback: lookup by device_id
         const device_id =
           (stored && JSON.parse(stored)?.device_id) ||
           localStorage.getItem('faninteract_guest_id');
 
-        if (!device_id) return;
+        if (!device_id) {
+          console.warn('⚠️ No device_id found for fallback lookup');
+          return;
+        }
 
         const { data, error } = await supabase
           .from('guest_profiles')
@@ -48,15 +53,22 @@ export default function FanZonePostPage() {
           .eq('device_id', device_id)
           .single();
 
-        if (!error && data?.first_name) {
+        if (error) {
+          console.error('❌ Fallback Supabase lookup failed:', error);
+          return;
+        }
+
+        if (data?.first_name) {
           setFirstName(data.first_name.trim());
-          console.log('✅ Fallback loaded first_name from Supabase:', data.first_name);
+          console.log('✅ Loaded first_name from Supabase fallback:', data.first_name);
         }
       } catch (err) {
-        console.error('❌ Name load error:', err);
+        console.error('❌ Error loading name:', err);
       }
-    }, 150);
+    };
 
+    // Slight delay to ensure storage loads after redirect
+    const timer = setTimeout(loadName, 250);
     return () => clearTimeout(timer);
   }, []);
 

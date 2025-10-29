@@ -5,6 +5,8 @@ import { useParams } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
 import { getOrCreateGuestDeviceId } from '@/lib/syncGuest';
 
+const LOCAL_KEY = 'faninteract_guest_profile'; // ✅ consistent everywhere
+
 export default function GuestSignupPage() {
   const { eventId } = useParams();
   const eventUUID = Array.isArray(eventId) ? eventId[0] : eventId;
@@ -90,7 +92,7 @@ export default function GuestSignupPage() {
       first_name: profileData.first_name,
       guest_id: guestData.id,
     };
-    localStorage.setItem('faninteract_guest_profile', JSON.stringify(profileObj));
+    localStorage.setItem(LOCAL_KEY, JSON.stringify(profileObj));
     console.log('✅ Stored faninteract_guest_profile:', profileObj);
 
     // 4️⃣ Redirect to Fan Zone post page
