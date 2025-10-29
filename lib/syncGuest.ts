@@ -1,30 +1,24 @@
+// /lib/syncGuest.ts
 import { supabase } from '@/lib/supabaseClient';
 
-/* -------------------------------------------------------------------------- */
-/* 1️⃣  DEVICE ID HELPER — persistent per browser/device                      */
-/* -------------------------------------------------------------------------- */
+/* -------------------------
+   Get or create device ID
+-------------------------- */
 export function getOrCreateGuestDeviceId(): string {
-  try {
-    if (typeof window === 'undefined') return 'server-runtime'; // avoids Next.js build error
-
-    let deviceId = localStorage.getItem('faninteract_device_id');
-    if (!deviceId) {
-      deviceId = crypto.randomUUID();
-      localStorage.setItem('faninteract_device_id', deviceId);
-      console.log('🆕 Created new device_id:', deviceId);
-    } else {
-      console.log('♻️ Using existing device_id:', deviceId);
-    }
-    return deviceId;
-  } catch (err) {
-    console.error('⚠️ Failed to access localStorage:', err);
-    return 'unknown-device';
+  let deviceId = localStorage.getItem('faninteract_device_id');
+  if (!deviceId) {
+    deviceId = crypto.randomUUID();
+    localStorage.setItem('faninteract_device_id', deviceId);
+    console.log('🧠 New device_id created:', deviceId);
+  } else {
+    console.log('🔁 Existing device_id:', deviceId);
   }
+  return deviceId;
 }
 
-/* -------------------------------------------------------------------------- */
-/* 2️⃣  SYNC GUEST PROFILE + EVENT LINK                                       */
-/* -------------------------------------------------------------------------- */
+/* -------------------------
+   Sync Guest Profile ONLY
+-------------------------- */
 export async function syncGuestProfile(
   hostId: string,
   eventId: string,
@@ -36,40 +30,23 @@ export async function syncGuestProfile(
   }
 ) {
   const deviceId = getOrCreateGuestDeviceId();
-  console.log('🧠 syncGuestProfile starting →', { hostId, eventId, deviceId, guestData });
+  console.log('🧠 syncGuestProfile →', { deviceId, guestData });
 
-  /* ---------- STEP 1: Find existing guest_profile ---------- */
-  const { data: existingProfile, error: selectErr } = await supabase
+  // Step 1️⃣ Check if profile already exists
+  const { data: existingProfile, error: checkError } = await supabase
     .from('guest_profiles')
     .select('*')
     .eq('device_id', deviceId)
     .maybeSingle();
 
-  if (selectErr) console.error('⚠️ guest_profiles select error:', selectErr);
-  console.log('🔍 Existing profile check raw:', existingProfile);
+  if (checkError) {
+    console.error('❌ guest_profiles check error:', checkError);
+  }
 
-  /* ---------- STEP 2: Create or update guest_profile ---------- */
-  let profile: any = null;
-
-  if (existingProfile && typeof existingProfile === 'object' && existingProfile.id) {
-    console.log('🔁 Updating existing guest_profile:', existingProfile.id);
-    const { data: updated, error: updateErr } = await supabase
-      .from('guest_profiles')
-      .update({
-        first_name: guestData.first_name,
-        last_name: guestData.last_name,
-        email: guestData.email,
-        phone: guestData.phone,
-      })
-      .eq('device_id', deviceId)
-      .select()
-      .single();
-
-    if (updateErr) throw new Error(`guest_profiles update failed: ${updateErr.message}`);
-    profile = updated;
-  } else {
-    console.log('🆕 No existing profile found → INSERTING');
-    const { data: inserted, error: insertErr } = await supabase
+  // Step 2️⃣ Create or update
+  let profile = existingProfile;
+  if (!profile) {
+    const { data: newProfile, error: insertError } = await supabase
       .from('guest_profiles')
       .insert([
         {
@@ -83,40 +60,16 @@ export async function syncGuestProfile(
       .select()
       .single();
 
-    if (insertErr) {
-      console.error('❌ guest_profiles insert failed:', insertErr);
-      throw insertErr;
+    if (insertError) {
+      console.error('❌ Insert guest_profile failed:', insertError);
+      throw insertError;
     }
 
-    profile = inserted;
-    console.log('✅ Created new guest_profile:', profile);
+    profile = newProfile;
+    console.log('✅ Inserted guest_profile:', profile);
+  } else {
+    console.log('♻️ Existing profile found:', profile);
   }
 
-  /* ---------- STEP 3: Link this profile to the event ---------- */
-  console.log('🔗 Linking guest_profile to event:', eventId);
-
-  const { data: guestRecord, error: guestError } = await supabase
-    .from('guests')
-    .insert([
-      {
-        event_id: eventId,
-        first_name: guestData.first_name,
-        last_name: guestData.last_name,
-        email: guestData.email,
-        phone: guestData.phone,
-        guest_profile_id: profile.id,
-      },
-    ])
-    .select()
-    .single();
-
-  if (guestError) {
-    console.error('❌ guests insert failed:', guestError);
-    throw guestError;
-  }
-
-  console.log('🎯 guests link created:', guestRecord);
-
-  return { profile, guestRecord };
+  return { profile };
 }
-
