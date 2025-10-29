@@ -27,6 +27,7 @@ export default function SignUpPage() {
         password,
       });
       if (signUpError) throw signUpError;
+
       const userId = data.user?.id;
       if (!userId) throw new Error('No user ID returned from Supabase.');
 
@@ -35,6 +36,7 @@ export default function SignUpPage() {
         const { error } = await supabase.from('master_accounts').insert([
           {
             id: userId,
+            auth_id: userId, // 👈 NEW
             company_name: companyName,
             contact_name: contactName,
             contact_email: email,
@@ -48,6 +50,7 @@ export default function SignUpPage() {
         const { error } = await supabase.from('hosts').insert([
           {
             id: userId,
+            auth_id: userId, // 👈 NEW — required for dashboard linkage
             username,
             venue_name: venueName,
             email,
@@ -66,12 +69,25 @@ export default function SignUpPage() {
   };
 
   return (
-    <div className={cn('min-h-screen', 'flex', 'flex-col', 'items-center', 'justify-center', 'bg-[linear-gradient(135deg,#0a2540,#1b2b44,#000000)]', 'text-white', 'p-6')}>
-      <h1 className={cn('text-4xl', 'font-bold', 'mb-6')}>Create Your Account</h1>
+    <div
+      className={cn(
+        'min-h-screen',
+        'flex flex-col items-center justify-center',
+        'bg-[linear-gradient(135deg,#0a2540,#1b2b44,#000000)]',
+        'text-white',
+        'p-6'
+      )}
+    >
+      <h1 className={cn('text-4xl font-bold mb-6')}>Create Your Account</h1>
 
       <form
         onSubmit={handleSignUp}
-        className={cn('w-full', 'max-w-md', 'bg-[#0b111d]', 'p-8', 'rounded-2xl', 'border', 'border-blue-900/40', 'shadow-lg', 'space-y-4')}
+        className={cn(
+          'w-full max-w-md',
+          'bg-[#0b111d] p-8 rounded-2xl',
+          'border border-blue-900/40 shadow-lg',
+          'space-y-4'
+        )}
       >
         {/* Account Type Selection */}
         <div className={cn('flex', 'justify-center', 'gap-4', 'mb-4')}>
@@ -160,7 +176,12 @@ export default function SignUpPage() {
         <button
           type="submit"
           disabled={loading}
-          className={cn('w-full', 'bg-gradient-to-r', 'from-sky-500', 'to-blue-600', 'py-3', 'rounded-lg', 'font-semibold', 'shadow-md', 'hover:scale-105', 'transition-transform')}
+          className={cn(
+            'w-full',
+            'bg-gradient-to-r from-sky-500 to-blue-600',
+            'py-3 rounded-lg font-semibold shadow-md',
+            'hover:scale-105 transition-transform'
+          )}
         >
           {loading ? 'Creating Account...' : 'Sign Up'}
         </button>
