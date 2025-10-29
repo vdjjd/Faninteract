@@ -5,13 +5,10 @@ import { useRouter, useParams } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
 
 /* -------------------------------------------------------------------------- */
-/* ✅ FIXED: Local helper for safe device ID                                  */
+/* 🧠 SAFE DEVICE ID HANDLER                                                  */
 /* -------------------------------------------------------------------------- */
 function getOrCreateGuestDeviceId(): string | null {
-  if (typeof window === 'undefined') {
-    console.warn('⚠️ getOrCreateGuestDeviceId called on server');
-    return null;
-  }
+  if (typeof window === 'undefined') return null;
 
   try {
     let device_id = localStorage.getItem('guest_device_id');
@@ -24,7 +21,7 @@ function getOrCreateGuestDeviceId(): string | null {
     }
     return device_id;
   } catch (err) {
-    console.error('❌ Error generating device_id:', err);
+    console.error('❌ Failed to get device_id:', err);
     return null;
   }
 }
@@ -41,6 +38,8 @@ export default function GuestSignupPage() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [agree, setAgree] = useState(false);
+  const [error, setError] = useState('');
+
   const [form, setForm] = useState({
     first_name: '',
     last_name: '',
@@ -48,37 +47,37 @@ export default function GuestSignupPage() {
     phone: '',
     age: '',
   });
-  const [error, setError] = useState('');
 
-  /* ---------- Load Event Info (includes host_id) ---------- */
+  /* ---------------------------------------------------------------------- */
+  /* 🔹 Preload event details + ensure device_id exists                      */
+  /* ---------------------------------------------------------------------- */
   useEffect(() => {
     async function fetchEvent() {
       const { data, error } = await supabase
         .from('events')
-        .select('id, title, background_value, host_id')
+        .select('id, title, background_value')
         .eq('id', eventUUID)
         .single();
 
-      if (error) console.error('Error loading event:', error);
+      if (error) console.error('❌ Error loading event:', error);
       if (data) setEvent(data);
       setLoading(false);
     }
+
     if (eventUUID) fetchEvent();
+    if (typeof window !== 'undefined') getOrCreateGuestDeviceId(); // ensure before submit
   }, [eventUUID]);
 
-  /* ---------- Ensure Device ID Exists ---------- */
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      getOrCreateGuestDeviceId();
-    }
-  }, []);
-
-  /* ---------- Handle Form Change ---------- */
+  /* ---------------------------------------------------------------------- */
+  /* 🔹 Handle input changes                                                */
+  /* ---------------------------------------------------------------------- */
   const handleChange = (e: any) => {
     setForm({ ...form, [e.target.name]: e.target.value });
   };
 
-  /* ---------- Submit ---------- */
+  /* ---------------------------------------------------------------------- */
+  /* 🔹 Submit form                                                        */
+  /* ---------------------------------------------------------------------- */
   const handleSubmit = async (e: any) => {
     e.preventDefault();
     setError('');
@@ -98,16 +97,18 @@ export default function GuestSignupPage() {
       return;
     }
 
-    const device_id = getOrCreateGuestDeviceId();
+    const device_id = localStorage.getItem('guest_device_id');
     if (!device_id) {
-      setError('Could not get device ID. Please refresh and try again.');
+      setError('No device ID found. Please refresh and try again.');
       return;
     }
+
+    console.log('🧩 device_id being written to Supabase:', device_id);
 
     setSubmitting(true);
 
     try {
-      // ✅ Check for existing profile
+      // 🔍 Check existing guest_profile
       const { data: existingProfile, error: findError } = await supabase
         .from('guest_profiles')
         .select('*')
@@ -115,15 +116,15 @@ export default function GuestSignupPage() {
         .maybeSingle();
 
       if (findError) throw findError;
+
       let profile = existingProfile;
 
       if (!profile) {
-        // ✅ Create new guest_profile (includes host_id)
+        // 🧾 Create new
         const { data: inserted, error: insertError } = await supabase
           .from('guest_profiles')
           .insert([
             {
-              host_id: event?.host_id || null, // 👈 Added host link
               device_id,
               first_name,
               last_name,
@@ -138,7 +139,7 @@ export default function GuestSignupPage() {
         profile = inserted;
         console.log('✅ Created new guest_profile:', profile);
       } else {
-        // ✅ Update existing guest_profile
+        // 🔁 Update existing
         const { data: updated, error: updateError } = await supabase
           .from('guest_profiles')
           .update({
@@ -146,7 +147,6 @@ export default function GuestSignupPage() {
             last_name,
             email,
             phone,
-            host_id: event?.host_id || profile.host_id || null,
           })
           .eq('device_id', device_id)
           .select()
@@ -157,7 +157,7 @@ export default function GuestSignupPage() {
         console.log('♻️ Updated guest_profile:', profile);
       }
 
-      // ✅ Save locally
+      // 💾 Cache locally
       localStorage.setItem(
         'guestInfo',
         JSON.stringify({
@@ -171,7 +171,6 @@ export default function GuestSignupPage() {
 
       console.log('🎯 guest_profiles write successful');
 
-      // ✅ Redirect to post page
       router.push(`/submit/${eventUUID}/post`);
     } catch (err: any) {
       console.error('❌ guest_profile write failed:', err.message || err);
@@ -181,11 +180,12 @@ export default function GuestSignupPage() {
     }
   };
 
-  /* ---------- Loading ---------- */
+  /* ---------------------------------------------------------------------- */
+  /* 🔹 Render                                                             */
+  /* ---------------------------------------------------------------------- */
   if (loading)
     return <p style={{ textAlign: 'center', color: '#fff' }}>Loading...</p>;
 
-  /* ---------- UI ---------- */
   return (
     <div
       style={{
