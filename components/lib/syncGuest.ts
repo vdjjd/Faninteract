@@ -1,30 +1,20 @@
 import { supabase } from '@/lib/supabaseClient';
 
-/* ---------- Safe local identity helper ---------- */
+/* ---------- Device ID Helper ---------- */
 export function getOrCreateGuestDeviceId(): string {
-  let id: string | null = null;
-  try {
-    if (typeof window !== 'undefined' && window.localStorage) {
-      id = localStorage.getItem('faninteract_guest_id');
-      if (!id || id === 'undefined' || id === 'null' || id.trim() === '') {
-        id = crypto.randomUUID();
-        localStorage.setItem('faninteract_guest_id', id);
-        console.log('🆕 Created device_id:', id);
-      } else {
-        console.log('♻️ Using existing device_id:', id);
-      }
-    } else {
-      console.warn('⚠ No localStorage found — fallback generated.');
-      id = crypto.randomUUID();
-    }
-  } catch (err) {
-    console.error('❌ Failed to get localStorage:', err);
-    id = crypto.randomUUID();
+  // Try to reuse existing device_id
+  let device_id = localStorage.getItem('guest_device_id');
+  if (!device_id) {
+    device_id = crypto.randomUUID();
+    localStorage.setItem('guest_device_id', device_id);
+    console.log('🆕 Created new device_id:', device_id);
+  } else {
+    console.log('♻️ Reusing existing device_id:', device_id);
   }
-  return id!;
+  return device_id;
 }
 
-/* ---------- Sync / create global guest ---------- */
+/* ---------- Main Sync Function ---------- */
 export async function syncGuestProfile(
   hostId: string,
   eventId: string,
@@ -36,78 +26,74 @@ export async function syncGuestProfile(
   }
 ) {
   const device_id = getOrCreateGuestDeviceId();
-  console.log('🧠 Starting syncGuestProfile with device_id:', device_id);
 
-  /* 1️⃣ Upsert guest_profiles */
-  const { data: profile, error: profileError } = await supabase
+  console.log('🧠 syncGuestProfile →', { hostId, eventId, device_id, guestData });
+
+  /* --- Step 1: Ensure guest_profiles record --- */
+  const { data: existingProfile, error: fetchError } = await supabase
     .from('guest_profiles')
-    .upsert(
-      {
-        device_id: device_id || crypto.randomUUID(), // 🔒 double guarantee
-        first_name: guestData.first_name.trim(),
-        last_name: guestData.last_name?.trim() || null,
-        email: guestData.email?.trim() || null,
-        phone: guestData.phone?.trim() || null,
-      },
-      { onConflict: 'device_id' }
-    )
-    .select()
-    .single();
+    .select('*')
+    .eq('device_id', device_id)
+    .maybeSingle();
 
-  if (profileError) {
-    console.error('❌ guest_profiles upsert error:', profileError);
-    throw profileError;
+  if (fetchError) throw new Error(`Fetch guest_profile failed: ${fetchError.message}`);
+
+  let profile = existingProfile;
+
+  if (!profile) {
+    console.log('🆕 Creating new guest_profile...');
+    const { data: newProfile, error: insertError } = await supabase
+      .from('guest_profiles')
+      .insert([
+        {
+          device_id,
+          first_name: guestData.first_name,
+          last_name: guestData.last_name,
+          email: guestData.email,
+          phone: guestData.phone,
+        },
+      ])
+      .select()
+      .single();
+
+    if (insertError) throw new Error(`Insert guest_profile failed: ${insertError.message}`);
+    profile = newProfile;
+  } else {
+    console.log('✅ Found existing guest_profile:', profile.id);
   }
 
-  /* 2️⃣ Optional guest_visits */
-  try {
-    const { error: visitError } = await supabase
-      .from('guest_visits')
-      .upsert(
-        { guest_profile_id: profile.id, host_id: hostId },
-        { onConflict: 'guest_profile_id,host_id' }
-      );
-    if (visitError) console.warn('⚠ guest_visits warning:', visitError.message);
-  } catch {
-    console.warn('⚠ guest_visits table missing — skipped.');
-  }
-
-  /* 3️⃣ Upsert guests record for this event */
-  const { data: guestRecord, error: guestError } = await supabase
+  /* --- Step 2: Ensure guests event link --- */
+  const { data: existingGuest } = await supabase
     .from('guests')
-    .upsert(
-      {
-        event_id: eventId,
-        first_name: guestData.first_name.trim(),
-        last_name: guestData.last_name?.trim() || '',
-        email: guestData.email?.trim() || null,
-        phone: guestData.phone?.trim() || null,
-        guest_profile_id: profile.id,
-      },
-      { onConflict: 'event_id,guest_profile_id' }
-    )
-    .select()
-    .single();
+    .select('*')
+    .eq('event_id', eventId)
+    .eq('guest_profile_id', profile.id)
+    .maybeSingle();
 
-  if (guestError) {
-    console.error('❌ guests upsert error:', guestError);
-    throw guestError;
+  let guestRecord = existingGuest;
+
+  if (!guestRecord) {
+    console.log('🆕 Linking guest to event...');
+    const { data: newGuest, error: linkError } = await supabase
+      .from('guests')
+      .insert([
+        {
+          event_id: eventId,
+          guest_profile_id: profile.id,
+          first_name: profile.first_name,
+          last_name: profile.last_name,
+          email: profile.email,
+          phone: profile.phone,
+        },
+      ])
+      .select()
+      .single();
+
+    if (linkError) throw new Error(`Insert guest record failed: ${linkError.message}`);
+    guestRecord = newGuest;
+  } else {
+    console.log('✅ Existing guest link found:', guestRecord.id);
   }
 
-  const profileObj = {
-    id: profile.id,
-    device_id,
-    first_name: profile.first_name,
-    last_name: profile.last_name,
-    guest_id: guestRecord.id,
-  };
-
-  try {
-    localStorage.setItem('faninteract_guest_profile', JSON.stringify(profileObj));
-  } catch (err) {
-    console.warn('⚠ Failed to store local profile:', err);
-  }
-
-  console.log('✅ Stored faninteract_guest_profile:', profileObj);
-  return { profile, guestRecord, device_id };
+  return { profile, guestRecord };
 }
