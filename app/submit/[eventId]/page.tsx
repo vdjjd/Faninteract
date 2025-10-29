@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useParams } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
 import { getOrCreateGuestDeviceId } from '@/lib/syncGuest';
@@ -9,32 +9,12 @@ export default function GuestSignupPage() {
   const { eventId } = useParams();
   const eventUUID = Array.isArray(eventId) ? eventId[0] : eventId;
 
-  const [event, setEvent] = useState<any>(null);
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [fadeOut, setFadeOut] = useState(false);
-
-  /* ---------- Load Event Info (Title, Background, Logo) ---------- */
-  useEffect(() => {
-    async function loadEvent() {
-      const { data, error } = await supabase
-        .from('events')
-        .select('title, background_value, logo_url')
-        .eq('id', eventUUID)
-        .single();
-
-      if (error) {
-        console.error('❌ Error loading event:', error);
-      } else {
-        console.log('✅ Loaded event:', data);
-        setEvent(data);
-      }
-    }
-    loadEvent();
-  }, [eventUUID]);
 
   /* ---------- Submit ---------- */
   async function handleSubmit(e: any) {
@@ -82,7 +62,7 @@ export default function GuestSignupPage() {
     // 2️⃣ Insert into guests (per event)
     const { data: guestData, error: guestError } = await supabase
       .from('guests')
-      .insert([
+      .upsert(
         {
           event_id: eventUUID,
           first_name: firstName.trim(),
@@ -91,7 +71,8 @@ export default function GuestSignupPage() {
           phone: phone.trim() || null,
           guest_profile_id: profileData.id,
         },
-      ])
+        { onConflict: 'event_id,guest_profile_id' }
+      )
       .select()
       .single();
 
@@ -103,26 +84,27 @@ export default function GuestSignupPage() {
       return;
     }
 
-    // 3️⃣ Save unified local profile
+    // 3️⃣ Save unified local profile BEFORE redirect
     const profileObj = {
       id: profileData.id,
       device_id,
       first_name: profileData.first_name,
       guest_id: guestData.id,
     };
+    localStorage.setItem('faninteract_guest_id', device_id);
     localStorage.setItem('faninteract_guest_profile', JSON.stringify(profileObj));
-    console.log('✅ Stored faninteract_guest_profile:', profileObj);
+    console.log('💾 Saved to localStorage:', profileObj);
 
     // 4️⃣ Redirect to Fan Zone post page
     setTimeout(() => {
       window.location.href = `/submit/${eventUUID}/post`;
-    }, 600);
+    }, 800);
   }
 
   return (
     <div
       style={{
-        background: event?.background_value || '#000',
+        background: '#000',
         color: '#fff',
         minHeight: '100vh',
         display: 'flex',
@@ -149,17 +131,7 @@ export default function GuestSignupPage() {
           alignItems: 'center',
         }}
       >
-        {event?.logo_url && (
-          <img
-            src={event.logo_url}
-            alt="Event Logo"
-            style={{ width: 120, marginBottom: 14, borderRadius: 8 }}
-          />
-        )}
-
-        <h2 style={{ marginBottom: 14, fontWeight: 700 }}>
-          {event?.title || 'Join the Fan Zone Wall'}
-        </h2>
+        <h2 style={{ marginBottom: 14, fontWeight: 700 }}>Join the Fan Zone Wall</h2>
 
         <input
           type="text"
@@ -195,7 +167,7 @@ export default function GuestSignupPage() {
         />
 
         <p style={{ fontSize: 13, color: '#aaa', marginBottom: 12 }}>
-          * You must enter either an email or phone number.
+          * You must enter either your email or phone number.
         </p>
 
         <button
