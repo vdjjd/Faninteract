@@ -16,19 +16,12 @@ export default function GuestSignupPage() {
   const [submitting, setSubmitting] = useState(false);
   const [fadeOut, setFadeOut] = useState(false);
 
-  /* ---------- Submit ---------- */
   async function handleSubmit(e: any) {
     e.preventDefault();
 
-    if (!firstName.trim()) {
-      alert('Please enter your first name.');
-      return;
-    }
-
-    if (!email.trim() && !phone.trim()) {
-      alert('Please provide either an email or a phone number.');
-      return;
-    }
+    if (!firstName.trim()) return alert('Please enter your first name.');
+    if (!email.trim() && !phone.trim())
+      return alert('Please provide either an email or phone number.');
 
     setSubmitting(true);
     setFadeOut(true);
@@ -51,7 +44,7 @@ export default function GuestSignupPage() {
       .select()
       .single();
 
-    if (profileError) {
+    if (profileError || !profileData) {
       console.error('❌ guest_profiles error:', profileError);
       alert('Error saving profile.');
       setSubmitting(false);
@@ -62,7 +55,7 @@ export default function GuestSignupPage() {
     // 2️⃣ Insert into guests (per event)
     const { data: guestData, error: guestError } = await supabase
       .from('guests')
-      .upsert(
+      .insert([
         {
           event_id: eventUUID,
           first_name: firstName.trim(),
@@ -71,12 +64,11 @@ export default function GuestSignupPage() {
           phone: phone.trim() || null,
           guest_profile_id: profileData.id,
         },
-        { onConflict: 'event_id,guest_profile_id' }
-      )
+      ])
       .select()
       .single();
 
-    if (guestError) {
+    if (guestError || !guestData) {
       console.error('❌ guests error:', guestError);
       alert('Error submitting guest info.');
       setSubmitting(false);
@@ -84,21 +76,23 @@ export default function GuestSignupPage() {
       return;
     }
 
-    // 3️⃣ Save unified local profile BEFORE redirect
+    // 3️⃣ Save unified local profile
     const profileObj = {
       id: profileData.id,
       device_id,
       first_name: profileData.first_name,
       guest_id: guestData.id,
     };
+
+    console.log('✅ Saving to localStorage:', profileObj);
     localStorage.setItem('faninteract_guest_id', device_id);
     localStorage.setItem('faninteract_guest_profile', JSON.stringify(profileObj));
-    console.log('💾 Saved to localStorage:', profileObj);
 
-    // 4️⃣ Redirect to Fan Zone post page
+    // 4️⃣ Wait before redirect
     setTimeout(() => {
+      console.log('🚀 Redirecting to post page...');
       window.location.href = `/submit/${eventUUID}/post`;
-    }, 800);
+    }, 400); // ← Give browser time to write storage
   }
 
   return (
@@ -131,7 +125,9 @@ export default function GuestSignupPage() {
           alignItems: 'center',
         }}
       >
-        <h2 style={{ marginBottom: 14, fontWeight: 700 }}>Join the Fan Zone Wall</h2>
+        <h2 style={{ marginBottom: 14, fontWeight: 700 }}>
+          Join the Fan Zone Wall
+        </h2>
 
         <input
           type="text"
@@ -167,7 +163,7 @@ export default function GuestSignupPage() {
         />
 
         <p style={{ fontSize: 13, color: '#aaa', marginBottom: 12 }}>
-          * You must enter either your email or phone number.
+          * You must enter either an email or phone number.
         </p>
 
         <button
