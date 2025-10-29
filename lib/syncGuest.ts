@@ -89,7 +89,9 @@ export async function syncGuestProfile(
     guest_id: guestRecord.id,
   };
 
+  // ✅ Store both profile + device_id (used later by post page)
   localStorage.setItem('faninteract_guest_profile', JSON.stringify(profileObj));
+  localStorage.setItem('faninteract_guest_id', device_id);
 
   console.log('✅ Stored faninteract_guest_profile:', profileObj);
 
