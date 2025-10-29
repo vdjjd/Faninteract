@@ -5,11 +5,12 @@ import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { motion, AnimatePresence } from 'framer-motion';
 
-// ✅ Correct import paths
-import InactiveWall from '../components/InactiveWall';
-import ActiveWall from '../components/ActiveWall';
+import InactiveWall from '../components/wall/InactiveWall';
+import ActiveWall from '../components/wall/ActiveWall';
 
-/* ---------- Type Definition ---------- */
+/* -------------------------------------------------------------------------- */
+/* 🎡 Prize Wheel Type                                                        */
+/* -------------------------------------------------------------------------- */
 interface PrizeWheelData {
   id: string;
   title: string | null;
@@ -17,7 +18,7 @@ interface PrizeWheelData {
   status: 'inactive' | 'live';
   background_type: string | null;
   background_value: string | null;
-  logo_url?: string | null;
+  logo_url: string | null;
   spin_speed?: string | null;
   countdown?: string | null;
   countdown_active?: boolean;
@@ -26,17 +27,17 @@ interface PrizeWheelData {
   };
 }
 
-/* ---------- Main Page ---------- */
+/* -------------------------------------------------------------------------- */
+/* 🎡 MAIN PAGE                                                               */
+/* -------------------------------------------------------------------------- */
 export default function PrizeWheelPage() {
   const { wheelId } = useParams();
   const [wheel, setWheel] = useState<PrizeWheelData | null>(null);
   const [loading, setLoading] = useState(true);
 
-  /* --- Load wheel from Supabase --- */
+  /* ---------- LOAD PRIZE WHEEL ---------- */
   async function loadWheel() {
     if (!wheelId) return;
-
-    console.log('🧭 Wheel ID param:', wheelId);
 
     const { data, error } = await supabase
       .from('prize_wheels')
@@ -54,16 +55,15 @@ export default function PrizeWheelPage() {
     if (error) {
       console.error('❌ Error loading prize wheel:', error);
     } else {
-      console.log('🎯 Loaded wheel data:', data);
       setWheel(data);
     }
 
     setLoading(false);
   }
 
-  /* --- Initial load + realtime updates --- */
+  /* ---------- REALTIME UPDATES ---------- */
   useEffect(() => {
-    loadWheel();
+    loadWheel(); // initial load
 
     const channel = supabase
       .channel(`realtime:prize_wheels:id=eq.${wheelId}`)
@@ -76,13 +76,13 @@ export default function PrizeWheelPage() {
           filter: `id=eq.${wheelId}`,
         },
         (payload) => {
-          console.log('🔄 Live update:', payload);
+          console.log('🔄 Realtime update received for Prize Wheel:', payload);
           setWheel(payload.new as PrizeWheelData);
         }
       )
       .subscribe((status) => {
         if (status === 'SUBSCRIBED') {
-          console.log(`✅ Listening for updates on wheel ${wheelId}`);
+          console.log(`✅ Listening for live updates on wheel ${wheelId}`);
         }
       });
 
@@ -91,25 +91,25 @@ export default function PrizeWheelPage() {
     };
   }, [wheelId]);
 
-  /* --- Loading state --- */
+  /* ---------- LOADING ---------- */
   if (loading) {
     return (
       <div className="flex items-center justify-center h-screen bg-black text-white text-2xl">
-        Loading Prize Wheel…
+        Loading Prize Wheel...
       </div>
     );
   }
 
-  /* --- Not found --- */
+  /* ---------- FALLBACK ---------- */
   if (!wheel) {
     return (
       <div className="flex items-center justify-center h-screen bg-black text-white text-2xl">
-        ❌ Prize Wheel Not Found
+        Prize Wheel not found.
       </div>
     );
   }
 
-  /* --- Render the correct view --- */
+  /* ---------- RENDER WALLS WITH FADE TRANSITION ---------- */
   return (
     <AnimatePresence mode="wait">
       {wheel.status === 'live' ? (
@@ -120,7 +120,7 @@ export default function PrizeWheelPage() {
           exit={{ opacity: 0 }}
           transition={{ duration: 0.8 }}
         >
-          <ActiveWall wheel={wheel} />
+          <ActiveWall event={wheel} />
         </motion.div>
       ) : (
         <motion.div
@@ -130,7 +130,7 @@ export default function PrizeWheelPage() {
           exit={{ opacity: 0 }}
           transition={{ duration: 0.8 }}
         >
-          <InactiveWall wheel={wheel} />
+          <InactiveWall event={wheel} />
         </motion.div>
       )}
     </AnimatePresence>

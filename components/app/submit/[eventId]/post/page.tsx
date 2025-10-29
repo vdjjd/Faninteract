@@ -1,15 +1,13 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import Cropper from 'react-easy-crop';
 import imageCompression from 'browser-image-compression';
 import { supabase } from '@/lib/supabaseClient';
 
-export default function FanZonePostPage() {
+export default function GuestPostPage() {
   const { eventId } = useParams();
-  const eventUUID = Array.isArray(eventId) ? eventId[0] : eventId;
-
   const [imageSrc, setImageSrc] = useState<string | null>(null);
   const [crop, setCrop] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
@@ -19,64 +17,20 @@ export default function FanZonePostPage() {
   const [submitting, setSubmitting] = useState(false);
   const [fadeOut, setFadeOut] = useState(false);
 
-  /* ---------- Load Name From localStorage or Supabase ---------- */
+  /* ---------- Load guest name from localStorage ---------- */
   useEffect(() => {
-    if (typeof window === 'undefined') return;
-
-    async function loadName() {
-      console.log('🟡 Attempting to load name...');
-      let storedProfile = localStorage.getItem('faninteract_guest_profile');
-      let deviceId = localStorage.getItem('faninteract_guest_id');
-
-      console.log('🔍 Stored profile:', storedProfile);
-      console.log('🔍 Stored device ID:', deviceId);
-
-      // Step 1️⃣ LocalStorage first
-      if (storedProfile) {
-        try {
-          const parsed = JSON.parse(storedProfile);
-          if (parsed?.first_name) {
-            console.log('✅ Loaded first_name from localStorage:', parsed.first_name);
-            setFirstName(parsed.first_name.trim());
-            return;
-          }
-        } catch (err) {
-          console.error('❌ Failed to parse local profile:', err);
-        }
-      }
-
-      // Step 2️⃣ Fallback by device_id from Supabase
-      if (!deviceId) {
-        console.warn('⚠ No device ID found — cannot fetch from Supabase');
-        return;
-      }
-
-      console.log('🌐 Fetching fallback first_name for device_id:', deviceId);
-      const { data, error } = await supabase
-        .from('guest_profiles')
-        .select('first_name')
-        .eq('device_id', deviceId)
-        .single();
-
-      if (error) {
-        console.error('❌ Supabase fallback error:', error);
-        return;
-      }
-
-      if (data?.first_name) {
-        console.log('✅ Loaded first_name from Supabase:', data.first_name);
-        setFirstName(data.first_name.trim());
-      } else {
-        console.warn('⚠ No first_name found for this device_id');
+    const guestData = localStorage.getItem('guestInfo');
+    if (guestData) {
+      try {
+        const parsed = JSON.parse(guestData);
+        if (parsed.firstName) setFirstName(parsed.firstName);
+      } catch (err) {
+        console.error('Error loading guest info:', err);
       }
     }
-
-    // slight delay so browser has time to commit storage writes after redirect
-    const timer = setTimeout(loadName, 300);
-    return () => clearTimeout(timer);
   }, []);
 
-  /* ---------- Image Capture & Upload ---------- */
+  /* ---------- File Handling ---------- */
   async function handleFileSelect(e: any) {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -96,6 +50,7 @@ export default function FanZonePostPage() {
     input.click();
   };
 
+  /* ---------- Crop Logic ---------- */
   const onCropComplete = useCallback((_: any, area: any) => {
     setCroppedAreaPixels(area);
   }, []);
@@ -105,7 +60,7 @@ export default function FanZonePostPage() {
       const img = new Image();
       img.src = url;
       img.onload = () => resolve(img);
-      img.onerror = reject;
+      img.onerror = (err) => reject(err);
     });
   }
 
@@ -128,34 +83,30 @@ export default function FanZonePostPage() {
       croppedAreaPixels.width,
       croppedAreaPixels.height
     );
-    return new Promise<string>((resolve) =>
-      canvas.toBlob((blob) => blob && resolve(URL.createObjectURL(blob)), 'image/jpeg')
-    );
+    return new Promise<string>((resolve) => {
+      canvas.toBlob((blob) => {
+        if (blob) resolve(URL.createObjectURL(blob));
+      }, 'image/jpeg');
+    });
   }
 
   /* ---------- Submit ---------- */
   async function handleSubmit(e: any) {
     e.preventDefault();
-    if (!imageSrc || !message.trim() || !firstName.trim()) {
-      alert('Please add a photo, write a message, and ensure your name is set.');
-      return;
-    }
+    if (!imageSrc || !message.trim())
+      return alert('Please add a photo and message.');
 
     setSubmitting(true);
+
+    // 🔹 Start fade-out animation
     setFadeOut(true);
 
     const croppedImg = await getCroppedImage();
-    if (!croppedImg) {
-      alert('Error processing image.');
-      setSubmitting(false);
-      setFadeOut(false);
-      return;
-    }
+    if (!croppedImg) return alert('Error processing image.');
 
     const fileName = `submission_${Date.now()}.jpg`;
     const response = await fetch(croppedImg);
     const blob = await response.blob();
-
     const { error: uploadError } = await supabase.storage
       .from('uploads')
       .upload(fileName, blob, { contentType: 'image/jpeg' });
@@ -173,10 +124,10 @@ export default function FanZonePostPage() {
 
     const { error: insertError } = await supabase.from('submissions').insert([
       {
-        event_id: eventUUID,
+        event_id: eventId,
         photo_url: publicUrl.publicUrl,
         message: message.trim(),
-        first_name: firstName.trim(),
+        nickname: firstName || 'Guest',
         status: 'pending',
       },
     ]);
@@ -188,11 +139,13 @@ export default function FanZonePostPage() {
       return;
     }
 
+    // Wait for fade to finish before redirect
     setTimeout(() => {
-      window.location.href = `/thanks/${eventUUID}`;
+      window.location.href = `/thanks/${eventId}`;
     }, 800);
   }
 
+  /* ---------- UI ---------- */
   return (
     <div
       style={{
@@ -223,20 +176,57 @@ export default function FanZonePostPage() {
           alignItems: 'center',
         }}
       >
+        <img
+          src="/faninteractlogo.png"
+          alt="FanInteract"
+          style={{
+            width: 140,
+            height: 140,
+            objectFit: 'contain',
+            marginBottom: 6,
+            filter: 'drop-shadow(0 0 8px rgba(255,255,255,0.4))',
+          }}
+        />
+
         <h2 style={{ marginBottom: 14, fontWeight: 700 }}>
           Add Your Photo to the Wall
         </h2>
 
-        <div style={{ display: 'flex', justifyContent: 'center', gap: 12, marginBottom: 12 }}>
-          <button type="button" onClick={handleCameraCapture} style={buttonStyle}>
+        {/* Buttons Row */}
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'center',
+            gap: 12,
+            marginBottom: 12,
+          }}
+        >
+          <button
+            type="button"
+            onClick={handleCameraCapture}
+            style={buttonStyle}
+          >
             📷 Camera
           </button>
-          <button type="button" onClick={() => document.getElementById('file-input')?.click()} style={buttonStyle}>
+          <button
+            type="button"
+            onClick={() =>
+              document.getElementById('file-input')?.click()
+            }
+            style={buttonStyle}
+          >
             📁 Upload
           </button>
-          <input type="file" id="file-input" accept="image/*" onChange={handleFileSelect} style={{ display: 'none' }} />
+          <input
+            type="file"
+            id="file-input"
+            accept="image/*"
+            onChange={handleFileSelect}
+            style={{ display: 'none' }}
+          />
         </div>
 
+        {/* Crop Box */}
         <div
           style={{
             position: 'relative',
@@ -277,11 +267,9 @@ export default function FanZonePostPage() {
           )}
         </div>
 
-        {/* 👇 Read-only name field */}
+        {/* First Name (auto-filled + locked) */}
         <input
           type="text"
-          name="first_name"
-          id="first_name"
           value={firstName}
           readOnly
           style={{
@@ -291,18 +279,16 @@ export default function FanZonePostPage() {
             padding: 10,
             borderRadius: 8,
             border: '1px solid #666',
-            background: 'rgba(255,255,255,0.15)',
+            background: 'rgba(255,255,255,0.1)',
             color: '#fff',
             fontSize: 15,
             textAlign: 'center',
-            opacity: 0.8,
+            opacity: 0.7,
           }}
-          placeholder="First Name"
         />
 
+        {/* Message */}
         <textarea
-          name="message"
-          id="message"
           placeholder="Write a message..."
           value={message}
           onChange={(e) => setMessage(e.target.value)}
@@ -333,13 +319,14 @@ export default function FanZonePostPage() {
             cursor: submitting ? 'not-allowed' : 'pointer',
           }}
         >
-          {submitting ? 'Submitting…' : 'Submit'}
+          {submitting ? 'Submitting...' : 'Submit'}
         </button>
       </form>
     </div>
   );
 }
 
+/* ---------- Styles ---------- */
 const buttonStyle: React.CSSProperties = {
   backgroundColor: '#1e90ff',
   border: 'none',
