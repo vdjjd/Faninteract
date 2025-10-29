@@ -3,7 +3,20 @@
 import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
-import { syncGuestProfile } from '@/lib/syncGuest';
+
+// ✅ Force Vercel to use the live definition and bypass stale nickname type
+const { syncGuestProfile } = require('@/lib/syncGuest') as {
+  syncGuestProfile: (
+    hostId: string,
+    eventId: string,
+    guestData: {
+      first_name: string;
+      last_name?: string;
+      email?: string;
+      phone?: string;
+    }
+  ) => Promise<any>;
+};
 
 export default function GuestSignupPage() {
   const router = useRouter();
