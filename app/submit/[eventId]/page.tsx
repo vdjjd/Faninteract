@@ -73,15 +73,15 @@ export default function GuestSignupPage() {
 
       // ✅ Create global + event-specific guest records
       const { profile, guestRecord } = await syncGuestProfile(
-        event?.host_id || '',
-        eventUUID,
-        {
-          first_name,
-          last_name,
-          email,
-          phone,
-        }
-      );
+  event?.host_id || '',
+  eventUUID,
+  {
+    first_name,
+    last_name,
+    email,
+    phone,
+  }
+);
 
       console.log('✅ guest_profiles entry:', profile);
       console.log('✅ guests entry:', guestRecord);
