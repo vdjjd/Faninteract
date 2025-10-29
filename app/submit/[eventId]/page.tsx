@@ -71,22 +71,21 @@ export default function GuestSignupPage() {
       const device_id = getOrCreateGuestDeviceId();
       console.log('🧠 Using device_id:', device_id);
 
-      // ✅ Create global + event-specific guest records
-      const { profile, guestRecord } = await syncGuestProfile(
-  event?.host_id || '',
-  eventUUID,
-  {
-    first_name,
-    last_name,
-    email,
-    phone,
-  }
-);
+      // ✅ Create or update guest_profiles entry only
+      const { profile } = await syncGuestProfile(
+        event?.host_id || '',
+        eventUUID,
+        {
+          first_name,
+          last_name,
+          email,
+          phone,
+        }
+      );
 
       console.log('✅ guest_profiles entry:', profile);
-   
 
-      // ✅ Store local info for post-page autofill
+      // ✅ Store local info for autofill on next page
       localStorage.setItem(
         'guestInfo',
         JSON.stringify({
@@ -98,6 +97,7 @@ export default function GuestSignupPage() {
         })
       );
 
+      // ✅ Redirect to Fan Zone post page
       router.push(`/submit/${eventUUID}/post`);
     } catch (err) {
       console.error('❌ Guest signup error:', err);
