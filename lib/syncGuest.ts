@@ -1,11 +1,11 @@
 import { supabase } from '@/lib/supabaseClient';
 
 /* -------------------------------------------------------------------------- */
-/* 1️⃣  DEVICE ID HELPERS                                                     */
+/* 1️⃣  DEVICE ID HELPER — persistent per browser/device                      */
 /* -------------------------------------------------------------------------- */
 export function getOrCreateGuestDeviceId(): string {
   try {
-    if (typeof window === 'undefined') return 'server-runtime';
+    if (typeof window === 'undefined') return 'server-runtime'; // avoids Next.js build error
 
     let deviceId = localStorage.getItem('faninteract_device_id');
     if (!deviceId) {
@@ -17,7 +17,7 @@ export function getOrCreateGuestDeviceId(): string {
     }
     return deviceId;
   } catch (err) {
-    console.error('⚠️ Failed to read/write device_id:', err);
+    console.error('⚠️ Failed to access localStorage:', err);
     return 'unknown-device';
   }
 }
@@ -36,9 +36,9 @@ export async function syncGuestProfile(
   }
 ) {
   const deviceId = getOrCreateGuestDeviceId();
-  console.log('🧠 syncGuestProfile →', { hostId, eventId, deviceId, guestData });
+  console.log('🧠 syncGuestProfile starting →', { hostId, eventId, deviceId, guestData });
 
-  /* ---------- Step 1: Try to find existing guest_profile ---------- */
+  /* ---------- STEP 1: Find existing guest_profile ---------- */
   const { data: existingProfile, error: selectErr } = await supabase
     .from('guest_profiles')
     .select('*')
@@ -46,12 +46,12 @@ export async function syncGuestProfile(
     .maybeSingle();
 
   if (selectErr) console.error('⚠️ guest_profiles select error:', selectErr);
-  console.log('🔍 Existing profile check result:', existingProfile);
+  console.log('🔍 Existing profile check raw:', existingProfile);
 
-  let profile = null;
+  /* ---------- STEP 2: Create or update guest_profile ---------- */
+  let profile: any = null;
 
-  /* ---------- Step 2: Create or update guest_profile ---------- */
-  if (existingProfile && existingProfile.id) {
+  if (existingProfile && typeof existingProfile === 'object' && existingProfile.id) {
     console.log('🔁 Updating existing guest_profile:', existingProfile.id);
     const { data: updated, error: updateErr } = await supabase
       .from('guest_profiles')
@@ -68,7 +68,7 @@ export async function syncGuestProfile(
     if (updateErr) throw new Error(`guest_profiles update failed: ${updateErr.message}`);
     profile = updated;
   } else {
-    console.log('🆕 No existing profile found — inserting new row');
+    console.log('🆕 No existing profile found → INSERTING');
     const { data: inserted, error: insertErr } = await supabase
       .from('guest_profiles')
       .insert([
@@ -89,10 +89,10 @@ export async function syncGuestProfile(
     }
 
     profile = inserted;
-    console.log('✅ Created guest_profile:', profile);
+    console.log('✅ Created new guest_profile:', profile);
   }
 
-  /* ---------- Step 3: Create event-specific guest link ---------- */
+  /* ---------- STEP 3: Link this profile to the event ---------- */
   console.log('🔗 Linking guest_profile to event:', eventId);
 
   const { data: guestRecord, error: guestError } = await supabase
