@@ -19,46 +19,64 @@ export default function FanZonePostPage() {
   const [submitting, setSubmitting] = useState(false);
   const [fadeOut, setFadeOut] = useState(false);
 
-  /* ---------- Auto-Fill Guest Name ---------- */
+  /* ---------- Load Name From localStorage or Supabase ---------- */
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
-    const loadName = async () => {
-      try {
-        // 1️⃣ Try to load from localStorage
-        const storedProfile = localStorage.getItem('faninteract_guest_profile');
-        if (storedProfile) {
+    async function loadName() {
+      console.log('🟡 Attempting to load name...');
+      let storedProfile = localStorage.getItem('faninteract_guest_profile');
+      let deviceId = localStorage.getItem('faninteract_guest_id');
+
+      console.log('🔍 Stored profile:', storedProfile);
+      console.log('🔍 Stored device ID:', deviceId);
+
+      // Step 1️⃣ LocalStorage first
+      if (storedProfile) {
+        try {
           const parsed = JSON.parse(storedProfile);
           if (parsed?.first_name) {
-            setFirstName(parsed.first_name.trim());
             console.log('✅ Loaded first_name from localStorage:', parsed.first_name);
+            setFirstName(parsed.first_name.trim());
             return;
           }
+        } catch (err) {
+          console.error('❌ Failed to parse local profile:', err);
         }
-
-        // 2️⃣ Fallback: load from Supabase using device_id
-        const storedDevice = localStorage.getItem('faninteract_guest_id');
-        if (!storedDevice) return;
-
-        const { data, error } = await supabase
-          .from('guest_profiles')
-          .select('first_name')
-          .eq('device_id', storedDevice)
-          .single();
-
-        if (!error && data?.first_name) {
-          setFirstName(data.first_name.trim());
-          console.log('✅ Fallback loaded from Supabase:', data.first_name);
-        }
-      } catch (err) {
-        console.error('❌ Error loading guest name:', err);
       }
-    };
 
-    loadName();
+      // Step 2️⃣ Fallback by device_id from Supabase
+      if (!deviceId) {
+        console.warn('⚠ No device ID found — cannot fetch from Supabase');
+        return;
+      }
+
+      console.log('🌐 Fetching fallback first_name for device_id:', deviceId);
+      const { data, error } = await supabase
+        .from('guest_profiles')
+        .select('first_name')
+        .eq('device_id', deviceId)
+        .single();
+
+      if (error) {
+        console.error('❌ Supabase fallback error:', error);
+        return;
+      }
+
+      if (data?.first_name) {
+        console.log('✅ Loaded first_name from Supabase:', data.first_name);
+        setFirstName(data.first_name.trim());
+      } else {
+        console.warn('⚠ No first_name found for this device_id');
+      }
+    }
+
+    // slight delay so browser has time to commit storage writes after redirect
+    const timer = setTimeout(loadName, 300);
+    return () => clearTimeout(timer);
   }, []);
 
-  /* ---------- Image Upload Handling ---------- */
+  /* ---------- Image Capture & Upload ---------- */
   async function handleFileSelect(e: any) {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -87,7 +105,7 @@ export default function FanZonePostPage() {
       const img = new Image();
       img.src = url;
       img.onload = () => resolve(img);
-      img.onerror = (err) => reject(err);
+      img.onerror = reject;
     });
   }
 
@@ -110,14 +128,12 @@ export default function FanZonePostPage() {
       croppedAreaPixels.width,
       croppedAreaPixels.height
     );
-    return new Promise<string>((resolve) => {
-      canvas.toBlob((blob) => {
-        if (blob) resolve(URL.createObjectURL(blob));
-      }, 'image/jpeg');
-    });
+    return new Promise<string>((resolve) =>
+      canvas.toBlob((blob) => blob && resolve(URL.createObjectURL(blob)), 'image/jpeg')
+    );
   }
 
-  /* ---------- Submit Post ---------- */
+  /* ---------- Submit ---------- */
   async function handleSubmit(e: any) {
     e.preventDefault();
     if (!imageSrc || !message.trim() || !firstName.trim()) {
@@ -177,7 +193,6 @@ export default function FanZonePostPage() {
     }, 800);
   }
 
-  /* ---------- UI ---------- */
   return (
     <div
       style={{
@@ -212,7 +227,6 @@ export default function FanZonePostPage() {
           Add Your Photo to the Wall
         </h2>
 
-        {/* Upload Buttons */}
         <div style={{ display: 'flex', justifyContent: 'center', gap: 12, marginBottom: 12 }}>
           <button type="button" onClick={handleCameraCapture} style={buttonStyle}>
             📷 Camera
@@ -223,7 +237,6 @@ export default function FanZonePostPage() {
           <input type="file" id="file-input" accept="image/*" onChange={handleFileSelect} style={{ display: 'none' }} />
         </div>
 
-        {/* Image Cropper */}
         <div
           style={{
             position: 'relative',
@@ -264,7 +277,7 @@ export default function FanZonePostPage() {
           )}
         </div>
 
-        {/* Auto-Filled First Name */}
+        {/* 👇 Read-only name field */}
         <input
           type="text"
           name="first_name"
@@ -287,7 +300,6 @@ export default function FanZonePostPage() {
           placeholder="First Name"
         />
 
-        {/* Message Box */}
         <textarea
           name="message"
           id="message"
