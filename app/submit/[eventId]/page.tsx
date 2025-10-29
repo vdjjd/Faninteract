@@ -3,26 +3,11 @@
 import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
-
-// ✅ Force Vercel to use the live definition and bypass stale nickname type
-const { syncGuestProfile } = require('@/lib/syncGuest') as {
-  syncGuestProfile: (
-    hostId: string,
-    eventId: string,
-    guestData: {
-      first_name: string;
-      last_name?: string;
-      email?: string;
-      phone?: string;
-    }
-  ) => Promise<any>;
-};
+import { syncGuestProfile, getOrCreateGuestDeviceId } from '@/lib/syncGuest';
 
 export default function GuestSignupPage() {
   const router = useRouter();
   const { eventId } = useParams();
-
-  // ✅ Stronger TypeScript-safe version
   const eventUUID = (Array.isArray(eventId) ? eventId[0] : eventId) as string;
 
   const [event, setEvent] = useState<any>(null);
@@ -43,7 +28,7 @@ export default function GuestSignupPage() {
     async function fetchEvent() {
       const { data, error } = await supabase
         .from('events')
-        .select('title, background_value, logo_url, host_id')
+        .select('id, title, background_value, host_id')
         .eq('id', eventUUID)
         .single();
 
@@ -54,38 +39,40 @@ export default function GuestSignupPage() {
     fetchEvent();
   }, [eventUUID]);
 
-  /* ---------- Handle Input Changes ---------- */
+  /* ---------- Handle Form Change ---------- */
   const handleChange = (e: any) => {
     setForm({ ...form, [e.target.name]: e.target.value });
   };
 
-  /* ---------- Handle Submit ---------- */
+  /* ---------- Submit ---------- */
   const handleSubmit = async (e: any) => {
     e.preventDefault();
     setError('');
 
-    const { first_name, last_name, email, phone, age } = form;
+    const { first_name, last_name, email, phone } = form;
 
     if (!first_name || !last_name) {
-      setError('Please enter both your first and last name.');
+      setError('Please enter both first and last name.');
       return;
     }
-
     if (!email && !phone) {
-      setError('Please provide either an email or a phone number.');
+      setError('Please provide either an email or phone number.');
       return;
     }
-
     if (!agree) {
-      setError('You must agree to the Terms of Service to continue.');
+      setError('You must agree to the Terms of Service.');
       return;
     }
 
     setSubmitting(true);
 
     try {
-      // 🔹 Use the universal sync helper
-      const { profile } = await syncGuestProfile(
+      // ✅ Ensure device_id exists before calling syncGuestProfile
+      const device_id = getOrCreateGuestDeviceId();
+      console.log('🧠 Using device_id:', device_id);
+
+      // ✅ Create global + event-specific guest records
+      const { profile, guestRecord } = await syncGuestProfile(
         event?.host_id || '',
         eventUUID,
         {
@@ -96,7 +83,10 @@ export default function GuestSignupPage() {
         }
       );
 
-      // ✅ Store a simple local profile (for wall auto-fill)
+      console.log('✅ guest_profiles entry:', profile);
+      console.log('✅ guests entry:', guestRecord);
+
+      // ✅ Store local info for post-page autofill
       localStorage.setItem(
         'guestInfo',
         JSON.stringify({
@@ -108,7 +98,6 @@ export default function GuestSignupPage() {
         })
       );
 
-      console.log('✅ Guest registered:', profile.first_name);
       router.push(`/submit/${eventUUID}/post`);
     } catch (err) {
       console.error('❌ Guest signup error:', err);
@@ -140,8 +129,7 @@ export default function GuestSignupPage() {
           width: '100%',
           maxWidth: 420,
           background:
-            event?.background_value ||
-            'linear-gradient(180deg,#0d1b2a,#1b263b)',
+            event?.background_value || 'linear-gradient(180deg,#0d1b2a,#1b263b)',
           borderRadius: 16,
           padding: 30,
           color: '#fff',
@@ -149,43 +137,27 @@ export default function GuestSignupPage() {
           boxShadow: '0 0 30px rgba(0,0,0,0.6)',
         }}
       >
-        <img
-          src={event?.logo_url || '/faninteractlogo.png'}
-          alt="Logo"
-          style={{
-            width: 220,
-            height: 220,
-            objectFit: 'contain',
-            marginBottom: -10,
-            marginTop: -20,
-            filter: 'drop-shadow(0 0 12px rgba(255,255,255,0.3))',
-          }}
-        />
-
-        <h2
-          style={{
-            fontSize: 'clamp(1.4rem, 2.5vw, 2.1rem)',
-            marginTop: -10,
-            marginBottom: 12,
-            fontWeight: 700,
-          }}
-        >
+        <h2 style={{ marginBottom: 16, fontWeight: 700 }}>
           {event?.title || 'Join the Fan Zone Wall'}
         </h2>
 
-        {[
-          { name: 'first_name', placeholder: 'First Name *' },
-          { name: 'last_name', placeholder: 'Last Name *' },
-          { name: 'email', placeholder: 'Email (optional)' },
-          { name: 'phone', placeholder: 'Phone (optional)' },
-          { name: 'age', placeholder: 'Age (optional)', type: 'number' },
-        ].map((field) => (
+        {['first_name', 'last_name', 'email', 'phone', 'age'].map((field) => (
           <input
-            key={field.name}
-            type={field.type || 'text'}
-            name={field.name}
-            placeholder={field.placeholder}
-            value={(form as any)[field.name]}
+            key={field}
+            name={field}
+            type={field === 'age' ? 'number' : 'text'}
+            placeholder={
+              field === 'first_name'
+                ? 'First Name *'
+                : field === 'last_name'
+                ? 'Last Name *'
+                : field === 'email'
+                ? 'Email (optional)'
+                : field === 'phone'
+                ? 'Phone (optional)'
+                : 'Age (optional)'
+            }
+            value={(form as any)[field]}
             onChange={handleChange}
             style={{
               width: '85%',
@@ -197,8 +169,6 @@ export default function GuestSignupPage() {
               color: '#fff',
               fontSize: 16,
               textAlign: 'center',
-              outline: 'none',
-              transition: 'all 0.3s ease',
             }}
           />
         ))}
@@ -207,6 +177,7 @@ export default function GuestSignupPage() {
           style={{
             display: 'flex',
             alignItems: 'center',
+            justifyContent: 'center',
             gap: 8,
             color: '#ccc',
             fontSize: 13,
@@ -219,13 +190,9 @@ export default function GuestSignupPage() {
             onChange={(e) => setAgree(e.target.checked)}
             style={{ accentColor: '#1e90ff', width: 18, height: 18 }}
           />
-          I agree to the{' '}
+          I agree to the&nbsp;
           <a href="/terms" target="_blank" style={{ color: '#1e90ff' }}>
             Terms of Service
-          </a>{' '}
-          and{' '}
-          <a href="/privacy" target="_blank" style={{ color: '#1e90ff' }}>
-            Privacy Policy
           </a>
         </label>
 
