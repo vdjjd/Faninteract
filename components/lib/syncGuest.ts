@@ -1,13 +1,23 @@
 import { supabase } from '@/lib/supabaseClient';
 
-/* ---------- Local identity helper ---------- */
+/* ---------- Safe local identity helper ---------- */
 export function getOrCreateGuestDeviceId(): string {
-  let id = localStorage.getItem('faninteract_guest_id');
-  if (!id) {
-    id = crypto.randomUUID();
-    localStorage.setItem('faninteract_guest_id', id);
+  try {
+    if (typeof window === 'undefined' || !window.localStorage) {
+      // SSR or restricted context — just make a fresh UUID
+      return crypto.randomUUID();
+    }
+
+    let id = localStorage.getItem('faninteract_guest_id');
+    if (!id) {
+      id = crypto.randomUUID();
+      localStorage.setItem('faninteract_guest_id', id);
+    }
+    return id;
+  } catch (err) {
+    console.warn('⚠ localStorage not available, using fallback UUID.');
+    return crypto.randomUUID();
   }
-  return id;
 }
 
 /* ---------- Sync / create global guest ---------- */
@@ -22,8 +32,9 @@ export async function syncGuestProfile(
   }
 ) {
   const device_id = getOrCreateGuestDeviceId();
+  console.log('🧠 Using device_id:', device_id);
 
-  /* 1️⃣  Upsert guest_profiles (universal identity) */
+  /* 1️⃣ Upsert guest_profiles (universal identity) */
   const { data: profile, error: profileError } = await supabase
     .from('guest_profiles')
     .upsert(
@@ -39,31 +50,25 @@ export async function syncGuestProfile(
     .select()
     .single();
 
-  if (profileError || !profile) {
+  if (profileError) {
     console.error('❌ guest_profiles upsert error:', profileError);
     throw profileError;
   }
 
-  /* 2️⃣  Log or update guest_visits (optional analytics) */
+  /* 2️⃣ Optional guest_visits tracking */
   try {
     const { error: visitError } = await supabase
       .from('guest_visits')
       .upsert(
-        {
-          guest_profile_id: profile.id,
-          host_id: hostId || null,
-        },
+        { guest_profile_id: profile.id, host_id: hostId },
         { onConflict: 'guest_profile_id,host_id' }
       );
-
-    if (visitError) {
-      console.warn('⚠ guest_visits warning:', visitError.message);
-    }
+    if (visitError) console.warn('⚠ guest_visits warning:', visitError.message);
   } catch {
     console.warn('⚠ guest_visits table not found — skipping analytics.');
   }
 
-  /* 3️⃣  Upsert guests record for this event */
+  /* 3️⃣ Upsert guests record for this event */
   const { data: guestRecord, error: guestError } = await supabase
     .from('guests')
     .upsert(
@@ -80,12 +85,11 @@ export async function syncGuestProfile(
     .select()
     .single();
 
-  if (guestError || !guestRecord) {
+  if (guestError) {
     console.error('❌ guests upsert error:', guestError);
     throw guestError;
   }
 
-  /* 4️⃣  Store unified local identity */
   const profileObj = {
     id: profile.id,
     device_id,
@@ -95,7 +99,6 @@ export async function syncGuestProfile(
   };
 
   localStorage.setItem('faninteract_guest_profile', JSON.stringify(profileObj));
-
   console.log('✅ Stored faninteract_guest_profile:', profileObj);
 
   return { profile, guestRecord, device_id };
