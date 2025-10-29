@@ -1,87 +1,96 @@
+// /lib/syncGuest.ts
 import { supabase } from '@/lib/supabaseClient';
 
-/* ---------- Local identity helpers ---------- */
-function getOrCreateGuestDeviceId(): string {
-  let id = localStorage.getItem('faninteract_guest_id');
-  if (!id) {
-    id = crypto.randomUUID();
-    localStorage.setItem('faninteract_guest_id', id);
+/* -------------------------
+   Get or create device ID
+-------------------------- */
+export function getOrCreateGuestDeviceId(): string {
+  let deviceId = localStorage.getItem('faninteract_device_id');
+  if (!deviceId) {
+    deviceId = crypto.randomUUID();
+    localStorage.setItem('faninteract_device_id', deviceId);
+    console.log('🧠 New device_id created:', deviceId);
+  } else {
+    console.log('🔁 Existing device_id:', deviceId);
   }
-  return id;
+  return deviceId;
 }
 
-/* ---------- Sync / create global guest ---------- */
+/* -------------------------
+   Sync Guest Profile
+   (global + event-level)
+-------------------------- */
 export async function syncGuestProfile(
   hostId: string,
   eventId: string,
   guestData: {
     first_name: string;
     last_name?: string;
-    nickname?: string;
+    email?: string;
+    phone?: string;
   }
 ) {
-  const device_id = getOrCreateGuestDeviceId();
+  const deviceId = getOrCreateGuestDeviceId();
 
-  /* ----- 1. Create or update global guest_profiles ----- */
-  const { data: profile, error: profileError } = await supabase
+  // 1️⃣ Try to find existing profile
+  const { data: existingProfile } = await supabase
     .from('guest_profiles')
-    .upsert(
-      {
-        device_id,
+    .select('*')
+    .eq('device_id', deviceId)
+    .maybeSingle();
+
+  let profile;
+  if (existingProfile) {
+    const { data: updated } = await supabase
+      .from('guest_profiles')
+      .update({
         first_name: guestData.first_name,
-        last_name: guestData.last_name || null,
-        nickname: guestData.nickname || null,
-      },
-      { onConflict: 'device_id' }
-    )
-    .select()
-    .single();
-
-  if (profileError) {
-    console.error('❌ Error upserting guest_profile:', profileError);
-    throw profileError;
+        last_name: guestData.last_name,
+        email: guestData.email,
+        phone: guestData.phone,
+      })
+      .eq('device_id', deviceId)
+      .select()
+      .single();
+    profile = updated;
+    console.log('🔁 Updated guest_profile:', profile);
+  } else {
+    const { data: inserted, error: insertError } = await supabase
+      .from('guest_profiles')
+      .insert([
+        {
+          device_id: deviceId,
+          first_name: guestData.first_name,
+          last_name: guestData.last_name,
+          email: guestData.email,
+          phone: guestData.phone,
+        },
+      ])
+      .select()
+      .single();
+    if (insertError) throw insertError;
+    profile = inserted;
+    console.log('✅ Created new guest_profile:', profile);
   }
 
-  /* ----- 2. Log / update guest_visits for this host ----- */
-  const { error: visitError } = await supabase
-    .from('guest_visits')
-    .upsert(
-      {
-        guest_profile_id: profile.id,
-        host_id: hostId,
-      },
-      { onConflict: 'guest_profile_id,host_id' }
-    );
-
-  if (visitError) {
-    console.error('❌ Error upserting guest_visit:', visitError);
-    throw visitError;
-  }
-
-  /* ----- 3. Upsert guests record for this event ----- */
+  // 2️⃣ Create event-specific guest link
   const { data: guestRecord, error: guestError } = await supabase
     .from('guests')
-    .upsert(
+    .insert([
       {
         event_id: eventId,
         first_name: guestData.first_name,
-        last_name: guestData.last_name || null,
-        nickname: guestData.nickname || null,
+        last_name: guestData.last_name,
+        email: guestData.email,
+        phone: guestData.phone,
         guest_profile_id: profile.id,
       },
-      { onConflict: 'event_id,guest_profile_id' }
-    )
+    ])
     .select()
     .single();
 
-  if (guestError) {
-    console.error('❌ Error upserting guest:', guestError);
-    throw guestError;
-  }
+  if (guestError) throw guestError;
+  console.log('🎯 Linked guest to event:', guestRecord);
 
-  return {
-    profile,       // global guest_profiles row
-    guestRecord,   // per-event guest row
-    device_id,     // local device identity
-  };
+  return { profile, guestRecord };
 }
