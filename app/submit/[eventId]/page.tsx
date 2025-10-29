@@ -16,19 +16,25 @@ export default function GuestSignupPage() {
   const [submitting, setSubmitting] = useState(false);
   const [fadeOut, setFadeOut] = useState(false);
 
+  /* ---------- Handle Submit ---------- */
   async function handleSubmit(e: any) {
     e.preventDefault();
 
-    if (!firstName.trim()) return alert('Please enter your first name.');
-    if (!email.trim() && !phone.trim())
-      return alert('Please provide either an email or phone number.');
+    if (!firstName.trim()) {
+      alert('Please enter your first name.');
+      return;
+    }
+    if (!email.trim() && !phone.trim()) {
+      alert('Please provide either an email or a phone number.');
+      return;
+    }
 
     setSubmitting(true);
     setFadeOut(true);
 
     const device_id = getOrCreateGuestDeviceId();
 
-    // 1️⃣ Upsert guest_profiles
+    /* 1️⃣ Upsert into guest_profiles */
     const { data: profileData, error: profileError } = await supabase
       .from('guest_profiles')
       .upsert(
@@ -52,7 +58,7 @@ export default function GuestSignupPage() {
       return;
     }
 
-    // 2️⃣ Insert into guests (per event)
+    /* 2️⃣ Insert into guests (per event) */
     const { data: guestData, error: guestError } = await supabase
       .from('guests')
       .insert([
@@ -76,7 +82,7 @@ export default function GuestSignupPage() {
       return;
     }
 
-    // 3️⃣ Save unified local profile
+    /* 3️⃣ Save unified local profile */
     const profileObj = {
       id: profileData.id,
       device_id,
@@ -84,15 +90,15 @@ export default function GuestSignupPage() {
       guest_id: guestData.id,
     };
 
-    console.log('✅ Saving to localStorage:', profileObj);
+    console.log('✅ Writing to localStorage:', profileObj);
     localStorage.setItem('faninteract_guest_id', device_id);
     localStorage.setItem('faninteract_guest_profile', JSON.stringify(profileObj));
 
-    // 4️⃣ Wait before redirect
-    setTimeout(() => {
-      console.log('🚀 Redirecting to post page...');
-      window.location.href = `/submit/${eventUUID}/post`;
-    }, 400); // ← Give browser time to write storage
+    // ✅ Force browser to flush before redirect
+    await new Promise((res) => setTimeout(res, 500));
+
+    console.log('🚀 Redirecting to post page...');
+    window.location.href = `/submit/${eventUUID}/post`;
   }
 
   return (
@@ -184,6 +190,33 @@ export default function GuestSignupPage() {
         >
           {submitting ? 'Submitting…' : 'Continue'}
         </button>
+
+        {/* 🔍 DEBUG STORAGE VIEW */}
+        <div
+          style={{
+            marginTop: 20,
+            fontSize: 12,
+            color: '#0ff',
+            background: '#111',
+            padding: 10,
+            borderRadius: 8,
+            textAlign: 'left',
+            width: '100%',
+            maxWidth: 420,
+            wordBreak: 'break-word',
+          }}
+        >
+          <p>
+            faninteract_guest_id:{' '}
+            {typeof window !== 'undefined' &&
+              localStorage.getItem('faninteract_guest_id')}
+          </p>
+          <p>
+            faninteract_guest_profile:{' '}
+            {typeof window !== 'undefined' &&
+              localStorage.getItem('faninteract_guest_profile')}
+          </p>
+        </div>
       </form>
     </div>
   );
