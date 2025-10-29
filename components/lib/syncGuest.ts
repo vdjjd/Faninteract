@@ -1,20 +1,25 @@
 import { supabase } from '@/lib/supabaseClient';
 
-/* ---------- Device ID Helper ---------- */
+/* -------------------------------------------------------------------------- */
+/* 🧩 1. Exported device ID helper                                             */
+/* -------------------------------------------------------------------------- */
 export function getOrCreateGuestDeviceId(): string {
-  if (typeof window === 'undefined') return 'server-runtime'; // prevents build errors
+  if (typeof window === 'undefined') return 'server-runtime'; // avoids Next.js build error
+
   let device_id = localStorage.getItem('guest_device_id');
   if (!device_id) {
     device_id = crypto.randomUUID();
     localStorage.setItem('guest_device_id', device_id);
     console.log('🆕 Created new device_id:', device_id);
   } else {
-    console.log('♻️ Reusing existing device_id:', device_id);
+    console.log('♻️ Using existing device_id:', device_id);
   }
   return device_id;
 }
 
-/* ---------- Main Sync Function ---------- */
+/* -------------------------------------------------------------------------- */
+/* 🧠 2. Exported profile sync helper                                          */
+/* -------------------------------------------------------------------------- */
 export async function syncGuestProfile(
   hostId: string,
   eventId: string,
@@ -26,10 +31,9 @@ export async function syncGuestProfile(
   }
 ) {
   const device_id = getOrCreateGuestDeviceId();
-
   console.log('🧠 syncGuestProfile →', { hostId, eventId, device_id, guestData });
 
-  // --- Step 1: create or find profile ---
+  // Step 1: find or create guest_profile
   const { data: existingProfile } = await supabase
     .from('guest_profiles')
     .select('*')
@@ -56,7 +60,7 @@ export async function syncGuestProfile(
     profile = newProfile;
   }
 
-  // --- Step 2: link to guests table ---
+  // Step 2: link to guests table
   const { data: existingGuest } = await supabase
     .from('guests')
     .select('*')
@@ -64,26 +68,19 @@ export async function syncGuestProfile(
     .eq('guest_profile_id', profile.id)
     .maybeSingle();
 
-  let guestRecord = existingGuest;
-  if (!guestRecord) {
-    const { data: newGuest, error: linkError } = await supabase
-      .from('guests')
-      .insert([
-        {
-          event_id: eventId,
-          guest_profile_id: profile.id,
-          first_name: profile.first_name,
-          last_name: profile.last_name,
-          email: profile.email,
-          phone: profile.phone,
-        },
-      ])
-      .select()
-      .single();
-
+  if (!existingGuest) {
+    const { error: linkError } = await supabase.from('guests').insert([
+      {
+        event_id: eventId,
+        guest_profile_id: profile.id,
+        first_name: profile.first_name,
+        last_name: profile.last_name,
+        email: profile.email,
+        phone: profile.phone,
+      },
+    ]);
     if (linkError) throw new Error(`Insert guest failed: ${linkError.message}`);
-    guestRecord = newGuest;
   }
 
-  return { profile, guestRecord };
+  return { profile };
 }
