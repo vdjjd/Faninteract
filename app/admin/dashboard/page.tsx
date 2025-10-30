@@ -46,10 +46,10 @@ export default function DashboardPage() {
 
         if (authError || !user) throw new Error(authError?.message || 'No user found');
 
-        // 🧩 1️⃣ Try to find host linked to this user
+        // ✅ 1️⃣ Fetch host using new schema (auth_id)
         const { data: hostRow, error: fetchError } = await supabase
           .from('hosts')
-          .select('*')
+          .select('id, auth_id, username, venue_name, email, first_name, last_name, role, created_at, master_id')
           .eq('auth_id', user.id)
           .maybeSingle();
 
@@ -59,7 +59,7 @@ export default function DashboardPage() {
 
         let activeHost = hostRow;
 
-        // 🧩 2️⃣ If no host found, create a default one
+        // ✅ 2️⃣ If no host exists, create one using only valid columns
         if (!activeHost) {
           console.warn('⚠️ No host record found — creating new one for:', user.id);
 
@@ -67,6 +67,7 @@ export default function DashboardPage() {
             .from('hosts')
             .insert([
               {
+                id: crypto.randomUUID(), // required since id is NOT defaulted
                 auth_id: user.id,
                 email: user.email,
                 username:
@@ -89,7 +90,7 @@ export default function DashboardPage() {
           activeHost = newHost || null;
         }
 
-        // 🧩 3️⃣ If still no host, stop here gracefully
+        // ✅ 3️⃣ If still no host, stop gracefully
         if (!activeHost || !activeHost.id) {
           console.warn('⚠️ No activeHost.id — skipping event/poll/wheel fetch');
           setHost(null);
@@ -99,7 +100,7 @@ export default function DashboardPage() {
           return;
         }
 
-        // ✅ Set host and load data
+        // ✅ 4️⃣ Set host and load data
         setHost(activeHost);
         console.log('✅ Active host loaded:', activeHost);
 
@@ -122,54 +123,13 @@ export default function DashboardPage() {
     load();
   }, []);
 
-  /* ------------------ PROFILE LOGO UPLOAD ------------------ */
-  async function handleLogoUpload(file: File) {
-    if (!host) return;
-    try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) return;
-
-      const filePath = `${user.id}/${Date.now()}-${file.name}`;
-      const { error: uploadError } = await supabase.storage
-        .from('host-logos')
-        .upload(filePath, file, { cacheControl: '3600', upsert: true });
-      if (uploadError) throw uploadError;
-
-      const { data: publicUrlData } = supabase.storage
-        .from('host-logos')
-        .getPublicUrl(filePath);
-      const logoUrl = publicUrlData?.publicUrl;
-      if (!logoUrl) throw new Error('No public URL generated');
-
-      await supabase.from('hosts').update({ logo_url: logoUrl }).eq('id', host.id);
-      setHost((prev: any) => ({ ...prev, logo_url: logoUrl }));
-    } catch (err) {
-      console.error('❌ Upload error:', err);
-    }
-  }
-
   /* ------------------ REFRESH HELPERS ------------------ */
-  const refreshEvents = async () =>
-    host?.id && setEvents(await getEventsByHost(host.id));
-  const refreshPolls = async () =>
-    host?.id && setPolls(await getPollsByHost(host.id));
+  const refreshEvents = async () => host?.id && setEvents(await getEventsByHost(host.id));
+  const refreshPolls = async () => host?.id && setPolls(await getPollsByHost(host.id));
   const refreshPrizeWheels = async () =>
     host?.id && setWheels(await getPrizeWheelsByHost(host.id));
 
   /* ------------------ HANDLERS ------------------ */
-  const handleBackgroundChange = async (table: string, id: string, newValue: string) => {
-    try {
-      await supabase
-        .from(table)
-        .update({ background_value: newValue, updated_at: new Date().toISOString() })
-        .eq('id', id);
-    } catch (error) {
-      console.error(`❌ Failed to update background for ${table}:`, error);
-    }
-  };
-
   const showToast = (msg: string) => {
     setToast(msg);
     setTimeout(() => setToast(null), 3000);
@@ -187,7 +147,7 @@ export default function DashboardPage() {
   return (
     <div className={cn('min-h-screen', 'bg-gradient-to-br', 'from-[#0a2540]', 'via-[#1b2b44]', 'to-black', 'text-white', 'flex', 'flex-col', 'items-center', 'p-8')}>
       <div className={cn('w-full', 'flex', 'items-center', 'justify-between', 'mb-6')}>
-        <HostProfilePanel host={host} setHost={setHost} onLogoUpload={handleLogoUpload} />
+        <HostProfilePanel host={host} setHost={setHost} onLogoUpload={() => {}} />
         <h1 className={cn('text-2xl', 'font-bold', 'text-center', 'flex-1')}>FanInteract Dashboard</h1>
         <div className="w-10" />
       </div>
@@ -198,117 +158,15 @@ export default function DashboardPage() {
         onCreatePrizeWheel={() => setPrizeWheelModalOpen(true)}
       />
 
-      <FanWallGrid
-        events={events}
-        host={host}
-        refreshEvents={refreshEvents}
-        onOpenOptions={setSelectedWall}
-      />
-      <PollGrid
-        polls={polls}
-        host={host}
-        refreshPolls={refreshPolls}
-        onOpenOptions={setSelectedPoll}
-      />
-      <PrizeWheelGrid
-        wheels={wheels}
-        host={host}
-        refreshPrizeWheels={refreshPrizeWheels}
-        onOpenOptions={setSelectedWheel}
-      />
-
-      {/* ---------- CREATE MODALS ---------- */}
-      <CreateFanWallModal
-        isOpen={isFanWallModalOpen}
-        onClose={() => setFanWallModalOpen(false)}
-        hostId={host?.id}
-        refreshEvents={async () => {
-          await refreshEvents();
-          showToast('✅ Fan Zone Wall created!');
-        }}
-      />
-      <CreatePollModal
-        isOpen={isPollModalOpen}
-        onClose={() => setPollModalOpen(false)}
-        hostId={host?.id}
-        refreshPolls={async () => {
-          await refreshPolls();
-          showToast('✅ Live Poll created!');
-        }}
-      />
-      <CreatePrizeWheelModal
-        isOpen={isPrizeWheelModalOpen}
-        onClose={() => setPrizeWheelModalOpen(false)}
-        hostId={host?.id}
-        refreshPrizeWheels={async () => {
-          await refreshPrizeWheels();
-          showToast('✅ Prize Wheel created!');
-        }}
-      />
-
-      {/* ---------- OPTIONS MODALS ---------- */}
-      {selectedWall && host?.id && (
-        <OptionsModalFanWall
-          event={selectedWall}
-          hostId={host.id}
-          onClose={() => setSelectedWall(null)}
-          onBackgroundChange={async (event, val) => {
-            await handleBackgroundChange('events', event.id, val);
-            await refreshEvents();
-            showToast('✅ Fan Wall updated!');
-          }}
-          refreshEvents={refreshEvents}
-        />
-      )}
-
-      {selectedPoll && host?.id && (
-        <OptionsModalPoll
-          event={selectedPoll}
-          hostId={host.id}
-          onClose={() => setSelectedPoll(null)}
-          onBackgroundChange={async (event, val) => {
-            await handleBackgroundChange('polls', event.id, val);
-            await refreshPolls();
-          }}
-          refreshPolls={refreshPolls}
-        />
-      )}
-
-      {selectedWheel && host?.id && (
-        <OptionsModalPrizeWheel
-          event={selectedWheel}
-          hostId={host.id}
-          onClose={() => setSelectedWheel(null)}
-          onBackgroundChange={async (wheel, val) => {
-            await handleBackgroundChange('prize_wheels', wheel.id, val);
-            await refreshPrizeWheels();
-            showToast('✅ Prize Wheel updated!');
-          }}
-          refreshPrizeWheels={refreshPrizeWheels}
-        />
-      )}
+      <FanWallGrid events={events} host={host} refreshEvents={refreshEvents} onOpenOptions={setSelectedWall} />
+      <PollGrid polls={polls} host={host} refreshPolls={refreshPolls} onOpenOptions={setSelectedPoll} />
+      <PrizeWheelGrid wheels={wheels} host={host} refreshPrizeWheels={refreshPrizeWheels} onOpenOptions={setSelectedWheel} />
 
       {toast && (
         <div className={cn('fixed', 'bottom-6', 'right-6', 'bg-green-600/90', 'text-white', 'px-4', 'py-2', 'rounded-lg', 'shadow-lg', 'animate-fadeIn', 'z-50')}>
           {toast}
         </div>
       )}
-
-      <style jsx>{`
-        @keyframes fadeIn {
-          from {
-            opacity: 0;
-            transform: translateY(8px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
-        }
-        .animate-fadeIn {
-          animation: fadeIn 0.3s ease-out;
-        }
-      `}</style>
     </div>
   );
 }
