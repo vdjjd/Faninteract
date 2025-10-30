@@ -2,19 +2,23 @@
 
 import { useEffect } from 'react';
 import { supabase } from '@/lib/supabaseClient';
-import { clearEventPosts, deleteEvent } from '@/lib/actions/events';
+import {
+import { cn } from "../../../../lib/utils";
+  clearFanWallPosts,
+  deleteFanWall,
+} from '@/lib/actions/fan_walls';
 
 interface FanWallGridProps {
-  events: any[];
+  walls: any[];
   host: any;
-  refreshEvents: () => Promise<void>;
-  onOpenOptions: (event: any) => void;
+  refreshFanWalls: () => Promise<void>;
+  onOpenOptions: (wall: any) => void;
 }
 
 export default function FanWallGrid({
-  events,
+  walls,
   host,
-  refreshEvents,
+  refreshFanWalls,
   onOpenOptions,
 }: FanWallGridProps) {
   /* ---------- OPEN WALL ---------- */
@@ -32,16 +36,16 @@ export default function FanWallGrid({
   async function handleStart(id: string) {
     try {
       const { data: current, error } = await supabase
-        .from('events')
+        .from('fan_walls')
         .select('countdown')
         .eq('id', id)
         .single();
 
-      if (error) return console.error('❌ Error fetching event before start:', error);
+      if (error) return console.error('❌ Error fetching wall before start:', error);
 
       if (current?.countdown && current.countdown !== 'none') {
         await supabase
-          .from('events')
+          .from('fan_walls')
           .update({
             countdown_active: true,
             status: 'inactive',
@@ -50,7 +54,7 @@ export default function FanWallGrid({
           .eq('id', id);
       } else {
         await supabase
-          .from('events')
+          .from('fan_walls')
           .update({
             status: 'live',
             countdown_active: false,
@@ -58,14 +62,14 @@ export default function FanWallGrid({
           })
           .eq('id', id);
 
-        supabase.channel('events-realtime').send({
+        supabase.channel('fan_walls-realtime').send({
           type: 'broadcast',
-          event: 'event_status_changed',
+          event: 'wall_status_changed',
           payload: { id, status: 'live' },
         });
       }
 
-      await refreshEvents();
+      await refreshFanWalls();
     } catch (err) {
       console.error('❌ Error starting wall:', err);
     }
@@ -75,7 +79,7 @@ export default function FanWallGrid({
   async function handleStop(id: string) {
     try {
       await supabase
-        .from('events')
+        .from('fan_walls')
         .update({
           status: 'inactive',
           countdown_active: false,
@@ -83,13 +87,13 @@ export default function FanWallGrid({
         })
         .eq('id', id);
 
-      supabase.channel('events-realtime').send({
+      supabase.channel('fan_walls-realtime').send({
         type: 'broadcast',
-        event: 'event_status_changed',
+        event: 'wall_status_changed',
         payload: { id, status: 'inactive' },
       });
 
-      await refreshEvents();
+      await refreshFanWalls();
     } catch (err) {
       console.error('❌ Error stopping wall:', err);
     }
@@ -97,26 +101,26 @@ export default function FanWallGrid({
 
   /* ---------- CLEAR ---------- */
   async function handleClear(id: string) {
-    await clearEventPosts(id);
-    await refreshEvents();
+    await clearFanWallPosts(id);
+    await refreshFanWalls();
   }
 
   /* ---------- DELETE ---------- */
   async function handleDelete(id: string) {
-    await deleteEvent(id);
-    await refreshEvents();
+    await deleteFanWall(id);
+    await refreshFanWalls();
   }
 
-  /* ---------- MODERATION POPUP (NO URL BAR) ---------- */
-  function openModerationPopup(eventId: string) {
+  /* ---------- MODERATION POPUP ---------- */
+  function openModerationPopup(wallId: string) {
     const w = 1280;
     const h = 720;
     const left = window.screenX + (window.outerWidth - w) / 2;
     const top = window.screenY + (window.outerHeight - h) / 2;
 
     const popup = window.open(
-      `/admin/moderation/${eventId}`,
-      `moderation_${eventId}`, // unique name per wall
+      `/admin/moderation/${wallId}`,
+      `moderation_${wallId}`,
       [
         `width=${w}`,
         `height=${h}`,
@@ -128,7 +132,7 @@ export default function FanWallGrid({
         'toolbar=no',
         'location=no',
         'status=no',
-        'titlebar=no'
+        'titlebar=no',
       ].join(',')
     );
 
@@ -138,21 +142,21 @@ export default function FanWallGrid({
     const checkPopup = setInterval(() => {
       if (popup?.closed) {
         clearInterval(checkPopup);
-        refreshEvents();
+        refreshFanWalls();
       }
     }, 1000);
   }
 
-  /* ---------- SUBSCRIBE TO REALTIME PENDING UPDATES ---------- */
+  /* ---------- REALTIME LISTENER ---------- */
   useEffect(() => {
     const channel = supabase
-      .channel('submissions-pending')
+      .channel('guest_posts-pending')
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: 'submissions' },
+        { event: '*', schema: 'public', table: 'guest_posts' },
         async (payload: any) => {
-          if (payload?.new && 'event_id' in payload.new) {
-            await refreshEvents();
+          if (payload?.new && 'fan_wall_id' in payload.new) {
+            await refreshFanWalls();
           }
         }
       )
@@ -161,55 +165,55 @@ export default function FanWallGrid({
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [refreshEvents]);
+  }, [refreshFanWalls]);
 
   /* ---------- RENDER ---------- */
   return (
-    <div className="mt-10 w-full max-w-6xl">
-      <h2 className="text-xl font-semibold mb-3">🎤 Fan Zone Walls</h2>
+    <div className={cn('mt-10', 'w-full', 'max-w-6xl')}>
+      <h2 className={cn('text-xl', 'font-semibold', 'mb-3')}>🎤 Fan Zone Walls</h2>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
-        {events.length === 0 && (
-          <p className="text-gray-400 italic">No Fan Zone Walls created yet.</p>
+      <div className={cn('grid', 'grid-cols-1', 'sm:grid-cols-2', 'md:grid-cols-3', 'lg:grid-cols-4', 'gap-5')}>
+        {walls.length === 0 && (
+          <p className={cn('text-gray-400', 'italic')}>No Fan Zone Walls created yet.</p>
         )}
 
-        {events.map((event) => (
+        {walls.map((wall) => (
           <div
-            key={event.id}
-            className="rounded-xl p-4 text-center shadow-lg bg-cover bg-center flex flex-col justify-between"
+            key={wall.id}
+            className={cn('rounded-xl', 'p-4', 'text-center', 'shadow-lg', 'bg-cover', 'bg-center', 'flex', 'flex-col', 'justify-between')}
             style={{
               background:
-                event.background_type === 'image'
-                  ? `url(${event.background_value}) center/cover no-repeat`
-                  : event.background_value ||
+                wall.background_type === 'image'
+                  ? `url(${wall.background_value}) center/cover no-repeat`
+                  : wall.background_value ||
                     'linear-gradient(135deg,#0d47a1,#1976d2)',
             }}
           >
             <div>
-              <h3 className="font-bold text-lg text-center drop-shadow-md mb-1">
-                {event.host_title || event.title || 'Untitled Wall'}
+              <h3 className={cn('font-bold', 'text-lg', 'text-center', 'drop-shadow-md', 'mb-1')}>
+                {wall.host_title || wall.title || 'Untitled Wall'}
               </h3>
-              <p className="text-sm mb-2">
+              <p className={cn('text-sm', 'mb-2')}>
                 <strong>Status:</strong>{' '}
                 <span
                   className={
-                    event.status === 'live'
+                    wall.status === 'live'
                       ? 'text-lime-400'
-                      : event.status === 'inactive'
+                      : wall.status === 'inactive'
                       ? 'text-orange-400'
                       : 'text-gray-400'
                   }
                 >
-                  {event.status}
+                  {wall.status}
                 </span>
               </p>
 
               {/* ---------- Pending Button ---------- */}
-              <div className="flex justify-center mb-3">
+              <div className={cn('flex', 'justify-center', 'mb-3')}>
                 <button
-                  onClick={() => openModerationPopup(event.id)}
+                  onClick={() => openModerationPopup(wall.id)}
                   className={`px-3 py-1 rounded-md text-sm font-semibold flex items-center gap-1 shadow-md transition ${
-                    event.pending_posts > 0
+                    wall.pending_posts > 0
                       ? 'bg-yellow-500 hover:bg-yellow-600 text-black'
                       : 'bg-gray-600 hover:bg-gray-700 text-white/80'
                   }`}
@@ -217,52 +221,52 @@ export default function FanWallGrid({
                   🕓 Pending
                   <span
                     className={`px-1.5 py-0.5 rounded-md text-xs font-bold ${
-                      event.pending_posts > 0
+                      wall.pending_posts > 0
                         ? 'bg-black/70 text-white'
                         : 'bg-white/20 text-gray-300'
                     }`}
                   >
-                    {event.pending_posts}
+                    {wall.pending_posts}
                   </span>
                 </button>
               </div>
             </div>
 
             {/* ---------- Control Buttons ---------- */}
-            <div className="flex flex-wrap justify-center gap-2 mt-auto pt-2 border-t border-white/10">
+            <div className={cn('flex', 'flex-wrap', 'justify-center', 'gap-2', 'mt-auto', 'pt-2', 'border-t', 'border-white/10')}>
               <button
-                onClick={() => handleLaunch(event.id)}
-                className="bg-blue-600 hover:bg-blue-700 px-2 py-1 rounded text-sm font-semibold"
+                onClick={() => handleLaunch(wall.id)}
+                className={cn('bg-blue-600', 'hover:bg-blue-700', 'px-2', 'py-1', 'rounded', 'text-sm', 'font-semibold')}
               >
                 🚀 Launch
               </button>
               <button
-                onClick={() => handleStart(event.id)}
-                className="bg-green-600 hover:bg-green-700 px-2 py-1 rounded text-sm font-semibold"
+                onClick={() => handleStart(wall.id)}
+                className={cn('bg-green-600', 'hover:bg-green-700', 'px-2', 'py-1', 'rounded', 'text-sm', 'font-semibold')}
               >
                 ▶️ Play
               </button>
               <button
-                onClick={() => handleStop(event.id)}
-                className="bg-red-600 hover:bg-red-700 px-2 py-1 rounded text-sm font-semibold"
+                onClick={() => handleStop(wall.id)}
+                className={cn('bg-red-600', 'hover:bg-red-700', 'px-2', 'py-1', 'rounded', 'text-sm', 'font-semibold')}
               >
                 ⏹ Stop
               </button>
               <button
-                onClick={() => handleClear(event.id)}
-                className="bg-cyan-500 hover:bg-cyan-600 px-2 py-1 rounded text-sm font-semibold"
+                onClick={() => handleClear(wall.id)}
+                className={cn('bg-cyan-500', 'hover:bg-cyan-600', 'px-2', 'py-1', 'rounded', 'text-sm', 'font-semibold')}
               >
                 🧹 Clear
               </button>
               <button
-                onClick={() => onOpenOptions(event)}
-                className="bg-indigo-500 hover:bg-indigo-600 px-2 py-1 rounded text-sm font-semibold"
+                onClick={() => onOpenOptions(wall)}
+                className={cn('bg-indigo-500', 'hover:bg-indigo-600', 'px-2', 'py-1', 'rounded', 'text-sm', 'font-semibold')}
               >
                 ⚙ Options
               </button>
               <button
-                onClick={() => handleDelete(event.id)}
-                className="bg-red-700 hover:bg-red-800 px-2 py-1 rounded text-sm font-semibold"
+                onClick={() => handleDelete(wall.id)}
+                className={cn('bg-red-700', 'hover:bg-red-800', 'px-2', 'py-1', 'rounded', 'text-sm', 'font-semibold')}
               >
                 ❌ Delete
               </button>

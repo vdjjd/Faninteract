@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabaseClient';
-import { getEventsByHost } from '@/lib/actions/events';
+import { getEventsByHost } from '@/lib/actions/fan_walls';
 import { getPollsByHost } from '@/lib/actions/polls';
 import { getPrizeWheelsByHost } from '@/lib/actions/prizewheels';
 

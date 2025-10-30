@@ -2,14 +2,11 @@
 
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabaseClient';
-import { getEventsByHost } from '@/lib/actions/events';
+import { getFanWallsByHost } from '@/lib/actions/fan_walls';
 import { getPollsByHost } from '@/lib/actions/polls';
 import { getPrizeWheelsByHost } from '@/lib/actions/prizewheels';
 
 import DashboardHeader from './components/DashboardHeader';
-import CreateFanWallModal from '@/components/CreateFanWallModal';
-import CreatePollModal from '@/components/CreatePollModal';
-import CreatePrizeWheelModal from '@/components/CreatePrizeWheelModal';
 import FanWallGrid from './components/FanWallGrid';
 import PollGrid from './components/PollGrid';
 import PrizeWheelGrid from './components/PrizeWheelGrid';
@@ -18,7 +15,7 @@ import { cn } from '../../../lib/utils';
 
 export default function DashboardPage() {
   const [host, setHost] = useState<any>(null);
-  const [events, setEvents] = useState<any[]>([]);
+  const [walls, setWalls] = useState<any[]>([]);
   const [polls, setPolls] = useState<any[]>([]);
   const [wheels, setWheels] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -28,7 +25,7 @@ export default function DashboardPage() {
   useEffect(() => {
     async function load() {
       try {
-        // 1️⃣ Get the authenticated user
+        // 1️⃣ Get authenticated user
         const {
           data: { user },
           error: authError,
@@ -36,7 +33,7 @@ export default function DashboardPage() {
 
         if (authError || !user) throw new Error(authError?.message || 'No user found');
 
-        // 2️⃣ Try to fetch existing host
+        // 2️⃣ Get or create host record
         const { data: hostRow, error: hostError } = await supabase
           .from('hosts')
           .select('*')
@@ -45,7 +42,6 @@ export default function DashboardPage() {
 
         let activeHost = hostRow;
 
-        // 3️⃣ If no host record exists, create one
         if (!activeHost) {
           console.warn('⚠️ No host record found — creating new one for:', user.id);
 
@@ -78,14 +74,14 @@ export default function DashboardPage() {
         setHost(activeHost);
         console.log('✅ Active host loaded:', activeHost);
 
-        // 4️⃣ Fetch associated data
-        const [fetchedEvents, fetchedPolls, fetchedWheels] = await Promise.all([
-          getEventsByHost(activeHost.id),
+        // 3️⃣ Load host data (fan walls, polls, wheels)
+        const [fetchedWalls, fetchedPolls, fetchedWheels] = await Promise.all([
+          getFanWallsByHost(activeHost.id),
           getPollsByHost(activeHost.id),
           getPrizeWheelsByHost(activeHost.id),
         ]);
 
-        setEvents(fetchedEvents || []);
+        setWalls(fetchedWalls || []);
         setPolls(fetchedPolls || []);
         setWheels(fetchedWheels || []);
       } catch (err: any) {
@@ -99,7 +95,7 @@ export default function DashboardPage() {
   }, []);
 
   /* ------------------ REFRESH HELPERS ------------------ */
-  const refreshEvents = async () => host?.id && setEvents(await getEventsByHost(host.id));
+  const refreshFanWalls = async () => host?.id && setWalls(await getFanWallsByHost(host.id));
   const refreshPolls = async () => host?.id && setPolls(await getPollsByHost(host.id));
   const refreshPrizeWheels = async () => host?.id && setWheels(await getPrizeWheelsByHost(host.id));
 
@@ -143,6 +139,7 @@ export default function DashboardPage() {
         'p-8'
       )}
     >
+      {/* ---------- HEADER ---------- */}
       <div className={cn('w-full', 'flex', 'items-center', 'justify-between', 'mb-6')}>
         <HostProfilePanel host={host} setHost={setHost} onLogoUpload={() => {}} />
         <h1 className={cn('text-2xl', 'font-bold', 'text-center', 'flex-1')}>
@@ -151,24 +148,30 @@ export default function DashboardPage() {
         <div className="w-10" />
       </div>
 
+      {/* ---------- BUTTON HEADER ---------- */}
       <DashboardHeader
         onCreateFanWall={() => showToast('Fan Wall modal coming soon')}
         onCreatePoll={() => showToast('Poll modal coming soon')}
         onCreatePrizeWheel={() => showToast('Prize Wheel modal coming soon')}
       />
 
+      {/* ---------- FAN WALL GRID ---------- */}
       <FanWallGrid
-        events={events}
+        walls={walls}
         host={host}
-        refreshEvents={refreshEvents}
+        refreshFanWalls={refreshFanWalls}
         onOpenOptions={() => {}}
       />
+
+      {/* ---------- POLL GRID ---------- */}
       <PollGrid
         polls={polls}
         host={host}
         refreshPolls={refreshPolls}
         onOpenOptions={() => {}}
       />
+
+      {/* ---------- PRIZE WHEEL GRID ---------- */}
       <PrizeWheelGrid
         wheels={wheels}
         host={host}
@@ -176,6 +179,7 @@ export default function DashboardPage() {
         onOpenOptions={() => {}}
       />
 
+      {/* ---------- TOAST ---------- */}
       {toast && (
         <div
           className={cn(

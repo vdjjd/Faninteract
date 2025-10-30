@@ -4,15 +4,17 @@ import { QRCodeCanvas } from 'qrcode.react';
 import { supabase } from '@/lib/supabaseClient';
 import { useEffect, useState } from 'react';
 
-/* ---------- COUNTDOWN DISPLAY ---------- */
+/* -------------------------------------------------------------------------- */
+/* ⏱ COUNTDOWN DISPLAY                                                      */
+/* -------------------------------------------------------------------------- */
 function CountdownDisplay({
   countdown,
   countdownActive,
-  eventId,
+  wallId,
 }: {
   countdown: string;
   countdownActive: boolean;
-  eventId: string;
+  wallId: string;
 }) {
   const [timeLeft, setTimeLeft] = useState<number>(0);
   const [originalTime, setOriginalTime] = useState<number>(0);
@@ -35,9 +37,9 @@ function CountdownDisplay({
           clearInterval(timer);
           (async () => {
             const { error } = await supabase
-              .from('events')
+              .from('fan_walls')
               .update({ status: 'live', countdown_active: false })
-              .eq('id', eventId);
+              .eq('id', wallId);
             if (error) console.error('❌ Error setting wall live:', error);
           })();
           return 0;
@@ -46,7 +48,7 @@ function CountdownDisplay({
       });
     }, 1000);
     return () => clearInterval(timer);
-  }, [countdownActive, eventId, timeLeft]);
+  }, [countdownActive, wallId, timeLeft]);
 
   useEffect(() => {
     if (!countdownActive) setTimeLeft(originalTime);
@@ -72,19 +74,19 @@ function CountdownDisplay({
   );
 }
 
-/* ---------- INACTIVE WALL ---------- */
-export default function InactiveWall({ event }: { event: any }) {
+/* -------------------------------------------------------------------------- */
+/* 🎤 INACTIVE FAN WALL                                                     */
+/* -------------------------------------------------------------------------- */
+export default function InactiveWall({ wall }: { wall: any }) {
   const bg =
-    event?.background_type === 'image'
-      ? `url(${event.background_value}) center/cover no-repeat`
-      : event?.background_value ||
+    wall?.background_type === 'image'
+      ? `url(${wall.background_value}) center/cover no-repeat`
+      : wall?.background_value ||
         'linear-gradient(to bottom right,#1b2735,#090a0f)';
 
-  // pick logo: host branding, event logo, or fallback FanInteract
+  // ✅ pick logo: host branding, or fallback FanInteract
   const displayLogo =
-    event?.host?.branding_logo_url ||
-    event?.logo_url ||
-    '/faninteractlogo.png';
+    wall?.host?.branding_logo_url || wall?.logo_url || '/faninteractlogo.png';
 
   return (
     <>
@@ -131,10 +133,10 @@ export default function InactiveWall({ event }: { event: any }) {
             lineHeight: 1.1,
           }}
         >
-          {event.title || 'Fan Zone Wall'}
+          {wall.title || 'Fan Zone Wall'}
         </h1>
 
-        {/* ---------- DISPLAY AREA ---------- */}
+        {/* ---------- MAIN DISPLAY ---------- */}
         <div
           style={{
             width: '80vw',
@@ -150,9 +152,9 @@ export default function InactiveWall({ event }: { event: any }) {
             alignItems: 'center',
           }}
         >
-          {/* ---------- BIG QR (LEFT SIDE) ---------- */}
+          {/* ---------- QR ---------- */}
           <QRCodeCanvas
-            value={`https://faninteract.vercel.app/submit/${event.id}`}
+            value={`https://faninteract.vercel.app/submit/${wall.id}`}
             size={420}
             bgColor="#ffffff"
             fgColor="#000000"
@@ -232,11 +234,11 @@ export default function InactiveWall({ event }: { event: any }) {
               Starting Soon!!
             </h2>
 
-            {event.countdown && (
+            {wall.countdown && (
               <CountdownDisplay
-                countdown={event.countdown}
-                countdownActive={!!event.countdown_active}
-                eventId={event.id}
+                countdown={wall.countdown}
+                countdownActive={!!wall.countdown_active}
+                wallId={wall.id}
               />
             )}
           </div>

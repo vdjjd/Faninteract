@@ -4,9 +4,12 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
 
-interface Submission {
+/* -------------------------------------------------------------------------- */
+/* 📸 TYPE DEFINITIONS                                                        */
+/* -------------------------------------------------------------------------- */
+interface GuestPost {
   id: string;
-  event_id: string;
+  fan_wall_id: string;
   nickname?: string;
   message?: string;
   photo_url?: string;
@@ -14,102 +17,129 @@ interface Submission {
   created_at?: string;
 }
 
+/* -------------------------------------------------------------------------- */
+/* 🧠 MAIN COMPONENT: MODERATION PAGE                                         */
+/* -------------------------------------------------------------------------- */
 export default function ModerationPage() {
-  const { eventId } = useParams();
-  const [subs, setSubs] = useState<Submission[]>([]);
+  const { wallId } = useParams();
+  const [posts, setPosts] = useState<GuestPost[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedImg, setSelectedImg] = useState<string | null>(null);
   const [toast, setToast] = useState<{ text: string; color: string } | null>(null);
 
   const isPopup = typeof window !== 'undefined' && !!window.opener;
 
+  /* ---------------------------------------------------------------------- */
+  /* 🧭 HELPER: Toast Notification                                          */
+  /* ---------------------------------------------------------------------- */
   function showToast(text: string, color = '#00ff88') {
     setToast({ text, color });
     setTimeout(() => setToast(null), 2500);
   }
 
+  /* ---------------------------------------------------------------------- */
+  /* 🧾 LOAD ALL POSTS                                                      */
+  /* ---------------------------------------------------------------------- */
   async function loadAll() {
-    if (!eventId) return;
+    if (!wallId) return;
     const { data, error } = await supabase
-      .from('submissions')
+      .from('guest_posts')
       .select('*')
-      .eq('event_id', eventId)
+      .eq('fan_wall_id', wallId)
       .order('created_at', { ascending: false });
 
-    if (!error && data) setSubs(data);
-    else console.error('❌ Error fetching submissions:', error);
+    if (!error && data) setPosts(data);
+    else console.error('❌ Error fetching guest_posts:', error);
     setLoading(false);
   }
 
+  /* ---------------------------------------------------------------------- */
+  /* ✅ APPROVE / REJECT / DELETE                                           */
+  /* ---------------------------------------------------------------------- */
   async function handleApprove(id: string) {
     const { error } = await supabase
-      .from('submissions')
+      .from('guest_posts')
       .update({ status: 'approved' })
       .eq('id', id)
       .select()
       .single();
+
     if (error) console.error(error);
     else {
       showToast('✅ Post Approved');
-      setSubs((prev) => prev.map((s) => (s.id === id ? { ...s, status: 'approved' } : s)));
+      setPosts((prev) => prev.map((p) => (p.id === id ? { ...p, status: 'approved' } : p)));
     }
   }
 
   async function handleReject(id: string) {
     const { error } = await supabase
-      .from('submissions')
+      .from('guest_posts')
       .update({ status: 'rejected' })
       .eq('id', id)
       .select()
       .single();
+
     if (error) console.error(error);
     else {
       showToast('🚫 Post Rejected', '#ff4444');
-      setSubs((prev) => prev.map((s) => (s.id === id ? { ...s, status: 'rejected' } : s)));
+      setPosts((prev) => prev.map((p) => (p.id === id ? { ...p, status: 'rejected' } : p)));
     }
   }
 
   async function handleDelete(id: string) {
-    const { error } = await supabase.from('submissions').delete().eq('id', id);
+    const { error } = await supabase.from('guest_posts').delete().eq('id', id);
     if (error) {
       showToast('❌ Delete failed', '#ff4444');
       console.error(error);
     } else {
       showToast('🧹 Post Deleted', '#bbb');
-      setSubs((prev) => prev.filter((s) => s.id !== id));
+      setPosts((prev) => prev.filter((p) => p.id !== id));
     }
   }
 
+  /* ---------------------------------------------------------------------- */
+  /* 🔄 REALTIME SUBSCRIPTION                                               */
+  /* ---------------------------------------------------------------------- */
   useEffect(() => {
-    if (!eventId) return;
+    if (!wallId) return;
     loadAll();
 
     const channel = supabase
-      .channel(`moderation_${eventId}`)
+      .channel(`moderation_${wallId}`)
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: 'submissions', filter: `event_id=eq.${eventId}` },
+        {
+          event: '*',
+          schema: 'public',
+          table: 'guest_posts',
+          filter: `fan_wall_id=eq.${wallId}`,
+        },
         (payload: any) => {
-          const newData = payload?.new as Submission | undefined;
-          if (payload.eventType === 'INSERT' && newData) setSubs((p) => [newData, ...p]);
+          const newData = payload?.new as GuestPost | undefined;
+          if (payload.eventType === 'INSERT' && newData) setPosts((p) => [newData, ...p]);
           if (payload.eventType === 'UPDATE' && newData)
-            setSubs((p) => p.map((s) => (s.id === newData.id ? newData : s)));
+            setPosts((p) => p.map((s) => (s.id === newData.id ? newData : s)));
           if (payload.eventType === 'DELETE' && newData)
-            setSubs((p) => p.filter((s) => s.id !== newData.id));
+            setPosts((p) => p.filter((s) => s.id !== newData.id));
         }
       )
       .subscribe();
 
-    // ✅ Fixed cleanup (non-async)
     return () => {
       void supabase.removeChannel(channel);
     };
-  }, [eventId]);
+  }, [wallId]);
 
-  const pending = subs.filter((s) => s.status === 'pending');
-  const approved = subs.filter((s) => s.status === 'approved');
-  const rejected = subs.filter((s) => s.status === 'rejected');
+  /* ---------------------------------------------------------------------- */
+  /* 🧮 SORT POSTS BY STATUS                                                */
+  /* ---------------------------------------------------------------------- */
+  const pending = posts.filter((s) => s.status === 'pending');
+  const approved = posts.filter((s) => s.status === 'approved');
+  const rejected = posts.filter((s) => s.status === 'rejected');
 
+  /* ---------------------------------------------------------------------- */
+  /* 🎨 RENDER PAGE                                                        */
+  /* ---------------------------------------------------------------------- */
   return (
     <div
       style={{
@@ -268,7 +298,9 @@ export default function ModerationPage() {
   );
 }
 
-/* ---------- SECTION COMPONENT ---------- */
+/* -------------------------------------------------------------------------- */
+/* 🧩 SECTION COMPONENT                                                      */
+/* -------------------------------------------------------------------------- */
 function Section({
   title,
   color,
@@ -281,7 +313,7 @@ function Section({
 }: {
   title: string;
   color: string;
-  data: Submission[];
+  data: GuestPost[];
   onApprove?: (id: string) => void;
   onReject?: (id: string) => void;
   onDelete?: (id: string) => void;
