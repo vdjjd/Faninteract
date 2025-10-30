@@ -4,11 +4,14 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { supabase } from '@/lib/supabaseClient';
-import { BRAND_LOGO, BRAND_NAME } from '@/lib/constants';
+import { cn } from "../../lib/utils";
+
+const BRAND_LOGO = '/faninteractlogo.png';
+const BRAND_NAME = 'FanInteract';
 
 export default function LoginPage() {
   const router = useRouter();
-  const [identifier, setIdentifier] = useState(''); // username OR email
+  const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -21,20 +24,19 @@ export default function LoginPage() {
     try {
       let emailToUse = identifier;
 
-      // 🧠 If user entered a username (no "@"), resolve to email via secure API
+      // Resolve username to email if no '@'
       if (!identifier.includes('@')) {
         const res = await fetch('/api/resolve-username', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ username: identifier }),
         });
-
         const result = await res.json();
         if (!res.ok) throw new Error(result.error || 'Invalid username.');
         emailToUse = result.email;
       }
 
-      // 🔐 Sign in with Supabase
+      // Supabase sign in
       const { error: signInError } = await supabase.auth.signInWithPassword({
         email: emailToUse,
         password,
@@ -42,7 +44,6 @@ export default function LoginPage() {
 
       if (signInError) throw signInError;
 
-      // 🚀 Redirect on success
       router.push('/admin/dashboard');
     } catch (err: any) {
       console.error('Login error:', err.message);
@@ -53,34 +54,33 @@ export default function LoginPage() {
   };
 
   return (
-    <main className="relative flex flex-col items-center justify-center min-h-screen overflow-hidden text-white text-center">
-      {/* 🌌 Animated gradient background */}
-      <div className="absolute inset-0 bg-[linear-gradient(135deg,#0a2540,#1b2b44,#000000)] bg-[length:200%_200%] animate-gradient-slow" />
-      <div className="absolute inset-0 opacity-25 bg-[radial-gradient(circle_at_30%_30%,rgba(0,153,255,0.4),transparent_70%)]" />
+    <main className={cn('relative', 'flex', 'flex-col', 'items-center', 'justify-center', 'min-h-screen', 'overflow-hidden', 'text-white', 'text-center')}>
+      {/* Background */}
+      <div className={cn('absolute', 'inset-0', 'bg-[linear-gradient(135deg,#0a2540,#1b2b44,#000000)]', 'bg-[length:200%_200%]', 'animate-gradient-slow')} />
+      <div className={cn('absolute', 'inset-0', 'opacity-25', 'bg-[radial-gradient(circle_at_30%_30%,rgba(0,153,255,0.4),transparent_70%)]')} />
 
-      {/* 🧭 Login card */}
-      <div className="relative z-10 flex flex-col items-center px-6 py-10 rounded-2xl bg-[#0d1625]/90 border border-blue-900/40 shadow-lg shadow-black/40 max-w-sm w-full backdrop-blur-lg">
-        {/* 🔵 Animated logo */}
+      {/* Login Card */}
+      <div className={cn('relative', 'z-10', 'flex', 'flex-col', 'items-center', 'px-6', 'py-10', 'rounded-2xl', 'bg-[#0d1625]/90', 'border', 'border-blue-900/40', 'shadow-lg', 'shadow-black/40', 'max-w-sm', 'w-full', 'backdrop-blur-lg')}>
         <motion.img
           src={BRAND_LOGO}
           alt={`${BRAND_NAME} Logo`}
           initial={{ scale: 0.95 }}
           animate={{ scale: [1, 1.06, 1] }}
           transition={{ duration: 6, repeat: Infinity, ease: 'easeInOut' }}
-          className="w-[260px] md:w-[320px] mb-6 drop-shadow-[0_0_30px_rgba(56,189,248,0.3)]"
+          className={cn('w-[260px]', 'md:w-[320px]', 'mb-6', 'drop-shadow-[0_0_30px_rgba(56,189,248,0.3)]')}
         />
 
-        <h1 className="text-3xl font-bold mb-6 text-sky-400 drop-shadow-[0_0_20px_rgba(56,189,248,0.2)]">
+        <h1 className={cn('text-3xl', 'font-bold', 'mb-6', 'text-sky-400', 'drop-shadow-[0_0_20px_rgba(56,189,248,0.2)]')}>
           {BRAND_NAME} Host Login
         </h1>
 
-        <form onSubmit={handleLogin} className="flex flex-col w-full gap-4">
+        <form onSubmit={handleLogin} className={cn('flex', 'flex-col', 'w-full', 'gap-4')}>
           <input
             type="text"
             placeholder="Username or Email"
             value={identifier}
             onChange={(e) => setIdentifier(e.target.value)}
-            className="px-4 py-3 rounded-xl bg-[#111b2f] border border-blue-800/40 text-white focus:outline-none focus:ring-2 focus:ring-sky-500"
+            className={cn('px-4', 'py-3', 'rounded-xl', 'bg-[#111b2f]', 'border', 'border-blue-800/40', 'text-white', 'focus:outline-none', 'focus:ring-2', 'focus:ring-sky-500')}
             required
           />
           <input
@@ -88,40 +88,33 @@ export default function LoginPage() {
             placeholder="Password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className="px-4 py-3 rounded-xl bg-[#111b2f] border border-blue-800/40 text-white focus:outline-none focus:ring-2 focus:ring-sky-500"
+            className={cn('px-4', 'py-3', 'rounded-xl', 'bg-[#111b2f]', 'border', 'border-blue-800/40', 'text-white', 'focus:outline-none', 'focus:ring-2', 'focus:ring-sky-500')}
             required
           />
           <button
             type="submit"
             disabled={loading}
-            className="mt-2 py-3 rounded-xl bg-gradient-to-r from-sky-500 to-blue-600 font-semibold shadow-lg shadow-blue-600/40 hover:scale-[1.03] hover:shadow-blue-500/60 transition-all duration-300"
+            className={cn('mt-2', 'py-3', 'rounded-xl', 'bg-gradient-to-r', 'from-sky-500', 'to-blue-600', 'font-semibold', 'shadow-lg', 'shadow-blue-600/40', 'hover:scale-[1.03]', 'hover:shadow-blue-500/60', 'transition-all', 'duration-300')}
           >
             {loading ? 'Signing In...' : 'Login'}
           </button>
         </form>
 
-        {error && <p className="text-red-400 mt-4 text-sm">{error}</p>}
+        {error && <p className={cn('text-red-400', 'mt-4', 'text-sm')}>{error}</p>}
 
-        <p className="text-gray-400 text-sm mt-6">
+        <p className={cn('text-gray-400', 'text-sm', 'mt-6')}>
           Don’t have an account?{' '}
-          <a href="/signup" className="text-sky-400 hover:underline">
+          <a href="/signup" className={cn('text-sky-400', 'hover:underline')}>
             Sign up
           </a>
         </p>
       </div>
 
-      {/* 🎞️ Gradient Animation */}
       <style jsx global>{`
         @keyframes gradient-slow {
-          0% {
-            background-position: 0% 50%;
-          }
-          50% {
-            background-position: 100% 50%;
-          }
-          100% {
-            background-position: 0% 50%;
-          }
+          0% { background-position: 0% 50%; }
+          50% { background-position: 100% 50%; }
+          100% { background-position: 0% 50%; }
         }
         .animate-gradient-slow {
           background-size: 200% 200%;

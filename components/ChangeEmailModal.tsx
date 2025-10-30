@@ -3,61 +3,49 @@
 import { useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { Button } from '@/components/ui/button';
-import { cn } from '@/lib/utils';
+import { cn } from "../lib/utils";
 
-interface ChangeEmailModalProps {
-  onClose: () => void;
-}
-
-export default function ChangeEmailModal({ onClose }: ChangeEmailModalProps) {
+export default function ChangeEmailModal({ onClose }: { onClose: () => void }) {
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
+  const [msg, setMsg] = useState('');
 
-  const handleChangeEmail = async () => {
-    setLoading(true);
-    setMessage(null);
-
-    try {
-      const { data: user, error } = await supabase.auth.getUser();
-      if (error || !user) throw new Error(error?.message || 'User not found');
-
-      const { error: updateError } = await supabase
-        .from('hosts')
-        .update({ email })
-        .eq('auth_id', user.user?.id);
-
-      if (updateError) throw updateError;
-
-      setMessage('✅ Email updated successfully!');
-      setTimeout(onClose, 1500);
-    } catch (err: any) {
-      setMessage(`❌ Failed to update email: ${err.message || err}`);
-      console.error(err);
-    } finally {
-      setLoading(false);
+  async function handleSubmit() {
+    if (!email.includes('@')) {
+      setMsg('❌ Please enter a valid email.');
+      return;
     }
-  };
+
+    setLoading(true);
+    const { error } = await supabase.auth.updateUser({ email });
+    setLoading(false);
+
+    if (error) setMsg(`❌ ${error.message}`);
+    else setMsg('✅ Email updated successfully.');
+  }
 
   return (
-    <div className={cn('flex', 'flex-col', 'gap-4', 'p-4')}>
+    <div className={cn('p-4', 'space-y-4', 'text-white', 'bg-black/80', 'rounded-lg', 'border', 'border-gray-700', 'shadow-lg')}>
       <h2 className={cn('text-lg', 'font-semibold')}>Change Email</h2>
+
       <input
         type="email"
-        placeholder="Enter new email"
         value={email}
         onChange={(e) => setEmail(e.target.value)}
-        className={cn('w-full', 'p-2', 'rounded-md', 'text-black')}
+        className={cn('w-full', 'bg-gray-800', 'border', 'border-gray-600', 'rounded', 'p-2', 'text-white')}
+        placeholder="New email"
       />
-      <div className={cn('flex', 'justify-end', 'gap-2')}>
-        <Button variant="outline" onClick={onClose} disabled={loading}>
-          Cancel
+
+      <div className={cn('flex', 'flex-col', 'gap-2')}>
+        <Button onClick={handleSubmit} disabled={loading}>
+          {loading ? 'Updating…' : 'Update Email'}
         </Button>
-        <Button onClick={handleChangeEmail} disabled={loading || !email}>
-          {loading ? 'Saving...' : 'Save'}
+        <Button variant="outline" onClick={onClose}>
+          Close
         </Button>
       </div>
-      {message && <p className={cn('text-sm', 'mt-2')}>{message}</p>}
+
+      {msg && <p className={cn('text-sm', 'text-gray-400')}>{msg}</p>}
     </div>
   );
 }
