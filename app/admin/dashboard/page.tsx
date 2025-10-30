@@ -21,29 +21,31 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState<string | null>(null);
 
+  /* ------------------ LOAD HOST + DATA ------------------ */
   useEffect(() => {
     async function load() {
       try {
-        // 1️⃣ Get authenticated user
         const { data: authData, error: authError } = await supabase.auth.getUser();
         const user = authData?.user;
 
-        if (authError || !user) throw new Error(authError?.message || 'No authenticated user found');
+        if (authError || !user) {
+          console.error('❌ Auth error or no user found', authError);
+          setLoading(false);
+          return;
+        }
 
-        // 2️⃣ Fetch existing host
         const { data: hostRow, error: hostError } = await supabase
           .from('hosts')
           .select('*')
           .eq('auth_id', user.id)
           .maybeSingle();
 
-        if (hostError) throw hostError;
+        if (hostError) console.error('❌ Error fetching host:', hostError);
 
         let activeHost = hostRow;
 
-        // 3️⃣ If no host exists, create one
         if (!activeHost) {
-          console.warn('⚠️ No host record found — creating new one for:', user.id);
+          console.warn('⚠️ No host record — creating new one for:', user.id);
 
           const newHostData = {
             auth_id: user.id,
@@ -65,17 +67,22 @@ export default function DashboardPage() {
           activeHost = newHost;
         }
 
-        if (!activeHost?.id) throw new Error('Host record missing ID');
+        if (!activeHost?.id) {
+          console.error('❌ Host record missing ID, cannot fetch dashboard data');
+          setLoading(false);
+          return;
+        }
 
         setHost(activeHost);
         console.log('✅ Active host loaded:', activeHost);
 
-        // 4️⃣ Fetch all related data
-        const [fetchedWalls, fetchedPolls, fetchedWheels] = await Promise.all([
-          getFanWallsByHost(activeHost.id),
-          getPollsByHost(activeHost.id),
-          getPrizeWheelsByHost(activeHost.id),
-        ]);
+        let fetchedWalls: any[] = [];
+        let fetchedPolls: any[] = [];
+        let fetchedWheels: any[] = [];
+
+        try { fetchedWalls = await getFanWallsByHost(activeHost.id); } catch (e) { console.error('❌ Error fetching walls', e); }
+        try { fetchedPolls = await getPollsByHost(activeHost.id); } catch (e) { console.error('❌ Error fetching polls', e); }
+        try { fetchedWheels = await getPrizeWheelsByHost(activeHost.id); } catch (e) { console.error('❌ Error fetching wheels', e); }
 
         setWalls(fetchedWalls || []);
         setPolls(fetchedPolls || []);
@@ -99,18 +106,20 @@ export default function DashboardPage() {
     setTimeout(() => setToast(null), 3000);
   };
 
-  if (loading) {
-    return (
-      <div className={cn('flex', 'items-center', 'justify-center', 'h-screen', 'bg-black', 'text-white')}>
-        <p>Loading...</p>
-      </div>
-    );
-  }
+  if (loading) return (
+    <div className={cn('flex items-center justify-center h-screen bg-black text-white')}>
+      <p>Loading dashboard...</p>
+    </div>
+  );
+
+  if (!host) return (
+    <div className={cn('flex items-center justify-center h-screen bg-black text-white')}>
+      <p>No host data found. Please check your authentication.</p>
+    </div>
+  );
 
   return (
-    <div className={cn(
-      'min-h-screen bg-gradient-to-br from-[#0a2540] via-[#1b2b44] to-black text-white flex flex-col items-center p-8'
-    )}>
+    <div className={cn('min-h-screen bg-gradient-to-br from-[#0a2540] via-[#1b2b44] to-black text-white flex flex-col items-center p-8')}>
       <div className={cn('w-full flex items-center justify-between mb-6')}>
         <HostProfilePanel host={host} setHost={setHost} onLogoUpload={() => {}} />
         <h1 className={cn('text-2xl font-bold text-center flex-1')}>FanInteract Dashboard</h1>
@@ -128,9 +137,7 @@ export default function DashboardPage() {
       <PrizeWheelGrid wheels={wheels} host={host} refreshPrizeWheels={refreshPrizeWheels} onOpenOptions={() => {}} />
 
       {toast && (
-        <div className={cn(
-          'fixed bottom-6 right-6 bg-green-600/90 text-white px-4 py-2 rounded-lg shadow-lg animate-fadeIn z-50'
-        )}>
+        <div className={cn('fixed bottom-6 right-6 bg-green-600/90 text-white px-4 py-2 rounded-lg shadow-lg animate-fadeIn z-50')}>
           {toast}
         </div>
       )}
