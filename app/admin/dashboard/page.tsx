@@ -21,37 +21,34 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState<string | null>(null);
 
-  /* ------------------ LOAD HOST + INITIAL DATA ------------------ */
   useEffect(() => {
     async function load() {
       try {
         // 1️⃣ Get authenticated user
-        const {
-          data: { user },
-          error: authError,
-        } = await supabase.auth.getUser();
+        const { data: authData, error: authError } = await supabase.auth.getUser();
+        const user = authData?.user;
 
-        if (authError || !user) throw new Error(authError?.message || 'No user found');
+        if (authError || !user) throw new Error(authError?.message || 'No authenticated user found');
 
-        // 2️⃣ Get or create host record
+        // 2️⃣ Fetch existing host
         const { data: hostRow, error: hostError } = await supabase
           .from('hosts')
           .select('*')
           .eq('auth_id', user.id)
-          .single();
+          .maybeSingle();
+
+        if (hostError) throw hostError;
 
         let activeHost = hostRow;
 
+        // 3️⃣ If no host exists, create one
         if (!activeHost) {
           console.warn('⚠️ No host record found — creating new one for:', user.id);
 
           const newHostData = {
             auth_id: user.id,
             email: user.email,
-            username:
-              user.user_metadata?.username ||
-              user.email?.split('@')[0] ||
-              'new_user',
+            username: user.user_metadata?.username || user.email?.split('@')[0] || 'new_user',
             first_name: user.user_metadata?.first_name || null,
             last_name: user.user_metadata?.last_name || null,
             venue_name: 'My Venue',
@@ -60,12 +57,11 @@ export default function DashboardPage() {
 
           const { data: newHost, error: insertError } = await supabase
             .from('hosts')
-            .insert(newHostData)
+            .insert([newHostData])
             .select('*')
-            .single();
+            .maybeSingle();
 
           if (insertError) throw insertError;
-
           activeHost = newHost;
         }
 
@@ -74,7 +70,7 @@ export default function DashboardPage() {
         setHost(activeHost);
         console.log('✅ Active host loaded:', activeHost);
 
-        // 3️⃣ Load host data (fan walls, polls, wheels)
+        // 4️⃣ Fetch all related data
         const [fetchedWalls, fetchedPolls, fetchedWheels] = await Promise.all([
           getFanWallsByHost(activeHost.id),
           getPollsByHost(activeHost.id),
@@ -94,108 +90,47 @@ export default function DashboardPage() {
     load();
   }, []);
 
-  /* ------------------ REFRESH HELPERS ------------------ */
   const refreshFanWalls = async () => host?.id && setWalls(await getFanWallsByHost(host.id));
   const refreshPolls = async () => host?.id && setPolls(await getPollsByHost(host.id));
   const refreshPrizeWheels = async () => host?.id && setWheels(await getPrizeWheelsByHost(host.id));
 
-  /* ------------------ TOAST ------------------ */
   const showToast = (msg: string) => {
     setToast(msg);
     setTimeout(() => setToast(null), 3000);
   };
 
-  /* ------------------ LOADING ------------------ */
   if (loading) {
     return (
-      <div
-        className={cn(
-          'flex',
-          'items-center',
-          'justify-center',
-          'h-screen',
-          'bg-black',
-          'text-white'
-        )}
-      >
+      <div className={cn('flex', 'items-center', 'justify-center', 'h-screen', 'bg-black', 'text-white')}>
         <p>Loading...</p>
       </div>
     );
   }
 
-  /* ------------------ MAIN UI ------------------ */
   return (
-    <div
-      className={cn(
-        'min-h-screen',
-        'bg-gradient-to-br',
-        'from-[#0a2540]',
-        'via-[#1b2b44]',
-        'to-black',
-        'text-white',
-        'flex',
-        'flex-col',
-        'items-center',
-        'p-8'
-      )}
-    >
-      {/* ---------- HEADER ---------- */}
-      <div className={cn('w-full', 'flex', 'items-center', 'justify-between', 'mb-6')}>
+    <div className={cn(
+      'min-h-screen bg-gradient-to-br from-[#0a2540] via-[#1b2b44] to-black text-white flex flex-col items-center p-8'
+    )}>
+      <div className={cn('w-full flex items-center justify-between mb-6')}>
         <HostProfilePanel host={host} setHost={setHost} onLogoUpload={() => {}} />
-        <h1 className={cn('text-2xl', 'font-bold', 'text-center', 'flex-1')}>
-          FanInteract Dashboard
-        </h1>
+        <h1 className={cn('text-2xl font-bold text-center flex-1')}>FanInteract Dashboard</h1>
         <div className="w-10" />
       </div>
 
-      {/* ---------- BUTTON HEADER ---------- */}
       <DashboardHeader
         onCreateFanWall={() => showToast('Fan Wall modal coming soon')}
         onCreatePoll={() => showToast('Poll modal coming soon')}
         onCreatePrizeWheel={() => showToast('Prize Wheel modal coming soon')}
       />
 
-      {/* ---------- FAN WALL GRID ---------- */}
-      <FanWallGrid
-        walls={walls}
-        host={host}
-        refreshFanWalls={refreshFanWalls}
-        onOpenOptions={() => {}}
-      />
+      <FanWallGrid walls={walls} host={host} refreshFanWalls={refreshFanWalls} onOpenOptions={() => {}} />
+      <PollGrid polls={polls} host={host} refreshPolls={refreshPolls} onOpenOptions={() => {}} />
+      <PrizeWheelGrid wheels={wheels} host={host} refreshPrizeWheels={refreshPrizeWheels} onOpenOptions={() => {}} />
 
-      {/* ---------- POLL GRID ---------- */}
-      <PollGrid
-        polls={polls}
-        host={host}
-        refreshPolls={refreshPolls}
-        onOpenOptions={() => {}}
-      />
-
-      {/* ---------- PRIZE WHEEL GRID ---------- */}
-      <PrizeWheelGrid
-        wheels={wheels}
-        host={host}
-        refreshPrizeWheels={refreshPrizeWheels}
-        onOpenOptions={() => {}}
-      />
-
-      {/* ---------- TOAST ---------- */}
       {toast && (
-        <div
-          className={cn(
-            'fixed',
-            'bottom-6',
-            'right-6',
-            'bg-green-600/90',
-            'text-white',
-            'px-4',
-            'py-2',
-            'rounded-lg',
-            'shadow-lg',
-            'animate-fadeIn',
-            'z-50'
-          )}
-        >
+        <div className={cn(
+          'fixed bottom-6 right-6 bg-green-600/90 text-white px-4 py-2 rounded-lg shadow-lg animate-fadeIn z-50'
+        )}>
           {toast}
         </div>
       )}
