@@ -2,11 +2,8 @@
 
 import { useEffect } from 'react';
 import { supabase } from '@/lib/supabaseClient';
-import {
-import { cn } from "../../../../lib/utils";
-  clearFanWallPosts,
-  deleteFanWall,
-} from '@/lib/actions/fan_walls';
+import { cn } from '../../../../lib/utils';
+import { clearFanWallPosts, deleteFanWall } from '@/lib/actions/fan_walls';
 
 interface FanWallGridProps {
   walls: any[];
@@ -138,7 +135,6 @@ export default function FanWallGrid({
 
     popup?.focus();
 
-    // ✅ Auto-refresh dashboard when popup closes
     const checkPopup = setInterval(() => {
       if (popup?.closed) {
         clearInterval(checkPopup);
@@ -185,8 +181,7 @@ export default function FanWallGrid({
               background:
                 wall.background_type === 'image'
                   ? `url(${wall.background_value}) center/cover no-repeat`
-                  : wall.background_value ||
-                    'linear-gradient(135deg,#0d47a1,#1976d2)',
+                  : wall.background_value || 'linear-gradient(135deg,#0d47a1,#1976d2)',
             }}
           >
             <div>

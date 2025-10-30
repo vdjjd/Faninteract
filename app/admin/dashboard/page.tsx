@@ -21,6 +21,30 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState<string | null>(null);
 
+  /* ------------------ Load Fan Walls with pending posts ------------------ */
+  async function loadFanWallsWithPending(hostId: string) {
+    const wallsData = await getFanWallsByHost(hostId);
+
+    const wallsWithPending = await Promise.all(
+      wallsData.map(async (wall) => {
+        const { count, error } = await supabase
+          .from('guest_posts')
+          .select('id', { count: 'exact', head: true })
+          .eq('fan_wall_id', wall.id)
+          .eq('status', 'pending');
+
+        if (error) {
+          console.error('❌ Error counting pending posts for wall', wall.id, error);
+          return { ...wall, pending_posts: 0 };
+        }
+
+        return { ...wall, pending_posts: count || 0 };
+      })
+    );
+
+    return wallsWithPending;
+  }
+
   /* ------------------ LOAD HOST + DATA ------------------ */
   useEffect(() => {
     async function load() {
@@ -80,9 +104,19 @@ export default function DashboardPage() {
         let fetchedPolls: any[] = [];
         let fetchedWheels: any[] = [];
 
-        try { fetchedWalls = await getFanWallsByHost(activeHost.id); } catch (e) { console.error('❌ Error fetching walls', e); }
-        try { fetchedPolls = await getPollsByHost(activeHost.id); } catch (e) { console.error('❌ Error fetching polls', e); }
-        try { fetchedWheels = await getPrizeWheelsByHost(activeHost.id); } catch (e) { console.error('❌ Error fetching wheels', e); }
+        try { 
+          fetchedWalls = await loadFanWallsWithPending(activeHost.id); 
+        } catch (e) { 
+          console.error('❌ Error fetching walls', e); 
+        }
+
+        try { fetchedPolls = await getPollsByHost(activeHost.id); } catch (e) { 
+          console.error('❌ Error fetching polls', e); 
+        }
+
+        try { fetchedWheels = await getPrizeWheelsByHost(activeHost.id); } catch (e) { 
+          console.error('❌ Error fetching wheels', e); 
+        }
 
         setWalls(fetchedWalls || []);
         setPolls(fetchedPolls || []);
@@ -97,7 +131,8 @@ export default function DashboardPage() {
     load();
   }, []);
 
-  const refreshFanWalls = async () => host?.id && setWalls(await getFanWallsByHost(host.id));
+  /* ------------------ REFRESH FUNCTIONS ------------------ */
+  const refreshFanWalls = async () => host?.id && setWalls(await loadFanWallsWithPending(host.id));
   const refreshPolls = async () => host?.id && setPolls(await getPollsByHost(host.id));
   const refreshPrizeWheels = async () => host?.id && setWheels(await getPrizeWheelsByHost(host.id));
 
@@ -106,6 +141,7 @@ export default function DashboardPage() {
     setTimeout(() => setToast(null), 3000);
   };
 
+  /* ------------------ RENDER ------------------ */
   if (loading) return (
     <div className={cn('flex items-center justify-center h-screen bg-black text-white')}>
       <p>Loading dashboard...</p>

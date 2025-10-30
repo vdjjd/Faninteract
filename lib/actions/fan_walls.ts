@@ -1,13 +1,12 @@
 import { supabase } from '@/lib/supabaseClient';
 
 /* -------------------------------------------------------------------------- */
-/* 🧱 FAN WALL ACTIONS - Clean version for new schema                         */
+/* 🧱 FAN WALL ACTIONS - Clean version for new schema (no pending_posts field) */
 /* -------------------------------------------------------------------------- */
 
 /* ✅ CREATE FAN WALL */
 export async function createFanWall(host_id: string, { title }: { title: string }) {
   try {
-    // 1️⃣ Insert new fan wall
     const { data, error } = await supabase
       .from('fan_walls')
       .insert([
@@ -19,7 +18,6 @@ export async function createFanWall(host_id: string, { title }: { title: string 
           background_type: 'gradient',
           background_value: 'linear-gradient(to bottom right, #4dc6ff, #001f4d)',
           countdown: null,
-          pending_posts: 0,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         },
@@ -96,7 +94,7 @@ export async function deleteFanWall(id: string) {
 }
 
 /* -------------------------------------------------------------------------- */
-/* ✅ CLEAR POSTS FOR A WALL */
+/* ✅ CLEAR POSTS FOR A WALL (resets statuses in guest_posts) */
 export async function clearFanWallPosts(fan_wall_id: string) {
   try {
     const { error } = await supabase
@@ -105,13 +103,7 @@ export async function clearFanWallPosts(fan_wall_id: string) {
       .eq('fan_wall_id', fan_wall_id);
 
     if (error) throw error;
-
     console.log('🧹 Posts cleared for fan wall:', fan_wall_id);
-
-    await supabase
-      .from('fan_walls')
-      .update({ pending_posts: 0, updated_at: new Date().toISOString() })
-      .eq('id', fan_wall_id);
   } catch (err) {
     console.error('❌ Error clearing posts:', err);
   }
@@ -133,13 +125,4 @@ export async function toggleFanWallStatus(id: string, makeLive: boolean) {
 }
 
 /* -------------------------------------------------------------------------- */
-/* ✅ UPDATE PENDING POST COUNT */
-export async function updatePendingPosts(fan_wall_id: string, delta: number) {
-  const { error } = await supabase.rpc('increment_pending_posts', {
-    fan_wall_id,
-    delta,
-  });
-
-  if (error) throw error;
-  console.log('🔔 Pending posts updated:', { fan_wall_id, delta });
-}
+/* ✅ NO MORE updatePendingPosts function — handled dynamically via guest_posts */
