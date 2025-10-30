@@ -1,9 +1,7 @@
+// /lib/actions/fan_walls.ts
 import { supabase } from '@/lib/supabaseClient';
 
 /* -------------------------------------------------------------------------- */
-/* 🧱 FAN WALL ACTIONS - Clean version for new schema (no pending_posts field) */
-/* -------------------------------------------------------------------------- */
-
 /* ✅ CREATE FAN WALL */
 export async function createFanWall(host_id: string, { title }: { title: string }) {
   try {
@@ -27,10 +25,10 @@ export async function createFanWall(host_id: string, { title }: { title: string 
 
     if (error || !data) throw error;
 
-    console.log('✅ Fan wall created successfully:', data.id);
+    console.log('✅ Fan wall created:', data.id);
     return data;
   } catch (err) {
-    console.error('❌ Error in createFanWall:', err);
+    console.error('❌ Error creating fan wall:', err);
     throw err;
   }
 }
@@ -94,7 +92,7 @@ export async function deleteFanWall(id: string) {
 }
 
 /* -------------------------------------------------------------------------- */
-/* ✅ CLEAR POSTS FOR A WALL (resets statuses in guest_posts) */
+/* ✅ CLEAR POSTS FOR A WALL */
 export async function clearFanWallPosts(fan_wall_id: string) {
   try {
     const { error } = await supabase
@@ -123,6 +121,3 @@ export async function toggleFanWallStatus(id: string, makeLive: boolean) {
   if (error) throw error;
   console.log(`🔄 Fan wall ${id} → ${makeLive ? 'LIVE' : 'INACTIVE'}`);
 }
-
-/* -------------------------------------------------------------------------- */
-/* ✅ NO MORE updatePendingPosts function — handled dynamically via guest_posts */

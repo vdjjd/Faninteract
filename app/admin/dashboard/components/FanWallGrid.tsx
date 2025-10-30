@@ -1,9 +1,9 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
-import { cn } from '../../../../lib/utils';
 import { clearFanWallPosts, deleteFanWall } from '@/lib/actions/fan_walls';
+import { cn } from '../../../../lib/utils';
 
 interface FanWallGridProps {
   walls: any[];
@@ -18,6 +18,8 @@ export default function FanWallGrid({
   refreshFanWalls,
   onOpenOptions,
 }: FanWallGridProps) {
+  const [pendingCounts, setPendingCounts] = useState<Record<string, number>>({});
+
   /* ---------- OPEN WALL ---------- */
   async function handleLaunch(id: string) {
     const url = `${window.location.origin}/wall/${id}`;
@@ -135,6 +137,7 @@ export default function FanWallGrid({
 
     popup?.focus();
 
+    // ✅ Auto-refresh dashboard when popup closes
     const checkPopup = setInterval(() => {
       if (popup?.closed) {
         clearInterval(checkPopup);
@@ -143,17 +146,36 @@ export default function FanWallGrid({
     }, 1000);
   }
 
-  /* ---------- REALTIME LISTENER ---------- */
+  /* ---------- LOAD PENDING COUNTS ---------- */
   useEffect(() => {
+    async function fetchPendingCounts() {
+      try {
+        const { data, error } = await supabase
+          .from('guest_posts')
+          .select('fan_wall_id')
+          .eq('status', 'pending');
+
+        if (error) throw error;
+
+        const counts: Record<string, number> = {};
+        (data || []).forEach((post: any) => {
+          counts[post.fan_wall_id] = (counts[post.fan_wall_id] || 0) + 1;
+        });
+        setPendingCounts(counts);
+      } catch (err) {
+        console.error('❌ Error loading pending counts:', err);
+      }
+    }
+
+    fetchPendingCounts();
+
     const channel = supabase
       .channel('guest_posts-pending')
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'guest_posts' },
-        async (payload: any) => {
-          if (payload?.new && 'fan_wall_id' in payload.new) {
-            await refreshFanWalls();
-          }
+        async () => {
+          await fetchPendingCounts();
         }
       )
       .subscribe();
@@ -161,7 +183,7 @@ export default function FanWallGrid({
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [refreshFanWalls]);
+  }, [walls]);
 
   /* ---------- RENDER ---------- */
   return (
@@ -208,7 +230,7 @@ export default function FanWallGrid({
                 <button
                   onClick={() => openModerationPopup(wall.id)}
                   className={`px-3 py-1 rounded-md text-sm font-semibold flex items-center gap-1 shadow-md transition ${
-                    wall.pending_posts > 0
+                    (pendingCounts[wall.id] || 0) > 0
                       ? 'bg-yellow-500 hover:bg-yellow-600 text-black'
                       : 'bg-gray-600 hover:bg-gray-700 text-white/80'
                   }`}
@@ -216,12 +238,12 @@ export default function FanWallGrid({
                   🕓 Pending
                   <span
                     className={`px-1.5 py-0.5 rounded-md text-xs font-bold ${
-                      wall.pending_posts > 0
+                      (pendingCounts[wall.id] || 0) > 0
                         ? 'bg-black/70 text-white'
                         : 'bg-white/20 text-gray-300'
                     }`}
                   >
-                    {wall.pending_posts}
+                    {pendingCounts[wall.id] || 0}
                   </span>
                 </button>
               </div>
