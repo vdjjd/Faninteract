@@ -1,21 +1,28 @@
 // /lib/supabaseAdminClient.ts
 import { createClient } from '@supabase/supabase-js';
 
-// ✅ Read from environment variables
+/* -------------------------------------------------------------------------- */
+/* 🔑 READ ENVIRONMENT VARIABLES                                              */
+/* -------------------------------------------------------------------------- */
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-let supabaseAdmin: ReturnType<typeof createClient> | null = null;
-
-if (!supabaseUrl || !serviceKey) {
-  console.error('❌ Supabase admin client could not initialize. Missing variables:', {
+/* -------------------------------------------------------------------------- */
+/* 🧱 SAFETY CHECKS                                                          */
+/* -------------------------------------------------------------------------- */
+if (!supabaseUrl || !supabaseServiceKey) {
+  console.error('❌ Missing Supabase admin client configuration:', {
     hasUrl: !!supabaseUrl,
-    hasServiceKey: !!serviceKey,
-  });
-} else {
-  supabaseAdmin = createClient(supabaseUrl, serviceKey, {
-    auth: { persistSession: false },
+    hasServiceKey: !!supabaseServiceKey,
   });
 }
 
-export { supabaseAdmin };
+/* -------------------------------------------------------------------------- */
+/* 🛡️ CREATE SERVER-ONLY ADMIN CLIENT                                       */
+/* -------------------------------------------------------------------------- */
+export const supabaseAdmin =
+  supabaseUrl && supabaseServiceKey
+    ? createClient(supabaseUrl, supabaseServiceKey, {
+        auth: { persistSession: false },
+      })
+    : null;
