@@ -189,30 +189,41 @@ export default function FanWallGrid({
   }
 
   /* 🟡 Pending counts */
-  useEffect(() => {
-    async function fetchPendingCounts() {
-      try {
-        const { data, error } = await supabase
-          .from('guest_posts')
-          .select('fan_wall_id')
-          .eq('status', 'pending');
-        if (error) throw error;
-        const counts: Record<string, number> = {};
-        (data || []).forEach((p: any) => {
-          counts[p.fan_wall_id] = (counts[p.fan_wall_id] || 0) + 1;
-        });
-        setPendingCounts(counts);
-      } catch (err) {
-        console.error('❌ Error loading pending counts:', err);
-      }
+useEffect(() => {
+  const fetchPendingCounts = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('guest_posts')
+        .select('fan_wall_id')
+        .eq('status', 'pending');
+      if (error) throw error;
+
+      const counts: Record<string, number> = {};
+      (data || []).forEach((p: any) => {
+        counts[p.fan_wall_id] = (counts[p.fan_wall_id] || 0) + 1;
+      });
+      setPendingCounts(counts);
+    } catch (err) {
+      console.error('❌ Error loading pending counts:', err);
     }
-    fetchPendingCounts();
-    const channel = supabase
-      .channel('guest_posts-pending')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'guest_posts' }, fetchPendingCounts)
-      .subscribe();
-    return () => supabase.removeChannel(channel);
-  }, [walls]);
+  };
+
+  fetchPendingCounts();
+
+  const channel = supabase
+    .channel('guest_posts-pending')
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'guest_posts' },
+      fetchPendingCounts
+    )
+    .subscribe();
+
+  return () => {
+    supabase.removeChannel(channel);
+    console.log('❌ Left guest_posts-pending channel');
+  };
+}, [walls]);
 
   /* 🖼️ Render grid */
   return (
