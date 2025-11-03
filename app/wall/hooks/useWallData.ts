@@ -79,7 +79,7 @@ export function useWallData(wallId: string | string[] | undefined) {
     if (!wallId) return;
 
     const channel = supabase.channel('global-fan-walls', {
-      config: { broadcast: { self: true, ack: true, max_bytes: 99999 } },
+      config: { broadcast: { self: true, ack: true } },
     });
 
     // 🟢 Wall start/stop & countdown trigger
@@ -105,37 +105,34 @@ export function useWallData(wallId: string | string[] | undefined) {
       );
     });
 
-// 🎨 Any live setting update (titles, backgrounds, layouts, countdowns, etc.)
-channel.on('broadcast', { event: 'wall_updated' }, (payload) => {
-  const data = payload.payload as Partial<WallData> & { id: string };
-  if (data?.id !== wallId) return;
-  console.log('🎨 Live update received:', data);
+    // 🎨 Any live setting update (titles, backgrounds, layouts, countdowns, etc.)
+    channel.on('broadcast', { event: 'wall_updated' }, (payload) => {
+      const data = payload.payload as Partial<WallData> & { id: string };
+      if (data?.id !== wallId) return;
+      console.log('🎨 Live update received:', data);
 
-  setWall((prev) => {
-    if (!prev) return prev;
+      setWall((prev) => {
+        if (!prev) return prev;
 
-    // 🛡️ Prevent unwanted revert to inactive unless explicitly stopped
-    const stopExplicit =
-      data.status === 'inactive' &&
-      payload?.payload?.source === 'stop_command';
+        const stopExplicit =
+          data.status === 'inactive' &&
+          payload?.payload?.source === 'stop_command';
 
-    const safeStatus =
-      prev.status === 'live' && !stopExplicit && (!data.status || data.status === 'inactive')
-        ? 'live'
-        : data.status || prev.status;
+        const safeStatus =
+          prev.status === 'live' && !stopExplicit && (!data.status || data.status === 'inactive')
+            ? 'live'
+            : data.status || prev.status;
 
-    // 🔄 Force a re-render every time (even if layout_type is the only change)
-    const merged = {
-      ...prev,
-      ...data,
-      status: safeStatus,
-      updated_at: new Date().toISOString(),
-    };
+        const merged = {
+          ...prev,
+          ...data,
+          status: safeStatus,
+          updated_at: new Date().toISOString(),
+        };
 
-    return { ...merged };
-  });
-});
-
+        return { ...merged };
+      });
+    });
 
     // 🕒 Countdown finished (fade trigger)
     channel.on('broadcast', { event: 'countdown_finished' }, (payload) => {
@@ -144,22 +141,27 @@ channel.on('broadcast', { event: 'wall_updated' }, (payload) => {
 
       console.log('⏱ Countdown finished → activating wall');
       setShowLive(true);
-      setWall((prev) => {
-        if (!prev) return prev;
-        return {
-          ...prev,
-          status: 'live',
-          countdown_active: false,
-        };
-      });
+      setWall((prev) =>
+        prev
+          ? {
+              ...prev,
+              status: 'live',
+              countdown_active: false,
+            }
+          : prev
+      );
     });
 
-    channel.subscribe((status) => {
+    // ✅ Subscribe safely (no async return)
+    channel.subscribe((status: string) => {
       if (status === 'SUBSCRIBED')
         console.log('✅ Listening for realtime wall updates on', wallId);
     });
 
-    return () => supabase.removeChannel(channel);
+    // ✅ Proper cleanup
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [wallId]);
 
   /* 🧩 Guest posts listener */
@@ -173,10 +175,18 @@ channel.on('broadcast', { event: 'wall_updated' }, (payload) => {
         if (post.fan_wall_id === wallId && post.status === 'approved') {
           setPosts((prev) => [...prev, post]);
         }
-      })
-      .subscribe();
+      });
 
-    return () => supabase.removeChannel(channel);
+    // ✅ subscribe safely
+    channel.subscribe((status: string) => {
+      if (status === 'SUBSCRIBED')
+        console.log(`✅ Listening for guest posts on wall ${wallId}`);
+    });
+
+    // ✅ cleanup
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [wallId]);
 
   return { wall, posts, loading, showLive, refresh };
