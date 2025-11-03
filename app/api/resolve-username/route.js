@@ -1,13 +1,6 @@
-// Disable type checking entirely
-// @ts-nocheck
-
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabaseAdminClient';
 
-/**
- * Clean rebuild of username resolver
- * Checks if username exists in hosts table and returns email
- */
 export async function POST(req) {
   try {
     const { username } = await req.json();
@@ -28,16 +21,7 @@ export async function POST(req) {
 
     return NextResponse.json({ found: true, email: data.email });
   } catch (err) {
-    console.error('❌ API error in resolve-username:', err);
+    console.error('❌ resolve-username fatal error:', err);
     return NextResponse.json({ error: 'Server error' }, { status: 500 });
   }
 }
-
-
-
-
-
-
-
-
-
