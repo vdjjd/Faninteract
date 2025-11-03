@@ -22,19 +22,26 @@ export default function FanWallGrid({
   const [channelReady, setChannelReady] = useState(false);
   const broadcastRef = useRef<any>(null);
 
-  /* ✅ GLOBAL BROADCAST CHANNEL */
+  /* ✅ GLOBAL BROADCAST CHANNEL (TypeScript-safe cleanup) */
   useEffect(() => {
     const channel = supabase.channel('global-fan-walls', {
       config: { broadcast: { self: true, ack: true, max_bytes: 99999 } },
     });
+
     channel.subscribe((status) => {
       if (status === 'SUBSCRIBED') {
         console.log('✅ Joined global-fan-walls realtime channel');
         setChannelReady(true);
       }
     });
+
     broadcastRef.current = channel;
-    return () => supabase.removeChannel(channel);
+
+    // ✅ Cleanup (non-async, no await)
+    return () => {
+      supabase.removeChannel(channel);
+      console.log('❌ Left global-fan-walls realtime channel');
+    };
   }, []);
 
   async function safeBroadcast(event: string, data: any) {
