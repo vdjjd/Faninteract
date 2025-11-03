@@ -1,9 +1,62 @@
-'use client'; // mark as frontend-safe
+'use server';
 
-import { supabase } from '@/lib/supabaseClient'; // <-- public client
+import { supabaseAdmin } from '@/lib/supabaseClient';
+const supabase = supabaseAdmin!;
 
 /* -------------------------------------------------------------------------- */
-/* 🟢 GET PRIZE WHEELS BY HOST                                                 */
+/* 🟢 CREATE PRIZE WHEEL (server only)                                        */
+/* -------------------------------------------------------------------------- */
+export async function createPrizeWheel(hostId: string, data: any) {
+  try {
+    const { title, prizes } = data;
+
+    const newWheel = {
+      host_id: hostId,
+      title: title || 'Untitled Prize Wheel',
+      host_title: title || 'Untitled Prize Wheel',
+      status: 'inactive',
+      background_type: 'gradient',
+      background_value: 'linear-gradient(135deg,#1a237e,#3949ab)',
+      prizes: prizes || [],
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+
+    const { data: created, error } = await supabase
+      .from('prize_wheels')
+      .insert([newWheel])
+      .select()
+      .maybeSingle();
+
+    if (error || !created) {
+      console.error('❌ Error creating prize wheel:', error?.message || error);
+      return null;
+    }
+
+    const qrUrl = `https://faninteract.vercel.app/prizewheel/${created.id}`;
+
+    const { data: updated, error: updateError } = await supabase
+      .from('prize_wheels')
+      .update({ qr_url: qrUrl, updated_at: new Date().toISOString() })
+      .eq('id', created.id)
+      .select()
+      .maybeSingle();
+
+    if (updateError) {
+      console.warn('⚠️ Wheel created but failed to save QR URL:', updateError.message);
+      return created;
+    }
+
+    console.log('✅ Prize wheel created successfully:', updated?.id);
+    return updated;
+  } catch (err) {
+    console.error('❌ Error creating prize wheel:', err);
+    return null;
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/* 🔍 GET PRIZE WHEELS BY HOST (server only)                                  */
 /* -------------------------------------------------------------------------- */
 export async function getPrizeWheelsByHost(hostId: string) {
   try {
@@ -14,51 +67,43 @@ export async function getPrizeWheelsByHost(hostId: string) {
       .order('created_at', { ascending: false });
 
     if (error) {
-      console.error('❌ Error fetching prize wheels:', error.message);
+      console.error('❌ Error fetching prize wheels by host:', error.message);
       return [];
     }
 
     return data || [];
   } catch (err) {
-    console.error('❌ Exception in getPrizeWheelsByHost:', err);
+    console.error('❌ Unexpected error fetching prize wheels by host:', err);
     return [];
   }
 }
 
 /* -------------------------------------------------------------------------- */
-/* 🔴 DELETE PRIZE WHEEL                                                      */
-export async function deletePrizeWheel(id: string) {
+/* 🔴 DELETE PRIZE WHEEL (server only)                                        */
+/* -------------------------------------------------------------------------- */
+export async function deletePrizeWheel(wheelId: string) {
   try {
-    const { error } = await supabase.from('prize_wheels').delete().eq('id', id);
+    const { error } = await supabase.from('prize_wheels').delete().eq('id', wheelId);
     if (error) throw error;
-    console.log('🗑️ Prize wheel deleted:', id);
+    console.log(`🗑️ Prize wheel ${wheelId} deleted`);
   } catch (err) {
     console.error('❌ Error deleting prize wheel:', err);
   }
 }
 
 /* -------------------------------------------------------------------------- */
-/* ✅ TOGGLE PRIZE WHEEL STATUS                                                */
-export async function togglePrizeWheelStatus(id: string, makeLive: boolean) {
+/* 🧹 CLEAR PRIZE WHEEL ENTRIES (server only)                                 */
+/* -------------------------------------------------------------------------- */
+export async function clearPrizeWheel(wheelId: string) {
   try {
     const { error } = await supabase
-      .from('prize_wheels')
-      .update({
-        status: makeLive ? 'live' : 'inactive',
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', id);
-
+      .from('prize_entries')
+      .delete()
+      .eq('wheel_id', wheelId);
     if (error) throw error;
-    console.log(`🔄 Prize wheel ${id} → ${makeLive ? 'LIVE' : 'INACTIVE'}`);
-  } catch (err) {
-    console.error('❌ Error toggling prize wheel status:', err);
-  }
-}
 
-/* -------------------------------------------------------------------------- */
-/* 🧹 CLEAR PRIZE WHEEL (placeholder so import doesn't break)                 */
-export async function clearPrizeWheel(id: string) {
-  console.log(`⚠️ Placeholder: clearPrizeWheel called for ${id}`);
-  // You can implement actual clearing later
+    console.log(`🧹 Cleared prize entries for wheel ${wheelId}`);
+  } catch (err) {
+    console.error('❌ Error clearing prize wheel:', err);
+  }
 }
