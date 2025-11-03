@@ -75,10 +75,12 @@ export default function SingleHighlightWall({ event, posts }: { event?: any; pos
     fetchApproved();
   }, [event?.id]);
 
+  /* ---------- FIXED REALTIME EFFECT ---------- */
   useEffect(() => {
     if (!event?.id) return;
+
     const channel = supabase.channel('fan_walls-realtime', {
-      config: { broadcast: { self: true, ack: true, max_bytes: 99999 } },
+      config: { broadcast: { self: true, ack: true } },
     });
 
     const handler = (payload: any) => {
@@ -110,11 +112,22 @@ export default function SingleHighlightWall({ event, posts }: { event?: any; pos
     };
 
     channel.on('broadcast', { event: 'wall_status_changed' }, handler);
-    channel.subscribe();
+
+    // ✅ Subscribe safely (no async return)
+    channel.subscribe((status: string) => {
+      if (status === 'SUBSCRIBED') {
+        console.log('✅ Joined fan_walls-realtime channel');
+      }
+    });
+
     channelRef.current = channel;
 
-    return () => supabase.removeChannel(channel);
+    // ✅ Cleanup
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [event?.id, live, transitionLock]);
+  /* ---------- END FIXED BLOCK ---------- */
 
   useEffect(() => {
     if (event?.status === 'live' && !live) setLive(true);
@@ -205,7 +218,7 @@ export default function SingleHighlightWall({ event, posts }: { event?: any; pos
               <motion.img
                 key={current.id}
                 src={current.photo_url}
-                {...transitions[event?.post_transition || 'Fade In / Fade Out']}
+                {...transitionStyle}
                 style={{
                   width: '100%',
                   height: '100%',
@@ -285,19 +298,18 @@ export default function SingleHighlightWall({ event, posts }: { event?: any; pos
         </div>
       </div>
 
-      {/* ---------- QR CODE with Glow + Text (position unchanged) ---------- */}
+      {/* ---------- QR CODE ---------- */}
       <div
         style={{
           position: 'absolute',
-          bottom: '5px', // 👈 stays exactly where it was
-          left: '5px',   // 👈 stays exactly where it was
+          bottom: '5px',
+          left: '5px',
           zIndex: 50,
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
         }}
       >
-        {/* Scan text positioned above */}
         <p
           style={{
             color: '#fff',
@@ -312,7 +324,6 @@ export default function SingleHighlightWall({ event, posts }: { event?: any; pos
           Scan Me To Join
         </p>
 
-        {/* QR with soft glow */}
         <div
           style={{
             padding: 6,
@@ -334,7 +345,7 @@ export default function SingleHighlightWall({ event, posts }: { event?: any; pos
         </div>
       </div>
 
-      {/* ---------- FULLSCREEN ---------- */}
+      {/* ---------- FULLSCREEN BUTTON ---------- */}
       <button
         onClick={handleFullscreen}
         style={{
