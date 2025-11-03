@@ -1,12 +1,21 @@
 // /lib/supabaseClient.ts
 import { createClient } from '@supabase/supabase-js';
 
-// ✅ These come directly from your environment variables
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-// ✅ Public client (used by frontend components)
+// 🔒 Defensive check — prevents Vercel build crash
+if (!supabaseUrl || !supabaseAnonKey) {
+  console.error('❌ Missing required Supabase environment variables:', {
+    url: !!supabaseUrl,
+    anon: !!supabaseAnonKey,
+    service: !!supabaseServiceKey,
+  });
+  throw new Error('Missing Supabase environment configuration');
+}
+
+// ✅ Public client (for frontend)
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
     persistSession: true,
@@ -15,7 +24,8 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   },
 });
 
-// ✅ Admin client (server-only)
-export const supabaseAdmin = supabaseServiceKey
-  ? createClient(supabaseUrl, supabaseServiceKey)
-  : null;
+// ✅ Admin client (for server-only calls)
+export const supabaseAdmin =
+  supabaseServiceKey && supabaseUrl
+    ? createClient(supabaseUrl, supabaseServiceKey)
+    : null;
