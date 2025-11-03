@@ -38,7 +38,7 @@ export default function OptionsModalFanWall({
   async function broadcastUpdate(event: string, payload: any) {
     try {
       const channel = supabase.channel('global-fan-walls', {
-        config: { broadcast: { self: true, ack: true, max_bytes: 99999 } },
+        config: { broadcast: { self: true, ack: true } }, // ✅ removed max_bytes
       });
       await channel.send({ type: 'broadcast', event, payload });
       console.log(`📡 Broadcast sent [${event}]`, payload);
@@ -358,95 +358,95 @@ export default function OptionsModalFanWall({
           </select>
 
           {/* 🎨 Background Pickers */}
-<div className="mt-6">
-  <p className={cn('text-sm', 'font-semibold', 'mb-2', 'text-center')}>
-    Choose Background Gradient
-  </p>
+          <div className="mt-6">
+            <p className={cn('text-sm', 'font-semibold', 'mb-2', 'text-center')}>
+              Choose Background Gradient
+            </p>
 
-  {/* 🏁 Row 1 – original gradients */}
-  <div className={cn('flex', 'flex-wrap', 'justify-center', 'gap-2', 'mb-3')}>
-    {[
-      'linear-gradient(135deg,#0d47a1,#1976d2)',
-      'linear-gradient(135deg,#1b2735,#090a0f)',
-      'linear-gradient(135deg,#2b3a55,#4a6fa5)',
-      'linear-gradient(135deg,#003366,#66ccff)',
-      'linear-gradient(135deg,#13294b,#3b83bd)',
-      'linear-gradient(135deg,#1e3c72,#2a5298)',
-      'linear-gradient(135deg,#142850,#27496d)',
-      'linear-gradient(135deg,#1c2541,#3a506b)',
-    ].map((grad, i) => (
-      <button
-        key={`grad1-${i}`}
-        onClick={() => handleBackgroundChange('gradient', grad)}
-        className={cn('w-8','h-8','rounded-full','border','border-white/50','hover:scale-110','transition-all')}
-        style={{ background: grad }}
-      />
-    ))}
-  </div>
+            {/* 🏁 Row 1 – original gradients */}
+            <div className={cn('flex', 'flex-wrap', 'justify-center', 'gap-2', 'mb-3')}>
+              {[
+                'linear-gradient(135deg,#0d47a1,#1976d2)',
+                'linear-gradient(135deg,#1b2735,#090a0f)',
+                'linear-gradient(135deg,#2b3a55,#4a6fa5)',
+                'linear-gradient(135deg,#003366,#66ccff)',
+                'linear-gradient(135deg,#13294b,#3b83bd)',
+                'linear-gradient(135deg,#1e3c72,#2a5298)',
+                'linear-gradient(135deg,#142850,#27496d)',
+                'linear-gradient(135deg,#1c2541,#3a506b)',
+              ].map((grad, i) => (
+                <button
+                  key={`grad1-${i}`}
+                  onClick={() => handleBackgroundChange('gradient', grad)}
+                  className={cn('w-8','h-8','rounded-full','border','border-white/50','hover:scale-110','transition-all')}
+                  style={{ background: grad }}
+                />
+              ))}
+            </div>
 
-  {/* 🏈 Row 2 – Team Vibes (Classic Sports) */}
-  <div className={cn('flex','flex-wrap','justify-center','gap-2','mb-3')}>
-    {[
-      'linear-gradient(135deg,#002244,#C60C30)', // Patriots
-      'linear-gradient(135deg,#101820,#D7A22A)', // Steelers
-      'linear-gradient(135deg,#AA0000,#B3995D)', // 49ers
-      'linear-gradient(135deg,#0B162A,#C83803)', // Bears
-      'linear-gradient(135deg,#002244,#69BE28)', // Seahawks
-      'linear-gradient(135deg,#E31837,#002B5C)', // Giants alt
-      'linear-gradient(135deg,#5A1414,#FFD700)', // Redskins/Commanders
-      'linear-gradient(135deg,#0033A0,#FFB81C)', // Rams
-    ].map((grad, i) => (
-      <button
-        key={`grad2-${i}`}
-        onClick={() => handleBackgroundChange('gradient', grad)}
-        className={cn('w-8','h-8','rounded-full','border','border-white/50','hover:scale-110','transition-all')}
-        style={{ background: grad }}
-      />
-    ))}
-  </div>
+            {/* 🏈 Row 2 – Team Vibes */}
+            <div className={cn('flex','flex-wrap','justify-center','gap-2','mb-3')}>
+              {[
+                'linear-gradient(135deg,#002244,#C60C30)',
+                'linear-gradient(135deg,#101820,#D7A22A)',
+                'linear-gradient(135deg,#AA0000,#B3995D)',
+                'linear-gradient(135deg,#0B162A,#C83803)',
+                'linear-gradient(135deg,#002244,#69BE28)',
+                'linear-gradient(135deg,#E31837,#002B5C)',
+                'linear-gradient(135deg,#5A1414,#FFD700)',
+                'linear-gradient(135deg,#0033A0,#FFB81C)',
+              ].map((grad, i) => (
+                <button
+                  key={`grad2-${i}`}
+                  onClick={() => handleBackgroundChange('gradient', grad)}
+                  className={cn('w-8','h-8','rounded-full','border','border-white/50','hover:scale-110','transition-all')}
+                  style={{ background: grad }}
+                />
+              ))}
+            </div>
 
-  {/* ⚡ Row 3 – Arena Energy (Neon + LED) */}
-  <div className={cn('flex','flex-wrap','justify-center','gap-2','mb-3')}>
-    {[
-      'linear-gradient(135deg,#00F260,#0575E6)',
-      'linear-gradient(135deg,#FC466B,#3F5EFB)',
-      'linear-gradient(135deg,#11998E,#38EF7D)',
-      'linear-gradient(135deg,#FF512F,#DD2476)',
-      'linear-gradient(135deg,#F7971E,#FFD200)',
-      'linear-gradient(135deg,#00C9FF,#92FE9D)',
-      'linear-gradient(135deg,#8E2DE2,#4A00E0)',
-      'linear-gradient(135deg,#f12711,#f5af19)',
-    ].map((grad, i) => (
-      <button
-        key={`grad3-${i}`}
-        onClick={() => handleBackgroundChange('gradient', grad)}
-        className={cn('w-8','h-8','rounded-full','border','border-white/50','hover:scale-110','transition-all')}
-        style={{ background: grad }}
-      />
-    ))}
-  </div>
+            {/* ⚡ Row 3 – Arena Energy */}
+            <div className={cn('flex','flex-wrap','justify-center','gap-2','mb-3')}>
+              {[
+                'linear-gradient(135deg,#00F260,#0575E6)',
+                'linear-gradient(135deg,#FC466B,#3F5EFB)',
+                'linear-gradient(135deg,#11998E,#38EF7D)',
+                'linear-gradient(135deg,#FF512F,#DD2476)',
+                'linear-gradient(135deg,#F7971E,#FFD200)',
+                'linear-gradient(135deg,#00C9FF,#92FE9D)',
+                'linear-gradient(135deg,#8E2DE2,#4A00E0)',
+                'linear-gradient(135deg,#f12711,#f5af19)',
+              ].map((grad, i) => (
+                <button
+                  key={`grad3-${i}`}
+                  onClick={() => handleBackgroundChange('gradient', grad)}
+                  className={cn('w-8','h-8','rounded-full','border','border-white/50','hover:scale-110','transition-all')}
+                  style={{ background: grad }}
+                />
+              ))}
+            </div>
 
-  {/* 🏟️ Row 4 – Modern Broadcast Metallics */}
-  <div className={cn('flex','flex-wrap','justify-center','gap-2')}>
-    {[
-      'linear-gradient(135deg,#434343,#000000)', // carbon steel
-      'linear-gradient(135deg,#D3CCE3,#E9E4F0)', // silver frost
-      'linear-gradient(135deg,#3a7bd5,#3a6073)', // slate blue steel
-      'linear-gradient(135deg,#232526,#414345)', // graphite fade
-      'linear-gradient(135deg,#BA8B02,#181818)', // gold-black elite
-      'linear-gradient(135deg,#0F2027,#203A43,#2C5364)', // deep ocean metallic
-      'linear-gradient(135deg,#556270,#FF6B6B)', // coral clash
-      'linear-gradient(135deg,#485563,#29323c)', // storm grey
-    ].map((grad, i) => (
-      <button
-        key={`grad4-${i}`}
-        onClick={() => handleBackgroundChange('gradient', grad)}
-        className={cn('w-8','h-8','rounded-full','border','border-white/50','hover:scale-110','transition-all')}
-        style={{ background: grad }}
-      />
-    ))}
-  </div>
-</div>
+            {/* 🏟️ Row 4 – Metallics */}
+            <div className={cn('flex','flex-wrap','justify-center','gap-2')}>
+              {[
+                'linear-gradient(135deg,#434343,#000000)',
+                'linear-gradient(135deg,#D3CCE3,#E9E4F0)',
+                'linear-gradient(135deg,#3a7bd5,#3a6073)',
+                'linear-gradient(135deg,#232526,#414345)',
+                'linear-gradient(135deg,#BA8B02,#181818)',
+                'linear-gradient(135deg,#0F2027,#203A43,#2C5364)',
+                'linear-gradient(135deg,#556270,#FF6B6B)',
+                'linear-gradient(135deg,#485563,#29323c)',
+              ].map((grad, i) => (
+                <button
+                  key={`grad4-${i}`}
+                  onClick={() => handleBackgroundChange('gradient', grad)}
+                  className={cn('w-8','h-8','rounded-full','border','border-white/50','hover:scale-110','transition-all')}
+                  style={{ background: grad }}
+                />
+              ))}
+            </div>
+          </div>
 
           {/* Upload */}
           <div className={cn('mt-6', 'text-center')}>
