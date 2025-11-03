@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { supabase } from '@/lib/supabaseClient';
 import { useRouter } from 'next/navigation';
 
 export default function SignUpPage() {
@@ -24,24 +25,47 @@ export default function SignUpPage() {
     setLoading(true);
 
     try {
-      // Step 1: call backend API to create host/master record
-      const response = await fetch('/api/create-host', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          username,
-          venue_name: venueName,
-          email,
-          first_name: firstName,
-          last_name: lastName,
-          master_id: masterId || null,
-        }),
+      // Step 1: Create Auth user
+      const { data, error: signUpError } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          emailRedirectTo: 'http://localhost:3000/login',
+        },
       });
 
-      const result = await response.json();
-      if (!response.ok) throw new Error(result.error || 'Account creation failed');
+      if (signUpError) throw signUpError;
+      const userId = data.user?.id;
+      if (!userId) throw new Error('No user ID returned from Supabase.');
 
-      // Step 2: success popup
+      // Step 2: Insert into correct table
+      if (accountType === 'master') {
+        const contact_name = `${firstName} ${lastName}`;
+        const { error: insertError } = await supabase.from('master_accounts').insert([
+          {
+            id: userId,
+            company_name: companyName,
+            contact_name,
+            contact_email: email,
+          },
+        ]);
+        if (insertError) throw insertError;
+      } else {
+        const { error: insertError } = await supabase.from('hosts').insert([
+          {
+            id: userId,
+            master_id: masterId || null,
+            venue_name: venueName,
+            first_name: firstName,
+            last_name: lastName,
+            username,
+            email,
+          },
+        ]);
+        if (insertError) throw insertError;
+      }
+
+      // Step 3: Show success popup
       setShowPopup(true);
     } catch (err: any) {
       console.error('Signup error:', err.message);
@@ -56,7 +80,6 @@ export default function SignUpPage() {
       <h1>Sign Up</h1>
 
       <form onSubmit={handleSignUp} style={formStyle}>
-        {/* Account Type Selector */}
         <label style={labelStyle}>Account Type</label>
         <select
           value={accountType}
@@ -147,10 +170,10 @@ export default function SignUpPage() {
       {showPopup && (
         <div style={overlayStyle}>
           <div style={popupStyle}>
-            <h2>Host Created!</h2>
+            <h2>Verification Sent</h2>
             <p>
-              Account <strong>{username}</strong> has been created successfully.<br />
-              You can now log in.
+              A verification link has been sent to <strong>{email}</strong>.  
+              Check your inbox to confirm your account.
             </p>
             <button
               style={buttonStyle}

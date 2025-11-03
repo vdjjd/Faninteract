@@ -6,11 +6,28 @@ import { supabase } from '@/lib/supabaseClient';
 
 export default function LoginPage() {
   const router = useRouter();
-  const [identifier, setIdentifier] = useState(''); // username OR email
+  const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showSignup, setShowSignup] = useState(false); // 👈 new
 
+  const [accountType, setAccountType] = useState<'master' | 'host'>('host');
+  const [companyName, setCompanyName] = useState('');
+  const [venueName, setVenueName] = useState('');
+  const [masterId, setMasterId] = useState('');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const [username, setUsername] = useState('');
+  const [signupEmail, setSignupEmail] = useState('');
+  const [signupPassword, setSignupPassword] = useState('');
+  const [signupLoading, setSignupLoading] = useState(false);
+  const [signupError, setSignupError] = useState<string | null>(null);
+  const [showPopup, setShowPopup] = useState(false);
+
+  /* -------------------------------------------------------------------------- */
+  /* 🧠 LOGIN HANDLER */
+  /* -------------------------------------------------------------------------- */
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -19,7 +36,6 @@ export default function LoginPage() {
     try {
       let emailToUse = identifier;
 
-      // Resolve username to email if no "@"
       if (!identifier.includes('@')) {
         const res = await fetch('/api/resolve-username', {
           method: 'POST',
@@ -32,7 +48,6 @@ export default function LoginPage() {
         emailToUse = result.email;
       }
 
-      // Sign in with Supabase
       const { error: signInError } = await supabase.auth.signInWithPassword({
         email: emailToUse,
         password,
@@ -45,6 +60,60 @@ export default function LoginPage() {
       setError(err.message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  /* -------------------------------------------------------------------------- */
+  /* 🧠 SIGNUP HANDLER (modal popup) */
+  /* -------------------------------------------------------------------------- */
+  const handleSignUp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSignupError(null);
+    setSignupLoading(true);
+
+    try {
+      const { data, error: signUpError } = await supabase.auth.signUp({
+        email: signupEmail,
+        password: signupPassword,
+        options: { emailRedirectTo: 'http://localhost:3000/login' },
+      });
+
+      if (signUpError) throw signUpError;
+      const userId = data.user?.id;
+      if (!userId) throw new Error('No user ID returned from Supabase.');
+
+      if (accountType === 'master') {
+        const contact_name = `${firstName} ${lastName}`;
+        const { error: insertError } = await supabase.from('master_accounts').insert([
+          {
+            id: userId,
+            company_name: companyName,
+            contact_name,
+            contact_email: signupEmail,
+          },
+        ]);
+        if (insertError) throw insertError;
+      } else {
+        const { error: insertError } = await supabase.from('hosts').insert([
+          {
+            id: userId,
+            master_id: masterId || null,
+            venue_name: venueName,
+            first_name: firstName,
+            last_name: lastName,
+            username,
+            email: signupEmail,
+          },
+        ]);
+        if (insertError) throw insertError;
+      }
+
+      setShowPopup(true);
+    } catch (err: any) {
+      console.error('Signup error:', err.message);
+      setSignupError(err.message);
+    } finally {
+      setSignupLoading(false);
     }
   };
 
@@ -79,10 +148,133 @@ export default function LoginPage() {
 
       <p style={signupTextStyle}>
         Don’t have an account?{' '}
-        <a href="/signup" style={signupLinkStyle}>
+        <span onClick={() => setShowSignup(true)} style={signupLinkStyle}>
           Sign up
-        </a>
+        </span>
       </p>
+
+      {/* ---------- SIGNUP MODAL POPUP ---------- */}
+      {showSignup && (
+        <div style={overlayStyle}>
+          <div style={popupStyle}>
+            <h2>Create Account</h2>
+
+            <form onSubmit={handleSignUp} style={formStyle}>
+              <label style={labelStyle}>Account Type</label>
+              <select
+                value={accountType}
+                onChange={(e) => setAccountType(e.target.value as 'master' | 'host')}
+                style={inputStyle}
+              >
+                <option value="host">Host Account</option>
+                <option value="master">Master Account</option>
+              </select>
+
+              {accountType === 'master' ? (
+                <input
+                  type="text"
+                  placeholder="Company Name"
+                  value={companyName}
+                  onChange={(e) => setCompanyName(e.target.value)}
+                  style={inputStyle}
+                  required
+                />
+              ) : (
+                <>
+                  <input
+                    type="text"
+                    placeholder="Venue Name"
+                    value={venueName}
+                    onChange={(e) => setVenueName(e.target.value)}
+                    style={inputStyle}
+                    required
+                  />
+                  <input
+                    type="text"
+                    placeholder="Master ID (optional)"
+                    value={masterId}
+                    onChange={(e) => setMasterId(e.target.value)}
+                    style={inputStyle}
+                  />
+                </>
+              )}
+
+              <input
+                type="text"
+                placeholder="First Name"
+                value={firstName}
+                onChange={(e) => setFirstName(e.target.value)}
+                style={inputStyle}
+                required
+              />
+              <input
+                type="text"
+                placeholder="Last Name"
+                value={lastName}
+                onChange={(e) => setLastName(e.target.value)}
+                style={inputStyle}
+                required
+              />
+              <input
+                type="text"
+                placeholder="Username"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                style={inputStyle}
+                required
+              />
+              <input
+                type="email"
+                placeholder="Email"
+                value={signupEmail}
+                onChange={(e) => setSignupEmail(e.target.value)}
+                style={inputStyle}
+                required
+              />
+              <input
+                type="password"
+                placeholder="Password"
+                value={signupPassword}
+                onChange={(e) => setSignupPassword(e.target.value)}
+                style={inputStyle}
+                required
+              />
+
+              <button disabled={signupLoading} style={buttonStyle}>
+                {signupLoading ? 'Creating Account...' : 'Sign Up'}
+              </button>
+
+              {signupError && <p style={{ color: 'red' }}>{signupError}</p>}
+            </form>
+
+            <button style={buttonStyle} onClick={() => setShowSignup(false)}>
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ✅ VERIFICATION POPUP */}
+      {showPopup && (
+        <div style={overlayStyle}>
+          <div style={popupStyle}>
+            <h2>Verification Sent</h2>
+            <p>
+              A verification link has been sent to <strong>{signupEmail}</strong>.
+              Check your inbox to confirm your account.
+            </p>
+            <button
+              style={buttonStyle}
+              onClick={() => {
+                setShowPopup(false);
+                setShowSignup(false);
+              }}
+            >
+              OK
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -94,7 +286,11 @@ const pageStyle: React.CSSProperties = {
   alignItems: 'center',
   justifyContent: 'center',
   minHeight: '100vh',
+  width: '100%',
   background: 'linear-gradient(135deg,#0a2540,#1b2b44,#000000)',
+  backgroundAttachment: 'fixed',
+  backgroundSize: 'cover',
+  backdropFilter: 'blur(10px)',
   color: 'white',
   padding: '20px',
 };
@@ -157,4 +353,32 @@ const signupLinkStyle: React.CSSProperties = {
   color: '#1e90ff',
   textDecoration: 'underline',
   cursor: 'pointer',
+};
+
+const overlayStyle: React.CSSProperties = {
+  position: 'fixed',
+  inset: 0,
+  backgroundColor: 'rgba(0,0,0,0.85)',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  zIndex: 1000,
+  backdropFilter: 'blur(8px)',
+};
+
+const popupStyle: React.CSSProperties = {
+  backgroundColor: '#0d1625',
+  border: '1px solid #1e90ff',
+  borderRadius: '12px',
+  padding: '30px',
+  width: '90%',
+  maxWidth: '400px',
+  textAlign: 'center',
+};
+
+const labelStyle: React.CSSProperties = {
+  fontWeight: 600,
+  marginTop: '10px',
+  textAlign: 'left',
+  color: '#a0c4ff',
 };

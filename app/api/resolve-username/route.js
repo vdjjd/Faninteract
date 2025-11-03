@@ -2,9 +2,6 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabaseAdminClient';
 
-/**
- * ✅ Safe, JS-only version (no TypeScript build errors)
- */
 export async function POST(req) {
   try {
     const { username, email } = await req.json();
@@ -13,32 +10,47 @@ export async function POST(req) {
       return NextResponse.json({ error: 'Missing username or email' }, { status: 400 });
     }
 
-    // check both tables
+    // ✅ Look up in hosts
     const { data: hostMatches, error: hostError } = await supabaseAdmin
       .from('hosts')
       .select('email, username')
-      .or(`username.eq.${username},email.eq.${email}`);
+      .or(`username.eq.${username},email.eq.${email}`)
+      .limit(1)
+      .maybeSingle();
 
     if (hostError) throw hostError;
 
-    const { data: masterMatches, error: masterError } = await supabaseAdmin
+    // ✅ If found in hosts, return it
+    if (hostMatches) {
+      return NextResponse.json({
+        found: true,
+        email: hostMatches.email,
+        username: hostMatches.username,
+      });
+    }
+
+    // ✅ Otherwise, look in master_accounts by email
+    const { data: masterMatch, error: masterError } = await supabaseAdmin
       .from('master_accounts')
-      .select('email')
-      .eq('email', email);
+      .select('contact_email')
+      .eq('contact_email', email)
+      .limit(1)
+      .maybeSingle();
 
     if (masterError) throw masterError;
 
-    const foundRecord =
-      (hostMatches && hostMatches.length > 0) ||
-      (masterMatches && masterMatches.length > 0);
+    if (masterMatch) {
+      return NextResponse.json({
+        found: true,
+        email: masterMatch.contact_email,
+        username: null,
+      });
+    }
 
-    return NextResponse.json({
-      found: foundRecord,
-      email: email || null,
-      username: username || null,
-    });
+    // ❌ Nothing found
+    return NextResponse.json({ found: false, error: 'User not found' }, { status: 404 });
   } catch (err) {
-    console.error('❌ resolve-username error:', err);
+    console.error('❌ resolve-username error:', err.message || err);
     return NextResponse.json({ error: 'Server error' }, { status: 500 });
   }
 }

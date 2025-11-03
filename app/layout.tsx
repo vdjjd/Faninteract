@@ -1,6 +1,6 @@
 import './globals.css';
 import type { Metadata } from 'next';
-import ClientThemeWrapper from '@/components/ClientThemeWrapper'; // ✅ Client-side theme controller
+import ClientThemeWrapper from '@/components/ClientThemeWrapper';
 
 export const metadata: Metadata = {
   title: 'FanInteract',
@@ -14,8 +14,15 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      {/* suppressHydrationWarning prevents Next from complaining about client-rendered themes */}
-      <body suppressHydrationWarning>
+      <body
+        suppressHydrationWarning
+        style={{
+          margin: 0,
+          minHeight: '100vh',
+          background: 'linear-gradient(135deg,#0a2540,#1b2b44,#000000)',
+          color: 'white',
+        }}
+      >
         <ClientThemeWrapper>{children}</ClientThemeWrapper>
       </body>
     </html>
