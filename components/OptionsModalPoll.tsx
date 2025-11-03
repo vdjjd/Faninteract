@@ -3,6 +3,7 @@
 import { useState, useMemo } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import imageCompression from 'browser-image-compression';
+import { cn } from "../lib/utils";
 
 const DEFAULT_GRADIENT = 'linear-gradient(135deg,#0d47a1,#1976d2)';
 const BAR_COLORS = [
@@ -14,8 +15,7 @@ interface OptionsModalPollProps {
   event: any;
   hostId: string;
   onClose: () => void;
-  onBackgroundChange: (event: any, newValue: string) => Promise<void>;
-  refreshPolls: () => Promise<void>; // ✅ FIXED
+  refreshPolls: () => Promise<void>;
 }
 
 interface PollOption {
@@ -28,8 +28,7 @@ export default function OptionsModalPoll({
   event,
   hostId,
   onClose,
-  onBackgroundChange,
-  refreshPolls, // ✅ FIXED
+  refreshPolls,
 }: OptionsModalPollProps) {
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -115,7 +114,7 @@ export default function OptionsModalPoll({
       if (error) throw error;
 
       console.log('✅ Poll saved successfully:', data);
-      await refreshPolls(); // ✅ FIXED
+      await refreshPolls();
       onClose();
     } catch (err) {
       console.error('❌ Error saving poll:', err);
@@ -125,6 +124,7 @@ export default function OptionsModalPoll({
     }
   }
 
+  /* ---------- Upload Background ---------- */
   async function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
     try {
       const file = e.target.files?.[0];
@@ -142,7 +142,7 @@ export default function OptionsModalPoll({
       });
 
       const ext = file.type.split('/')[1];
-      const filePath = `${localEvent.id}/poll-background-${Date.now()}.${ext}`;
+      const filePath = `host_${hostId}/poll_${localEvent.id}/background-${Date.now()}.${ext}`;
 
       const { error: uploadError } = await supabase.storage
         .from('wall-backgrounds')
@@ -171,6 +171,7 @@ export default function OptionsModalPoll({
         background_value: publicUrl.publicUrl,
       });
 
+      await refreshPolls();
       console.log('✅ Background uploaded successfully.');
     } catch (err) {
       console.error('❌ Upload error:', err);
@@ -180,51 +181,63 @@ export default function OptionsModalPoll({
     }
   }
 
-  async function handleBackgroundChange(
-    type: 'solid' | 'gradient',
-    value: string
-  ) {
-    localEvent.background_type = type;
-    await onBackgroundChange(localEvent, value);
-    await refreshPolls(); // ✅ FIXED
-    setLocalEvent({
-      ...localEvent,
-      background_type: type,
-      background_value: value,
-    });
+  /* ---------- Background Change (for gradient/solid) ---------- */
+  async function handleBackgroundChange(type: 'solid' | 'gradient', value: string) {
+    try {
+      await supabase
+        .from('polls')
+        .update({
+          background_type: type,
+          background_value: value,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', localEvent.id);
+
+      setLocalEvent({
+        ...localEvent,
+        background_type: type,
+        background_value: value,
+      });
+
+      await refreshPolls();
+    } catch (err) {
+      console.error('❌ Error updating background:', err);
+    }
   }
 
   return (
-    <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 backdrop-blur-md">
+    <div className={cn('fixed', 'inset-0', 'bg-black/80', 'flex', 'items-center', 'justify-center', 'z-50', 'backdrop-blur-md')}>
       <div
-        className="bg-gradient-to-br from-[#0a2540] to-[#1b2b44] border border-blue-400 p-6 rounded-2xl shadow-2xl w-[640px] text-white animate-fadeIn overflow-y-auto max-h-[90vh]"
+        className={cn('bg-gradient-to-br', 'from-[#0a2540]', 'to-[#1b2b44]', 'border', 'border-blue-400', 'p-6', 'rounded-2xl', 'shadow-2xl', 'w-[640px]', 'text-white', 'animate-fadeIn', 'overflow-y-auto', 'max-h-[90vh]')}
         style={{ background: localEvent.background_value || DEFAULT_GRADIENT }}
       >
-        <h3 className="text-center text-xl font-bold mb-4">⚙ Edit Live Poll</h3>
+        <h3 className={cn('text-center', 'text-xl', 'font-bold', 'mb-4')}>⚙ Edit Live Poll</h3>
 
-        <label className="block text-sm">Poll Title (Private):</label>
+        {/* TITLES */}
+        <label className={cn('block', 'text-sm')}>Poll Title (Private):</label>
         <input
           type="text"
           value={localEvent.host_title || ''}
           onChange={(e) =>
             setLocalEvent({ ...localEvent, host_title: e.target.value })
           }
-          className="w-full p-2 rounded-md text-black mt-1"
+          className={cn('w-full', 'p-2', 'rounded-md', 'text-black', 'mt-1')}
         />
 
-        <label className="block text-sm mt-3">Public Question:</label>
+        <label className={cn('block', 'text-sm', 'mt-3')}>Public Question:</label>
         <input
           type="text"
           value={localEvent.title || ''}
           onChange={(e) =>
             setLocalEvent({ ...localEvent, title: e.target.value })
           }
-          className="w-full p-2 rounded-md text-black mt-1"
+          className={cn('w-full', 'p-2', 'rounded-md', 'text-black', 'mt-1')}
         />
 
-        <label className="block text-sm mt-3">Countdown (Before Start):</label>
+        {/* COUNTDOWN */}
+        <label className={cn('block', 'text-sm', 'mt-3')}>Countdown (Before Start):</label>
         <select
-          className="w-full p-2 rounded-md text-black mt-1"
+          className={cn('w-full', 'p-2', 'rounded-md', 'text-black', 'mt-1')}
           value={localEvent.countdown || 'none'}
           onChange={(e) =>
             setLocalEvent({
@@ -241,9 +254,10 @@ export default function OptionsModalPoll({
           )}
         </select>
 
-        <label className="block text-sm mt-3">Poll Duration:</label>
+        {/* DURATION */}
+        <label className={cn('block', 'text-sm', 'mt-3')}>Poll Duration:</label>
         <select
-          className="w-full p-2 rounded-md text-black mt-1"
+          className={cn('w-full', 'p-2', 'rounded-md', 'text-black', 'mt-1')}
           value={localEvent.duration || 'none'}
           onChange={(e) =>
             setLocalEvent({
@@ -260,9 +274,10 @@ export default function OptionsModalPoll({
           )}
         </select>
 
-        <label className="block text-sm mt-3">Poll Layout Direction:</label>
+        {/* LAYOUT */}
+        <label className={cn('block', 'text-sm', 'mt-3')}>Poll Layout Direction:</label>
         <select
-          className="w-full p-2 rounded-md text-black mt-1"
+          className={cn('w-full', 'p-2', 'rounded-md', 'text-black', 'mt-1')}
           value={localEvent.layout || 'horizontal'}
           onChange={(e) =>
             setLocalEvent({
@@ -274,6 +289,40 @@ export default function OptionsModalPoll({
           <option value="horizontal">Horizontal (Left to Right)</option>
           <option value="vertical">Vertical (Bottom to Top)</option>
         </select>
+
+        {/* UPLOAD BACKGROUND */}
+        <div className="mt-5">
+          <label className={cn('block', 'text-sm', 'mb-1')}>Upload Background Image:</label>
+          <input
+            type="file"
+            accept="image/*"
+            onChange={handleImageUpload}
+            disabled={uploading}
+            className={cn('text-sm', 'text-gray-300')}
+          />
+          {uploading && (
+            <p className={cn('text-yellow-400', 'text-xs', 'mt-2', 'animate-pulse')}>
+              Uploading…
+            </p>
+          )}
+        </div>
+
+        {/* BUTTONS */}
+        <div className={cn('flex', 'justify-center', 'gap-3', 'mt-6')}>
+          <button
+            onClick={handleSave}
+            disabled={saving || uploading}
+            className={cn('bg-green-600', 'hover:bg-green-700', 'px-4', 'py-2', 'rounded', 'font-semibold')}
+          >
+            ✅ Save
+          </button>
+          <button
+            onClick={onClose}
+            className={cn('bg-red-600', 'hover:bg-red-700', 'px-4', 'py-2', 'rounded', 'font-semibold')}
+          >
+            ✖ Cancel
+          </button>
+        </div>
       </div>
     </div>
   );
