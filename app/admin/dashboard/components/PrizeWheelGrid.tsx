@@ -33,21 +33,21 @@ export default function PrizeWheelGrid({
   }
 
   /* ---------- PLAY (activate wheel) ---------- */
-async function handlePlay(id: string) {
-  await togglePrizeWheelStatus(id, true); // ✅ expects boolean
-  await refreshPrizeWheels();
-}
+  async function handlePlay(id: string) {
+    await togglePrizeWheelStatus(id, true); // expects boolean
+    await refreshPrizeWheels();
+  }
 
-/* ---------- STOP (deactivate wheel) ---------- */
-async function handleStop(id: string) {
-  await togglePrizeWheelStatus(id, false); // ✅ expects boolean
-  await refreshPrizeWheels();
-}
+  /* ---------- STOP (deactivate wheel) ---------- */
+  async function handleStop(id: string) {
+    await togglePrizeWheelStatus(id, false); // expects boolean
+    await refreshPrizeWheels();
+  }
 
-  /* ---------- SPIN (broadcast spin event) ---------- */
+  /* ---------- SPIN (placeholder until implemented) ---------- */
   async function handleSpin(id: string) {
-    await triggerSpin(id);
-    console.log(`🎡 Spin triggered for wheel ${id}`);
+    console.log(`🎡 Spin clicked for wheel ${id} — feature coming soon`);
+    alert('Spin feature coming soon!');
   }
 
   /* ---------- CLEAR ---------- */
