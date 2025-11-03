@@ -16,12 +16,12 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: 'Server configuration error' }, { status: 500 });
     }
 
-    // ✅ Loosen type inference completely to avoid "never" errors
-    const { data, error } = await supabaseAdmin
+    // ✅ Force-loosen typing completely — runtime stays identical
+    const { data, error } = (await supabaseAdmin
       .from('hosts')
       .select('email')
       .eq('username', username)
-      .single<any>(); // 👈 Force Supabase to treat it as "any"
+      .single()) as { data: { email?: string } | null; error: any };
 
     if (error || !data) {
       return NextResponse.json({
@@ -30,12 +30,14 @@ export async function GET(req: Request) {
       });
     }
 
+    // ✅ TS now recognizes email safely
     return NextResponse.json({
       found: true,
-      email: (data as any).email, // 👈 Cast explicitly
+      email: data.email ?? null,
     });
   } catch (err) {
     console.error('❌ resolve-username error', err);
     return NextResponse.json({ error: 'Server error' }, { status: 500 });
   }
 }
+
