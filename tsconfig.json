@@ -14,9 +14,7 @@
     "isolatedModules": true,
     "jsx": "preserve",
     "baseUrl": ".",
-    "paths": {
-      "@/*": ["*"]
-    },
+    "paths": { "@/*": ["*"] },
     "incremental": true,
     "plugins": [{ "name": "next" }]
   },
@@ -27,8 +25,7 @@
     ".next/types/**/*.ts"
   ],
   "exclude": [
-    "node_modules",
-    "app/api/resolve-username/route.ts",
-    "app/api/resolve-username/route.js"
+    "node_modules"
   ]
 }
+
