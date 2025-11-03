@@ -1,21 +1,19 @@
-// /app/api/resolve-username/route.ts
+// /app/api/resolve-username/route.js
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabaseAdminClient';
 
 /**
- * Looks up whether a username or email already exists.
- * This version removes TypeScript's "never" errors.
+ * ✅ Safe, JS-only version (no TypeScript build errors)
  */
-export async function POST(req: Request) {
+export async function POST(req) {
   try {
-    const body = await req.json();
-    const { username, email } = body;
+    const { username, email } = await req.json();
 
     if (!username && !email) {
       return NextResponse.json({ error: 'Missing username or email' }, { status: 400 });
     }
 
-    // check both master_accounts and hosts
+    // check both tables
     const { data: hostMatches, error: hostError } = await supabaseAdmin
       .from('hosts')
       .select('email, username')
@@ -39,11 +37,8 @@ export async function POST(req: Request) {
       email: email || null,
       username: username || null,
     });
-  } catch (err: any) {
-    console.error('❌ resolve-username error:', err.message);
-    return NextResponse.json(
-      { error: 'Server error' },
-      { status: 500 }
-    );
+  } catch (err) {
+    console.error('❌ resolve-username error:', err);
+    return NextResponse.json({ error: 'Server error' }, { status: 500 });
   }
 }
