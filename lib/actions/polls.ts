@@ -57,6 +57,29 @@ export async function createPoll(hostId: string, data: any) {
 }
 
 /* -------------------------------------------------------------------------- */
+/* 🔍 GET POLLS BY HOST (server only)                                         */
+/* -------------------------------------------------------------------------- */
+export async function getPollsByHost(hostId: string) {
+  try {
+    const { data, error } = await supabase
+      .from('polls')
+      .select('*')
+      .eq('host_id', hostId)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('❌ Error fetching polls by host:', error.message);
+      return [];
+    }
+
+    return data || [];
+  } catch (err) {
+    console.error('❌ Unexpected error fetching polls by host:', err);
+    return [];
+  }
+}
+
+/* -------------------------------------------------------------------------- */
 /* 🔴 DELETE POLL (server only)                                               */
 /* -------------------------------------------------------------------------- */
 export async function deletePoll(pollId: string) {
@@ -87,7 +110,10 @@ export async function clearPoll(pollId: string) {
       .maybeSingle();
     if (fetchError) throw fetchError;
 
-    const resetOptions = (pollData?.options || []).map((o: any) => ({ ...o, votes: 0 }));
+    const resetOptions = (pollData?.options || []).map((o: any) => ({
+      ...o,
+      votes: 0,
+    }));
 
     const { error: updateError } = await supabase
       .from('polls')
