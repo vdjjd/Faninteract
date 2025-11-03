@@ -16,20 +16,9 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: 'Server configuration error' }, { status: 500 });
     }
 
-    // ✅ Secure lookup — bypasses RLS using service key
+    // ✅ Explicitly type the query result so TypeScript knows it includes "email"
     const { data, error } = await supabaseAdmin
-      .from('hosts')
+      .from<{ email: string }>('hosts')
       .select('email')
-      .eq('username', username)
-      .single();
+      .eq('us
 
-    if (error || !data) {
-      return NextResponse.json({ found: false, error: error?.message || 'Not found' });
-    }
-
-    return NextResponse.json({ found: true, email: data.email });
-  } catch (err) {
-    console.error('❌ resolve-username error', err);
-    return NextResponse.json({ error: 'Server error' }, { status: 500 });
-  }
-}
