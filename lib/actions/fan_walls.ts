@@ -1,25 +1,30 @@
-// /lib/actions/fan_walls.ts
+'use client';
+
 import { supabase } from '@/lib/supabaseClient';
 
 /* -------------------------------------------------------------------------- */
-/* ✅ CREATE FAN WALL */
+/* 🟢 CREATE FAN WALL                                                         */
+/* -------------------------------------------------------------------------- */
 export async function createFanWall(host_id: string, { title }: { title: string }) {
   try {
+    const newWall = {
+      host_id,
+      title: title || 'Untitled Fan Zone Wall',
+      status: 'inactive',
+      layout_type: 'Grid4x2',
+      transition_speed: 'Medium',
+      post_transition: 'Fade In / Fade Out',
+      countdown: null,
+      countdown_active: false,
+      background_type: 'gradient',
+      background_value: 'linear-gradient(135deg,#0d47a1,#1976d2)',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+
     const { data, error } = await supabase
       .from('fan_walls')
-      .insert([
-        {
-          host_id,
-          host_title: `${title} Fan Zone Wall`,
-          title,
-          status: 'inactive',
-          background_type: 'gradient',
-          background_value: 'linear-gradient(to bottom right, #4dc6ff, #001f4d)',
-          countdown: null,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        },
-      ])
+      .insert([newWall])
       .select()
       .maybeSingle();
 
@@ -34,7 +39,8 @@ export async function createFanWall(host_id: string, { title }: { title: string 
 }
 
 /* -------------------------------------------------------------------------- */
-/* ✅ FETCH ALL FAN WALLS FOR A HOST */
+/* 🟢 FETCH ALL FAN WALLS FOR A HOST                                          */
+/* -------------------------------------------------------------------------- */
 export async function getFanWallsByHost(host_id: string) {
   try {
     const { data, error } = await supabase
@@ -56,23 +62,24 @@ export async function getFanWallsByHost(host_id: string) {
 }
 
 /* -------------------------------------------------------------------------- */
-/* ✅ UPDATE FAN WALL SETTINGS */
+/* 🟡 UPDATE FAN WALL SETTINGS                                                 */
+/* -------------------------------------------------------------------------- */
 export async function updateFanWallSettings(
   id: string,
   fields: Partial<{
-    host_title: string;
     title: string;
     background_type: string;
     background_value: string;
     countdown: string | null;
+    countdown_active: boolean;
+    layout_type: string;
+    transition_speed: string;
+    post_transition: string;
   }>
 ) {
   const { data, error } = await supabase
     .from('fan_walls')
-    .update({
-      ...fields,
-      updated_at: new Date().toISOString(),
-    })
+    .update({ ...fields, updated_at: new Date().toISOString() })
     .eq('id', id)
     .select()
     .maybeSingle();
@@ -84,7 +91,8 @@ export async function updateFanWallSettings(
 }
 
 /* -------------------------------------------------------------------------- */
-/* ✅ DELETE FAN WALL */
+/* 🔴 DELETE FAN WALL                                                         */
+/* -------------------------------------------------------------------------- */
 export async function deleteFanWall(id: string) {
   const { error } = await supabase.from('fan_walls').delete().eq('id', id);
   if (error) throw error;
@@ -92,7 +100,8 @@ export async function deleteFanWall(id: string) {
 }
 
 /* -------------------------------------------------------------------------- */
-/* ✅ CLEAR POSTS FOR A WALL */
+/* 🧹 CLEAR POSTS FOR A WALL                                                   */
+/* -------------------------------------------------------------------------- */
 export async function clearFanWallPosts(fan_wall_id: string) {
   try {
     const { error } = await supabase
@@ -108,14 +117,12 @@ export async function clearFanWallPosts(fan_wall_id: string) {
 }
 
 /* -------------------------------------------------------------------------- */
-/* ✅ TOGGLE LIVE / INACTIVE */
+/* 🔁 TOGGLE LIVE / INACTIVE                                                   */
+/* -------------------------------------------------------------------------- */
 export async function toggleFanWallStatus(id: string, makeLive: boolean) {
   const { error } = await supabase
     .from('fan_walls')
-    .update({
-      status: makeLive ? 'live' : 'inactive',
-      updated_at: new Date().toISOString(),
-    })
+    .update({ status: makeLive ? 'live' : 'inactive', updated_at: new Date().toISOString() })
     .eq('id', id);
 
   if (error) throw error;

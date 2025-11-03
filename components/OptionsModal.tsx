@@ -3,29 +3,31 @@
 import dynamic from 'next/dynamic';
 
 /* -------------------------------------------------------------------------- */
-/*                               TYPE INTERFACE                               */
+/*                               TYPE INTERFACES                              */
 /* -------------------------------------------------------------------------- */
 type ModalType = 'fanwall' | 'poll' | 'prizewheel';
 
 interface BaseModalProps {
-  event: any;
   hostId: string;
   onClose: () => void;
-  onBackgroundChange: (event: any, newValue: string) => Promise<void>;
+  onBackgroundChange: (item: any, newValue: string) => Promise<void>;
 }
 
 /* ---------- Fan Wall ---------- */
 interface FanWallProps extends BaseModalProps {
-  refreshEvents: () => Promise<void>;
+  wall: any;
+  refreshFanWalls: () => Promise<void>;
 }
 
 /* ---------- Poll ---------- */
 interface PollProps extends BaseModalProps {
+  event: any;
   refreshPolls: () => Promise<void>;
 }
 
 /* ---------- Prize Wheel ---------- */
 interface PrizeWheelProps extends BaseModalProps {
+  event: any;
   refreshPrizeWheels: () => Promise<void>;
 }
 
@@ -35,8 +37,8 @@ interface OptionsModalProps {
   event: any;
   hostId: string;
   onClose: () => void;
-  onBackgroundChange: (event: any, newValue: string) => Promise<void>;
-  refreshEvents?: () => Promise<void>;
+  onBackgroundChange: (item: any, newValue: string) => Promise<void>;
+  refreshFanWalls?: () => Promise<void>;
   refreshPolls?: () => Promise<void>;
   refreshPrizeWheels?: () => Promise<void>;
 }
@@ -57,7 +59,7 @@ export default function OptionsModal({
   hostId,
   onClose,
   onBackgroundChange,
-  refreshEvents,
+  refreshFanWalls,
   refreshPolls,
   refreshPrizeWheels,
 }: OptionsModalProps) {
@@ -65,11 +67,11 @@ export default function OptionsModal({
     case 'fanwall':
       return (
         <OptionsModalFanWall
-          event={event}
+          wall={event}                        // ✅ use correct prop name
           hostId={hostId}
           onClose={onClose}
           onBackgroundChange={onBackgroundChange}
-          refreshEvents={refreshEvents!}
+          refreshFanWalls={refreshFanWalls!}  // ✅ correct naming
         />
       );
 

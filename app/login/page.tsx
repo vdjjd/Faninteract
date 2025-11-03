@@ -2,16 +2,11 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { motion } from 'framer-motion';
 import { supabase } from '@/lib/supabaseClient';
-import { cn } from "../../lib/utils";
-
-const BRAND_LOGO = '/faninteractlogo.png';
-const BRAND_NAME = 'FanInteract';
 
 export default function LoginPage() {
   const router = useRouter();
-  const [identifier, setIdentifier] = useState('');
+  const [identifier, setIdentifier] = useState(''); // username OR email
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -24,24 +19,24 @@ export default function LoginPage() {
     try {
       let emailToUse = identifier;
 
-      // Resolve username to email if no '@'
+      // Resolve username to email if no "@"
       if (!identifier.includes('@')) {
         const res = await fetch('/api/resolve-username', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ username: identifier }),
         });
+
         const result = await res.json();
         if (!res.ok) throw new Error(result.error || 'Invalid username.');
         emailToUse = result.email;
       }
 
-      // Supabase sign in
+      // Sign in with Supabase
       const { error: signInError } = await supabase.auth.signInWithPassword({
         email: emailToUse,
         password,
       });
-
       if (signInError) throw signInError;
 
       router.push('/admin/dashboard');
@@ -54,73 +49,112 @@ export default function LoginPage() {
   };
 
   return (
-    <main className={cn('relative', 'flex', 'flex-col', 'items-center', 'justify-center', 'min-h-screen', 'overflow-hidden', 'text-white', 'text-center')}>
-      {/* Background */}
-      <div className={cn('absolute', 'inset-0', 'bg-[linear-gradient(135deg,#0a2540,#1b2b44,#000000)]', 'bg-[length:200%_200%]', 'animate-gradient-slow')} />
-      <div className={cn('absolute', 'inset-0', 'opacity-25', 'bg-[radial-gradient(circle_at_30%_30%,rgba(0,153,255,0.4),transparent_70%)]')} />
+    <div style={pageStyle}>
+      <h1 style={titleStyle}>Host Login</h1>
 
-      {/* Login Card */}
-      <div className={cn('relative', 'z-10', 'flex', 'flex-col', 'items-center', 'px-6', 'py-10', 'rounded-2xl', 'bg-[#0d1625]/90', 'border', 'border-blue-900/40', 'shadow-lg', 'shadow-black/40', 'max-w-sm', 'w-full', 'backdrop-blur-lg')}>
-        <motion.img
-          src={BRAND_LOGO}
-          alt={`${BRAND_NAME} Logo`}
-          initial={{ scale: 0.95 }}
-          animate={{ scale: [1, 1.06, 1] }}
-          transition={{ duration: 6, repeat: Infinity, ease: 'easeInOut' }}
-          className={cn('w-[260px]', 'md:w-[320px]', 'mb-6', 'drop-shadow-[0_0_30px_rgba(56,189,248,0.3)]')}
+      <form onSubmit={handleLogin} style={formStyle}>
+        <input
+          type="text"
+          placeholder="Username or Email"
+          value={identifier}
+          onChange={(e) => setIdentifier(e.target.value)}
+          style={inputStyle}
+          required
+        />
+        <input
+          type="password"
+          placeholder="Password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          style={inputStyle}
+          required
         />
 
-        <h1 className={cn('text-3xl', 'font-bold', 'mb-6', 'text-sky-400', 'drop-shadow-[0_0_20px_rgba(56,189,248,0.2)]')}>
-          {BRAND_NAME} Host Login
-        </h1>
+        <button type="submit" disabled={loading} style={buttonStyle}>
+          {loading ? 'Signing In...' : 'Login'}
+        </button>
 
-        <form onSubmit={handleLogin} className={cn('flex', 'flex-col', 'w-full', 'gap-4')}>
-          <input
-            type="text"
-            placeholder="Username or Email"
-            value={identifier}
-            onChange={(e) => setIdentifier(e.target.value)}
-            className={cn('px-4', 'py-3', 'rounded-xl', 'bg-[#111b2f]', 'border', 'border-blue-800/40', 'text-white', 'focus:outline-none', 'focus:ring-2', 'focus:ring-sky-500')}
-            required
-          />
-          <input
-            type="password"
-            placeholder="Password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className={cn('px-4', 'py-3', 'rounded-xl', 'bg-[#111b2f]', 'border', 'border-blue-800/40', 'text-white', 'focus:outline-none', 'focus:ring-2', 'focus:ring-sky-500')}
-            required
-          />
-          <button
-            type="submit"
-            disabled={loading}
-            className={cn('mt-2', 'py-3', 'rounded-xl', 'bg-gradient-to-r', 'from-sky-500', 'to-blue-600', 'font-semibold', 'shadow-lg', 'shadow-blue-600/40', 'hover:scale-[1.03]', 'hover:shadow-blue-500/60', 'transition-all', 'duration-300')}
-          >
-            {loading ? 'Signing In...' : 'Login'}
-          </button>
-        </form>
+        {error && <p style={errorStyle}>{error}</p>}
+      </form>
 
-        {error && <p className={cn('text-red-400', 'mt-4', 'text-sm')}>{error}</p>}
-
-        <p className={cn('text-gray-400', 'text-sm', 'mt-6')}>
-          Don’t have an account?{' '}
-          <a href="/signup" className={cn('text-sky-400', 'hover:underline')}>
-            Sign up
-          </a>
-        </p>
-      </div>
-
-      <style jsx global>{`
-        @keyframes gradient-slow {
-          0% { background-position: 0% 50%; }
-          50% { background-position: 100% 50%; }
-          100% { background-position: 0% 50%; }
-        }
-        .animate-gradient-slow {
-          background-size: 200% 200%;
-          animation: gradient-slow 20s ease infinite;
-        }
-      `}</style>
-    </main>
+      <p style={signupTextStyle}>
+        Don’t have an account?{' '}
+        <a href="/signup" style={signupLinkStyle}>
+          Sign up
+        </a>
+      </p>
+    </div>
   );
 }
+
+/* ---------- Styles ---------- */
+const pageStyle: React.CSSProperties = {
+  display: 'flex',
+  flexDirection: 'column',
+  alignItems: 'center',
+  justifyContent: 'center',
+  minHeight: '100vh',
+  background: 'linear-gradient(135deg,#0a2540,#1b2b44,#000000)',
+  color: 'white',
+  padding: '20px',
+};
+
+const titleStyle: React.CSSProperties = {
+  fontSize: '2.5rem',
+  fontWeight: 700,
+  marginBottom: '20px',
+  color: '#a0c4ff',
+  textAlign: 'center',
+};
+
+const formStyle: React.CSSProperties = {
+  display: 'flex',
+  flexDirection: 'column',
+  gap: '12px',
+  width: '320px',
+  backgroundColor: 'rgba(13,22,37,0.9)',
+  padding: '30px',
+  borderRadius: '12px',
+  border: '1px solid #1e90ff',
+  boxShadow: '0 0 20px rgba(30,144,255,0.3)',
+};
+
+const inputStyle: React.CSSProperties = {
+  padding: '10px',
+  borderRadius: '8px',
+  border: '1px solid #333',
+  backgroundColor: '#1a1a1a',
+  color: 'white',
+};
+
+const buttonStyle: React.CSSProperties = {
+  padding: '10px',
+  borderRadius: '8px',
+  border: 'none',
+  background: 'linear-gradient(to right, #1e90ff, #3a8dff)',
+  color: 'white',
+  fontWeight: 600,
+  cursor: 'pointer',
+  boxShadow: '0 4px 15px rgba(30,144,255,0.3)',
+  transition: 'all 0.2s ease-in-out',
+};
+
+const errorStyle: React.CSSProperties = {
+  color: 'red',
+  marginTop: '8px',
+  fontSize: '0.9rem',
+  textAlign: 'center',
+};
+
+const signupTextStyle: React.CSSProperties = {
+  marginTop: '15px',
+  color: '#ccc',
+  textAlign: 'center',
+  fontSize: '0.9rem',
+};
+
+const signupLinkStyle: React.CSSProperties = {
+  color: '#1e90ff',
+  textDecoration: 'underline',
+  cursor: 'pointer',
+};

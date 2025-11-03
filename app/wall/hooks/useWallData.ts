@@ -1,11 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 
-/* -------------------------------------------------------------------------- */
-/* 🧩 TYPES                                                                  */
-/* -------------------------------------------------------------------------- */
 interface HostData {
   id: string;
   email: string | null;
@@ -25,15 +22,14 @@ interface WallData {
   qr_url?: string | null;
   layout_type?: string | null;
   transition_speed?: string | null;
+  auto_delete_minutes?: number | null;
   updated_at?: string;
-  _version?: number;
   host?: HostData | null;
 }
 
 interface GuestPost {
   id: string;
   fan_wall_id: string;
-  guest_profile_id?: string | null;
   nickname?: string | null;
   message?: string | null;
   photo_url?: string | null;
@@ -42,7 +38,7 @@ interface GuestPost {
 }
 
 /* -------------------------------------------------------------------------- */
-/* 🧠 useWallData — Centralized Fan Wall Hook                                */
+/* 🧠 useWallData — unified realtime wall sync                                */
 /* -------------------------------------------------------------------------- */
 export function useWallData(wallId: string | string[] | undefined) {
   const [wall, setWall] = useState<WallData | null>(null);
@@ -50,24 +46,14 @@ export function useWallData(wallId: string | string[] | undefined) {
   const [loading, setLoading] = useState(true);
   const [showLive, setShowLive] = useState(false);
 
-  /* ---------------------------------------------------------------------- */
-  /* 📥 INITIAL LOAD — Fan Wall                                             */
-  /* ---------------------------------------------------------------------- */
-  async function loadWall() {
+  /* 🔄 Fetch wall */
+  const refresh = useCallback(async () => {
     if (!wallId) return;
+    setLoading(true);
 
     const { data, error } = await supabase
       .from('fan_walls')
-      .select(
-        `
-        *,
-        host:hosts (
-          id,
-          email,
-          branding_logo_url
-        )
-      `
-      )
+      .select(`*, host:hosts (id,email,branding_logo_url)`)
       .eq('id', wallId)
       .maybeSingle();
 
@@ -81,118 +67,117 @@ export function useWallData(wallId: string | string[] | undefined) {
       setWall(data);
       setShowLive(data.status === 'live');
     }
-
     setLoading(false);
-  }
-
-  useEffect(() => {
-    loadWall();
   }, [wallId]);
 
-  /* ---------------------------------------------------------------------- */
-  /* 🔄 REALTIME — Fan Wall Status Updates                                  */
-  /* ---------------------------------------------------------------------- */
+  useEffect(() => {
+    refresh();
+  }, [refresh]);
+
+  /* 🌐 GLOBAL REALTIME CHANNEL */
+  useEffect(() => {
+    if (!wallId) return;
+
+    const channel = supabase.channel('global-fan-walls', {
+      config: { broadcast: { self: true, ack: true, max_bytes: 99999 } },
+    });
+
+    // 🟢 Wall start/stop & countdown trigger
+    channel.on('broadcast', { event: 'wall_status_changed' }, (payload) => {
+      const data = payload.payload as {
+        id: string;
+        status?: string;
+        countdown_active?: boolean;
+      };
+      if (data?.id !== wallId) return;
+
+      console.log('📡 Status broadcast received:', data);
+      setShowLive(data.status === 'live');
+      setWall((prev) =>
+        prev
+          ? {
+              ...prev,
+              status: (data.status as 'live' | 'inactive') ?? prev.status,
+              countdown_active:
+                data.countdown_active ?? prev.countdown_active ?? false,
+            }
+          : prev
+      );
+    });
+
+// 🎨 Any live setting update (titles, backgrounds, layouts, countdowns, etc.)
+channel.on('broadcast', { event: 'wall_updated' }, (payload) => {
+  const data = payload.payload as Partial<WallData> & { id: string };
+  if (data?.id !== wallId) return;
+  console.log('🎨 Live update received:', data);
+
+  setWall((prev) => {
+    if (!prev) return prev;
+
+    // 🛡️ Prevent unwanted revert to inactive unless explicitly stopped
+    const stopExplicit =
+      data.status === 'inactive' &&
+      payload?.payload?.source === 'stop_command';
+
+    const safeStatus =
+      prev.status === 'live' && !stopExplicit && (!data.status || data.status === 'inactive')
+        ? 'live'
+        : data.status || prev.status;
+
+    // 🔄 Force a re-render every time (even if layout_type is the only change)
+    const merged = {
+      ...prev,
+      ...data,
+      status: safeStatus,
+      updated_at: new Date().toISOString(),
+    };
+
+    return { ...merged };
+  });
+});
+
+
+    // 🕒 Countdown finished (fade trigger)
+    channel.on('broadcast', { event: 'countdown_finished' }, (payload) => {
+      const data = payload.payload as { id: string };
+      if (data?.id !== wallId) return;
+
+      console.log('⏱ Countdown finished → activating wall');
+      setShowLive(true);
+      setWall((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          status: 'live',
+          countdown_active: false,
+        };
+      });
+    });
+
+    channel.subscribe((status) => {
+      if (status === 'SUBSCRIBED')
+        console.log('✅ Listening for realtime wall updates on', wallId);
+    });
+
+    return () => supabase.removeChannel(channel);
+  }, [wallId]);
+
+  /* 🧩 Guest posts listener */
   useEffect(() => {
     if (!wallId) return;
 
     const channel = supabase
-      .channel(`fanwall-${wallId}`)
-      // ✅ Listen for live DB updates
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'fan_walls',
-          filter: `id=eq.${wallId}`,
-        },
-        (payload) => {
-          const updated = payload.new as WallData;
-          if (!updated) return;
-
-          setWall((prev) => ({
-            ...(prev ?? ({} as WallData)),
-            ...(updated as Partial<WallData>),
-            _version: Date.now(),
-          }));
-
-          setShowLive(updated.status === 'live');
+      .channel(`guest_posts-${wallId}`)
+      .on('broadcast', { event: 'new_guest_post' }, (payload) => {
+        const post = payload.payload as GuestPost;
+        if (post.fan_wall_id === wallId && post.status === 'approved') {
+          setPosts((prev) => [...prev, post]);
         }
-      )
-      // ✅ Listen for broadcast updates from dashboard
-      .on('broadcast', { event: 'UPDATE' }, async (payload) => {
-        const data = payload.payload as { id: string };
-        if (data?.id === wallId) await loadWall();
       })
       .subscribe();
 
-    return () => {
-      supabase.removeChannel(channel);
-    };
+    return () => supabase.removeChannel(channel);
   }, [wallId]);
 
-  /* ---------------------------------------------------------------------- */
-  /* 📸 REALTIME — Guest Posts                                              */
-  /* ---------------------------------------------------------------------- */
-  useEffect(() => {
-    if (!wallId) return;
-
-    async function loadPosts() {
-      const { data, error } = await supabase
-        .from('guest_posts')
-        .select('*')
-        .eq('fan_wall_id', wallId)
-        .eq('status', 'approved')
-        .order('created_at', { ascending: true });
-
-      if (error) {
-        console.error('❌ Error loading guest_posts:', error);
-        return;
-      }
-
-      if (data) setPosts(data);
-    }
-
-    loadPosts();
-
-    const channel = supabase
-      .channel(`guestposts-${wallId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'guest_posts',
-          filter: `fan_wall_id=eq.${wallId}`,
-        },
-        (payload) => {
-          const updated = payload.new as GuestPost;
-          const deleted = payload.old as GuestPost;
-
-          if (payload.eventType === 'DELETE') {
-            setPosts((prev) => prev.filter((p) => p.id !== deleted.id));
-            return;
-          }
-
-          if (updated.status === 'approved') {
-            setPosts((prev) => {
-              const exists = prev.find((p) => p.id === updated.id);
-              return exists
-                ? prev.map((p) => (p.id === updated.id ? updated : p))
-                : [...prev, updated];
-            });
-          } else {
-            // Remove anything that’s not approved
-            setPosts((prev) => prev.filter((p) => p.id !== updated.id));
-          }
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [wallId]);
-
-  return { wall, posts, loading, showLive };
+  return { wall, posts, loading, showLive, refresh };
 }

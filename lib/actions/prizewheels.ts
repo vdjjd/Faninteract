@@ -55,3 +55,10 @@ export async function togglePrizeWheelStatus(id: string, makeLive: boolean) {
     console.error('❌ Error toggling prize wheel status:', err);
   }
 }
+
+/* -------------------------------------------------------------------------- */
+/* 🧹 CLEAR PRIZE WHEEL (placeholder so import doesn't break)                 */
+export async function clearPrizeWheel(id: string) {
+  console.log(`⚠️ Placeholder: clearPrizeWheel called for ${id}`);
+  // You can implement actual clearing later
+}

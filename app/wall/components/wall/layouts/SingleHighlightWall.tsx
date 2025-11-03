@@ -1,16 +1,11 @@
 'use client';
 
 import { QRCodeCanvas } from 'qrcode.react';
-import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
+import { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 
-interface LiveWallProps {
-  event: any;
-  posts: any[];
-}
-
-/* ---------- TRANSITION MAP ---------- */
+/* ---------- TRANSITION STYLES ---------- */
 const transitions: Record<string, any> = {
   'Fade In / Fade Out': {
     initial: { opacity: 0 },
@@ -42,51 +37,30 @@ const transitions: Record<string, any> = {
     exit: { scale: 0.8, opacity: 0 },
     transition: { duration: 0.6 },
   },
-  Flip: {
-    initial: { rotateY: 180, opacity: 0 },
-    animate: { rotateY: 0, opacity: 1 },
-    exit: { rotateY: -180, opacity: 0 },
-    transition: { duration: 0.8 },
-  },
-  'Rotate In / Rotate Out': {
-    initial: { rotate: 45, opacity: 0 },
-    animate: { rotate: 0, opacity: 1 },
-    exit: { rotate: -45, opacity: 0 },
-    transition: { duration: 0.8 },
-  },
 };
 
-/* ---------- SPEED MAP ---------- */
 const speedMap: Record<string, number> = {
   Slow: 12000,
   Medium: 8000,
   Fast: 4000,
 };
 
-export default function LiveWall({ event, posts }: LiveWallProps) {
+export default function SingleHighlightWall({ event, posts }: { event?: any; posts?: any[] }) {
   const [livePosts, setLivePosts] = useState(posts || []);
   const [currentIndex, setCurrentIndex] = useState(0);
-  const transitionStyle =
-    transitions[event?.post_transition || 'Fade In / Fade Out'];
-  const displayDuration =
-    speedMap[event?.transition_speed || 'Medium'] || 8000;
+  const [live, setLive] = useState(event?.status === 'live');
+  const [fading, setFading] = useState(false);
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
+  const [transitionLock, setTransitionLock] = useState(false);
 
-  /* ---------- AUTO RESTORE FULLSCREEN ---------- */
+  const transitionStyle = transitions[event?.post_transition || 'Fade In / Fade Out'];
+  const displayDuration = speedMap[event?.transition_speed || 'Medium'] || 8000;
+  const channelRef = useRef<any>(null);
+
   useEffect(() => {
-    let wasFullscreen = !!document.fullscreenElement;
-    const handleChange = () => {
-      if (!document.fullscreenElement && wasFullscreen) {
-        setTimeout(() => {
-          document.documentElement.requestFullscreen().catch(() => {});
-        }, 300);
-      }
-      wasFullscreen = !!document.fullscreenElement;
-    };
-    document.addEventListener('fullscreenchange', handleChange);
-    return () => document.removeEventListener('fullscreenchange', handleChange);
-  }, []);
+    if (livePosts.length && !hasLoadedOnce) setHasLoadedOnce(true);
+  }, [livePosts, hasLoadedOnce]);
 
-  /* ---------- INITIAL FETCH ---------- */
   useEffect(() => {
     async function fetchApproved() {
       if (!event?.id) return;
@@ -101,68 +75,73 @@ export default function LiveWall({ event, posts }: LiveWallProps) {
     fetchApproved();
   }, [event?.id]);
 
-  /* ---------- REALTIME UPDATES ---------- */
   useEffect(() => {
     if (!event?.id) return;
-    const channel = supabase
-      .channel(`live-submissions-${event.id}`)
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'submissions', filter: `event_id=eq.${event.id}` },
-        (payload) => {
-          if (payload.eventType === 'INSERT' && payload.new.status === 'approved')
-            setLivePosts((prev) => [payload.new, ...prev]);
-          else if (payload.eventType === 'UPDATE' && payload.new.status === 'approved')
-            setLivePosts((prev) => {
-              const exists = prev.find((p) => p.id === payload.new.id);
-              return exists ? prev : [payload.new, ...prev];
-            });
-          else if (payload.eventType === 'DELETE')
-            setLivePosts((prev) => prev.filter((p) => p.id !== payload.old.id));
+    const channel = supabase.channel('fan_walls-realtime', {
+      config: { broadcast: { self: true, ack: true, max_bytes: 99999 } },
+    });
+
+    const handler = (payload: any) => {
+      const data = payload?.payload;
+      if (!data || data.id !== event.id || transitionLock) return;
+
+      if (data.status && data.status !== (live ? 'live' : 'inactive')) {
+        setTransitionLock(true);
+        setFading(true);
+
+        if (data.status === 'inactive') {
+          setTimeout(() => {
+            setLive(false);
+            setFading(false);
+            setTransitionLock(false);
+          }, 1000);
+        } else if (data.status === 'live') {
+          setTimeout(() => {
+            setLive(true);
+            setFading(false);
+            setTransitionLock(false);
+          }, 1000);
         }
-      )
-      .subscribe();
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [event?.id]);
+      }
 
-  /* ---------- AUTO DELETE FILTER ---------- */
-  const [filteredPosts, setFilteredPosts] = useState(livePosts);
-  useEffect(() => {
-    const applyFilter = () => {
-      const limit = event?.auto_delete_minutes || 0;
-      if (limit === 0) return setFilteredPosts(livePosts);
-      const now = Date.now();
-      const filtered = livePosts.filter((p) => {
-        const createdAt = new Date(p.created_at).getTime();
-        return (now - createdAt) / 60000 <= limit;
-      });
-      setFilteredPosts(filtered);
+      if (payload.eventType === 'INSERT' && payload.new?.status === 'approved') {
+        setLivePosts((prev) => [payload.new, ...prev]);
+      }
     };
-    applyFilter();
-    const timer = setInterval(applyFilter, 60000);
-    return () => clearInterval(timer);
-  }, [livePosts, event?.auto_delete_minutes]);
 
-  /* ---------- POST CYCLE ---------- */
+    channel.on('broadcast', { event: 'wall_status_changed' }, handler);
+    channel.subscribe();
+    channelRef.current = channel;
+
+    return () => supabase.removeChannel(channel);
+  }, [event?.id, live, transitionLock]);
+
   useEffect(() => {
-    if (!filteredPosts?.length) return;
-    const interval = setInterval(() => {
-      setCurrentIndex((i) => (i + 1) % filteredPosts.length);
-    }, displayDuration);
+    if (event?.status === 'live' && !live) setLive(true);
+  }, [event?.status, live]);
+
+  useEffect(() => {
+    if (!livePosts?.length) return;
+    const interval = setInterval(
+      () => setCurrentIndex((i) => (i + 1) % livePosts.length),
+      displayDuration
+    );
     return () => clearInterval(interval);
-  }, [filteredPosts, displayDuration]);
+  }, [livePosts, displayDuration]);
 
-  const current = filteredPosts[currentIndex % (filteredPosts.length || 1)];
+  const handleFullscreen = () => {
+    const elem = document.documentElement;
+    if (!document.fullscreenElement) elem.requestFullscreen();
+    else document.exitFullscreen();
+  };
 
-  /* ---------- BACKGROUND ---------- */
   const bg =
     event?.background_type === 'image'
       ? `url(${event.background_value}) center/cover no-repeat`
       : event?.background_value || 'linear-gradient(to bottom right,#1b2735,#090a0f)';
 
-  /* ---------- RENDER ---------- */
+  const current = livePosts[currentIndex % (livePosts.length || 1)];
+
   return (
     <div
       style={{
@@ -174,58 +153,65 @@ export default function LiveWall({ event, posts }: LiveWallProps) {
         alignItems: 'center',
         justifyContent: 'flex-start',
         overflow: 'hidden',
-        transition: 'background 0.8s ease',
         position: 'relative',
+        opacity: fading ? 0.4 : 1,
+        transition: 'opacity 0.8s ease-in-out',
       }}
     >
-      {/* ---------- TITLE ---------- */}
       <h1
         style={{
           color: '#fff',
-          textAlign: 'center',
-          textShadow: '0 0 20px rgba(0,0,0,0.6)',
+          fontSize: 'clamp(2.5rem,4vw,5rem)',
           fontWeight: 900,
-          letterSpacing: '1px',
           marginTop: '3vh',
           marginBottom: '1.5vh',
-          fontSize: 'clamp(2.5rem, 4vw, 5rem)',
-          lineHeight: 1.1,
+          textAlign: 'center',
+          textShadow: '0 0 20px rgba(0,0,0,0.6)',
         }}
       >
-        {event.title || 'Fan Zone Wall'}
+        {event?.title || 'Fan Zone Wall'}
       </h1>
 
-      {/* ---------- DISPLAY AREA ---------- */}
       <div
         style={{
-          width: '80vw',
-          height: '70vh',
-          backdropFilter: 'blur(18px)',
+          width: '90vw',
+          height: '78vh',
+          backdropFilter: 'blur(20px)',
           background: 'rgba(255,255,255,0.08)',
-          borderRadius: 20,
-          boxShadow: '10px 10px 30px rgba(0,0,0,0.4)',
+          borderRadius: 24,
+          boxShadow: '0 0 40px rgba(0,0,0,0.5)',
           border: '1px solid rgba(255,255,255,0.15)',
-          display: 'flex',
-          alignItems: 'center',
-          overflow: 'hidden',
           position: 'relative',
+          display: 'flex',
+          overflow: 'hidden',
         }}
       >
-        {/* ---------- LEFT PHOTO ---------- */}
-        <div style={{ width: '45%', marginLeft: '4vw' }}>
+        <div
+          style={{
+            position: 'absolute',
+            top: '40px',
+            left: '40px',
+            width: '42%',
+            height: 'calc(100% - 80px)',
+            overflow: 'hidden',
+            borderRadius: 18,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
           <AnimatePresence mode="wait">
             {current?.photo_url ? (
               <motion.img
                 key={current.id}
                 src={current.photo_url}
-                alt="Guest Submission"
-                {...transitionStyle}
+                {...transitions[event?.post_transition || 'Fade In / Fade Out']}
                 style={{
-                  borderRadius: 16,
                   width: '100%',
-                  height: 'auto',
-                  boxShadow: '0 0 20px rgba(0,0,0,0.6)',
+                  height: '100%',
                   objectFit: 'cover',
+                  borderRadius: 18,
+                  boxShadow: '0 0 18px rgba(0,0,0,0.6)',
                 }}
               />
             ) : (
@@ -234,14 +220,10 @@ export default function LiveWall({ event, posts }: LiveWallProps) {
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                transition={{ duration: 0.6 }}
                 style={{
-                  width: '100%',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
                   color: 'rgba(255,255,255,0.5)',
                   fontSize: '2rem',
+                  textAlign: 'center',
                 }}
               >
                 No Photo
@@ -250,175 +232,142 @@ export default function LiveWall({ event, posts }: LiveWallProps) {
           </AnimatePresence>
         </div>
 
-        {/* ---------- RIGHT SIDE ---------- */}
         <div
           style={{
             flexGrow: 1,
+            marginLeft: '44%',
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
-            justifyContent: 'center',
+            justifyContent: 'flex-start',
             height: '100%',
-            transform: 'translateY(-11%)',
+            paddingTop: '3vh',
           }}
         >
-          {/* LOGO */}
-          <div
-            style={{
-              width: 'clamp(260px, 26vw, 380px)',
-              marginBottom: '0.8vh',
-              transform: 'translateY(-3vh)',
-            }}
-          >
+          <div style={{ width: 'clamp(280px, 30vw, 420px)', marginBottom: '1.5vh' }}>
             <img
-              src={event.logo_url || '/faninteractlogo.png'}
+              src={event?.logo_url || '/faninteractlogo.png'}
               alt="Logo"
               style={{
                 width: '100%',
                 height: 'auto',
                 objectFit: 'contain',
-                filter: 'drop-shadow(0 0 12px rgba(0,0,0,0.85))',
+                filter: 'drop-shadow(0 0 14px rgba(0,0,0,0.85))',
               }}
             />
           </div>
 
-          {/* GREY BAR */}
           <div
             style={{
-              width: '92%',
-              height: 14,
+              width: '90%',
+              height: 16,
               borderRadius: 6,
               background: 'linear-gradient(to right,#000,#444)',
-              boxShadow: '0 0 12px rgba(0,0,0,0.7)',
-              opacity: 0.85,
-              marginTop: '-3vh',
-              marginBottom: '1.5vh',
+              boxShadow: '0 0 14px rgba(0,0,0,0.7)',
+              opacity: 0.9,
+              marginTop: '1vh',
+              marginBottom: '2vh',
             }}
           ></div>
 
-          {/* ---------- TEXT ---------- */}
-          <AnimatePresence mode="wait">
-            {current ? (
-              <motion.div
-                key={current.id}
-                {...transitionStyle}
-                style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}
-              >
-                <h2
-                  style={{
-                    fontWeight: 900,
-                    color: '#fff',
-                    textShadow: '0 0 15px rgba(0,0,0,0.7)',
-                    fontSize: 'clamp(2rem, 3vw, 4rem)',
-                    margin: 0,
-                  }}
-                >
-                  {current.nickname || ''}
-                </h2>
-                <p
-                  style={{
-                    fontWeight: 600,
-                    color: '#eee',
-                    textShadow: '0 0 10px rgba(0,0,0,0.5)',
-                    fontSize: 'clamp(1.4rem, 2vw, 2.8rem)',
-                    textAlign: 'center',
-                    maxWidth: '80%',
-                    marginTop: '1vh',
-                  }}
-                >
-                  {current.message || ''}
-                </p>
-              </motion.div>
-            ) : (
-              <motion.div
-                key="no-posts"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.6 }}
-                style={{
-                  color: 'rgba(255,255,255,0.7)',
-                  fontSize: '2rem',
-                  textAlign: 'center',
-                }}
-              >
-                No Approved Submissions Yet
-              </motion.div>
-            )}
-          </AnimatePresence>
+          <p
+            style={{
+              fontWeight: 700,
+              margin: 0,
+              fontSize: 'clamp(1.6rem, 2.5vw, 3rem)',
+              lineHeight: 1.2,
+              textAlign: 'center',
+              color: '#fff',
+            }}
+          >
+            {current?.message || (hasLoadedOnce ? '' : 'Loading posts…')}
+          </p>
         </div>
       </div>
 
-      {/* ---------- QR ---------- */}
+      {/* ---------- QR CODE with Glow + Text (position unchanged) ---------- */}
       <div
         style={{
           position: 'absolute',
-          bottom: 'calc(17vh - 90px)',
-          left: 'calc(9vw - 90px)',
+          bottom: '5px', // 👈 stays exactly where it was
+          left: '5px',   // 👈 stays exactly where it was
+          zIndex: 50,
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
-          textAlign: 'center',
         }}
       >
+        {/* Scan text positioned above */}
         <p
           style={{
             color: '#fff',
-            textShadow: '0 0 10px rgba(0,0,0,0.6)',
+            textAlign: 'center',
             fontWeight: 700,
-            fontSize: 'clamp(1.2rem, 1.8vw, 2rem)',
-            marginBottom: '0.8vh',
+            fontSize: 'clamp(0.9rem, 1.4vw, 1.4rem)',
+            marginBottom: '6px',
+            textShadow:
+              '0 0 12px rgba(255,255,255,0.8), 0 0 20px rgba(100,180,255,0.6)',
           }}
         >
           Scan Me To Join
         </p>
-        <QRCodeCanvas
-          value={`https://faninteract.vercel.app/submit/${event.id}`}
-          size={180}
-          bgColor="#ffffff"
-          fgColor="#000000"
-          level="H"
-          includeMargin={false}
+
+        {/* QR with soft glow */}
+        <div
           style={{
-            borderRadius: 12,
-            boxShadow: '0 0 18px rgba(0,0,0,0.6)',
+            padding: 6,
+            borderRadius: 14,
+            background: 'rgba(255,255,255,0.05)',
+            boxShadow:
+              '0 0 25px rgba(255,255,255,0.6), 0 0 40px rgba(100,180,255,0.3), inset 0 0 10px rgba(0,0,0,0.4)',
           }}
-        />
+        >
+          <QRCodeCanvas
+            value={`https://faninteract.vercel.app/submit/${event?.id}`}
+            size={140}
+            bgColor="#ffffff"
+            fgColor="#000000"
+            level="H"
+            includeMargin={false}
+            style={{ borderRadius: 10, display: 'block' }}
+          />
+        </div>
       </div>
 
-      {/* ---------- FULLSCREEN BUTTON ---------- */}
-      <div
+      {/* ---------- FULLSCREEN ---------- */}
+      <button
+        onClick={handleFullscreen}
         style={{
-          position: 'fixed',
-          bottom: 10,
-          right: 10,
-          width: 48,
-          height: 48,
-          borderRadius: 10,
+          position: 'absolute',
+          bottom: '2vh',
+          right: '2vw',
+          width: 45,
+          height: 45,
+          borderRadius: 8,
+          background: 'rgba(255,255,255,0.05)',
+          border: '1px solid rgba(255,255,255,0.2)',
+          color: '#fff',
+          fontSize: '1.2rem',
+          opacity: 0.1,
+          cursor: 'pointer',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          cursor: 'pointer',
-          zIndex: 9999,
-          transition: 'opacity 0.3s ease',
-          opacity: 0.2,
-          background: 'rgba(255,255,255,0.1)',
-          backdropFilter: 'blur(6px)',
-          border: '1px solid rgba(255,255,255,0.2)',
+          transition: 'all 0.35s ease',
         }}
-        onMouseEnter={(e) => (e.currentTarget.style.opacity = '1')}
-        onMouseLeave={(e) => (e.currentTarget.style.opacity = '0.2')}
-        onClick={() => {
-          if (!document.fullscreenElement)
-            document.documentElement.requestFullscreen().catch(console.error);
-          else document.exitFullscreen();
+        onMouseEnter={(e) => {
+          e.currentTarget.style.opacity = '1';
+          e.currentTarget.style.boxShadow = '0 0 14px rgba(255,255,255,0.7)';
+          e.currentTarget.style.background = 'rgba(255,255,255,0.15)';
         }}
-        title="Toggle Fullscreen"
+        onMouseLeave={(e) => {
+          e.currentTarget.style.opacity = '0.1';
+          e.currentTarget.style.boxShadow = 'none';
+          e.currentTarget.style.background = 'rgba(255,255,255,0.05)';
+        }}
       >
-        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="white" style={{ width: 26, height: 26 }}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M3 9V4h5M21 9V4h-5M3 15v5h5M21 15v5h-5" />
-        </svg>
-      </div>
+        ⛶
+      </button>
     </div>
   );
 }

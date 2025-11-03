@@ -1,60 +1,43 @@
 'use client';
 
 import { QRCodeCanvas } from 'qrcode.react';
-import { supabase } from '@/lib/supabaseClient';
 import { useEffect, useState } from 'react';
 
-/* -------------------------------------------------------------------------- */
-/* ⏱ COUNTDOWN DISPLAY                                                      */
-/* -------------------------------------------------------------------------- */
+/* ---------- COUNTDOWN DISPLAY ---------- */
 function CountdownDisplay({
   countdown,
   countdownActive,
-  wallId,
 }: {
-  countdown: string;
-  countdownActive: boolean;
-  wallId: string;
+  countdown?: string;
+  countdownActive?: boolean;
 }) {
-  const [timeLeft, setTimeLeft] = useState<number>(0);
-  const [originalTime, setOriginalTime] = useState<number>(0);
+  const [timeLeft, setTimeLeft] = useState(0);
+  const [active, setActive] = useState(countdownActive);
+
+  const parseCountdown = (text?: string) => {
+    if (!text) return 0;
+    const num = parseInt(text.split(' ')[0]);
+    const mins = text.toLowerCase().includes('minute');
+    const secs = text.toLowerCase().includes('second');
+    return mins ? num * 60 : secs ? num : 0;
+  };
+
+  useEffect(() => setTimeLeft(parseCountdown(countdown)), [countdown]);
 
   useEffect(() => {
-    if (!countdown) return;
-    const num = parseInt(countdown.split(' ')[0]);
-    const mins = countdown.toLowerCase().includes('minute');
-    const secs = countdown.toLowerCase().includes('second');
-    const total = mins ? num * 60 : secs ? num : 0;
-    setTimeLeft(total);
-    setOriginalTime(total);
-  }, [countdown]);
+    setActive(!!countdownActive);
+    setTimeLeft(parseCountdown(countdown));
+  }, [countdownActive, countdown]);
 
   useEffect(() => {
-    if (!countdownActive || timeLeft <= 0) return;
+    if (!active || timeLeft <= 0) return;
     const timer = setInterval(() => {
-      setTimeLeft((prev) => {
-        if (prev <= 1) {
-          clearInterval(timer);
-          (async () => {
-            const { error } = await supabase
-              .from('fan_walls')
-              .update({ status: 'live', countdown_active: false })
-              .eq('id', wallId);
-            if (error) console.error('❌ Error setting wall live:', error);
-          })();
-          return 0;
-        }
-        return prev - 1;
-      });
+      setTimeLeft((t) => (t > 1 ? t - 1 : 0));
     }, 1000);
     return () => clearInterval(timer);
-  }, [countdownActive, wallId, timeLeft]);
+  }, [active, timeLeft]);
 
-  useEffect(() => {
-    if (!countdownActive) setTimeLeft(originalTime);
-  }, [countdownActive, originalTime]);
-
-  if (!countdown) return null;
+  if (!countdown || countdown === 'none') return null;
 
   const m = Math.floor(timeLeft / 60);
   const s = timeLeft % 60;
@@ -62,11 +45,12 @@ function CountdownDisplay({
   return (
     <div
       style={{
-        fontSize: '4vw',
+        fontSize: 'clamp(6rem,8vw,9rem)',
         fontWeight: 900,
         color: '#fff',
-        textShadow: '0 0 15px rgba(0,0,0,0.6)',
-        marginTop: '1vh',
+        textShadow: '0 0 40px rgba(0,0,0,0.7)',
+        textAlign: 'center',
+        marginTop: '2vh',
       }}
     >
       {m}:{s.toString().padStart(2, '0')}
@@ -75,220 +59,185 @@ function CountdownDisplay({
 }
 
 /* -------------------------------------------------------------------------- */
-/* 🎤 INACTIVE FAN WALL                                                     */
+/* 🧱 INACTIVE WALL DISPLAY                                                   */
 /* -------------------------------------------------------------------------- */
 export default function InactiveWall({ wall }: { wall: any }) {
-  const bg =
-    wall?.background_type === 'image'
-      ? `url(${wall.background_value}) center/cover no-repeat`
-      : wall?.background_value ||
-        'linear-gradient(to bottom right,#1b2735,#090a0f)';
+  const [bg, setBg] = useState('linear-gradient(to bottom right,#1b2735,#090a0f)');
+  const [localCountdown, setLocalCountdown] = useState('');
+  const [localCountdownActive, setLocalCountdownActive] = useState(false);
+  const [localTitle, setLocalTitle] = useState('');
 
-  // ✅ pick logo: host branding, or fallback FanInteract
-  const displayLogo =
-    wall?.host?.branding_logo_url || wall?.logo_url || '/faninteractlogo.png';
+  useEffect(() => {
+    if (!wall) return;
+    setLocalCountdown(wall.countdown || '');
+    setLocalCountdownActive(wall.countdown_active ?? false);
+    setLocalTitle(wall.title || '');
+    if (wall.background_type === 'image')
+      setBg(`url(${wall.background_value}) center/cover no-repeat`);
+    else setBg(wall.background_value || 'linear-gradient(to bottom right,#1b2735,#090a0f)');
+  }, [wall]);
+
+  if (!wall) return <div>Loading Wall…</div>;
+
+  const displayLogo = wall?.host?.branding_logo_url || '/faninteractlogo.png';
+
+  const handleFullscreen = () => {
+    const elem = document.documentElement;
+    if (!document.fullscreenElement) elem.requestFullscreen();
+    else document.exitFullscreen();
+  };
 
   return (
-    <>
-      <style>{`
-        @keyframes pulseGlow {
-          0%, 100% {
-            text-shadow: 0 0 18px rgba(255,255,255,0.3), 0 0 36px rgba(255,255,255,0.2);
-            opacity: 0.95;
-          }
-          50% {
-            text-shadow: 0 0 28px rgba(255,255,255,0.8), 0 0 60px rgba(255,255,255,0.5);
-            opacity: 1;
-          }
-        }
-        .pulse {
-          animation: pulseGlow 2.5s ease-in-out infinite;
-        }
-      `}</style>
+    <div
+      style={{
+        background: bg,
+        width: '100%',
+        height: '100vh',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'flex-start',
+        overflow: 'hidden',
+        position: 'relative',
+        transition: 'background 0.8s ease',
+        padding: '2vh 2vw',
+      }}
+    >
+      <h1
+        style={{
+          color: '#fff',
+          textAlign: 'center',
+          fontWeight: 900,
+          marginTop: '3vh',
+          marginBottom: '1.5vh',
+          fontSize: 'clamp(2.5rem,4vw,5rem)',
+          textShadow: '0 0 12px rgba(0,0,0,0.6)',
+        }}
+      >
+        {localTitle || 'Fan Zone Wall'}
+      </h1>
 
       <div
         style={{
-          background: bg,
-          width: '100%',
-          height: '100vh',
+          width: '90vw',
+          height: '78vh',
+          backdropFilter: 'blur(20px)',
+          background: 'rgba(255,255,255,0.08)',
+          borderRadius: 24,
+          boxShadow: '0 0 40px rgba(0,0,0,0.5)',
+          border: '1px solid rgba(255,255,255,0.15)',
+          position: 'relative',
           display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          justifyContent: 'flex-start',
           overflow: 'hidden',
-          transition: 'background 0.8s ease',
         }}
       >
-        {/* ---------- TITLE ---------- */}
-        <h1
+        <QRCodeCanvas
+          value={`https://faninteract.vercel.app/submit/${wall?.id || ''}`}
+          size={620}
+          bgColor="#fff"
+          fgColor="#000"
+          level="H"
+          includeMargin={false}
           style={{
-            color: '#fff',
-            textAlign: 'center',
-            textShadow: '0 0 20px rgba(0,0,0,0.6)',
-            fontWeight: 900,
-            letterSpacing: '1px',
-            marginTop: '3vh',
-            marginBottom: '1.5vh',
-            fontSize: 'clamp(2.5rem, 4vw, 5rem)',
-            lineHeight: 1.1,
+            position: 'absolute',
+            top: '50%',
+            left: '40px',
+            transform: 'translateY(-50%)',
+            borderRadius: 16,
+            boxShadow: '0 0 18px rgba(0,0,0,0.6)',
           }}
-        >
-          {wall.title || 'Fan Zone Wall'}
-        </h1>
+        />
 
-        {/* ---------- MAIN DISPLAY ---------- */}
+        <img
+          src={displayLogo}
+          alt="Logo"
+          style={{
+            position: 'absolute',
+            top: '25%',
+            left: 'calc(40px + 620px + 60px)',
+            transform: 'translateY(-50%)',
+            width: 'clamp(600px, 22vw, 400px)',
+            height: 'auto',
+            objectFit: 'contain',
+            filter: 'drop-shadow(2px 2px 10px rgba(0,0,0,10))',
+          }}
+        />
+
         <div
           style={{
-            width: '80vw',
-            height: '70vh',
-            backdropFilter: 'blur(18px)',
-            background: 'rgba(255,255,255,0.08)',
-            borderRadius: 20,
-            boxShadow: '10px 10px 30px rgba(0,0,0,0.4)',
-            border: '1px solid rgba(255,255,255,0.15)',
-            position: 'relative',
-            overflow: 'hidden',
-            display: 'flex',
-            alignItems: 'center',
+            position: 'absolute',
+            top: 'calc(25% + 180px)',
+            left: 'calc(40px + 620px + 60px)',
+            width: 'clamp(600px, 22vw, 400px)',
+            textAlign: 'center',
+            color: '#fff',
+            fontWeight: 800,
+            textShadow:
+              '0 0 10px rgba(255,255,255,0.8), 0 0 30px rgba(100,150,255,0.6)',
+            animation: 'pulseGlow 2.5s ease-in-out infinite',
           }}
         >
-          {/* ---------- QR ---------- */}
-          <QRCodeCanvas
-            value={`https://faninteract.vercel.app/submit/${wall.id}`}
-            size={420}
-            bgColor="#ffffff"
-            fgColor="#000000"
-            level="H"
-            includeMargin={false}
-            style={{
-              borderRadius: 16,
-              marginLeft: '4vw',
-              width: '45%',
-              height: 'auto',
-              boxShadow: '0 0 20px rgba(0,0,0,0.6)',
-            }}
-          />
-
-          {/* ---------- RIGHT SIDE ---------- */}
+          <div style={{ fontSize: 'clamp(4rem, 2vw, 3.5rem)' }}>Fan Zone Wall</div>
           <div
             style={{
-              flexGrow: 1,
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              height: '100%',
-              position: 'relative',
-              transform: 'translateY(-11%)',
+              fontSize: 'clamp(3rem, 2vw, 2.6rem)',
+              marginTop: '0.4rem',
+              color: '#bcd9ff',
             }}
           >
-            {/* ---------- LOGO ---------- */}
-            <div
-              style={{
-                width: 'clamp(260px, 26vw, 380px)',
-                marginBottom: '0.8vh',
-                transform: 'translateY(-3vh)',
-              }}
-            >
-              <img
-                src={displayLogo}
-                alt="Logo"
-                style={{
-                  width: '100%',
-                  height: 'auto',
-                  objectFit: 'contain',
-                  filter: 'drop-shadow(0 0 12px rgba(0,0,0,0.85))',
-                }}
-              />
-            </div>
-
-            {/* ---------- GREY BAR ---------- */}
-            <div
-              style={{
-                width: '92%',
-                height: 14,
-                borderRadius: 6,
-                background: 'linear-gradient(to right,#000,#444)',
-                boxShadow: '0 0 12px rgba(0,0,0,0.7)',
-                opacity: 0.85,
-                marginTop: '-3vh',
-                marginBottom: '1.5vh',
-              }}
-            ></div>
-
-            {/* ---------- TITLE + COUNTDOWN ---------- */}
-            <h2
-              className="pulse"
-              style={{
-                fontWeight: 850,
-                textShadow: '0 0 20px rgba(0,0,0,0.8)',
-                margin: 0,
-                fontSize: 'clamp(2.5rem, 3.2vw, 4.2rem)',
-                lineHeight: 1.2,
-                whiteSpace: 'normal',
-                textAlign: 'center',
-              }}
-            >
-              Fan Zone Wall
-              <br />
-              Starting Soon!!
-            </h2>
-
-            {wall.countdown && (
-              <CountdownDisplay
-                countdown={wall.countdown}
-                countdownActive={!!wall.countdown_active}
-                wallId={wall.id}
-              />
-            )}
+            Starting Soon!!
           </div>
         </div>
 
-        {/* ---------- FULLSCREEN BUTTON ---------- */}
-        <div
-          style={{
-            position: 'fixed',
-            bottom: 10,
-            right: 10,
-            width: 48,
-            height: 48,
-            borderRadius: 10,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            cursor: 'pointer',
-            zIndex: 9999,
-            transition: 'opacity 0.3s ease',
-            opacity: 0.2,
-            background: 'rgba(255,255,255,0.1)',
-            backdropFilter: 'blur(6px)',
-            border: '1px solid rgba(255,255,255,0.2)',
-          }}
-          onMouseEnter={(e) => (e.currentTarget.style.opacity = '1')}
-          onMouseLeave={(e) => (e.currentTarget.style.opacity = '0.2')}
-          onClick={() => {
-            if (!document.fullscreenElement)
-              document.documentElement.requestFullscreen().catch(console.error);
-            else document.exitFullscreen();
-          }}
-          title="Toggle Fullscreen"
-        >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            fill="none"
-            viewBox="0 0 24 24"
-            strokeWidth={1.5}
-            stroke="white"
-            style={{ width: 26, height: 26 }}
+        {localCountdown && localCountdown !== 'none' && (
+          <div
+            style={{
+              position: 'absolute',
+              top: '85%',
+              left: 'calc(40px + 620px + 60px)',
+              transform: 'translateY(-50%)',
+              width: 'clamp(600px, 22vw, 400px)',
+              textAlign: 'center',
+            }}
           >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M3 9V4h5M21 9V4h-5M3 15v5h5M21 15v5h-5"
+            <CountdownDisplay
+              countdown={localCountdown}
+              countdownActive={localCountdownActive}
             />
-          </svg>
-        </div>
+          </div>
+        )}
       </div>
-    </>
+
+      <button
+        onClick={handleFullscreen}
+        style={{
+          position: 'absolute',
+          bottom: '2vh',
+          right: '2vw',
+          width: 45,
+          height: 45,
+          borderRadius: 8,
+          background: 'rgba(255,255,255,0.05)',
+          border: '1px solid rgba(255,255,255,0.2)',
+          color: '#fff',
+          fontSize: '1.2rem',
+          opacity: 0.1,
+          cursor: 'pointer',
+          transition: 'all 0.35s ease',
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.opacity = '1';
+          e.currentTarget.style.boxShadow = '0 0 14px rgba(255,255,255,0.7)';
+          e.currentTarget.style.background = 'rgba(255,255,255,0.15)';
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.opacity = '0.1';
+          e.currentTarget.style.boxShadow = 'none';
+          e.currentTarget.style.background = 'rgba(255,255,255,0.05)';
+        }}
+      >
+        ⛶
+      </button>
+    </div>
   );
 }
