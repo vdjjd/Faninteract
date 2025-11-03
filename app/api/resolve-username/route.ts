@@ -16,9 +16,26 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: 'Server configuration error' }, { status: 500 });
     }
 
-    // ✅ Explicitly type the query result so TypeScript knows it includes "email"
+    // ✅ Loosen type inference completely to avoid "never" errors
     const { data, error } = await supabaseAdmin
-      .from<{ email: string }>('hosts')
+      .from('hosts')
       .select('email')
-      .eq('us
+      .eq('username', username)
+      .single<any>(); // 👈 Force Supabase to treat it as "any"
 
+    if (error || !data) {
+      return NextResponse.json({
+        found: false,
+        error: error?.message || 'Not found',
+      });
+    }
+
+    return NextResponse.json({
+      found: true,
+      email: (data as any).email, // 👈 Cast explicitly
+    });
+  } catch (err) {
+    console.error('❌ resolve-username error', err);
+    return NextResponse.json({ error: 'Server error' }, { status: 500 });
+  }
+}
