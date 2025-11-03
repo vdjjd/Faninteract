@@ -25,8 +25,8 @@ export default function FanWallGrid({
   /* ✅ GLOBAL BROADCAST CHANNEL (TypeScript-safe cleanup) */
   useEffect(() => {
     const channel = supabase.channel('global-fan-walls', {
-      config: { broadcast: { self: true, ack: true, max_bytes: 99999 } },
-    });
+  config: { broadcast: { self: true, ack: true } },
+});
 
     channel.subscribe((status) => {
       if (status === 'SUBSCRIBED') {
