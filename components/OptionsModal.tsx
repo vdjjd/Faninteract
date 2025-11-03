@@ -10,7 +10,6 @@ type ModalType = 'fanwall' | 'poll' | 'prizewheel';
 interface BaseModalProps {
   hostId: string;
   onClose: () => void;
-  onBackgroundChange: (item: any, newValue: string) => Promise<void>;
 }
 
 /* ---------- Fan Wall ---------- */
@@ -37,7 +36,6 @@ interface OptionsModalProps {
   event: any;
   hostId: string;
   onClose: () => void;
-  onBackgroundChange: (item: any, newValue: string) => Promise<void>;
   refreshFanWalls?: () => Promise<void>;
   refreshPolls?: () => Promise<void>;
   refreshPrizeWheels?: () => Promise<void>;
@@ -58,7 +56,6 @@ export default function OptionsModal({
   event,
   hostId,
   onClose,
-  onBackgroundChange,
   refreshFanWalls,
   refreshPolls,
   refreshPrizeWheels,
@@ -67,11 +64,10 @@ export default function OptionsModal({
     case 'fanwall':
       return (
         <OptionsModalFanWall
-          wall={event}                        // ✅ use correct prop name
+          wall={event}
           hostId={hostId}
           onClose={onClose}
-          onBackgroundChange={onBackgroundChange}
-          refreshFanWalls={refreshFanWalls!}  // ✅ correct naming
+          refreshFanWalls={refreshFanWalls!}
         />
       );
 
@@ -81,7 +77,6 @@ export default function OptionsModal({
           event={event}
           hostId={hostId}
           onClose={onClose}
-          onBackgroundChange={onBackgroundChange}
           refreshPolls={refreshPolls!}
         />
       );
@@ -92,7 +87,6 @@ export default function OptionsModal({
           event={event}
           hostId={hostId}
           onClose={onClose}
-          onBackgroundChange={onBackgroundChange}
           refreshPrizeWheels={refreshPrizeWheels!}
         />
       );
