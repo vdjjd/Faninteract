@@ -16,29 +16,34 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: 'Server configuration error' }, { status: 500 });
     }
 
-    // ✅ Type the expected return shape from Supabase
+    // ✅ Declare data type explicitly
+    type HostRecord = { email: string } | null;
+
     const { data, error } = await supabaseAdmin
       .from('hosts')
       .select('email')
       .eq('username', username)
-      .maybeSingle<{ email: string }>();
+      .maybeSingle();
 
     if (error) {
       console.error('❌ Supabase error:', error.message);
       return NextResponse.json({ found: false, error: error.message });
     }
 
-    if (!data) {
+    const record = data as HostRecord;
+
+    if (!record) {
       return NextResponse.json({ found: false, error: 'Not found' });
     }
 
-    // ✅ Explicitly typed, no more "never" errors
-    return NextResponse.json({ found: true, email: data.email });
+    // ✅ Explicitly typed now
+    return NextResponse.json({ found: true, email: record.email });
   } catch (err) {
     console.error('❌ resolve-username error', err);
     return NextResponse.json({ error: 'Server error' }, { status: 500 });
   }
 }
+
 
 
 
