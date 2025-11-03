@@ -1,13 +1,13 @@
+// Disable type checking entirely
 // @ts-nocheck
+
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabaseAdminClient';
 
 /**
- * ✅ API route: /api/resolve-username
- * Checks whether a username exists in the hosts table
- * Returns { found: boolean, email?: string }
+ * Clean rebuild of username resolver
+ * Checks if username exists in hosts table and returns email
  */
-
 export async function POST(req) {
   try {
     const { username } = await req.json();
@@ -16,32 +16,23 @@ export async function POST(req) {
       return NextResponse.json({ error: 'Missing username' }, { status: 400 });
     }
 
-    // Query the "hosts" table for this username
     const { data, error } = await supabaseAdmin
       .from('hosts')
-      .select('id, username, email')
+      .select('email')
       .eq('username', username)
-      .maybeSingle();
+      .single();
 
-    if (error) {
-      console.error('❌ Supabase error:', error);
-      return NextResponse.json({ error: 'Database error' }, { status: 500 });
-    }
-
-    if (!data) {
+    if (error || !data) {
       return NextResponse.json({ found: false });
     }
 
-    // ✅ If found, return the associated email
-    return NextResponse.json({
-      found: true,
-      email: data.email,
-    });
+    return NextResponse.json({ found: true, email: data.email });
   } catch (err) {
-    console.error('❌ resolve-username error', err);
+    console.error('❌ API error in resolve-username:', err);
     return NextResponse.json({ error: 'Server error' }, { status: 500 });
   }
 }
+
 
 
 
