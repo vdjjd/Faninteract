@@ -33,16 +33,16 @@ export default function PrizeWheelGrid({
   }
 
   /* ---------- PLAY (activate wheel) ---------- */
-  async function handlePlay(id: string) {
-    await togglePrizeWheelStatus(id, 'live');
-    await refreshPrizeWheels();
-  }
+async function handlePlay(id: string) {
+  await togglePrizeWheelStatus(id, true); // ✅ expects boolean
+  await refreshPrizeWheels();
+}
 
-  /* ---------- STOP (deactivate wheel) ---------- */
-  async function handleStop(id: string) {
-    await togglePrizeWheelStatus(id, 'inactive');
-    await refreshPrizeWheels();
-  }
+/* ---------- STOP (deactivate wheel) ---------- */
+async function handleStop(id: string) {
+  await togglePrizeWheelStatus(id, false); // ✅ expects boolean
+  await refreshPrizeWheels();
+}
 
   /* ---------- SPIN (broadcast spin event) ---------- */
   async function handleSpin(id: string) {
