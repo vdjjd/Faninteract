@@ -79,6 +79,34 @@ export async function getPrizeWheelsByHost(hostId: string) {
 }
 
 /* -------------------------------------------------------------------------- */
+/* 🟠 TOGGLE PRIZE WHEEL STATUS (server only)                                 */
+/* -------------------------------------------------------------------------- */
+export async function togglePrizeWheelStatus(wheelId: string, newStatus: 'live' | 'inactive') {
+  try {
+    const { data, error } = await supabase
+      .from('prize_wheels')
+      .update({
+        status: newStatus,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', wheelId)
+      .select()
+      .maybeSingle();
+
+    if (error) {
+      console.error(`❌ Error toggling wheel ${wheelId} status:`, error.message);
+      return null;
+    }
+
+    console.log(`✅ Prize wheel ${wheelId} set to ${newStatus}`);
+    return data;
+  } catch (err) {
+    console.error('❌ Unexpected error toggling wheel status:', err);
+    return null;
+  }
+}
+
+/* -------------------------------------------------------------------------- */
 /* 🔴 DELETE PRIZE WHEEL (server only)                                        */
 /* -------------------------------------------------------------------------- */
 export async function deletePrizeWheel(wheelId: string) {
