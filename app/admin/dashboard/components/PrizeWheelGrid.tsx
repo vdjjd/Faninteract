@@ -6,7 +6,6 @@ import {
   clearPrizeWheel,
   deletePrizeWheel,
   togglePrizeWheelStatus,
-  triggerSpin,
 } from '@/lib/actions/prizewheels';
 
 interface PrizeWheelGridProps {
