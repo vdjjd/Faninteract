@@ -206,3 +206,6 @@ export default function DashboardPage() {
     </div>
   );
 }
+
+/* ✅ Prevent Next.js prerendering — required for Supabase runtime client */
+export const dynamic = 'force-dynamic';
