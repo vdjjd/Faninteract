@@ -1,10 +1,11 @@
 // /app/api/resolve-username/route.js
 import { NextResponse } from 'next/server';
-import { supabaseAdmin } from '@/lib/supabaseAdminClient';
+import { getSupabaseAdmin } from '@/lib/supabaseAdminClient'; // ✅ updated import
 
 export async function POST(req) {
   try {
     const { username, email } = await req.json();
+    const supabaseAdmin = getSupabaseAdmin(); // ✅ initialize at runtime
 
     if (!username && !email) {
       return NextResponse.json({ error: 'Missing username or email' }, { status: 400 });
@@ -20,7 +21,6 @@ export async function POST(req) {
 
     if (hostError) throw hostError;
 
-    // ✅ If found in hosts, return it
     if (hostMatches) {
       return NextResponse.json({
         found: true,
