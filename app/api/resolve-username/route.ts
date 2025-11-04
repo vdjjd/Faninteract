@@ -1,18 +1,17 @@
-// /app/api/resolve-username/route.js
+// /app/api/resolve-username/route.ts
 import { NextResponse } from 'next/server';
-import { supabaseAdmin } from '@/lib/supabaseAdminClient'; // ✅ updated import
+import { supabaseAdmin } from '@/lib/supabaseAdminClient';
 
-export async function POST(req) {
+export async function POST(req: Request) {
   try {
     const { username, email } = await req.json();
-    const supabaseAdmin = SupabaseAdmin(); // ✅ initialize at runtime
 
     if (!username && !email) {
       return NextResponse.json({ error: 'Missing username or email' }, { status: 400 });
     }
 
     // ✅ Look up in hosts
-    const { data: hostMatches, error: hostError } = await supabaseAdmin
+    const { data: hostMatch, error: hostError } = await supabaseAdmin
       .from('hosts')
       .select('email, username')
       .or(`username.eq.${username},email.eq.${email}`)
@@ -21,11 +20,11 @@ export async function POST(req) {
 
     if (hostError) throw hostError;
 
-    if (hostMatches) {
+    if (hostMatch) {
       return NextResponse.json({
         found: true,
-        email: hostMatches.email,
-        username: hostMatches.username,
+        email: hostMatch.email,
+        username: hostMatch.username,
       });
     }
 
@@ -49,7 +48,7 @@ export async function POST(req) {
 
     // ❌ Nothing found
     return NextResponse.json({ found: false, error: 'User not found' }, { status: 404 });
-  } catch (err) {
+  } catch (err: any) {
     console.error('❌ resolve-username error:', err.message || err);
     return NextResponse.json({ error: 'Server error' }, { status: 500 });
   }
