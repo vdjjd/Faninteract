@@ -2,7 +2,7 @@
 
 import { Suspense, useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { getSupabaseClient } from '@/lib/supabaseClient'; // ✅ runtime getter
+import { getSupabaseClient } from '@/lib/supabaseClient';
 
 /* ----------------------------- DEVICE HANDLER ---------------------------- */
 function getOrCreateGuestDeviceId(): string | null {
@@ -26,7 +26,7 @@ function GuestSignupPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const redirect = searchParams.get('redirect');
-  const supabase = getSupabaseClient(); // ✅ runtime client only
+  const supabase = typeof window !== 'undefined' ? getSupabaseClient() : null;
 
   const [form, setForm] = useState({
     first_name: '',
@@ -34,7 +34,6 @@ function GuestSignupPage() {
     email: '',
     phone: '',
   });
-
   const [agree, setAgree] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -216,7 +215,7 @@ function GuestSignupPage() {
   );
 }
 
-/* ---------------------- SUSPENSE WRAPPER (REQUIRED) ---------------------- */
+/* ---------------------- SUSPENSE WRAPPER ---------------------- */
 export default function SignupPageWrapper() {
   return (
     <Suspense
@@ -242,7 +241,7 @@ export default function SignupPageWrapper() {
   );
 }
 
-/* ✅ Prevent prerender (runtime-only Supabase) */
+/* ✅ Runtime-only flags for Vercel build safety */
 export const dynamic = 'force-dynamic';
 export const fetchCache = 'force-no-store';
-export const revalidate = false;
+export const revalidate = 0;

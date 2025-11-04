@@ -1,3 +1,6 @@
+// ✅ Prevent static rendering for dynamic runtime pages
+export const dynamic = 'force-dynamic';
+
 import './globals.css';
 import type { Metadata } from 'next';
 import ClientThemeWrapper from '@/components/ClientThemeWrapper';
