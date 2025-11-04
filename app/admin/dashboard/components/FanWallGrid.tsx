@@ -83,7 +83,6 @@ export default function FanWallGrid({
       if (error) throw error;
 
       if (current?.countdown && current.countdown !== 'none') {
-        // 🕒 Countdown mode
         await supabase
           .from('fan_walls')
           .update({
@@ -92,26 +91,27 @@ export default function FanWallGrid({
           })
           .eq('id', id);
 
-        await safeBroadcast('wall_updated', { id, countdown_active: true });
+        safeBroadcast('wall_updated', { id, countdown_active: true }).catch(console.error);
 
         const durationMs = parseCountdownDuration(current.countdown);
-        setTimeout(async () => {
-          await supabase
+        setTimeout(() => {
+          supabase
             .from('fan_walls')
             .update({
               status: 'live',
               countdown_active: false,
               updated_at: new Date().toISOString(),
             })
-            .eq('id', id);
-
-          await safeBroadcast('countdown_finished', { id, status: 'live' });
-          await safeBroadcast('wall_status_changed', { id, status: 'live' });
-          console.log('✅ Countdown finished → wall live', id);
-          delayedRefresh();
+            .eq('id', id)
+            .then(() => {
+              safeBroadcast('countdown_finished', { id, status: 'live' }).catch(console.error);
+              safeBroadcast('wall_status_changed', { id, status: 'live' }).catch(console.error);
+              console.log('✅ Countdown finished → wall live', id);
+              delayedRefresh();
+            })
+            .catch(console.error);
         }, durationMs);
       } else {
-        // 🚀 Instant live
         await supabase
           .from('fan_walls')
           .update({
@@ -120,7 +120,7 @@ export default function FanWallGrid({
             updated_at: new Date().toISOString(),
           })
           .eq('id', id);
-        await safeBroadcast('wall_status_changed', { id, status: 'live' });
+        safeBroadcast('wall_status_changed', { id, status: 'live' }).catch(console.error);
       }
 
       delayedRefresh();
@@ -148,7 +148,7 @@ export default function FanWallGrid({
           updated_at: new Date().toISOString(),
         })
         .eq('id', id);
-      await safeBroadcast('wall_status_changed', { id, status: 'inactive' });
+      safeBroadcast('wall_status_changed', { id, status: 'inactive' }).catch(console.error);
       console.log('🛑 Wall stopped', id);
       delayedRefresh();
     } catch (err) {
@@ -158,14 +158,14 @@ export default function FanWallGrid({
 
   /* 🧹 Clear posts */
   async function handleClear(id: string) {
-    await clearFanWallPosts(id);
+    clearFanWallPosts(id).catch(console.error);
     delayedRefresh();
   }
 
   /* ❌ Delete wall */
   async function handleDelete(id: string) {
-    await deleteFanWall(id);
-    await safeBroadcast('wall_status_changed', { id, status: 'deleted' });
+    deleteFanWall(id).catch(console.error);
+    safeBroadcast('wall_status_changed', { id, status: 'deleted' }).catch(console.error);
     delayedRefresh();
   }
 
@@ -189,10 +189,12 @@ export default function FanWallGrid({
     }, 1000);
   }
 
-  /* 🕓 Throttled refresh (prevents lag spikes) */
+  /* 🕓 Throttled refresh (non-blocking) */
   function delayedRefresh() {
     if (refreshTimeout.current) clearTimeout(refreshTimeout.current);
-    refreshTimeout.current = setTimeout(refreshFanWalls, 800);
+    refreshTimeout.current = setTimeout(() => {
+      refreshFanWalls().catch(console.error);
+    }, 500); // slightly faster than before
   }
 
   /* 🟡 Pending counts — throttled */
@@ -201,7 +203,7 @@ export default function FanWallGrid({
 
     const fetchPendingCounts = async () => {
       const now = Date.now();
-      if (now - lastUpdate < 3000) return; // throttle every 3s
+      if (now - lastUpdate < 3000) return;
       lastUpdate = now;
 
       try {
@@ -225,11 +227,7 @@ export default function FanWallGrid({
 
     const channel = supabase
       .channel('guest_posts-pending')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'guest_posts' },
-        fetchPendingCounts
-      )
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'guest_posts' }, fetchPendingCounts)
       .subscribe();
 
     return () => {
@@ -340,3 +338,4 @@ export default function FanWallGrid({
     </div>
   );
 }
+
