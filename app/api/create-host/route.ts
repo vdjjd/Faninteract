@@ -2,6 +2,10 @@ import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabaseAdminClient';
 
 export async function POST(req: Request) {
+  // 🔍 Diagnostic logging for environment variable visibility
+  console.log('ENV: NEXT_PUBLIC_SUPABASE_URL =', process.env.NEXT_PUBLIC_SUPABASE_URL);
+  console.log('ENV: SUPABASE_SECRET_KEY =', process.env.SUPABASE_SECRET_KEY ? 'exists ✅' : 'MISSING ❌');
+
   try {
     const body = await req.json();
     const { username, venue_name, email, first_name, last_name, master_id } = body;
@@ -10,7 +14,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
-    // check duplicates
+    // Check duplicates
     const { data: existing } = await supabaseAdmin
       .from('hosts')
       .select('id')
@@ -21,6 +25,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Username or email already exists' }, { status: 409 });
     }
 
+    // Insert new host
     const { data, error } = await supabaseAdmin
       .from('hosts')
       .insert([
@@ -39,6 +44,7 @@ export async function POST(req: Request) {
       .single();
 
     if (error) throw error;
+
     return NextResponse.json({ success: true, host: data }, { status: 201 });
   } catch (err: any) {
     console.error('❌ create-host error:', err.message);
