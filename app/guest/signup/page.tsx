@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { Suspense, useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
 
@@ -22,7 +22,7 @@ function getOrCreateGuestDeviceId(): string | null {
 }
 
 /* --------------------------- GUEST SIGNUP PAGE --------------------------- */
-export default function GuestSignupUniversalPage() {
+function GuestSignupPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const redirect = searchParams.get('redirect'); // 👈 allows redirect after signup
@@ -213,5 +213,31 @@ export default function GuestSignupUniversalPage() {
         </button>
       </form>
     </div>
+  );
+}
+
+/* ---------------------- SUSPENSE WRAPPER (REQUIRED) ---------------------- */
+export default function SignupPageWrapper() {
+  return (
+    <Suspense
+      fallback={
+        <div
+          style={{
+            minHeight: '100vh',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            background: 'linear-gradient(180deg,#0d1b2a,#1b263b)',
+            color: '#fff',
+            fontFamily: 'system-ui,sans-serif',
+            fontSize: '1.2rem',
+          }}
+        >
+          Loading...
+        </div>
+      }
+    >
+      <GuestSignupPage />
+    </Suspense>
   );
 }
