@@ -2,8 +2,24 @@
 
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+'use server';
+
+import { createClient } from '@supabase/supabase-js';
+
+// ⚠️ TEMPORARY HARD-CODE FOR TROUBLESHOOTING ONLY
+const supabaseUrl = 'https://abwfofjwwcggkfgqtzsk.supabase.co';
+const secretKey = 'sb_secret_2tD1Tk2KxVPE-N_P_gWSPQ_KXdmjKYl'; // <-- wrapped in quotes
+
+if (!supabaseUrl || !secretKey) {
+  throw new Error(
+    '❌ Missing Supabase admin environment variables. Make sure NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SECRET_KEY are defined in Vercel → Project Settings → Environment Variables.'
+  );
+}
+
+export const supabaseAdmin = createClient(supabaseUrl, secretKey, {
+  auth: { persistSession: false },
+});
+
 
 if (!supabaseUrl || !supabaseKey) {
   throw new Error(
