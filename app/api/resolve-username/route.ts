@@ -1,6 +1,6 @@
 // /app/api/resolve-username/route.js
 import { NextResponse } from 'next/server';
-import { SupabaseAdmin } from '@/lib/supabaseAdminClient'; // ✅ updated import
+import { supabaseAdmin } from '@/lib/supabaseAdminClient'; // ✅ updated import
 
 export async function POST(req) {
   try {
