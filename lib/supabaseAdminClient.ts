@@ -3,14 +3,14 @@
 import { createClient } from '@supabase/supabase-js';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const secretKey = process.env.SUPABASE_SECRET_KEY;
 
-if (!supabaseUrl || !serviceRoleKey) {
+if (!supabaseUrl || !secretKey) {
   throw new Error(
-    '❌ Missing Supabase admin environment variables. Make sure NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are defined in Vercel → Project Settings → Environment Variables.'
+    '❌ Missing Supabase admin environment variables. Make sure NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SECRET_KEY are defined in Vercel → Project Settings → Environment Variables.'
   );
 }
 
-export const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
+export const supabaseAdmin = createClient(supabaseUrl, secretKey, {
   auth: { persistSession: false },
 });
