@@ -26,8 +26,7 @@ function GuestSignupPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const redirect = searchParams.get('redirect');
-
-  const supabase = getSupabaseClient(); // ✅ safe runtime initialization
+  const supabase = getSupabaseClient(); // ✅ runtime client only
 
   const [form, setForm] = useState({
     first_name: '',
@@ -245,3 +244,6 @@ export default function SignupPageWrapper() {
     </Suspense>
   );
 }
+
+/* ✅ Prevent prerender (runtime-only Supabase) */
+export const dynamic = 'force-dynamic';
