@@ -1,31 +1,22 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+/**
+ * Return a Supabase admin client created with runtime env vars.
+ * This ensures Vercel’s runtime variables are used instead of the
+ * build-time stub.
+ */
+export function getSupabaseAdmin(): SupabaseClient {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-let supabaseAdmin: SupabaseClient;
+  if (!url || !key) {
+    console.error('🚨 Missing Supabase admin environment variables at runtime.');
+    throw new Error('Supabase admin environment variables are missing.');
+  }
 
-if (!supabaseUrl || !serviceRoleKey) {
-  console.warn('⚠️ Supabase admin env vars not detected during build.');
-  console.warn('NEXT_PUBLIC_SUPABASE_URL:', supabaseUrl);
-  console.warn('SUPABASE_SERVICE_ROLE_KEY exists:', !!serviceRoleKey);
-
-  // ⛔️ Instead of crashing build, create a fake stub client
-  // that just logs if used during build
-  supabaseAdmin = {
-    from: () => ({
-      select: () => {
-        console.warn('⚠️ Stub Supabase client used during build phase.');
-        return { data: null, error: null };
-      },
-    }),
-  } as unknown as SupabaseClient;
-} else {
-  // ✅ Real client at runtime
-  supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
-    auth: { persistSession: false },
-  });
+  return createClient(url, key, { auth: { persistSession: false } });
 }
 
-export { supabaseAdmin };
+// Optional default export for convenience
+export const supabaseAdmin = getSupabaseAdmin();
 export default supabaseAdmin;
