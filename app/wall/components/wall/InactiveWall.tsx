@@ -70,6 +70,25 @@ export default function InactiveWall({ wall }: { wall: any }) {
 
   const updateTimeout = useRef<NodeJS.Timeout | null>(null);
 
+  /* ---------- Add pulse animation ---------- */
+  const PulseStyle = (
+    <style>{`
+      @keyframes pulseGlow {
+        0%, 100% {
+          text-shadow: 0 0 18px rgba(255,255,255,0.3), 0 0 36px rgba(255,255,255,0.2);
+          opacity: 0.95;
+        }
+        50% {
+          text-shadow: 0 0 28px rgba(255,255,255,0.8), 0 0 60px rgba(255,255,255,0.5);
+          opacity: 1;
+        }
+      }
+      .pulseSoon {
+        animation: pulseGlow 2.5s ease-in-out infinite;
+      }
+    `}</style>
+  );
+
   /* 🧠 Base setup */
   useEffect(() => {
     if (!wall) return;
@@ -88,7 +107,7 @@ export default function InactiveWall({ wall }: { wall: any }) {
     return () => clearTimeout(t);
   }, [wall]);
 
-  /* 🛰 Listen for realtime updates */
+  /* 🛰 Realtime subscriptions */
   useEffect(() => {
     const channel = channelRef?.current;
     if (!channel || !wall?.id) return;
@@ -125,20 +144,12 @@ export default function InactiveWall({ wall }: { wall: any }) {
         case 'countdown_finished':
           scheduleUpdate({ countdownActive: false });
           break;
-
-        default:
-          break;
       }
     };
 
     channel.on('broadcast', {}, handleBroadcast);
-
     return () => {
-      try {
-        channel.unsubscribe?.();
-      } catch {
-        console.log('🧹 InactiveWall channel cleanup');
-      }
+      try { channel.unsubscribe?.(); } catch {}
     };
   }, [channelRef, wall?.id]);
 
@@ -148,6 +159,7 @@ export default function InactiveWall({ wall }: { wall: any }) {
     [wall?.id]
   );
 
+  /* ---------- Fullscreen handler ---------- */
   const handleFullscreen = () => {
     const elem = document.documentElement;
     if (!document.fullscreenElement) elem.requestFullscreen().catch(() => {});
@@ -172,6 +184,9 @@ export default function InactiveWall({ wall }: { wall: any }) {
         padding: '2vh 2vw',
       }}
     >
+      {PulseStyle}
+
+      {/* ---------- Title ---------- */}
       <h1
         style={{
           color: '#fff',
@@ -186,6 +201,7 @@ export default function InactiveWall({ wall }: { wall: any }) {
         {wallState.title || 'Fan Zone Wall'}
       </h1>
 
+      {/* ---------- Main container ---------- */}
       <div
         style={{
           width: '90vw',
@@ -200,7 +216,7 @@ export default function InactiveWall({ wall }: { wall: any }) {
           overflow: 'hidden',
         }}
       >
-        {/* ✅ QR code memoized — no re-render unless wall.id changes */}
+        {/* ---------- QR ----------- */}
         <QRCodeCanvas
           value={qrValue}
           size={620}
@@ -218,6 +234,7 @@ export default function InactiveWall({ wall }: { wall: any }) {
           }}
         />
 
+        {/* ---------- Logo ---------- */}
         <img
           src={displayLogo}
           alt="Logo"
@@ -233,6 +250,22 @@ export default function InactiveWall({ wall }: { wall: any }) {
           }}
         />
 
+        {/* ---------- Grey Bar under Logo ---------- */}
+        <div
+          style={{
+            position: 'absolute',
+            top: 'calc(25% + 160px)',
+            left: 'calc(40px + 620px + 60px)',
+            width: 'clamp(600px, 22vw, 400px)',
+            height: 14,
+            borderRadius: 6,
+            background: 'linear-gradient(to right,#000,#444)',
+            boxShadow: '0 0 12px rgba(0,0,0,0.7)',
+            opacity: 0.85,
+          }}
+        />
+
+        {/* ---------- Text + Pulse ---------- */}
         <div
           style={{
             position: 'absolute',
@@ -244,15 +277,19 @@ export default function InactiveWall({ wall }: { wall: any }) {
             fontWeight: 800,
             textShadow:
               '0 0 10px rgba(255,255,255,0.8), 0 0 30px rgba(100,150,255,0.6)',
-            animation: 'pulseGlow 2.5s ease-in-out infinite',
           }}
         >
-          <div style={{ fontSize: 'clamp(4rem, 2vw, 3.5rem)' }}>Fan Zone Wall</div>
+          <div style={{ fontSize: 'clamp(4rem, 2vw, 3.5rem)' }}>
+            Fan Zone Wall
+          </div>
+
           <div
+            className="pulseSoon"
             style={{
               fontSize: 'clamp(3rem, 2vw, 2.6rem)',
               marginTop: '0.4rem',
               color: '#bcd9ff',
+              fontWeight: 900,
             }}
           >
             Starting Soon!!
@@ -278,6 +315,7 @@ export default function InactiveWall({ wall }: { wall: any }) {
         )}
       </div>
 
+      {/* ---------- Fullscreen Button ---------- */}
       <button
         onClick={handleFullscreen}
         style={{

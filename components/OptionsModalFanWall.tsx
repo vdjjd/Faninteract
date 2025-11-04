@@ -66,6 +66,7 @@ export default function OptionsModalFanWall({
           ? '4x2 Grid'
           : 'Single Highlight Post';
 
+      // ✅ Only allow custom transitions in single highlight
       const postTransition =
         layoutKey === 'Single Highlight Post'
           ? (localWall.post_transition || 'Fade In / Fade Out')
@@ -236,27 +237,35 @@ export default function OptionsModalFanWall({
           <option>4 Column × 2 Row</option>
         </select>
 
-        {/* Transition only for single */}
-        {localWall.layout_type === 'Single Highlight Post' && (
-          <>
-            <label className={cn('block', 'mt-3', 'text-sm')}>Post Transition:</label>
-            <select
-              className={cn('w-full', 'p-2', 'rounded-md', 'text-black', 'mt-1')}
-              value={localWall.post_transition || 'Fade In / Fade Out'}
-              onChange={(e) => setLocalWall({ ...localWall, post_transition: e.target.value })}
-            >
-              {[
-                'Fade In / Fade Out',
-                'Slide Up / Slide Out',
-                'Slide Down / Slide Out',
-                'Slide Left / Slide Right',
-                'Zoom In / Zoom Out',
-                'Flip',
-                'Rotate In / Rotate Out',
-              ].map(opt => <option key={opt}>{opt}</option>)}
-            </select>
-          </>
-        )}
+        {/* ✅ Transition selector always visible, greyed out for grids */}
+        <label className={cn('block', 'mt-3', 'text-sm')}>Post Transition:</label>
+        <select
+          className={cn('w-full', 'p-2', 'rounded-md', 'text-black', 'mt-1')}
+          value={
+            localWall.layout_type === 'Single Highlight Post'
+              ? localWall.post_transition || 'Fade In / Fade Out'
+              : 'Fade In / Fade Out'
+          }
+          onChange={(e) => setLocalWall({ ...localWall, post_transition: e.target.value })}
+          disabled={localWall.layout_type !== 'Single Highlight Post'}
+          style={{
+            opacity: localWall.layout_type !== 'Single Highlight Post' ? 0.5 : 1,
+            cursor: localWall.layout_type !== 'Single Highlight Post' ? 'not-allowed' : 'pointer'
+          }}
+        >
+          {[
+            'Fade In / Fade Out',
+            'Slide Up / Slide Out',
+            'Slide Down / Slide Out',
+            'Slide Left / Slide Right',
+            'Slide Right / Slide Left',
+            'Zoom In / Zoom Out',
+            'Zoom Out / Zoom In',
+            'Flip',
+            'Rotate In / Rotate Out',
+            'Pop In / Pop Out',
+          ].map(opt => <option key={opt}>{opt}</option>)}
+        </select>
 
         {/* Speed */}
         <label className={cn('block', 'mt-3', 'text-sm')}>Transition Speed:</label>
@@ -353,6 +362,7 @@ export default function OptionsModalFanWall({
             ✖ Close
           </button>
         </div>
+
       </div>
     </div>
   );
