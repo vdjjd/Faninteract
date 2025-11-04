@@ -1,5 +1,5 @@
 'use client';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams } from 'next/navigation';
 import { useWallData } from '@/app/wall/hooks/useWallData';
 import InactiveWall from '@/app/wall/components/wall/InactiveWall';
@@ -11,17 +11,33 @@ import { cn } from '../../../lib/utils';
 export default function FanWallPage() {
   const { wallId } = useParams();
   const wallUUID = Array.isArray(wallId) ? wallId[0] : wallId;
+
+  // ✅ Hook pulls wall + posts
   const { wall, posts, loading, showLive } = useWallData(wallUUID);
 
+  // ✅ Local cache for faster UI
+  const [cachedWall, setCachedWall] = useState<any>(null);
+  const [cachedPosts, setCachedPosts] = useState<any[]>([]);
   const [displayLive, setDisplayLive] = useState(showLive);
   const [opacityLive, setOpacityLive] = useState(showLive ? 1 : 0);
   const [opacityInactive, setOpacityInactive] = useState(showLive ? 0 : 1);
   const [bg, setBg] = useState('linear-gradient(to bottom right,#1b2735,#090a0f)');
   const [timeLeft, setTimeLeft] = useState<number | null>(null);
   const [countdownRunning, setCountdownRunning] = useState(false);
-  const [layoutKey, setLayoutKey] = useState(0); // 🔑 Force re-render on layout change
+  const [layoutKey, setLayoutKey] = useState(0);
+  const [ready, setReady] = useState(false);
 
-  const FADE_DURATION = 1200; // ms
+  const FADE_DURATION = 1000;
+  const prevLayout = useRef<string | null>(null);
+
+  /* ⚙️ Cache + ready flag */
+  useEffect(() => {
+    if (wall) {
+      setCachedWall(wall);
+      setReady(true);
+    }
+    if (posts?.length) setCachedPosts(posts);
+  }, [wall, posts]);
 
   /* 🎨 Background reactive update */
   useEffect(() => {
@@ -33,9 +49,12 @@ export default function FanWallPage() {
     setBg(newBg);
   }, [wall?.background_type, wall?.background_value]);
 
-  /* 🔄 Layout change re-render */
+  /* 🔄 Layout change re-render (only if layout actually changes) */
   useEffect(() => {
-    if (wall?.layout_type) setLayoutKey((prev) => prev + 1);
+    if (wall?.layout_type && wall?.layout_type !== prevLayout.current) {
+      prevLayout.current = wall.layout_type;
+      setLayoutKey((prev) => prev + 1);
+    }
   }, [wall?.layout_type]);
 
   /* ⏳ Countdown setup */
@@ -53,34 +72,28 @@ export default function FanWallPage() {
     setCountdownRunning(!!wall.countdown_active);
   }, [wall?.countdown, wall?.countdown_active]);
 
-  /* ⏱️ Timer countdown logic — fade starts instantly when zero */
+  /* ⏱️ Countdown fade */
   useEffect(() => {
     if (!countdownRunning || timeLeft === null) return;
-
     if (timeLeft <= 0) {
       setCountdownRunning(false);
-
-      // 🚀 Begin fade instantly when timer hits zero
-      setOpacityInactive(1);
-      requestAnimationFrame(() => {
-        setOpacityLive(1);
-        setOpacityInactive(0);
-      });
-      const timer = setTimeout(() => setDisplayLive(true), FADE_DURATION);
-      return () => clearTimeout(timer);
+      startFade(true);
+      return;
     }
-
     const interval = setInterval(() => {
-      setTimeLeft((t) => (t !== null && t > 0 ? t - 1 : 0));
+      setTimeLeft((t) => (t && t > 0 ? t - 1 : 0));
     }, 1000);
     return () => clearInterval(interval);
   }, [countdownRunning, timeLeft]);
 
-  /* 🔁 Fade logic for play/stop toggles */
+  /* 🎬 Fade manager for play/stop */
   useEffect(() => {
     if (showLive === displayLive) return;
+    startFade(showLive);
+  }, [showLive]);
 
-    if (showLive) {
+  function startFade(toLive: boolean) {
+    if (toLive) {
       setOpacityInactive(1);
       requestAnimationFrame(() => {
         setOpacityLive(1);
@@ -88,36 +101,37 @@ export default function FanWallPage() {
       });
       const timer = setTimeout(() => setDisplayLive(true), FADE_DURATION);
       return () => clearTimeout(timer);
+    } else {
+      setOpacityLive(1);
+      requestAnimationFrame(() => {
+        setOpacityLive(0);
+        setOpacityInactive(1);
+      });
+      const timer = setTimeout(() => setDisplayLive(false), FADE_DURATION);
+      return () => clearTimeout(timer);
     }
-
-    setOpacityLive(1);
-    requestAnimationFrame(() => {
-      setOpacityLive(0);
-      setOpacityInactive(1);
-    });
-    const timer = setTimeout(() => setDisplayLive(false), FADE_DURATION);
-    return () => clearTimeout(timer);
-  }, [showLive, displayLive]);
+  }
 
   /* 🧱 Early returns */
-  if (loading && !wall)
-    return <p className={cn('text-white', 'text-center', 'mt-20')}>Loading Wall…</p>;
-  if (!wall)
+  if (!ready)
+    return <p className={cn('text-white', 'text-center', 'mt-20 animate-pulse')}>Loading Wall…</p>;
+  if (!cachedWall)
     return <p className={cn('text-white', 'text-center', 'mt-20')}>Wall not found.</p>;
 
   /* 🎛 Layout selector */
   const renderActiveWall = () => {
-    switch (wall.layout_type) {
+    const layout = cachedWall.layout_type;
+    switch (layout) {
       case 'Grid 2x2':
       case '2x2':
       case '2x2 Grid':
-        return <Grid2x2Wall key={layoutKey} event={wall} posts={posts} />;
+        return <Grid2x2Wall key={layoutKey} event={cachedWall} posts={cachedPosts} />;
       case 'Grid 4x2':
       case '4x2':
       case '4x2 Grid':
-        return <Grid4x2Wall key={layoutKey} event={wall} posts={posts} />;
+        return <Grid4x2Wall key={layoutKey} event={cachedWall} posts={cachedPosts} />;
       default:
-        return <SingleHighlightWall key={layoutKey} event={wall} posts={posts} />;
+        return <SingleHighlightWall key={layoutKey} event={cachedWall} posts={cachedPosts} />;
     }
   };
 
@@ -131,7 +145,7 @@ export default function FanWallPage() {
         height: '100vh',
         overflow: 'hidden',
         background: bg,
-        transition: 'background 0.8s ease-in-out',
+        transition: 'background 0.6s ease-in-out',
       }}
     >
       {/* 💤 Inactive Wall */}
@@ -147,7 +161,7 @@ export default function FanWallPage() {
           transition: `opacity ${FADE_DURATION}ms ease-in-out`,
         }}
       >
-        <InactiveWall wall={wall} />
+        <InactiveWall wall={cachedWall} />
       </div>
 
       {/* 🚀 Active Wall */}

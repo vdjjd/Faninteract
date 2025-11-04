@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 
 interface HostData {
@@ -38,7 +38,7 @@ interface GuestPost {
 }
 
 /* -------------------------------------------------------------------------- */
-/* 🧠 useWallData — unified realtime wall sync                                */
+/* ⚡ Optimized useWallData — smoother, flicker-free real-time updates         */
 /* -------------------------------------------------------------------------- */
 export function useWallData(wallId: string | string[] | undefined) {
   const [wall, setWall] = useState<WallData | null>(null);
@@ -46,10 +46,13 @@ export function useWallData(wallId: string | string[] | undefined) {
   const [loading, setLoading] = useState(true);
   const [showLive, setShowLive] = useState(false);
 
-  /* 🔄 Fetch wall once */
+  const initialized = useRef(false);
+  const updateTimeout = useRef<NodeJS.Timeout | null>(null);
+
+  /* 🧠 Fetch wall once */
   const refresh = useCallback(async () => {
     if (!wallId) return;
-    setLoading(true);
+    if (!initialized.current) setLoading(true);
 
     const { data, error } = await supabase
       .from('fan_walls')
@@ -64,28 +67,39 @@ export function useWallData(wallId: string | string[] | undefined) {
     }
 
     if (data) {
-      setWall(data);
+      setWall((prev) => (!prev ? data : { ...prev, ...data }));
       setShowLive(data.status === 'live');
     }
+
     setLoading(false);
+    initialized.current = true;
   }, [wallId]);
 
+  /* 🚀 Initial fetch once */
   useEffect(() => {
     refresh();
   }, [refresh]);
 
-  /* 🌐 REALTIME WALL CHANNEL (unique per wall) */
+  /* 🌐 Real-time subscription */
   useEffect(() => {
     if (!wallId) return;
 
     const channelName = `fan_wall-${wallId}`;
     const channel = supabase.channel(channelName, {
-      config: { broadcast: { self: true, ack: true } },
+      config: { broadcast: { self: true, ack: false } },
     });
 
-    console.log(`✅ Subscribing to ${channelName}`);
+    console.log(`✅ Subscribed to ${channelName}`);
 
-    // 🟢 Wall start/stop & countdown
+    // Debounced merge helper
+    const scheduleUpdate = (patch: Partial<WallData>) => {
+      if (updateTimeout.current) clearTimeout(updateTimeout.current);
+      updateTimeout.current = setTimeout(() => {
+        setWall((prev) => (prev ? { ...prev, ...patch } : prev));
+      }, 120);
+    };
+
+    /* 🟢 Wall status change (Play / Stop) */
     channel.on('broadcast', { event: 'wall_status_changed' }, (payload) => {
       const data = payload.payload as {
         id: string;
@@ -94,98 +108,60 @@ export function useWallData(wallId: string | string[] | undefined) {
       };
       if (data?.id !== wallId) return;
 
-      console.log('📡 Status broadcast received:', data);
-      setShowLive(data.status === 'live');
-      setWall((prev) =>
-        prev
-          ? {
-              ...prev,
-              status: (data.status as 'live' | 'inactive') ?? prev.status,
-              countdown_active:
-                data.countdown_active ?? prev.countdown_active ?? false,
-            }
-          : prev
-      );
-    });
+      // 🛑 Prevent invalid or undefined statuses from resetting the wall
+      if (typeof data.status === 'undefined') return;
 
-    // 🎨 Wall updated (titles, colors, etc.)
-    channel.on('broadcast', { event: 'wall_updated' }, (payload) => {
-      const data = payload.payload as Partial<WallData> & { id: string };
-      if (data?.id !== wallId) return;
-      console.log('🎨 Live update received:', data);
-
-      setWall((prev) => {
-        if (!prev) return prev;
-        const stopExplicit =
-          data.status === 'inactive' &&
-          payload?.payload?.source === 'stop_command';
-
-        const safeStatus =
-          prev.status === 'live' &&
-          !stopExplicit &&
-          (!data.status || data.status === 'inactive')
-            ? 'live'
-            : data.status || prev.status;
-
-        return {
-          ...prev,
-          ...data,
-          status: safeStatus,
-          updated_at: new Date().toISOString(),
-        };
+      const isLive = data.status === 'live';
+      setShowLive(isLive);
+      scheduleUpdate({
+        status: isLive ? 'live' : 'inactive',
+        countdown_active: data.countdown_active ?? false,
+        updated_at: new Date().toISOString(),
       });
     });
 
-    // ⏱ Countdown finished
+    /* 🎨 Wall appearance or settings updated */
+    channel.on('broadcast', { event: 'wall_updated' }, (payload) => {
+      const data = payload.payload as Partial<WallData> & { id: string };
+      if (data?.id !== wallId) return;
+      scheduleUpdate({ ...data, updated_at: new Date().toISOString() });
+    });
+
+    /* ⏱ Countdown finished → Live */
     channel.on('broadcast', { event: 'countdown_finished' }, (payload) => {
       const data = payload.payload as { id: string };
       if (data?.id !== wallId) return;
-      console.log('⏱ Countdown finished → activating wall');
       setShowLive(true);
-      setWall((prev) =>
-        prev
-          ? {
-              ...prev,
-              status: 'live',
-              countdown_active: false,
-            }
-          : prev
-      );
+      scheduleUpdate({ status: 'live', countdown_active: false });
     });
 
-    // ✅ Subscribe
-    channel.subscribe((status: string) => {
-      if (status === 'SUBSCRIBED')
-        console.log(`✅ Joined realtime channel for wall ${wallId}`);
+    channel.subscribe((status) => {
+      if (status === 'SUBSCRIBED') console.log(`✅ Joined realtime ${wallId}`);
     });
 
-    // 🧹 Cleanup
     return () => {
       console.log(`🧹 Unsubscribing from ${channelName}`);
       supabase.removeChannel(channel);
     };
   }, [wallId]);
 
-  /* 💬 Guest posts listener */
+  /* 💬 Realtime guest posts (append-only) */
   useEffect(() => {
     if (!wallId) return;
 
-    const guestChannelName = `guest_posts-${wallId}`;
     const guestChannel = supabase
-      .channel(guestChannelName)
+      .channel(`guest_posts-${wallId}`)
       .on('broadcast', { event: 'new_guest_post' }, (payload) => {
         const post = payload.payload as GuestPost;
         if (post.fan_wall_id === wallId && post.status === 'approved') {
-          setPosts((prev) => [...prev, post]);
+          setPosts((prev) =>
+            prev.some((p) => p.id === post.id) ? prev : [...prev, post]
+          );
         }
       })
-      .subscribe((status: string) => {
-        if (status === 'SUBSCRIBED')
-          console.log(`✅ Listening for guest posts on wall ${wallId}`);
-      });
+      .subscribe();
 
     return () => {
-      console.log(`🧹 Unsubscribing guest post channel ${wallId}`);
       supabase.removeChannel(guestChannel);
     };
   }, [wallId]);

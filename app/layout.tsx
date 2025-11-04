@@ -4,6 +4,7 @@ export const dynamic = 'force-dynamic';
 import './globals.css';
 import type { Metadata } from 'next';
 import ClientThemeWrapper from '@/components/ClientThemeWrapper';
+import { SupabaseRealtimeProvider } from '@/providers/SupabaseRealtimeProvider';
 
 export const metadata: Metadata = {
   title: 'FanInteract',
@@ -26,7 +27,10 @@ export default function RootLayout({
           color: 'white',
         }}
       >
-        <ClientThemeWrapper>{children}</ClientThemeWrapper>
+        {/* 🛰 Shared Supabase Realtime channel available app-wide */}
+        <SupabaseRealtimeProvider>
+          <ClientThemeWrapper>{children}</ClientThemeWrapper>
+        </SupabaseRealtimeProvider>
       </body>
     </html>
   );

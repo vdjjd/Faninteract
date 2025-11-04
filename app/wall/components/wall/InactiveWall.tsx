@@ -1,7 +1,7 @@
 'use client';
 
 import { QRCodeCanvas } from 'qrcode.react';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 /* ---------- COUNTDOWN DISPLAY ---------- */
 function CountdownDisplay({
@@ -14,20 +14,19 @@ function CountdownDisplay({
   const [timeLeft, setTimeLeft] = useState(0);
   const [active, setActive] = useState(countdownActive);
 
-  const parseCountdown = (text?: string) => {
-    if (!text) return 0;
-    const num = parseInt(text.split(' ')[0]);
-    const mins = text.toLowerCase().includes('minute');
-    const secs = text.toLowerCase().includes('second');
-    return mins ? num * 60 : secs ? num : 0;
-  };
-
-  useEffect(() => setTimeLeft(parseCountdown(countdown)), [countdown]);
+  const totalSeconds = useMemo(() => {
+    if (!countdown) return 0;
+    const [numStr] = countdown.split(' ');
+    const num = parseInt(numStr);
+    const isMinute = countdown.toLowerCase().includes('minute');
+    const isSecond = countdown.toLowerCase().includes('second');
+    return isMinute ? num * 60 : isSecond ? num : 0;
+  }, [countdown]);
 
   useEffect(() => {
+    setTimeLeft(totalSeconds);
     setActive(!!countdownActive);
-    setTimeLeft(parseCountdown(countdown));
-  }, [countdownActive, countdown]);
+  }, [totalSeconds, countdownActive]);
 
   useEffect(() => {
     if (!active || timeLeft <= 0) return;
@@ -59,33 +58,48 @@ function CountdownDisplay({
 }
 
 /* -------------------------------------------------------------------------- */
-/* 🧱 INACTIVE WALL DISPLAY                                                   */
+/* 🧱 INACTIVE WALL DISPLAY (optimized)                                       */
 /* -------------------------------------------------------------------------- */
 export default function InactiveWall({ wall }: { wall: any }) {
   const [bg, setBg] = useState('linear-gradient(to bottom right,#1b2735,#090a0f)');
-  const [localCountdown, setLocalCountdown] = useState('');
-  const [localCountdownActive, setLocalCountdownActive] = useState(false);
-  const [localTitle, setLocalTitle] = useState('');
+  const [wallState, setWallState] = useState({
+    countdown: '',
+    countdownActive: false,
+    title: '',
+  });
 
+  // ✅ Batch updates instead of multiple state calls
   useEffect(() => {
     if (!wall) return;
-    setLocalCountdown(wall.countdown || '');
-    setLocalCountdownActive(wall.countdown_active ?? false);
-    setLocalTitle(wall.title || '');
-    if (wall.background_type === 'image')
-      setBg(`url(${wall.background_value}) center/cover no-repeat`);
-    else setBg(wall.background_value || 'linear-gradient(to bottom right,#1b2735,#090a0f)');
-  }, [wall]);
+    setWallState({
+      countdown: wall.countdown || '',
+      countdownActive: !!wall.countdown_active,
+      title: wall.title || '',
+    });
 
-  if (!wall) return <div>Loading Wall…</div>;
+    const value =
+      wall.background_type === 'image'
+        ? `url(${wall.background_value}) center/cover no-repeat`
+        : wall.background_value || 'linear-gradient(to bottom right,#1b2735,#090a0f)';
+    // Debounce bg change slightly to smooth fades
+    const t = setTimeout(() => setBg(value), 100);
+    return () => clearTimeout(t);
+  }, [wall]);
 
   const displayLogo = wall?.host?.branding_logo_url || '/faninteractlogo.png';
 
+  const qrValue = useMemo(
+    () => `https://faninteract.vercel.app/submit/${wall?.id || ''}`,
+    [wall?.id]
+  );
+
   const handleFullscreen = () => {
     const elem = document.documentElement;
-    if (!document.fullscreenElement) elem.requestFullscreen();
+    if (!document.fullscreenElement) elem.requestFullscreen().catch(() => {});
     else document.exitFullscreen();
   };
+
+  if (!wall) return <div>Loading Wall…</div>;
 
   return (
     <div
@@ -114,7 +128,7 @@ export default function InactiveWall({ wall }: { wall: any }) {
           textShadow: '0 0 12px rgba(0,0,0,0.6)',
         }}
       >
-        {localTitle || 'Fan Zone Wall'}
+        {wallState.title || 'Fan Zone Wall'}
       </h1>
 
       <div
@@ -131,8 +145,9 @@ export default function InactiveWall({ wall }: { wall: any }) {
           overflow: 'hidden',
         }}
       >
+        {/* ✅ QR code memoized — no re-render unless wall.id changes */}
         <QRCodeCanvas
-          value={`https://faninteract.vercel.app/submit/${wall?.id || ''}`}
+          value={qrValue}
           size={620}
           bgColor="#fff"
           fgColor="#000"
@@ -189,7 +204,7 @@ export default function InactiveWall({ wall }: { wall: any }) {
           </div>
         </div>
 
-        {localCountdown && localCountdown !== 'none' && (
+        {wallState.countdown && wallState.countdown !== 'none' && (
           <div
             style={{
               position: 'absolute',
@@ -201,8 +216,8 @@ export default function InactiveWall({ wall }: { wall: any }) {
             }}
           >
             <CountdownDisplay
-              countdown={localCountdown}
-              countdownActive={localCountdownActive}
+              countdown={wallState.countdown}
+              countdownActive={wallState.countdownActive}
             />
           </div>
         )}
@@ -221,20 +236,12 @@ export default function InactiveWall({ wall }: { wall: any }) {
           border: '1px solid rgba(255,255,255,0.2)',
           color: '#fff',
           fontSize: '1.2rem',
-          opacity: 0.1,
+          opacity: 0.15,
           cursor: 'pointer',
-          transition: 'all 0.35s ease',
+          transition: 'all 0.3s ease',
         }}
-        onMouseEnter={(e) => {
-          e.currentTarget.style.opacity = '1';
-          e.currentTarget.style.boxShadow = '0 0 14px rgba(255,255,255,0.7)';
-          e.currentTarget.style.background = 'rgba(255,255,255,0.15)';
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.opacity = '0.1';
-          e.currentTarget.style.boxShadow = 'none';
-          e.currentTarget.style.background = 'rgba(255,255,255,0.05)';
-        }}
+        onMouseEnter={(e) => (e.currentTarget.style.opacity = '1')}
+        onMouseLeave={(e) => (e.currentTarget.style.opacity = '0.15')}
       >
         ⛶
       </button>

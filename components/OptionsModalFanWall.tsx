@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import imageCompression from 'browser-image-compression';
 import { cn } from '../lib/utils';
@@ -22,8 +22,6 @@ export default function OptionsModalFanWall({
 }: OptionsModalFanWallProps) {
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
-
-  // ✅ Normalized layout mapping (fix for reopening correct label)
   const [localWall, setLocalWall] = useState<any>(() => {
     let normalizedLayout = wall.layout_type;
     if (wall.layout_type === '2x2 Grid') normalizedLayout = '2 Column × 2 Row';
@@ -33,31 +31,34 @@ export default function OptionsModalFanWall({
 
   const [showWarning, setShowWarning] = useState(false);
   const [pendingChange, setPendingChange] = useState<{ type: 'solid' | 'gradient'; value: string } | null>(null);
+  const broadcastRef = useRef<any>(null);
+  const debounceTimer = useRef<NodeJS.Timeout | null>(null);
 
-  /* ---------- Broadcast helper ---------- */
-  async function broadcastUpdate(event: string, payload: any) {
-    try {
-      const channel = supabase.channel('global-fan-walls', {
-        config: { broadcast: { self: true, ack: true } }, // ✅ removed max_bytes
-      });
-      await channel.send({ type: 'broadcast', event, payload });
-      console.log(`📡 Broadcast sent [${event}]`, payload);
-    } catch (err) {
-      console.error(`❌ Broadcast error [${event}]`, err);
-    }
+  if (!broadcastRef.current) {
+    broadcastRef.current = supabase.channel('global-fan-walls', {
+      config: { broadcast: { self: true, ack: true } },
+    });
   }
 
-  /* ---------- SAVE (with layout broadcast fix) ---------- */
+  function debouncedBroadcast(event: string, payload: any) {
+    if (debounceTimer.current) clearTimeout(debounceTimer.current);
+    debounceTimer.current = setTimeout(async () => {
+      try {
+        await broadcastRef.current.send({ type: 'broadcast', event, payload });
+        console.log(`📡 Broadcast sent [${event}]`, payload);
+      } catch (err) {
+        console.error(`❌ Broadcast error [${event}]`, err);
+      }
+    }, 300);
+  }
+
   async function handleSave() {
     try {
       setSaving(true);
 
       const countdownValue =
-        !localWall.countdown || localWall.countdown === 'none'
-          ? 'none'
-          : String(localWall.countdown);
+        !localWall.countdown || localWall.countdown === 'none' ? 'none' : String(localWall.countdown);
 
-      // Map layout display names to internal keys
       let layoutKey = 'Single Highlight Post';
       if (localWall.layout_type?.includes('2 Column')) layoutKey = '2x2 Grid';
       if (localWall.layout_type?.includes('4 Column')) layoutKey = '4x2 Grid';
@@ -74,11 +75,13 @@ export default function OptionsModalFanWall({
         updated_at: new Date().toISOString(),
       };
 
-      const { error } = await supabase.from('fan_walls').update(updates).eq('id', localWall.id);
-      if (error) throw error;
+      await Promise.all([
+        supabase.from('fan_walls').update(updates).eq('id', localWall.id),
+        debouncedBroadcast('wall_updated', { id: localWall.id, ...updates }),
+      ]);
 
-      await broadcastUpdate('wall_updated', { id: localWall.id, ...updates });
-      await refreshFanWalls();
+      setLocalWall((prev: any) => ({ ...prev, ...updates }));
+      refreshFanWalls?.();
     } catch (err) {
       console.error('❌ Error saving wall settings:', err);
     } finally {
@@ -87,50 +90,54 @@ export default function OptionsModalFanWall({
     }
   }
 
-  /* ---------- IMAGE UPLOAD ---------- */
   async function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
     try {
       const file = e.target.files?.[0];
       if (!file) return;
-
       if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
         alert('Please upload a JPG, PNG, or WEBP file.');
         return;
       }
+
+      const previewUrl = URL.createObjectURL(file);
+      setLocalWall({
+        ...localWall,
+        background_type: 'image',
+        background_value: previewUrl,
+      });
 
       setUploading(true);
       const compressed = await imageCompression(file, {
         maxWidthOrHeight: 1920,
         useWebWorker: true,
       });
+
       const compressedFile = new File([compressed], file.name, { type: file.type });
       const ext = file.type.split('/')[1];
       const filePath = `host_${hostId}/wall_${localWall.id}/background-${Date.now()}.${ext}`;
-      console.log('Uploading to:', filePath);
 
       const { error: uploadError } = await supabase.storage
         .from('wall-backgrounds')
         .upload(filePath, compressedFile, { upsert: true });
       if (uploadError) throw uploadError;
 
-      const { data: publicUrl } = supabase.storage
-        .from('wall-backgrounds')
-        .getPublicUrl(filePath);
+      const { data: publicUrl } = supabase.storage.from('wall-backgrounds').getPublicUrl(filePath);
 
-      await supabase
-        .from('fan_walls')
-        .update({
+      await Promise.all([
+        supabase
+          .from('fan_walls')
+          .update({
+            background_type: 'image',
+            background_value: publicUrl.publicUrl,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', localWall.id),
+        debouncedBroadcast('wall_updated', {
+          id: localWall.id,
           background_type: 'image',
           background_value: publicUrl.publicUrl,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', localWall.id);
-
-      await broadcastUpdate('wall_updated', {
-        id: localWall.id,
-        background_type: 'image',
-        background_value: publicUrl.publicUrl,
-      });
+        }),
+      ]);
 
       setLocalWall({
         ...localWall,
@@ -138,7 +145,7 @@ export default function OptionsModalFanWall({
         background_value: publicUrl.publicUrl,
       });
 
-      await refreshFanWalls();
+      refreshFanWalls?.();
     } catch (err) {
       console.error('Upload failed:', err);
       alert('Upload failed. Check console for details.');
@@ -164,43 +171,26 @@ export default function OptionsModalFanWall({
       return;
     }
 
-    await supabase
-      .from('fan_walls')
-      .update({
-        background_type: type,
-        background_value: value,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', localWall.id);
-
-    await broadcastUpdate('wall_updated', {
-      id: localWall.id,
-      background_type: type,
-      background_value: value,
-    });
-
     setLocalWall({ ...localWall, background_type: type, background_value: value });
-    await refreshFanWalls();
+
+    await Promise.all([
+      supabase
+        .from('fan_walls')
+        .update({
+          background_type: type,
+          background_value: value,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', localWall.id),
+      debouncedBroadcast('wall_updated', { id: localWall.id, background_type: type, background_value: value }),
+    ]);
+
+    refreshFanWalls?.();
   }
 
   async function confirmChange() {
     if (!pendingChange) return;
     await deleteOldImageIfExists();
-
-    await supabase
-      .from('fan_walls')
-      .update({
-        background_type: pendingChange.type,
-        background_value: pendingChange.value,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', localWall.id);
-
-    await broadcastUpdate('wall_updated', {
-      id: localWall.id,
-      background_type: pendingChange.type,
-      background_value: pendingChange.value,
-    });
 
     setLocalWall({
       ...localWall,
@@ -208,9 +198,25 @@ export default function OptionsModalFanWall({
       background_value: pendingChange.value,
     });
 
+    await Promise.all([
+      supabase
+        .from('fan_walls')
+        .update({
+          background_type: pendingChange.type,
+          background_value: pendingChange.value,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', localWall.id),
+      debouncedBroadcast('wall_updated', {
+        id: localWall.id,
+        background_type: pendingChange.type,
+        background_value: pendingChange.value,
+      }),
+    ]);
+
     setShowWarning(false);
     setPendingChange(null);
-    await refreshFanWalls();
+    refreshFanWalls?.();
   }
 
   function cancelChange() {
@@ -218,21 +224,20 @@ export default function OptionsModalFanWall({
     setPendingChange(null);
   }
 
-  /* ---------- UI ---------- */
   return (
     <>
       {showWarning && (
-        <div className={cn('fixed inset-0 bg-black/80 flex items-center justify-center z-[60]')}>
-          <div className={cn('bg-gray-900 border border-yellow-500 p-6 rounded-2xl shadow-2xl text-white w-[90%] max-w-sm text-center')}>
-            <h2 className={cn('text-lg font-bold text-yellow-400 mb-3')}>Warning</h2>
-            <p className={cn('text-sm mb-5')}>
+        <div className={cn('fixed', 'inset-0', 'bg-black/80', 'flex', 'items-center', 'justify-center', 'z-[60]')}>
+          <div className={cn('bg-gray-900', 'border', 'border-yellow-500', 'p-6', 'rounded-2xl', 'shadow-2xl', 'text-white', 'w-[90%]', 'max-w-sm', 'text-center')}>
+            <h2 className={cn('text-lg', 'font-bold', 'text-yellow-400', 'mb-3')}>Warning</h2>
+            <p className={cn('text-sm', 'mb-5')}>
               Changing to a color or gradient will delete your current background image.
             </p>
-            <div className={cn('flex justify-center gap-4')}>
-              <button onClick={confirmChange} className={cn('bg-green-600 hover:bg-green-700 px-4 py-2 rounded font-semibold')}>
+            <div className={cn('flex', 'justify-center', 'gap-4')}>
+              <button onClick={confirmChange} className={cn('bg-green-600', 'hover:bg-green-700', 'px-4', 'py-2', 'rounded', 'font-semibold')}>
                 Continue
               </button>
-              <button onClick={cancelChange} className={cn('bg-red-600 hover:bg-red-700 px-4 py-2 rounded font-semibold')}>
+              <button onClick={cancelChange} className={cn('bg-red-600', 'hover:bg-red-700', 'px-4', 'py-2', 'rounded', 'font-semibold')}>
                 Cancel
               </button>
             </div>
@@ -240,11 +245,9 @@ export default function OptionsModalFanWall({
         </div>
       )}
 
-      <div className={cn('fixed inset-0 bg-black/80 flex items-center justify-center z-50 backdrop-blur-md')}>
+      <div className={cn('fixed', 'inset-0', 'bg-black/80', 'flex', 'items-center', 'justify-center', 'z-50', 'backdrop-blur-md')}>
         <div
-          className={cn(
-            'border border-blue-400 p-6 rounded-2xl shadow-2xl w-96 text-white animate-fadeIn overflow-y-auto max-h-[90vh]'
-          )}
+          className={cn('border', 'border-blue-400', 'p-6', 'rounded-2xl', 'shadow-2xl', 'w-96', 'text-white', 'animate-fadeIn', 'overflow-y-auto', 'max-h-[90vh]')}
           style={{
             background:
               localWall.background_type === 'image'
@@ -256,7 +259,6 @@ export default function OptionsModalFanWall({
         >
           <h3 className={cn('text-center', 'text-xl', 'font-bold', 'mb-3')}>⚙ Edit Fan Zone Wall</h3>
 
-          {/* ---- Titles ---- */}
           <label className={cn('block', 'mt-3', 'text-sm')}>Title (Private):</label>
           <input
             type="text"
@@ -273,7 +275,6 @@ export default function OptionsModalFanWall({
             className={cn('w-full', 'p-2', 'rounded-md', 'text-black', 'mt-1')}
           />
 
-          {/* ---- Countdown ---- */}
           <label className={cn('block', 'mt-3', 'text-sm')}>Countdown:</label>
           <select
             className={cn('w-full', 'p-2', 'rounded-md', 'text-black', 'mt-1')}
@@ -286,7 +287,6 @@ export default function OptionsModalFanWall({
             ))}
           </select>
 
-          {/* ---- Layout ---- */}
           <label className={cn('block', 'mt-3', 'text-sm')}>Layout Type:</label>
           <select
             className={cn('w-full', 'p-2', 'rounded-md', 'text-black', 'mt-1')}
@@ -298,7 +298,6 @@ export default function OptionsModalFanWall({
             <option>4 Column × 2 Row</option>
           </select>
 
-          {/* ---- Transition ---- */}
           <label className={cn('block', 'mt-3', 'text-sm')}>Post Transition:</label>
           <select
             className={cn('w-full', 'p-2', 'rounded-md', 'text-black', 'mt-1', 'disabled:bg-gray-300', 'disabled:cursor-not-allowed')}
@@ -320,12 +319,9 @@ export default function OptionsModalFanWall({
 
           {(localWall.layout_type === '2 Column × 2 Row' ||
             localWall.layout_type === '4 Column × 2 Row') && (
-            <p className={cn('text-xs', 'text-yellow-400', 'mt-1')}>
-              Transition is fixed for multi-grid layouts.
-            </p>
+            <p className={cn('text-xs', 'text-yellow-400', 'mt-1')}>Transition is fixed for multi-grid layouts.</p>
           )}
 
-          {/* ---- Speed ---- */}
           <label className={cn('block', 'mt-3', 'text-sm')}>Transition Speed:</label>
           <select
             className={cn('w-full', 'p-2', 'rounded-md', 'text-black', 'mt-1')}
@@ -337,7 +333,6 @@ export default function OptionsModalFanWall({
             <option>Fast</option>
           </select>
 
-          {/* ---- Auto Delete ---- */}
           <label className={cn('block', 'mt-3', 'text-sm')}>Auto Delete Posts After:</label>
           <select
             className={cn('w-full', 'p-2', 'rounded-md', 'text-black', 'mt-1')}
@@ -357,13 +352,9 @@ export default function OptionsModalFanWall({
             ))}
           </select>
 
-          {/* 🎨 Background Pickers */}
           <div className="mt-6">
-            <p className={cn('text-sm', 'font-semibold', 'mb-2', 'text-center')}>
-              Choose Background Gradient
-            </p>
+            <p className={cn('text-sm', 'font-semibold', 'mb-2', 'text-center')}>Choose Background Gradient</p>
 
-            {/* 🏁 Row 1 – original gradients */}
             <div className={cn('flex', 'flex-wrap', 'justify-center', 'gap-2', 'mb-3')}>
               {[
                 'linear-gradient(135deg,#0d47a1,#1976d2)',
@@ -378,14 +369,13 @@ export default function OptionsModalFanWall({
                 <button
                   key={`grad1-${i}`}
                   onClick={() => handleBackgroundChange('gradient', grad)}
-                  className={cn('w-8','h-8','rounded-full','border','border-white/50','hover:scale-110','transition-all')}
+                  className={cn('w-8', 'h-8', 'rounded-full', 'border', 'border-white/50', 'hover:scale-110', 'transition-all')}
                   style={{ background: grad }}
                 />
               ))}
             </div>
 
-            {/* 🏈 Row 2 – Team Vibes */}
-            <div className={cn('flex','flex-wrap','justify-center','gap-2','mb-3')}>
+            <div className={cn('flex', 'flex-wrap', 'justify-center', 'gap-2', 'mb-3')}>
               {[
                 'linear-gradient(135deg,#002244,#C60C30)',
                 'linear-gradient(135deg,#101820,#D7A22A)',
@@ -399,14 +389,13 @@ export default function OptionsModalFanWall({
                 <button
                   key={`grad2-${i}`}
                   onClick={() => handleBackgroundChange('gradient', grad)}
-                  className={cn('w-8','h-8','rounded-full','border','border-white/50','hover:scale-110','transition-all')}
+                  className={cn('w-8', 'h-8', 'rounded-full', 'border', 'border-white/50', 'hover:scale-110', 'transition-all')}
                   style={{ background: grad }}
                 />
               ))}
             </div>
 
-            {/* ⚡ Row 3 – Arena Energy */}
-            <div className={cn('flex','flex-wrap','justify-center','gap-2','mb-3')}>
+            <div className={cn('flex', 'flex-wrap', 'justify-center', 'gap-2', 'mb-3')}>
               {[
                 'linear-gradient(135deg,#00F260,#0575E6)',
                 'linear-gradient(135deg,#FC466B,#3F5EFB)',
@@ -420,14 +409,13 @@ export default function OptionsModalFanWall({
                 <button
                   key={`grad3-${i}`}
                   onClick={() => handleBackgroundChange('gradient', grad)}
-                  className={cn('w-8','h-8','rounded-full','border','border-white/50','hover:scale-110','transition-all')}
+                  className={cn('w-8', 'h-8', 'rounded-full', 'border', 'border-white/50', 'hover:scale-110', 'transition-all')}
                   style={{ background: grad }}
                 />
               ))}
             </div>
 
-            {/* 🏟️ Row 4 – Metallics */}
-            <div className={cn('flex','flex-wrap','justify-center','gap-2')}>
+            <div className={cn('flex', 'flex-wrap', 'justify-center', 'gap-2')}>
               {[
                 'linear-gradient(135deg,#434343,#000000)',
                 'linear-gradient(135deg,#D3CCE3,#E9E4F0)',
@@ -441,21 +429,27 @@ export default function OptionsModalFanWall({
                 <button
                   key={`grad4-${i}`}
                   onClick={() => handleBackgroundChange('gradient', grad)}
-                  className={cn('w-8','h-8','rounded-full','border','border-white/50','hover:scale-110','transition-all')}
+                  className={cn('w-8', 'h-8', 'rounded-full', 'border', 'border-white/50', 'hover:scale-110', 'transition-all')}
                   style={{ background: grad }}
                 />
               ))}
             </div>
           </div>
 
-          {/* Upload */}
           <div className={cn('mt-6', 'text-center')}>
-            <p className={cn('text-sm', 'font-semibold', 'mb-2')}>Upload Custom Background</p>
-            <input type="file" accept="image/jpeg,image/png,image/webp" onChange={handleImageUpload} />
-            {uploading && <p className={cn('text-yellow-400', 'text-xs', 'mt-2', 'animate-pulse')}>Uploading…</p>}
-          </div>
+  <p className={cn('text-sm', 'font-semibold', 'mb-2')}>Upload Custom Background</p>
+  <input
+    type="file"
+    accept="image/jpeg,image/png,image/webp"
+    onChange={handleImageUpload}
+  />
+  {uploading && (
+    <p className={cn('text-yellow-400', 'text-xs', 'mt-2', 'animate-pulse')}>
+      Uploading…
+    </p>
+  )}
+</div>
 
-          {/* Buttons */}
           <div className={cn('text-center', 'mt-5', 'flex', 'justify-center', 'gap-4')}>
             <button
               disabled={saving}
