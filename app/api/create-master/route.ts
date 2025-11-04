@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { supabaseAdmin } from '@/lib/supabaseAdminClient';
+import { getSupabaseAdmin } from '@/lib/supabaseAdminClient';
 
 export async function POST(req: Request) {
   try {
@@ -10,16 +10,29 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
-    const { data: existing } = await supabaseAdmin
+    // ✅ Create Supabase admin client at runtime
+    const supabaseAdmin = getSupabaseAdmin();
+    if (!supabaseAdmin) {
+      console.warn('⚠️ Supabase admin client unavailable at runtime.');
+      return NextResponse.json(
+        { error: 'Supabase admin client unavailable.' },
+        { status: 503 }
+      );
+    }
+
+    // 🔍 Check if this email already exists
+    const { data: existing, error: dupError } = await supabaseAdmin
       .from('master_accounts')
       .select('id')
       .eq('email', email)
       .maybeSingle();
 
+    if (dupError) throw dupError;
     if (existing) {
       return NextResponse.json({ error: 'Email already exists' }, { status: 409 });
     }
 
+    // ✅ Insert new master account
     const { data, error } = await supabaseAdmin
       .from('master_accounts')
       .insert([
@@ -35,9 +48,14 @@ export async function POST(req: Request) {
       .single();
 
     if (error) throw error;
+
     return NextResponse.json({ success: true, master: data }, { status: 201 });
   } catch (err: any) {
-    console.error('❌ create-master error:', err.message);
-    return NextResponse.json({ error: 'Server error' }, { status: 500 });
+    console.error('❌ create-master error:', err.message || err);
+    return NextResponse.json(
+      { error: 'Server error', details: err.message },
+      { status: 500 }
+    );
   }
 }
+

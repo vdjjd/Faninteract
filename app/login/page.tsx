@@ -2,15 +2,17 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { supabase } from '@/lib/supabaseClient';
+import { getSupabaseClient } from '@/lib/supabaseClient'; // ✅ lazy getter instead of static import
 
 export default function LoginPage() {
   const router = useRouter();
+  const supabase = getSupabaseClient(); // ✅ created only at runtime
+
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [showSignup, setShowSignup] = useState(false); // 👈 new
+  const [showSignup, setShowSignup] = useState(false);
 
   const [accountType, setAccountType] = useState<'master' | 'host'>('host');
   const [companyName, setCompanyName] = useState('');
@@ -48,6 +50,8 @@ export default function LoginPage() {
         emailToUse = result.email;
       }
 
+      if (!supabase) throw new Error('Supabase client not available.');
+
       const { error: signInError } = await supabase.auth.signInWithPassword({
         email: emailToUse,
         password,
@@ -64,7 +68,7 @@ export default function LoginPage() {
   };
 
   /* -------------------------------------------------------------------------- */
-  /* 🧠 SIGNUP HANDLER (modal popup) */
+  /* 🧠 SIGNUP HANDLER */
   /* -------------------------------------------------------------------------- */
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -72,10 +76,12 @@ export default function LoginPage() {
     setSignupLoading(true);
 
     try {
+      if (!supabase) throw new Error('Supabase client not available.');
+
       const { data, error: signUpError } = await supabase.auth.signUp({
         email: signupEmail,
         password: signupPassword,
-        options: { emailRedirectTo: 'http://localhost:3000/login' },
+        options: { emailRedirectTo: `${window.location.origin}/login` },
       });
 
       if (signUpError) throw signUpError;
@@ -158,7 +164,6 @@ export default function LoginPage() {
         <div style={overlayStyle}>
           <div style={popupStyle}>
             <h2>Create Account</h2>
-
             <form onSubmit={handleSignUp} style={formStyle}>
               <label style={labelStyle}>Account Type</label>
               <select

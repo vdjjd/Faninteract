@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { supabase } from '@/lib/supabaseClient';
+import { getSupabaseClient } from '@/lib/supabaseClient'; // ✅ use runtime getter
 import { getFanWallsByHost } from '@/lib/actions/fan_walls';
 
 import DashboardHeader from './components/DashboardHeader';
@@ -12,6 +12,8 @@ import HostProfilePanel from '@/components/HostProfilePanel';
 import { cn } from '@/lib/utils';
 
 export default function DashboardPage() {
+  const supabase = getSupabaseClient(); // ✅ safely created at runtime
+
   const [host, setHost] = useState<any>(null);
   const [fanWalls, setFanWalls] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -24,34 +26,44 @@ export default function DashboardPage() {
   useEffect(() => {
     async function load() {
       try {
+        if (!supabase) throw new Error('Supabase client unavailable.');
+
         const {
           data: { user },
+          error: userError,
         } = await supabase.auth.getUser();
+        if (userError) throw userError;
         if (!user) throw new Error('No authenticated user');
 
-        // Fetch or create host profile
-        let { data: hostRow } = await supabase
+        // 🔍 Fetch or create host profile
+        let { data: hostRow, error: hostError } = await supabase
           .from('hosts')
           .select('*')
           .eq('auth_id', user.id)
           .maybeSingle();
 
+        if (hostError) throw hostError;
+
         if (!hostRow) {
-          const { data: inserted } = await supabase
+          const { data: inserted, error: insertError } = await supabase
             .from('hosts')
             .insert([
               {
                 id: crypto.randomUUID(),
                 auth_id: user.id,
                 email: user.email,
-                username: user.user_metadata?.username || user.email?.split('@')[0],
-                venue_name: user.user_metadata?.venue_name || 'My Venue',
+                username:
+                  user.user_metadata?.username || user.email?.split('@')[0],
+                venue_name:
+                  user.user_metadata?.venue_name || 'My Venue',
                 role: 'host',
                 created_at: new Date().toISOString(),
               },
             ])
             .select()
             .maybeSingle();
+
+          if (insertError) throw insertError;
           hostRow = inserted;
         }
 
@@ -61,15 +73,15 @@ export default function DashboardPage() {
           const fetchedWalls = await getFanWallsByHost(hostRow.id);
           setFanWalls(fetchedWalls);
         }
-      } catch (err) {
-        console.error('❌ Error loading dashboard data:', err);
+      } catch (err: any) {
+        console.error('❌ Error loading dashboard data:', err.message || err);
       } finally {
         setLoading(false);
       }
     }
 
     load();
-  }, []);
+  }, [supabase]);
 
   /* ---------------------------------------------------------------------- */
   /* 🔁 Refresh function                                                   */
@@ -82,25 +94,23 @@ export default function DashboardPage() {
   };
 
   /* ---------------------------------------------------------------------- */
-  /* 📡 Listen for realtime wall status updates                            */
+  /* 📡 Realtime wall status listener                                      */
   /* ---------------------------------------------------------------------- */
   useEffect(() => {
-    if (!host?.id) return;
+    if (!supabase || !host?.id) return;
 
     const channel = supabase
-      .channel('global-fan-walls') // ✅ unified channel
+      .channel('global-fan-walls')
       .on('broadcast', { event: 'wall_status_changed' }, (payload) => {
         const { id, status } = payload?.payload || {};
         if (!id) return;
 
         console.log('📡 Realtime wall update:', id, status);
 
-        // ✅ Update matching wall in place
         setFanWalls((prev) =>
           prev.map((w) => (w.id === id ? { ...w, status } : w))
         );
 
-        // Optional: background refresh for consistency
         refreshFanWalls();
       })
       .subscribe();
@@ -108,14 +118,23 @@ export default function DashboardPage() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [host]);
+  }, [host, supabase]);
 
   /* ---------------------------------------------------------------------- */
   /* 🕓 Loading State                                                      */
   /* ---------------------------------------------------------------------- */
   if (loading)
     return (
-      <div className={cn('flex', 'items-center', 'justify-center', 'h-screen', 'bg-black', 'text-white')}>
+      <div
+        className={cn(
+          'flex',
+          'items-center',
+          'justify-center',
+          'h-screen',
+          'bg-black',
+          'text-white'
+        )}
+      >
         <p>Loading Dashboard…</p>
       </div>
     );
@@ -124,11 +143,31 @@ export default function DashboardPage() {
   /* 🧱 Render Dashboard                                                   */
   /* ---------------------------------------------------------------------- */
   return (
-    <div className={cn('min-h-screen', 'bg-[#0b111d]', 'text-white', 'flex', 'flex-col', 'items-center', 'p-8')}>
+    <div
+      className={cn(
+        'min-h-screen',
+        'bg-[#0b111d]',
+        'text-white',
+        'flex',
+        'flex-col',
+        'items-center',
+        'p-8'
+      )}
+    >
       {/* ---------- HEADER ---------- */}
-      <div className={cn('w-full', 'flex', 'items-center', 'justify-between', 'mb-6')}>
+      <div
+        className={cn(
+          'w-full',
+          'flex',
+          'items-center',
+          'justify-between',
+          'mb-6'
+        )}
+      >
         <HostProfilePanel host={host} setHost={setHost} />
-        <h1 className={cn('text-2xl', 'font-bold', 'flex-1', 'text-center')}>FanInteract Dashboard</h1>
+        <h1 className={cn('text-2xl', 'font-bold', 'flex-1', 'text-center')}>
+          FanInteract Dashboard
+        </h1>
         <div className="w-10" />
       </div>
 
