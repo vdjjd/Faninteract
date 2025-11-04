@@ -88,7 +88,7 @@ export function useWallData(wallId: string | string[] | undefined) {
     const channel = channelRef?.current;
     if (!channel || !wallId) return;
 
-    console.log(`📡 Listening for broadcast events on fan_walls-realtime`);
+    console.log('🛰 useWallData subscribing to global realtime channel…');
 
     const scheduleUpdate = (patch: Partial<WallData>) => {
       if (updateTimeout.current) clearTimeout(updateTimeout.current);
@@ -101,7 +101,7 @@ export function useWallData(wallId: string | string[] | undefined) {
       const { event, payload: data } = payload;
       if (!data?.id || data.id !== wallId) return;
 
-      console.log('📡 Broadcast received in wall:', event, data);
+      console.log('📡 Broadcast received:', event, data);
 
       switch (event) {
         case 'wall_updated':
@@ -123,7 +123,23 @@ export function useWallData(wallId: string | string[] | undefined) {
     };
 
     channel.on('broadcast', {}, handleMessage);
+
+    // ✅ This line was missing — actually joins the channel
+    channel.subscribe((status: string) => {
+      if (status === 'SUBSCRIBED') {
+        console.log(`✅ useWallData joined global realtime channel for wall: ${wallId}`);
+      }
+    });
+
+    return () => {
+      try {
+        channel.unsubscribe?.();
+      } catch (err) {
+        console.warn('🧹 Channel cleanup failed:', err);
+      }
+    };
   }, [channelRef, wallId]);
 
   return { wall, posts, loading, showLive, refresh };
 }
+

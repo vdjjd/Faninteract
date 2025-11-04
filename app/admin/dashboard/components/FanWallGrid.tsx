@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabaseClient';
 import { clearFanWallPosts, deleteFanWall } from '@/lib/actions/fan_walls';
 import { cn } from '../../../../lib/utils';
 import { useRealtimeChannel } from '@/providers/SupabaseRealtimeProvider';
+
 interface FanWallGridProps {
   walls: any[] | undefined;
   host: any;
@@ -22,26 +23,37 @@ export default function FanWallGrid({
   const [pendingCounts, setPendingCounts] = useState<Record<string, number>>({});
   const [localWalls, setLocalWalls] = useState<any[]>(walls || []);
   const refreshTimeout = useRef<NodeJS.Timeout | null>(null);
-  const debounceBroadcast = useRef<NodeJS.Timeout | null>(null);
 
-  /* ✅ Keep local state synced with prop */
+  /* ✅ Keep local state synced with props */
   useEffect(() => {
     setLocalWalls(walls || []);
   }, [walls]);
 
-  /* 🛰️ Shared broadcast helper using provider channel */
-  function safeBroadcast(event: string, data: any) {
-    const channel = channelRef?.current;
-    if (!channel) return;
-    if (debounceBroadcast.current) clearTimeout(debounceBroadcast.current);
-    debounceBroadcast.current = setTimeout(() => {
-      channel.send({ type: 'broadcast', event, payload: data }).catch(console.error);
-    }, 120);
+  /* 🛰 Shared broadcast helper */
+  async function safeBroadcast(event: string, data: any) {
+    try {
+      const channel = channelRef?.current || supabase.channel('fan_walls-realtime');
+      if (!channel) {
+        console.warn('⚠️ No realtime channel available for broadcast');
+        return;
+      }
+
+      console.log(`📡 Sending broadcast [${event}]`, data);
+      const { error } = await channel.send({
+        type: 'broadcast',
+        event,
+        payload: data,
+      });
+      if (error) console.error('❌ Broadcast error:', error);
+      else console.log(`✅ Broadcast sent [${event}]`, data);
+    } catch (err) {
+      console.error('❌ Broadcast exception:', err);
+    }
   }
 
-  const updateLocalWall = (id: string, updates: any) => {
+  function updateLocalWall(id: string, updates: any) {
     setLocalWalls((prev) => prev.map((w) => (w.id === id ? { ...w, ...updates } : w)));
-  };
+  }
 
   /* 🚀 Launch popup */
   function handleLaunch(id: string) {
@@ -52,25 +64,45 @@ export default function FanWallGrid({
 
   /* ▶️ Start wall */
   async function handleStart(id: string) {
+    console.log('▶️ Starting wall:', id);
     updateLocalWall(id, { status: 'live', countdown_active: false });
-    safeBroadcast('wall_status_changed', { id, status: 'live' });
 
     try {
-      const { data: current } = await supabase.from('fan_walls').select('countdown').eq('id', id).single();
+      const { data: current } = await supabase
+        .from('fan_walls')
+        .select('countdown')
+        .eq('id', id)
+        .single();
 
       if (current?.countdown && current.countdown !== 'none') {
+        // Countdown active
+        console.log('⏱ Starting countdown:', current.countdown);
         updateLocalWall(id, { countdown_active: true });
-        await supabase.from('fan_walls').update({ countdown_active: true }).eq('id', id);
-        safeBroadcast('wall_updated', { id, countdown_active: true });
+
+        await supabase
+          .from('fan_walls')
+          .update({ countdown_active: true, updated_at: new Date().toISOString() })
+          .eq('id', id);
+
+        await safeBroadcast('wall_updated', { id, countdown_active: true });
 
         const durationMs = parseCountdownDuration(current.countdown);
         setTimeout(async () => {
-          await supabase.from('fan_walls').update({ status: 'live', countdown_active: false }).eq('id', id);
-          safeBroadcast('countdown_finished', { id, status: 'live' });
+          console.log('🚀 Countdown finished → wall live');
+          await supabase
+            .from('fan_walls')
+            .update({ status: 'live', countdown_active: false, updated_at: new Date().toISOString() })
+            .eq('id', id);
+          await safeBroadcast('countdown_finished', { id, status: 'live' });
           delayedRefresh();
         }, durationMs);
       } else {
-        await supabase.from('fan_walls').update({ status: 'live', countdown_active: false }).eq('id', id);
+        // No countdown
+        await supabase
+          .from('fan_walls')
+          .update({ status: 'live', countdown_active: false, updated_at: new Date().toISOString() })
+          .eq('id', id);
+        await safeBroadcast('wall_status_changed', { id, status: 'live' });
         delayedRefresh();
       }
     } catch (err) {
@@ -87,8 +119,8 @@ export default function FanWallGrid({
 
   /* ⏹ Stop wall */
   async function handleStop(id: string) {
+    console.log('⏹ Stopping wall:', id);
     updateLocalWall(id, { status: 'inactive', countdown_active: false });
-    safeBroadcast('wall_status_changed', { id, status: 'inactive' });
 
     try {
       await supabase
@@ -99,6 +131,8 @@ export default function FanWallGrid({
           updated_at: new Date().toISOString(),
         })
         .eq('id', id);
+
+      await safeBroadcast('wall_status_changed', { id, status: 'inactive' });
       delayedRefresh();
     } catch (err) {
       console.error('❌ Error stopping wall:', err);
@@ -107,15 +141,17 @@ export default function FanWallGrid({
 
   /* 🧹 Clear posts */
   async function handleClear(id: string) {
+    console.log('🧹 Clearing posts for wall:', id);
     clearFanWallPosts(id).catch(console.error);
     delayedRefresh();
   }
 
   /* ❌ Delete wall */
   async function handleDelete(id: string) {
+    console.log('❌ Deleting wall:', id);
     setLocalWalls((prev) => prev.filter((w) => w.id !== id));
     deleteFanWall(id).catch(console.error);
-    safeBroadcast('wall_status_changed', { id, status: 'deleted' });
+    await safeBroadcast('wall_status_changed', { id, status: 'deleted' });
     delayedRefresh();
   }
 
@@ -131,6 +167,7 @@ export default function FanWallGrid({
       `width=${w},height=${h},left=${left},top=${top},resizable=yes,scrollbars=yes`
     );
     popup?.focus();
+
     const checkPopup = setInterval(() => {
       if (popup?.closed) {
         clearInterval(checkPopup);
@@ -144,14 +181,17 @@ export default function FanWallGrid({
     if (refreshTimeout.current) clearTimeout(refreshTimeout.current);
     refreshTimeout.current = setTimeout(() => {
       refreshFanWalls().catch(console.error);
-    }, 300);
+    }, 500);
   }
 
   /* 🟡 Pending counts */
   useEffect(() => {
     async function fetchPendingCounts() {
       try {
-        const { data, error } = await supabase.from('guest_posts').select('fan_wall_id').eq('status', 'pending');
+        const { data, error } = await supabase
+          .from('guest_posts')
+          .select('fan_wall_id')
+          .eq('status', 'pending');
         if (error) throw error;
 
         const counts: Record<string, number> = {};
@@ -181,7 +221,9 @@ export default function FanWallGrid({
     <div className={cn('mt-10 w-full max-w-6xl')}>
       <h2 className={cn('text-xl font-semibold mb-3')}>🎤 Fan Zone Walls</h2>
       <div className={cn('grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5')}>
-        {(!localWalls || localWalls.length === 0) && <p className={cn('text-gray-400', 'italic')}>No Fan Zone Walls created yet.</p>}
+        {(!localWalls || localWalls.length === 0) && (
+          <p className={cn('text-gray-400 italic')}>No Fan Zone Walls created yet.</p>
+        )}
 
         {localWalls.map((wall) => (
           <div
@@ -202,7 +244,9 @@ export default function FanWallGrid({
             }}
           >
             <div>
-              <h3 className={cn('font-bold', 'text-lg', 'text-center', 'mb-1')}>{wall.host_title || wall.title || 'Untitled Wall'}</h3>
+              <h3 className={cn('font-bold', 'text-lg', 'text-center', 'mb-1')}>
+                {wall.host_title || wall.title || 'Untitled Wall'}
+              </h3>
               <p className={cn('text-sm', 'mb-2')}>
                 <strong>Status:</strong>{' '}
                 <span
@@ -214,7 +258,11 @@ export default function FanWallGrid({
                       : 'text-orange-400'
                   }
                 >
-                  {wall.status === 'live' ? 'LIVE' : wall.countdown_active ? 'COUNTDOWN ACTIVE' : 'INACTIVE'}
+                  {wall.status === 'live'
+                    ? 'LIVE'
+                    : wall.countdown_active
+                    ? 'COUNTDOWN ACTIVE'
+                    : 'INACTIVE'}
                 </span>
               </p>
               <div className={cn('flex', 'justify-center', 'mb-3')}>

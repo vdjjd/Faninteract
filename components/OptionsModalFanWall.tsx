@@ -33,9 +33,6 @@ export default function OptionsModalFanWall({
 
   const debounceTimer = useRef<NodeJS.Timeout | null>(null);
 
-  /* -------------------------------------------------------------------------- */
-  /* 🛰️ Broadcast Helper                                                       */
-  /* -------------------------------------------------------------------------- */
   function broadcast(event: string, payload: any) {
     const channel = channelRef?.current;
     if (!channel) return;
@@ -50,15 +47,17 @@ export default function OptionsModalFanWall({
     }, 200);
   }
 
-  /* -------------------------------------------------------------------------- */
-  /* 💾 SAVE WALL SETTINGS (sanitized + Supabase-safe)                         */
-  /* -------------------------------------------------------------------------- */
+  /* ✅ SAVE WALL */
   async function handleSave() {
     try {
       setSaving(true);
 
-      const countdownValue =
-        !localWall.countdown || localWall.countdown === 'none' ? null : String(localWall.countdown);
+      const isNoCountdown =
+        !localWall.countdown || localWall.countdown === 'none';
+
+      const countdownValue = isNoCountdown
+        ? null
+        : String(localWall.countdown);
 
       const layoutKey =
         localWall.layout_type?.includes('2 Column')
@@ -67,13 +66,18 @@ export default function OptionsModalFanWall({
           ? '4x2 Grid'
           : 'Single Highlight Post';
 
+      const postTransition =
+        layoutKey === 'Single Highlight Post'
+          ? (localWall.post_transition || 'Fade In / Fade Out')
+          : 'Fade In / Fade Out';
+
       const updates: Record<string, any> = {
         title: localWall.title?.trim() || null,
         host_title: localWall.host_title?.trim() || null,
         countdown: countdownValue,
-        countdown_active: countdownValue ? false : false,
+        countdown_active: false,
         layout_type: layoutKey,
-        post_transition: localWall.post_transition || 'Fade In / Fade Out',
+        post_transition: postTransition,
         transition_speed: localWall.transition_speed || 'Medium',
         auto_delete_minutes: localWall.auto_delete_minutes ?? 0,
         background_type: localWall.background_type,
@@ -83,15 +87,23 @@ export default function OptionsModalFanWall({
 
       for (const key in updates) {
         const val = updates[key];
-        if (val === undefined || val === null || val === '') delete updates[key];
+        if (val === undefined || val === '') delete updates[key];
       }
 
-      console.log('💾 Cleaned wall update payload:', updates);
+      const { error } = await supabase
+        .from('fan_walls')
+        .update(updates)
+        .eq('id', localWall.id);
 
-      const { error } = await supabase.from('fan_walls').update(updates).eq('id', localWall.id);
       if (error) throw error;
 
-      broadcast('wall_updated', { id: localWall.id, ...updates });
+      broadcast('wall_updated', {
+        id: localWall.id,
+        ...updates,
+        countdown: isNoCountdown ? 'none' : countdownValue,
+        countdown_active: false,
+      });
+
       await refreshFanWalls?.();
     } catch (err) {
       console.error('❌ Error saving wall settings:', err);
@@ -101,13 +113,12 @@ export default function OptionsModalFanWall({
     }
   }
 
-  /* -------------------------------------------------------------------------- */
-  /* 🖼️ Upload Background Image                                                */
-  /* -------------------------------------------------------------------------- */
+  /* ✅ IMAGE UPLOADS */
   async function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
     try {
       const file = e.target.files?.[0];
       if (!file) return;
+
       if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
         alert('Please upload a JPG, PNG, or WEBP file.');
         return;
@@ -117,27 +128,23 @@ export default function OptionsModalFanWall({
       setLocalWall({ ...localWall, background_type: 'image', background_value: previewUrl });
 
       setUploading(true);
-      const compressed = await imageCompression(file, { maxWidthOrHeight: 1920, useWebWorker: true });
+      const compressed = await imageCompression(file, {
+        maxWidthOrHeight: 1920,
+        useWebWorker: true,
+      });
 
       const ext = file.type.split('/')[1];
       const filePath = `host_${hostId}/wall_${localWall.id}/background-${Date.now()}.${ext}`;
-      const { error: uploadError } = await supabase.storage
-        .from('wall-backgrounds')
-        .upload(filePath, compressed, { upsert: true });
-
-      if (uploadError) throw uploadError;
+      await supabase.storage.from('wall-backgrounds').upload(filePath, compressed, { upsert: true });
 
       const { data: publicUrl } = supabase.storage.from('wall-backgrounds').getPublicUrl(filePath);
       const imageUrl = publicUrl.publicUrl;
 
-      await supabase
-        .from('fan_walls')
-        .update({
-          background_type: 'image',
-          background_value: imageUrl,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', localWall.id);
+      await supabase.from('fan_walls').update({
+        background_type: 'image',
+        background_value: imageUrl,
+        updated_at: new Date().toISOString(),
+      }).eq('id', localWall.id);
 
       broadcast('wall_updated', {
         id: localWall.id,
@@ -149,44 +156,31 @@ export default function OptionsModalFanWall({
       await refreshFanWalls?.();
     } catch (err) {
       console.error('❌ Upload failed:', err);
-      alert('Upload failed. Check console for details.');
+      alert('Upload failed. Check console.');
     } finally {
       setUploading(false);
     }
   }
 
-  /* -------------------------------------------------------------------------- */
-  /* 🎨 BACKGROUND COLOR / GRADIENT                                            */
-  /* -------------------------------------------------------------------------- */
+  /* ✅ BACKGROUND CHANGE */
   async function handleBackgroundChange(type: 'solid' | 'gradient', value: string) {
     setLocalWall({ ...localWall, background_type: type, background_value: value });
     broadcast('wall_updated', { id: localWall.id, background_type: type, background_value: value });
 
-    try {
-      const updates = {
-        background_type: type,
-        background_value: value || DEFAULT_GRADIENT,
-        updated_at: new Date().toISOString(),
-      };
-
-      const { error } = await supabase.from('fan_walls').update(updates).eq('id', localWall.id);
-      if (error) throw error;
-    } catch (err) {
-      console.error('❌ Background update failed:', err);
-    }
+    await supabase.from('fan_walls').update({
+      background_type: type,
+      background_value: value || DEFAULT_GRADIENT,
+      updated_at: new Date().toISOString(),
+    }).eq('id', localWall.id);
 
     await refreshFanWalls?.();
   }
 
-  /* -------------------------------------------------------------------------- */
-  /* 🧱 RENDER FULL MODAL                                                      */
-  /* -------------------------------------------------------------------------- */
+  /* ✅ FULL UI */
   return (
-    <div className={cn('fixed', 'inset-0', 'bg-black/80', 'flex', 'items-center', 'justify-center', 'z-50', 'backdrop-blur-md')}>
+    <div className={cn('fixed inset-0 bg-black/80 flex items-center justify-center z-50 backdrop-blur-md')}>
       <div
-        className={cn(
-          'border border-blue-400 p-6 rounded-2xl shadow-2xl w-96 text-white animate-fadeIn overflow-y-auto max-h-[90vh]'
-        )}
+        className={cn('border border-blue-400 p-6 rounded-2xl shadow-2xl w-96 text-white animate-fadeIn overflow-y-auto max-h-[90vh]')}
         style={{
           background:
             localWall.background_type === 'image'
@@ -198,7 +192,7 @@ export default function OptionsModalFanWall({
       >
         <h3 className={cn('text-center', 'text-xl', 'font-bold', 'mb-3')}>⚙ Edit Fan Zone Wall</h3>
 
-        {/* === Private / Public Titles === */}
+        {/* Titles */}
         <label className={cn('block', 'mt-3', 'text-sm')}>Title (Private):</label>
         <input
           type="text"
@@ -215,7 +209,7 @@ export default function OptionsModalFanWall({
           className={cn('w-full', 'p-2', 'rounded-md', 'text-black', 'mt-1')}
         />
 
-        {/* === Countdown === */}
+        {/* Countdown */}
         <label className={cn('block', 'mt-3', 'text-sm')}>Countdown:</label>
         <select
           className={cn('w-full', 'p-2', 'rounded-md', 'text-black', 'mt-1')}
@@ -224,16 +218,14 @@ export default function OptionsModalFanWall({
         >
           <option value="none">No Countdown / Start Immediately</option>
           {[
-            '30 Seconds', '1 Minute', '2 Minutes', '3 Minutes', '4 Minutes', '5 Minutes',
-            '10 Minutes', '15 Minutes', '20 Minutes', '25 Minutes', '30 Minutes',
-            '45 Minutes', '60 Minutes',
-          ].map((opt) => (
-            <option key={opt}>{opt}</option>
-          ))}
+            '30 Seconds','1 Minute','2 Minutes','3 Minutes','4 Minutes','5 Minutes',
+            '10 Minutes','15 Minutes','20 Minutes','25 Minutes','30 Minutes',
+            '45 Minutes','60 Minutes',
+          ].map(opt => <option key={opt}>{opt}</option>)}
         </select>
 
-        {/* === Layout === */}
-        <label className={cn('block', 'mt-3', 'text-sm')}>Layout Type:</label>
+        {/* Layout */}
+        <label className={cn('block', 'mt-3', 'text-sm')}>Layout:</label>
         <select
           className={cn('w-full', 'p-2', 'rounded-md', 'text-black', 'mt-1')}
           value={localWall.layout_type || 'Single Highlight Post'}
@@ -244,7 +236,7 @@ export default function OptionsModalFanWall({
           <option>4 Column × 2 Row</option>
         </select>
 
-        {/* === Post Transition === */}
+        {/* Transition only for single */}
         {localWall.layout_type === 'Single Highlight Post' && (
           <>
             <label className={cn('block', 'mt-3', 'text-sm')}>Post Transition:</label>
@@ -261,14 +253,12 @@ export default function OptionsModalFanWall({
                 'Zoom In / Zoom Out',
                 'Flip',
                 'Rotate In / Rotate Out',
-              ].map((opt) => (
-                <option key={opt}>{opt}</option>
-              ))}
+              ].map(opt => <option key={opt}>{opt}</option>)}
             </select>
           </>
         )}
 
-        {/* === Transition Speed === */}
+        {/* Speed */}
         <label className={cn('block', 'mt-3', 'text-sm')}>Transition Speed:</label>
         <select
           className={cn('w-full', 'p-2', 'rounded-md', 'text-black', 'mt-1')}
@@ -280,8 +270,8 @@ export default function OptionsModalFanWall({
           <option>Fast</option>
         </select>
 
-        {/* === Auto Delete Timer === */}
-        <label className={cn('block', 'mt-3', 'text-sm')}>Auto Delete Posts After:</label>
+        {/* Auto Delete */}
+        <label className={cn('block', 'mt-3', 'text-sm')}>Auto Delete Posts:</label>
         <select
           className={cn('w-full', 'p-2', 'rounded-md', 'text-black', 'mt-1')}
           value={localWall.auto_delete_minutes ?? 0}
@@ -290,19 +280,17 @@ export default function OptionsModalFanWall({
           }
         >
           <option value={0}>Never (Keep All Posts)</option>
-          {[5, 10, 15, 20, 30, 45, 60].map((min) => (
-            <option key={min} value={min}>
-              {min} Minutes
-            </option>
-          ))}
+          {[5, 10, 15, 20, 30, 45, 60].map(min =>
+            <option key={min} value={min}>{min} Minutes</option>
+          )}
         </select>
 
-        {/* === Gradient Picker === */}
+        {/* Gradient Editor */}
         <div className={cn('mt-6', 'text-center')}>
-          <p className={cn('text-sm', 'font-semibold', 'mb-2')}>🎨 Create Your Own Gradient</p>
+          <p className={cn('text-sm', 'font-semibold', 'mb-2')}>🎨 Custom Gradient</p>
           <div className={cn('flex', 'justify-center', 'gap-4', 'mb-3')}>
             <div>
-              <label className={cn('block', 'text-xs', 'mb-1')}>Start Color</label>
+              <label className={cn('block', 'text-xs', 'mb-1')}>Start</label>
               <input
                 type="color"
                 value={localWall.color_start || '#0d47a1'}
@@ -320,9 +308,8 @@ export default function OptionsModalFanWall({
                 }}
               />
             </div>
-
             <div>
-              <label className={cn('block', 'text-xs', 'mb-1')}>End Color</label>
+              <label className={cn('block', 'text-xs', 'mb-1')}>End</label>
               <input
                 type="color"
                 value={localWall.color_end || '#1976d2'}
@@ -343,21 +330,19 @@ export default function OptionsModalFanWall({
           </div>
         </div>
 
-        {/* === Upload Image === */}
+        {/* Upload */}
         <div className={cn('mt-6', 'text-center')}>
-          <p className={cn('text-sm', 'font-semibold', 'mb-2')}>Upload Custom Background</p>
+          <p className={cn('text-sm', 'font-semibold', 'mb-2')}>Upload Background</p>
           <input type="file" accept="image/jpeg,image/png,image/webp" onChange={handleImageUpload} />
           {uploading && <p className={cn('text-yellow-400', 'text-xs', 'mt-2', 'animate-pulse')}>Uploading…</p>}
         </div>
 
-        {/* === Save & Close === */}
+        {/* Buttons */}
         <div className={cn('text-center', 'mt-5', 'flex', 'justify-center', 'gap-4')}>
           <button
             disabled={saving}
             onClick={handleSave}
-            className={`${
-              saving ? 'bg-gray-500' : 'bg-green-600 hover:bg-green-700'
-            } px-4 py-2 rounded font-semibold`}
+            className={`${saving ? 'bg-gray-500' : 'bg-green-600 hover:bg-green-700'} px-4 py-2 rounded font-semibold`}
           >
             {saving ? 'Saving…' : '💾 Save'}
           </button>

@@ -14,7 +14,8 @@ export default function FanWallPage() {
   const { wallId } = useParams();
   const wallUUID = Array.isArray(wallId) ? wallId[0] : wallId;
 
-  const { wall, posts, loading, showLive, refresh } = useWallData(wallUUID);
+  const { wall, posts, loading, showLive } = useWallData(wallUUID);
+  const channelRef = useRealtimeChannel();
 
   const [cachedWall, setCachedWall] = useState<any>(null);
   const [cachedPosts, setCachedPosts] = useState<any[]>([]);
@@ -29,7 +30,7 @@ export default function FanWallPage() {
   const prevLayout = useRef<string | null>(null);
   const fadeTimeout = useRef<NodeJS.Timeout | null>(null);
 
-  /* Cache wall/posts */
+  /* ✅ Initial load */
   useEffect(() => {
     if (wall) {
       setCachedWall(wall);
@@ -38,7 +39,7 @@ export default function FanWallPage() {
     if (posts?.length) setCachedPosts(posts);
   }, [wall, posts]);
 
-  /* Dynamic background */
+  /* ✅ Background updates */
   useEffect(() => {
     if (!cachedWall) return;
     const value =
@@ -48,71 +49,76 @@ export default function FanWallPage() {
     setBg(value);
   }, [cachedWall?.background_type, cachedWall?.background_value]);
 
-  /* Track layout changes */
+  /* ✅ Layout switch without reload */
   useEffect(() => {
     if (cachedWall?.layout_type && cachedWall?.layout_type !== prevLayout.current) {
       prevLayout.current = cachedWall.layout_type;
-      setLayoutKey((prev) => prev + 1);
+      setLayoutKey(prev => prev + 1);
     }
   }, [cachedWall?.layout_type]);
 
-  /* 🛰️ Standalone realtime listener */
+  /* ✅ Realtime events */
   useEffect(() => {
-    if (!wallUUID) return;
-
-    const channel = supabase.channel('fan_walls-realtime', {
-      config: { broadcast: { self: true, ack: false } },
-    });
+    if (!channelRef?.current || !wallUUID) return;
+    const channel = channelRef.current;
 
     const handleBroadcast = (msg: any) => {
       const { event, payload: data } = msg;
       if (!data?.id || data.id !== wallUUID) return;
 
       switch (event) {
-        case 'wall_status_changed':
-          console.log('⚡ Wall status update:', data.status);
-          setDisplayLive(data.status === 'live');
-          startFade(data.status === 'live');
-          refresh();
+        case "wall_status_changed":
+          setDisplayLive(data.status === "live");
+          startFade(data.status === "live");
           break;
-
-        case 'wall_updated':
-          console.log('⚡ Wall updated via broadcast:', data);
+        case "wall_updated":
           setCachedWall(prev => ({ ...(prev || {}), ...data }));
-          refresh();
           break;
-
-        case 'countdown_finished':
-          console.log('🚀 Countdown finished, wall live');
+        case "countdown_finished":
           setDisplayLive(true);
           startFade(true);
-          refresh();
-          break;
-
-        default:
           break;
       }
     };
 
-    channel.on('broadcast', {}, handleBroadcast);
+    channel.on("broadcast", {}, handleBroadcast);
+    return () => channel.on("broadcast", {}, () => {});
+  }, [channelRef, wallUUID]);
 
-    channel.subscribe((status: string) => {
-      if (status === 'SUBSCRIBED') {
-        console.log('✅ Public wall subscribed to realtime:', wallUUID);
-        refresh();
+  /* ✅ Polling fallback + title/bg/layout sync */
+  useEffect(() => {
+    if (!wallUUID) return;
+
+    let interval: NodeJS.Timeout;
+    let lastUpdated = cachedWall?.updated_at;
+
+    async function pollWallState() {
+      const { data } = await supabase
+        .from('fan_walls')
+        .select('*')
+        .eq('id', wallUUID)
+        .maybeSingle();
+
+      if (!data) return;
+
+      // update ANY wall changes (title, layout, bg, status)
+      if (lastUpdated !== data.updated_at) {
+        lastUpdated = data.updated_at;
+        setCachedWall(prev => ({ ...(prev || {}), ...data }));
+
+        const shouldBeLive = data.status === 'live';
+        setDisplayLive(prev => {
+          if (prev !== shouldBeLive) startFade(shouldBeLive);
+          return shouldBeLive;
+        });
       }
-    });
+    }
 
-    return () => {
-      try {
-        channel.unsubscribe();
-      } catch (err) {
-        console.warn('🧹 Channel cleanup failed:', err);
-      }
-    };
-  }, [wallUUID, refresh]);
+    interval = setInterval(pollWallState, 1000); // ✅ 1 second
+    return () => clearInterval(interval);
+  }, [wallUUID, cachedWall?.updated_at]);
 
-  /* Fade transitions */
+  /* ✅ Fade sync */
   useEffect(() => {
     if (showLive !== displayLive) startFade(showLive);
   }, [showLive]);
@@ -137,33 +143,32 @@ export default function FanWallPage() {
     }
   }
 
-  /* Early returns */
   if (loading && !ready)
     return <p className={cn('text-white text-center mt-20 animate-pulse')}>Loading Wall…</p>;
+
   if (!cachedWall)
     return <p className={cn('text-white text-center mt-20')}>Wall not found.</p>;
 
-  /* Layout selector */
-  const renderActiveWall = () => {
-    const layout = cachedWall.layout_type;
-    switch (layout) {
-      case 'Grid 2x2':
-      case '2x2':
-      case '2x2 Grid':
-        return <Grid2x2Wall key={layoutKey} event={cachedWall} posts={cachedPosts} />;
-      case 'Grid 4x2':
-      case '4x2':
-      case '4x2 Grid':
-        return <Grid4x2Wall key={layoutKey} event={cachedWall} posts={cachedPosts} />;
-      default:
-        return <SingleHighlightWall key={layoutKey} event={cachedWall} posts={cachedPosts} />;
-    }
-  };
+const renderActiveWall = () => {
+  const layout = cachedWall.layout_type;
+  const bgValue = cachedWall.background_value;
 
-  /* Render */
+  switch (layout) {
+    case 'Grid 2x2':
+    case '2x2':
+    case '2x2 Grid':
+      return <Grid2x2Wall key={layoutKey} event={cachedWall} posts={cachedPosts} background={bgValue} />;
+    case 'Grid 4x2':
+    case '4x2':
+    case '4x2 Grid':
+      return <Grid4x2Wall key={layoutKey} event={cachedWall} posts={cachedPosts} background={bgValue} />;
+    default:
+      return <SingleHighlightWall key={layoutKey} event={cachedWall} posts={cachedPosts} background={bgValue} />;
+  }
+};
+
   return (
     <div
-      className="fade-wrapper"
       style={{
         position: 'relative',
         width: '100%',
@@ -173,7 +178,6 @@ export default function FanWallPage() {
         transition: 'background 0.6s ease-in-out',
       }}
     >
-      {/* 💤 Inactive Wall */}
       <div
         style={{
           position: 'absolute',
@@ -186,7 +190,6 @@ export default function FanWallPage() {
         <InactiveWall wall={cachedWall} />
       </div>
 
-      {/* 🚀 Live Wall */}
       <div
         style={{
           position: 'absolute',

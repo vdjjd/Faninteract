@@ -3,45 +3,49 @@
 import { createContext, useContext, useEffect, useRef } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 
-/**
- * 🛰 Shared realtime channel provider
- * Creates ONE persistent Supabase broadcast channel for the whole app.
- * All components can reuse this without creating duplicate websocket connections.
- */
+const SupabaseRealtimeContext = createContext<any>(null);
 
-type RealtimeContextType = React.MutableRefObject<any> | null;
-const RealtimeContext = createContext<RealtimeContextType>(null);
-
-export function useRealtimeChannel() {
-  return useContext(RealtimeContext);
-}
+// ✅ Global singleton channel (survives StrictMode)
+let globalChannel: any = null;
 
 export function SupabaseRealtimeProvider({ children }: { children: React.ReactNode }) {
   const channelRef = useRef<any>(null);
 
   useEffect(() => {
-    // ✅ Single global channel name for the entire app
-    const channel = supabase.channel('fan_walls-realtime', {
-      config: { broadcast: { self: true, ack: false } },
-    });
+    if (channelRef.current) return; // already set
 
-    channel.subscribe((status) => {
-      if (status === 'SUBSCRIBED') {
-        console.log('✅ Global realtime channel ready');
-      }
-    });
+    if (!globalChannel) {
+      console.log("🛰 Creating global realtime channel...");
 
-    channelRef.current = channel;
+      globalChannel = supabase.channel("fan_walls-realtime", {
+        config: { broadcast: { self: false, ack: false } },
+      });
 
-    return () => {
-      console.log('🧹 Cleaning up global realtime channel');
-      supabase.removeChannel(channel);
-    };
+      // ✅ Monitor connection
+      globalChannel.subscribe((status: string) => {
+        console.log("🔔 Channel status:", status);
+      });
+    }
+
+    channelRef.current = globalChannel;
+
+    // ❌ No cleanup in dev — StrictMode double-mounts!
+    if (process.env.NODE_ENV === "production") {
+      return () => {
+        console.log("🧹 Closing channel (prod only)");
+        supabase.removeChannel(globalChannel);
+        globalChannel = null;
+      };
+    }
   }, []);
 
   return (
-    <RealtimeContext.Provider value={channelRef}>
+    <SupabaseRealtimeContext.Provider value={channelRef}>
       {children}
-    </RealtimeContext.Provider>
+    </SupabaseRealtimeContext.Provider>
   );
+}
+
+export function useRealtimeChannel() {
+  return useContext(SupabaseRealtimeContext);
 }

@@ -51,9 +51,11 @@ const speedMap: Record<string, number> = {
 export default function SingleHighlightWall({
   event,
   posts,
+  background,
 }: {
   event?: any;
   posts?: any[];
+  background?: string;
 }) {
   const channelRef = useRealtimeChannel();
 
