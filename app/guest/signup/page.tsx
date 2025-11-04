@@ -59,13 +59,11 @@ function GuestSignupPage() {
 
     const device_id = localStorage.getItem('guest_device_id');
     if (!device_id) return setError('No device ID. Refresh and try again.');
-
     if (!supabase) return setError('Supabase client unavailable.');
 
     setSubmitting(true);
 
     try {
-      // 🧩 check for existing profile
       const { data: existing, error: findError } = await supabase
         .from('guest_profiles')
         .select('*')
@@ -93,7 +91,6 @@ function GuestSignupPage() {
         profile = data;
       }
 
-      // 💾 cache locally
       localStorage.setItem(
         'guestInfo',
         JSON.stringify({
@@ -247,3 +244,4 @@ export default function SignupPageWrapper() {
 
 /* ✅ Prevent prerender (runtime-only Supabase) */
 export const dynamic = 'force-dynamic';
+export const fetchCache = 'force-no-store';
