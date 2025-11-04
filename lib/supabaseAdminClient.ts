@@ -2,8 +2,9 @@
 
 import { createClient } from '@supabase/supabase-js';
 
+// ⚠️ TEMPORARY HARD-CODE FOR TROUBLESHOOTING ONLY
 const supabaseUrl = 'https://abwfofjwwcggkfgqtzsk.supabase.co';
-const secretKey = sb_secret_2tD1Tk2KxVPE-N_P_gWSPQ_KXdmjKYl;
+const secretKey = 'sb_secret_2tD1Tk2KxVPE-N_P_gWSPQ_KXdmjKYl'; // <-- wrapped in quotes
 
 if (!supabaseUrl || !secretKey) {
   throw new Error(
