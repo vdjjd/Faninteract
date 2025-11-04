@@ -21,7 +21,6 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      // 🔍 Step 1: Resolve username/email and find account type
       const resolveRes = await fetch('/api/resolve-username', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -41,14 +40,12 @@ export default function LoginPage() {
         throw new Error('No matching account found.');
       }
 
-      // 🔐 Step 2: Authenticate with Supabase
       const { error: signInError } = await supabase.auth.signInWithPassword({
         email: resolveData.email,
         password: form.password,
       });
       if (signInError) throw signInError;
 
-      // 🚀 Step 3: Redirect based on account type
       if (resolveData.type === 'master') {
         router.push('/admin/master-dashboard');
       } else {
@@ -64,9 +61,9 @@ export default function LoginPage() {
 
   return (
     <div style={pageStyle}>
-      <form onSubmit={handleLogin} style={formStyle}>
-        <h2 style={titleStyle}>Login</h2>
+      <h1 style={titleStyle}>Login</h1>
 
+      <form onSubmit={handleLogin} style={formStyle}>
         <input
           type="text"
           name="usernameOrEmail"
@@ -76,6 +73,7 @@ export default function LoginPage() {
           style={inputStyle}
           required
         />
+
         <input
           type="password"
           name="password"
@@ -87,60 +85,59 @@ export default function LoginPage() {
         />
 
         <button disabled={loading} style={buttonStyle}>
-          {loading ? 'Signing In...' : 'Login'}
+          {loading ? 'Signing In…' : 'Login'}
         </button>
 
-        {error && (
-          <p style={{ color: 'salmon', marginTop: '10px', textAlign: 'center' }}>
-            {error}
-          </p>
-        )}
+        {error && <p style={errorStyle}>{error}</p>}
       </form>
     </div>
   );
 }
 
-/* ---------- Styles ---------- */
-const pageStyle = {
+/* ---------- Styles (matching signup page) ---------- */
+const pageStyle: React.CSSProperties = {
   display: 'flex',
-  justifyContent: 'center',
+  flexDirection: 'column',
   alignItems: 'center',
+  justifyContent: 'center',
   minHeight: '100vh',
   background: 'linear-gradient(135deg,#0a2540,#1b2b44,#000000)',
   color: 'white',
 };
 
-const formStyle = {
-  background: 'rgba(0,0,0,0.7)',
-  padding: '40px 30px',
-  borderRadius: 12,
-  width: 340,
+const titleStyle: React.CSSProperties = {
+  fontSize: '2rem',
+  fontWeight: 700,
+  marginBottom: '20px',
+};
+
+const formStyle: React.CSSProperties = {
   display: 'flex',
   flexDirection: 'column',
   gap: '12px',
+  width: '320px',
 };
 
-const titleStyle = {
-  fontWeight: 700,
-  fontSize: '1.4rem',
-  textAlign: 'center' as const,
-  marginBottom: 10,
-};
-
-const inputStyle = {
+const inputStyle: React.CSSProperties = {
   padding: '10px',
-  borderRadius: 8,
+  borderRadius: '8px',
   border: '1px solid #333',
-  background: 'rgba(255,255,255,0.1)',
+  backgroundColor: '#1a1a1a',
   color: 'white',
 };
 
-const buttonStyle = {
+const buttonStyle: React.CSSProperties = {
   padding: '10px',
-  borderRadius: 8,
-  backgroundColor: '#1e90ff',
+  borderRadius: '8px',
   border: 'none',
+  backgroundColor: '#1e90ff',
   color: 'white',
   fontWeight: 600,
   cursor: 'pointer',
+};
+
+const errorStyle: React.CSSProperties = {
+  color: 'salmon',
+  textAlign: 'center',
+  marginTop: '8px',
 };
