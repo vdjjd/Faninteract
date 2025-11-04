@@ -21,34 +21,39 @@ export default function FanWallGrid({
   const [pendingCounts, setPendingCounts] = useState<Record<string, number>>({});
   const [channelReady, setChannelReady] = useState(false);
   const broadcastRef = useRef<any>(null);
+  const refreshTimeout = useRef<NodeJS.Timeout | null>(null);
 
-  /* ✅ GLOBAL BROADCAST CHANNEL (TypeScript-safe cleanup) */
+  /* ✅ UNIQUE GLOBAL CHANNEL PER HOST */
   useEffect(() => {
-    const channel = supabase.channel('global-fan-walls', {
-  config: { broadcast: { self: true, ack: true } },
-});
+    if (!host?.id) return;
+
+    const channelName = `global-fan-walls-${host.id}`;
+    const channel = supabase.channel(channelName, {
+      config: { broadcast: { self: true, ack: true } },
+    });
 
     channel.subscribe((status) => {
       if (status === 'SUBSCRIBED') {
-        console.log('✅ Joined global-fan-walls realtime channel');
+        console.log(`✅ Joined ${channelName}`);
         setChannelReady(true);
       }
     });
 
     broadcastRef.current = channel;
 
-    // ✅ Cleanup (non-async, no await)
     return () => {
       supabase.removeChannel(channel);
-      console.log('❌ Left global-fan-walls realtime channel');
+      console.log(`❌ Left ${channelName}`);
+      setChannelReady(false);
     };
-  }, []);
+  }, [host?.id]);
 
+  /* 🛰️ Safe broadcast */
   async function safeBroadcast(event: string, data: any) {
     if (!channelReady || !broadcastRef.current) return;
     try {
       await broadcastRef.current.send({ type: 'broadcast', event, payload: data });
-      console.log(`📡 Broadcast sent [${event}]`, data);
+      console.log(`📡 Broadcast [${event}]`, data);
     } catch (err) {
       console.error(`❌ Broadcast error [${event}]`, err);
     }
@@ -78,7 +83,7 @@ export default function FanWallGrid({
       if (error) throw error;
 
       if (current?.countdown && current.countdown !== 'none') {
-        // 🕒 Countdown mode — do NOT set status inactive
+        // 🕒 Countdown mode
         await supabase
           .from('fan_walls')
           .update({
@@ -88,10 +93,7 @@ export default function FanWallGrid({
           .eq('id', id);
 
         await safeBroadcast('wall_updated', { id, countdown_active: true });
-        console.log('📡 Countdown started for', id);
 
-        // Automatically mark live when countdown ends (client-side timer simulation)
-        // Use approximate duration derived from label
         const durationMs = parseCountdownDuration(current.countdown);
         setTimeout(async () => {
           await supabase
@@ -106,7 +108,7 @@ export default function FanWallGrid({
           await safeBroadcast('countdown_finished', { id, status: 'live' });
           await safeBroadcast('wall_status_changed', { id, status: 'live' });
           console.log('✅ Countdown finished → wall live', id);
-          await refreshFanWalls();
+          delayedRefresh();
         }, durationMs);
       } else {
         // 🚀 Instant live
@@ -121,13 +123,13 @@ export default function FanWallGrid({
         await safeBroadcast('wall_status_changed', { id, status: 'live' });
       }
 
-      await refreshFanWalls();
+      delayedRefresh();
     } catch (err) {
       console.error('❌ Error starting wall:', err);
     }
   }
 
-  // Helper to convert countdown string to ms
+  // Convert countdown label → milliseconds
   function parseCountdownDuration(label: string): number {
     const num = parseInt(label);
     if (label.includes('Second')) return num * 1000;
@@ -146,10 +148,9 @@ export default function FanWallGrid({
           updated_at: new Date().toISOString(),
         })
         .eq('id', id);
-      await safeBroadcast('wall_updated', { id, countdown_active: false });
       await safeBroadcast('wall_status_changed', { id, status: 'inactive' });
       console.log('🛑 Wall stopped', id);
-      await refreshFanWalls();
+      delayedRefresh();
     } catch (err) {
       console.error('❌ Error stopping wall:', err);
     }
@@ -158,14 +159,14 @@ export default function FanWallGrid({
   /* 🧹 Clear posts */
   async function handleClear(id: string) {
     await clearFanWallPosts(id);
-    await refreshFanWalls();
+    delayedRefresh();
   }
 
   /* ❌ Delete wall */
   async function handleDelete(id: string) {
     await deleteFanWall(id);
     await safeBroadcast('wall_status_changed', { id, status: 'deleted' });
-    await refreshFanWalls();
+    delayedRefresh();
   }
 
   /* 🧩 Moderation popup */
@@ -183,47 +184,59 @@ export default function FanWallGrid({
     const checkPopup = setInterval(() => {
       if (popup?.closed) {
         clearInterval(checkPopup);
-        refreshFanWalls();
+        delayedRefresh();
       }
     }, 1000);
   }
 
-  /* 🟡 Pending counts */
-useEffect(() => {
-  const fetchPendingCounts = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('guest_posts')
-        .select('fan_wall_id')
-        .eq('status', 'pending');
-      if (error) throw error;
+  /* 🕓 Throttled refresh (prevents lag spikes) */
+  function delayedRefresh() {
+    if (refreshTimeout.current) clearTimeout(refreshTimeout.current);
+    refreshTimeout.current = setTimeout(refreshFanWalls, 800);
+  }
 
-      const counts: Record<string, number> = {};
-      (data || []).forEach((p: any) => {
-        counts[p.fan_wall_id] = (counts[p.fan_wall_id] || 0) + 1;
-      });
-      setPendingCounts(counts);
-    } catch (err) {
-      console.error('❌ Error loading pending counts:', err);
-    }
-  };
+  /* 🟡 Pending counts — throttled */
+  useEffect(() => {
+    let lastUpdate = 0;
 
-  fetchPendingCounts();
+    const fetchPendingCounts = async () => {
+      const now = Date.now();
+      if (now - lastUpdate < 3000) return; // throttle every 3s
+      lastUpdate = now;
 
-  const channel = supabase
-    .channel('guest_posts-pending')
-    .on(
-      'postgres_changes',
-      { event: '*', schema: 'public', table: 'guest_posts' },
-      fetchPendingCounts
-    )
-    .subscribe();
+      try {
+        const { data, error } = await supabase
+          .from('guest_posts')
+          .select('fan_wall_id')
+          .eq('status', 'pending');
+        if (error) throw error;
 
-  return () => {
-    supabase.removeChannel(channel);
-    console.log('❌ Left guest_posts-pending channel');
-  };
-}, [walls]);
+        const counts: Record<string, number> = {};
+        (data || []).forEach((p: any) => {
+          counts[p.fan_wall_id] = (counts[p.fan_wall_id] || 0) + 1;
+        });
+        setPendingCounts(counts);
+      } catch (err) {
+        console.error('❌ Error loading pending counts:', err);
+      }
+    };
+
+    fetchPendingCounts();
+
+    const channel = supabase
+      .channel('guest_posts-pending')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'guest_posts' },
+        fetchPendingCounts
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+      console.log('❌ Left guest_posts-pending channel');
+    };
+  }, [walls]);
 
   /* 🖼️ Render grid */
   return (
@@ -297,23 +310,27 @@ useEffect(() => {
               </div>
             </div>
 
-            <div className={cn('flex', 'flex-wrap', 'justify-center', 'gap-2', 'mt-auto', 'pt-2', 'border-t', 'border-white/10')}>
-              <button onClick={() => handleLaunch(wall.id)} className={cn('bg-blue-600', 'hover:bg-blue-700', 'px-2', 'py-1', 'rounded', 'text-sm', 'font-semibold')}>
+            <div
+              className={cn(
+                'flex flex-wrap justify-center gap-2 mt-auto pt-2 border-t border-white/10'
+              )}
+            >
+              <button onClick={() => handleLaunch(wall.id)} className={cn('bg-blue-600 hover:bg-blue-700 px-2 py-1 rounded text-sm font-semibold')}>
                 🚀 Launch
               </button>
-              <button onClick={() => handleStart(wall.id)} className={cn('bg-green-600', 'hover:bg-green-700', 'px-2', 'py-1', 'rounded', 'text-sm', 'font-semibold')}>
+              <button onClick={() => handleStart(wall.id)} className={cn('bg-green-600 hover:bg-green-700 px-2 py-1 rounded text-sm font-semibold')}>
                 ▶️ Play
               </button>
-              <button onClick={() => handleStop(wall.id)} className={cn('bg-red-600', 'hover:bg-red-700', 'px-2', 'py-1', 'rounded', 'text-sm', 'font-semibold')}>
+              <button onClick={() => handleStop(wall.id)} className={cn('bg-red-600 hover:bg-red-700 px-2 py-1 rounded text-sm font-semibold')}>
                 ⏹ Stop
               </button>
-              <button onClick={() => handleClear(wall.id)} className={cn('bg-cyan-500', 'hover:bg-cyan-600', 'px-2', 'py-1', 'rounded', 'text-sm', 'font-semibold')}>
+              <button onClick={() => handleClear(wall.id)} className={cn('bg-cyan-500 hover:bg-cyan-600 px-2 py-1 rounded text-sm font-semibold')}>
                 🧹 Clear
               </button>
-              <button onClick={() => onOpenOptions(wall)} className={cn('bg-indigo-500', 'hover:bg-indigo-600', 'px-2', 'py-1', 'rounded', 'text-sm', 'font-semibold')}>
+              <button onClick={() => onOpenOptions(wall)} className={cn('bg-indigo-500 hover:bg-indigo-600 px-2 py-1 rounded text-sm font-semibold')}>
                 ⚙ Options
               </button>
-              <button onClick={() => handleDelete(wall.id)} className={cn('bg-red-700', 'hover:bg-red-800', 'px-2', 'py-1', 'rounded', 'text-sm', 'font-semibold')}>
+              <button onClick={() => handleDelete(wall.id)} className={cn('bg-red-700 hover:bg-red-800 px-2 py-1 rounded text-sm font-semibold')}>
                 ❌ Delete
               </button>
             </div>
