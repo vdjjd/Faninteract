@@ -1,32 +1,41 @@
+// lib/supabaseClient.ts
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
+let _supabase: SupabaseClient | null = null; // ✅ must be let, not const
+
 /**
- * Safely creates a Supabase public client.
- * Does NOT crash builds or client-side rendering if env vars are missing.
+ * ✅ Always returns a SINGLE shared Supabase client.
+ * Prevents multiple GoTrueClient instances and SSR/client duplication.
  */
-export function getSupabaseClient(): SupabaseClient | null {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+export function getSupabaseClient(): SupabaseClient {
+  if (_supabase) return _supabase;
 
-  if (!url || !anon) {
-    console.warn('⚠️ Supabase public environment variables are missing.');
-    return null; // <-- no crash, just safe fallback
-  }
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+  const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
-  return createClient(url, anon, {
+  _supabase = createClient(url, anon, {
     auth: {
       persistSession: true,
       autoRefreshToken: true,
       detectSessionInUrl: true,
+      storageKey: 'faninteract-auth-token',
+    },
+    realtime: {
+      params: { eventsPerSecond: 3 },
     },
   });
+
+  // ✅ cache globally in browser (helps during hot reload)
+  if (typeof window !== 'undefined') {
+    (window as any)._supabase = _supabase;
+  }
+
+  return _supabase;
 }
 
-/**
- * Default export for convenience (runtime safe)
- */
-export const supabase =
-  getSupabaseClient() ||
-  createClient('https://placeholder.supabase.co', 'public-anon-key-placeholder');
+/* ✅ Exports for backward compatibility and imports elsewhere */
+export const supabaseClient = getSupabaseClient();
+export const supabase = supabaseClient; // <- keeps old imports working
 
-export default supabase;
+export default supabaseClient;
+

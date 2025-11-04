@@ -1,36 +1,35 @@
 'use client';
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams } from 'next/navigation';
+import { supabase } from '@/lib/supabaseClient';
 import { useWallData } from '@/app/wall/hooks/useWallData';
 import InactiveWall from '@/app/wall/components/wall/InactiveWall';
 import SingleHighlightWall from '@/app/wall/components/wall/layouts/SingleHighlightWall';
 import Grid2x2Wall from '@/app/wall/components/wall/layouts/Grid2x2Wall';
 import Grid4x2Wall from '@/app/wall/components/wall/layouts/Grid4x2Wall';
+import { useRealtimeChannel } from '@/providers/SupabaseRealtimeProvider';
 import { cn } from '../../../lib/utils';
 
 export default function FanWallPage() {
   const { wallId } = useParams();
   const wallUUID = Array.isArray(wallId) ? wallId[0] : wallId;
 
-  // ✅ Hook pulls wall + posts
-  const { wall, posts, loading, showLive } = useWallData(wallUUID);
+  const { wall, posts, loading, showLive, refresh } = useWallData(wallUUID);
 
-  // ✅ Local cache for faster UI
   const [cachedWall, setCachedWall] = useState<any>(null);
   const [cachedPosts, setCachedPosts] = useState<any[]>([]);
   const [displayLive, setDisplayLive] = useState(showLive);
   const [opacityLive, setOpacityLive] = useState(showLive ? 1 : 0);
   const [opacityInactive, setOpacityInactive] = useState(showLive ? 0 : 1);
   const [bg, setBg] = useState('linear-gradient(to bottom right,#1b2735,#090a0f)');
-  const [timeLeft, setTimeLeft] = useState<number | null>(null);
-  const [countdownRunning, setCountdownRunning] = useState(false);
-  const [layoutKey, setLayoutKey] = useState(0);
   const [ready, setReady] = useState(false);
+  const [layoutKey, setLayoutKey] = useState(0);
 
-  const FADE_DURATION = 1000;
+  const FADE_DURATION = 900;
   const prevLayout = useRef<string | null>(null);
+  const fadeTimeout = useRef<NodeJS.Timeout | null>(null);
 
-  /* ⚙️ Cache + ready flag */
+  /* Cache wall/posts */
   useEffect(() => {
     if (wall) {
       setCachedWall(wall);
@@ -39,86 +38,112 @@ export default function FanWallPage() {
     if (posts?.length) setCachedPosts(posts);
   }, [wall, posts]);
 
-  /* 🎨 Background reactive update */
+  /* Dynamic background */
   useEffect(() => {
-    if (!wall) return;
-    const newBg =
-      wall.background_type === 'image' && wall.background_value
-        ? `url(${wall.background_value}) center/cover no-repeat`
-        : wall.background_value || 'linear-gradient(to bottom right,#1b2735,#090a0f)';
-    setBg(newBg);
-  }, [wall?.background_type, wall?.background_value]);
+    if (!cachedWall) return;
+    const value =
+      cachedWall.background_type === 'image'
+        ? `url(${cachedWall.background_value}) center/cover no-repeat`
+        : cachedWall.background_value || 'linear-gradient(to bottom right,#1b2735,#090a0f)';
+    setBg(value);
+  }, [cachedWall?.background_type, cachedWall?.background_value]);
 
-  /* 🔄 Layout change re-render (only if layout actually changes) */
+  /* Track layout changes */
   useEffect(() => {
-    if (wall?.layout_type && wall?.layout_type !== prevLayout.current) {
-      prevLayout.current = wall.layout_type;
+    if (cachedWall?.layout_type && cachedWall?.layout_type !== prevLayout.current) {
+      prevLayout.current = cachedWall.layout_type;
       setLayoutKey((prev) => prev + 1);
     }
-  }, [wall?.layout_type]);
+  }, [cachedWall?.layout_type]);
 
-  /* ⏳ Countdown setup */
+  /* 🛰️ Standalone realtime listener */
   useEffect(() => {
-    if (!wall?.countdown || wall.countdown === 'none') {
-      setTimeLeft(null);
-      setCountdownRunning(false);
-      return;
-    }
+    if (!wallUUID) return;
 
-    const num = parseInt(wall.countdown.split(' ')[0]);
-    const secs = wall.countdown.toLowerCase().includes('second');
-    const totalSeconds = secs ? num : num * 60;
-    setTimeLeft(totalSeconds);
-    setCountdownRunning(!!wall.countdown_active);
-  }, [wall?.countdown, wall?.countdown_active]);
+    const channel = supabase.channel('fan_walls-realtime', {
+      config: { broadcast: { self: true, ack: false } },
+    });
 
-  /* ⏱️ Countdown fade */
+    const handleBroadcast = (msg: any) => {
+      const { event, payload: data } = msg;
+      if (!data?.id || data.id !== wallUUID) return;
+
+      switch (event) {
+        case 'wall_status_changed':
+          console.log('⚡ Wall status update:', data.status);
+          setDisplayLive(data.status === 'live');
+          startFade(data.status === 'live');
+          refresh();
+          break;
+
+        case 'wall_updated':
+          console.log('⚡ Wall updated via broadcast:', data);
+          setCachedWall(prev => ({ ...(prev || {}), ...data }));
+          refresh();
+          break;
+
+        case 'countdown_finished':
+          console.log('🚀 Countdown finished, wall live');
+          setDisplayLive(true);
+          startFade(true);
+          refresh();
+          break;
+
+        default:
+          break;
+      }
+    };
+
+    channel.on('broadcast', {}, handleBroadcast);
+
+    channel.subscribe((status: string) => {
+      if (status === 'SUBSCRIBED') {
+        console.log('✅ Public wall subscribed to realtime:', wallUUID);
+        refresh();
+      }
+    });
+
+    return () => {
+      try {
+        channel.unsubscribe();
+      } catch (err) {
+        console.warn('🧹 Channel cleanup failed:', err);
+      }
+    };
+  }, [wallUUID, refresh]);
+
+  /* Fade transitions */
   useEffect(() => {
-    if (!countdownRunning || timeLeft === null) return;
-    if (timeLeft <= 0) {
-      setCountdownRunning(false);
-      startFade(true);
-      return;
-    }
-    const interval = setInterval(() => {
-      setTimeLeft((t) => (t && t > 0 ? t - 1 : 0));
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [countdownRunning, timeLeft]);
-
-  /* 🎬 Fade manager for play/stop */
-  useEffect(() => {
-    if (showLive === displayLive) return;
-    startFade(showLive);
+    if (showLive !== displayLive) startFade(showLive);
   }, [showLive]);
 
   function startFade(toLive: boolean) {
+    if (fadeTimeout.current) clearTimeout(fadeTimeout.current);
+
     if (toLive) {
       setOpacityInactive(1);
       requestAnimationFrame(() => {
         setOpacityLive(1);
         setOpacityInactive(0);
       });
-      const timer = setTimeout(() => setDisplayLive(true), FADE_DURATION);
-      return () => clearTimeout(timer);
+      fadeTimeout.current = setTimeout(() => setDisplayLive(true), FADE_DURATION);
     } else {
       setOpacityLive(1);
       requestAnimationFrame(() => {
         setOpacityLive(0);
         setOpacityInactive(1);
       });
-      const timer = setTimeout(() => setDisplayLive(false), FADE_DURATION);
-      return () => clearTimeout(timer);
+      fadeTimeout.current = setTimeout(() => setDisplayLive(false), FADE_DURATION);
     }
   }
 
-  /* 🧱 Early returns */
-  if (!ready)
-    return <p className={cn('text-white', 'text-center', 'mt-20 animate-pulse')}>Loading Wall…</p>;
+  /* Early returns */
+  if (loading && !ready)
+    return <p className={cn('text-white text-center mt-20 animate-pulse')}>Loading Wall…</p>;
   if (!cachedWall)
-    return <p className={cn('text-white', 'text-center', 'mt-20')}>Wall not found.</p>;
+    return <p className={cn('text-white text-center mt-20')}>Wall not found.</p>;
 
-  /* 🎛 Layout selector */
+  /* Layout selector */
   const renderActiveWall = () => {
     const layout = cachedWall.layout_type;
     switch (layout) {
@@ -135,7 +160,7 @@ export default function FanWallPage() {
     }
   };
 
-  /* 🧭 Render wrapper with fade */
+  /* Render */
   return (
     <div
       className="fade-wrapper"
@@ -150,12 +175,9 @@ export default function FanWallPage() {
     >
       {/* 💤 Inactive Wall */}
       <div
-        className="fade-layer"
         style={{
           position: 'absolute',
           inset: 0,
-          width: '100%',
-          height: '100%',
           opacity: opacityInactive,
           zIndex: opacityInactive > opacityLive ? 2 : 1,
           transition: `opacity ${FADE_DURATION}ms ease-in-out`,
@@ -164,14 +186,11 @@ export default function FanWallPage() {
         <InactiveWall wall={cachedWall} />
       </div>
 
-      {/* 🚀 Active Wall */}
+      {/* 🚀 Live Wall */}
       <div
-        className="fade-layer"
         style={{
           position: 'absolute',
           inset: 0,
-          width: '100%',
-          height: '100%',
           opacity: opacityLive,
           zIndex: opacityLive > opacityInactive ? 2 : 1,
           transition: `opacity ${FADE_DURATION}ms ease-in-out`,
@@ -182,4 +201,3 @@ export default function FanWallPage() {
     </div>
   );
 }
-

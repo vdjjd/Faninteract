@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { getSupabaseClient } from '@/lib/supabaseClient'; // ✅ use runtime getter
+import { getSupabaseClient } from '@/lib/supabaseClient';
 import { getFanWallsByHost } from '@/lib/actions/fan_walls';
 
 import DashboardHeader from './components/DashboardHeader';
@@ -12,7 +12,7 @@ import HostProfilePanel from '@/components/HostProfilePanel';
 import { cn } from '@/lib/utils';
 
 export default function DashboardPage() {
-  const supabase = getSupabaseClient(); // ✅ safely created at runtime
+  const supabase = getSupabaseClient();
 
   const [host, setHost] = useState<any>(null);
   const [fanWalls, setFanWalls] = useState<any[]>([]);
@@ -94,7 +94,7 @@ export default function DashboardPage() {
   };
 
   /* ---------------------------------------------------------------------- */
-  /* 📡 Realtime wall status listener                                      */
+  /* 📡 Realtime wall status listener (fixed)                              */
   /* ---------------------------------------------------------------------- */
   useEffect(() => {
     if (!supabase || !host?.id) return;
@@ -105,20 +105,28 @@ export default function DashboardPage() {
         const { id, status } = payload?.payload || {};
         if (!id) return;
 
-        console.log('📡 Realtime wall update:', id, status);
+        // 🛑 Prevent infinite refreshes and loops
+        if (status === 'deleted') {
+          console.log('🗑️ Removing deleted wall:', id);
+          setFanWalls((prev) => prev.filter((w) => w.id !== id));
+          return;
+        }
 
+        console.log('📡 Realtime wall update:', id, status);
         setFanWalls((prev) =>
           prev.map((w) => (w.id === id ? { ...w, status } : w))
         );
-
-        refreshFanWalls();
       })
-      .subscribe();
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED')
+          console.log('✅ Subscribed to global-fan-walls');
+      });
 
     return () => {
+      console.log('🧹 Unsubscribing from global-fan-walls');
       supabase.removeChannel(channel);
     };
-  }, [host, supabase]);
+  }, [host?.id, supabase]);
 
   /* ---------------------------------------------------------------------- */
   /* 🕓 Loading State                                                      */

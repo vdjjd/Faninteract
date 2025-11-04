@@ -4,7 +4,7 @@ import { useEffect, useState, useRef } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { clearFanWallPosts, deleteFanWall } from '@/lib/actions/fan_walls';
 import { cn } from '../../../../lib/utils';
-
+import { useRealtimeChannel } from '@/providers/SupabaseRealtimeProvider';
 interface FanWallGridProps {
   walls: any[] | undefined;
   host: any;
@@ -18,44 +18,25 @@ export default function FanWallGrid({
   refreshFanWalls,
   onOpenOptions,
 }: FanWallGridProps) {
+  const channelRef = useRealtimeChannel();
   const [pendingCounts, setPendingCounts] = useState<Record<string, number>>({});
   const [localWalls, setLocalWalls] = useState<any[]>(walls || []);
-  const broadcastRef = useRef<any>(null);
   const refreshTimeout = useRef<NodeJS.Timeout | null>(null);
   const debounceBroadcast = useRef<NodeJS.Timeout | null>(null);
 
-  // ✅ Keep local state synced with prop
+  /* ✅ Keep local state synced with prop */
   useEffect(() => {
     setLocalWalls(walls || []);
   }, [walls]);
 
-  /* ✅ SINGLE GLOBAL CHANNEL PER HOST */
-  useEffect(() => {
-    if (!host?.id) return;
-
-    const channelName = `global-fan-walls-${host.id}`;
-    const channel = supabase.channel(channelName, {
-      config: { broadcast: { self: true, ack: false } },
-    });
-
-    broadcastRef.current = channel;
-    channel.subscribe((status) => {
-      if (status === 'SUBSCRIBED') console.log(`✅ Joined ${channelName}`);
-    });
-
-    return () => {
-      supabase.removeChannel(channel);
-      console.log(`❌ Left ${channelName}`);
-    };
-  }, [host?.id]);
-
-  /* 🛰️ Non-blocking broadcast */
+  /* 🛰️ Shared broadcast helper using provider channel */
   function safeBroadcast(event: string, data: any) {
-    if (!broadcastRef.current) return;
+    const channel = channelRef?.current;
+    if (!channel) return;
     if (debounceBroadcast.current) clearTimeout(debounceBroadcast.current);
     debounceBroadcast.current = setTimeout(() => {
-      broadcastRef.current.send({ type: 'broadcast', event, payload: data }).catch(console.error);
-    }, 200);
+      channel.send({ type: 'broadcast', event, payload: data }).catch(console.error);
+    }, 120);
   }
 
   const updateLocalWall = (id: string, updates: any) => {
@@ -72,15 +53,10 @@ export default function FanWallGrid({
   /* ▶️ Start wall */
   async function handleStart(id: string) {
     updateLocalWall(id, { status: 'live', countdown_active: false });
-    setTimeout(() => safeBroadcast('wall_status_changed', { id, status: 'live' }), 200);
-
+    safeBroadcast('wall_status_changed', { id, status: 'live' });
 
     try {
-      const { data: current } = await supabase
-        .from('fan_walls')
-        .select('countdown')
-        .eq('id', id)
-        .single();
+      const { data: current } = await supabase.from('fan_walls').select('countdown').eq('id', id).single();
 
       if (current?.countdown && current.countdown !== 'none') {
         updateLocalWall(id, { countdown_active: true });
@@ -89,18 +65,12 @@ export default function FanWallGrid({
 
         const durationMs = parseCountdownDuration(current.countdown);
         setTimeout(async () => {
-          await supabase
-            .from('fan_walls')
-            .update({ status: 'live', countdown_active: false })
-            .eq('id', id);
+          await supabase.from('fan_walls').update({ status: 'live', countdown_active: false }).eq('id', id);
           safeBroadcast('countdown_finished', { id, status: 'live' });
           delayedRefresh();
         }, durationMs);
       } else {
-        await supabase
-          .from('fan_walls')
-          .update({ status: 'live', countdown_active: false })
-          .eq('id', id);
+        await supabase.from('fan_walls').update({ status: 'live', countdown_active: false }).eq('id', id);
         delayedRefresh();
       }
     } catch (err) {
@@ -121,11 +91,14 @@ export default function FanWallGrid({
     safeBroadcast('wall_status_changed', { id, status: 'inactive' });
 
     try {
-      await supabase.from('fan_walls').update({
-        status: 'inactive',
-        countdown_active: false,
-        updated_at: new Date().toISOString(),
-      }).eq('id', id);
+      await supabase
+        .from('fan_walls')
+        .update({
+          status: 'inactive',
+          countdown_active: false,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', id);
       delayedRefresh();
     } catch (err) {
       console.error('❌ Error stopping wall:', err);
@@ -148,7 +121,8 @@ export default function FanWallGrid({
 
   /* 🧩 Moderation popup */
   function openModerationPopup(wallId: string) {
-    const w = 1280, h = 720;
+    const w = 1280,
+      h = 720;
     const left = window.screenX + (window.outerWidth - w) / 2;
     const top = window.screenY + (window.outerHeight - h) / 2;
     const popup = window.open(
@@ -170,17 +144,14 @@ export default function FanWallGrid({
     if (refreshTimeout.current) clearTimeout(refreshTimeout.current);
     refreshTimeout.current = setTimeout(() => {
       refreshFanWalls().catch(console.error);
-    }, 400); // faster response
+    }, 300);
   }
 
   /* 🟡 Pending counts */
   useEffect(() => {
     async function fetchPendingCounts() {
       try {
-        const { data, error } = await supabase
-          .from('guest_posts')
-          .select('fan_wall_id')
-          .eq('status', 'pending');
+        const { data, error } = await supabase.from('guest_posts').select('fan_wall_id').eq('status', 'pending');
         if (error) throw error;
 
         const counts: Record<string, number> = {};
@@ -210,9 +181,7 @@ export default function FanWallGrid({
     <div className={cn('mt-10 w-full max-w-6xl')}>
       <h2 className={cn('text-xl font-semibold mb-3')}>🎤 Fan Zone Walls</h2>
       <div className={cn('grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5')}>
-        {(!localWalls || localWalls.length === 0) && (
-          <p className={cn('text-gray-400 italic')}>No Fan Zone Walls created yet.</p>
-        )}
+        {(!localWalls || localWalls.length === 0) && <p className={cn('text-gray-400', 'italic')}>No Fan Zone Walls created yet.</p>}
 
         {localWalls.map((wall) => (
           <div
@@ -233,9 +202,7 @@ export default function FanWallGrid({
             }}
           >
             <div>
-              <h3 className={cn('font-bold', 'text-lg', 'text-center', 'mb-1')}>
-                {wall.host_title || wall.title || 'Untitled Wall'}
-              </h3>
+              <h3 className={cn('font-bold', 'text-lg', 'text-center', 'mb-1')}>{wall.host_title || wall.title || 'Untitled Wall'}</h3>
               <p className={cn('text-sm', 'mb-2')}>
                 <strong>Status:</strong>{' '}
                 <span
@@ -247,11 +214,7 @@ export default function FanWallGrid({
                       : 'text-orange-400'
                   }
                 >
-                  {wall.status === 'live'
-                    ? 'LIVE'
-                    : wall.countdown_active
-                    ? 'COUNTDOWN ACTIVE'
-                    : 'INACTIVE'}
+                  {wall.status === 'live' ? 'LIVE' : wall.countdown_active ? 'COUNTDOWN ACTIVE' : 'INACTIVE'}
                 </span>
               </p>
               <div className={cn('flex', 'justify-center', 'mb-3')}>
@@ -303,4 +266,3 @@ export default function FanWallGrid({
     </div>
   );
 }
-

@@ -31,6 +31,15 @@ export async function createFanWall(host_id: string, { title }: { title: string 
     if (error || !data) throw error;
 
     console.log('✅ Fan wall created:', data.id);
+
+    // 🛰️ Broadcast creation event
+    const channel = supabase.channel('fan_walls-realtime');
+    await channel.send({
+      type: 'broadcast',
+      event: 'wall_created',
+      payload: { id: data.id, ...newWall },
+    });
+
     return data;
   } catch (err) {
     console.error('❌ Error creating fan wall:', err);
@@ -62,45 +71,95 @@ export async function getFanWallsByHost(host_id: string) {
 }
 
 /* -------------------------------------------------------------------------- */
-/* 🟡 UPDATE FAN WALL SETTINGS                                                 */
+/* 🟡 UPDATE FAN WALL SETTINGS (Sanitized + Supabase Safe)                    */
 /* -------------------------------------------------------------------------- */
 export async function updateFanWallSettings(
   id: string,
   fields: Partial<{
     title: string;
+    host_title: string;
     background_type: string;
     background_value: string;
     countdown: string | null;
-    countdown_active: boolean;
+    countdown_active: boolean | null;
     layout_type: string;
     transition_speed: string;
     post_transition: string;
   }>
 ) {
-  const { data, error } = await supabase
-    .from('fan_walls')
-    .update({ ...fields, updated_at: new Date().toISOString() })
-    .eq('id', id)
-    .select()
-    .maybeSingle();
+  try {
+    // 🧹 Clean invalid or undefined fields before update
+    const cleanFields = Object.fromEntries(
+      Object.entries(fields)
+        .filter(([_, v]) => v !== undefined && v !== null && v !== '') // prevents null/empty-string updates
+        .map(([key, value]) => {
+          if (key === 'countdown') return [key, value === 'none' ? null : value];
+          if (key === 'countdown_active') return [key, value == null ? false : value];
+          return [key, value];
+        })
+    );
 
-  if (error) throw error;
+    const { data, error } = await supabase
+      .from('fan_walls')
+      .update({ ...cleanFields, updated_at: new Date().toISOString() })
+      .eq('id', id)
+      .select()
+      .maybeSingle();
 
-  console.log('✅ Fan wall updated:', id);
-  return data;
+    if (error) {
+      console.error('❌ Supabase update error:', error);
+      throw error;
+    }
+
+    console.log('✅ Fan wall updated:', id, cleanFields);
+
+    // 🛰 Broadcast realtime update
+    const channel = supabase.channel('fan_walls-realtime');
+    await channel.send({
+      type: 'broadcast',
+      event: 'wall_updated',
+      payload: { id, ...cleanFields },
+    });
+
+    // ⏱ Broadcast countdown started if applicable
+    if (cleanFields.countdown_active && cleanFields.countdown) {
+      await channel.send({
+        type: 'broadcast',
+        event: 'countdown_started',
+        payload: { id, countdown: cleanFields.countdown, countdown_active: true },
+      });
+    }
+
+    return data;
+  } catch (err) {
+    console.error('❌ Error updating fan wall settings:', err);
+    throw err;
+  }
 }
 
 /* -------------------------------------------------------------------------- */
 /* 🔴 DELETE FAN WALL                                                         */
 /* -------------------------------------------------------------------------- */
 export async function deleteFanWall(id: string) {
-  const { error } = await supabase.from('fan_walls').delete().eq('id', id);
-  if (error) throw error;
-  console.log('🗑️ Fan wall deleted:', id);
+  try {
+    const { error } = await supabase.from('fan_walls').delete().eq('id', id);
+    if (error) throw error;
+
+    console.log('🗑️ Fan wall deleted:', id);
+
+    const channel = supabase.channel('fan_walls-realtime');
+    await channel.send({
+      type: 'broadcast',
+      event: 'wall_deleted',
+      payload: { id },
+    });
+  } catch (err) {
+    console.error('❌ Error deleting fan wall:', err);
+  }
 }
 
 /* -------------------------------------------------------------------------- */
-/* 🧹 CLEAR POSTS FOR A WALL                                                   */
+/* 🧹 CLEAR POSTS FOR A WALL                                                  */
 /* -------------------------------------------------------------------------- */
 export async function clearFanWallPosts(fan_wall_id: string) {
   try {
@@ -117,14 +176,36 @@ export async function clearFanWallPosts(fan_wall_id: string) {
 }
 
 /* -------------------------------------------------------------------------- */
-/* 🔁 TOGGLE LIVE / INACTIVE                                                   */
+/* 🔁 TOGGLE LIVE / INACTIVE (Realtime Broadcast)                             */
 /* -------------------------------------------------------------------------- */
 export async function toggleFanWallStatus(id: string, makeLive: boolean) {
-  const { error } = await supabase
-    .from('fan_walls')
-    .update({ status: makeLive ? 'live' : 'inactive', updated_at: new Date().toISOString() })
-    .eq('id', id);
+  try {
+    const status = makeLive ? 'live' : 'inactive';
 
-  if (error) throw error;
-  console.log(`🔄 Fan wall ${id} → ${makeLive ? 'LIVE' : 'INACTIVE'}`);
+    const { error } = await supabase
+      .from('fan_walls')
+      .update({ status, updated_at: new Date().toISOString() })
+      .eq('id', id);
+
+    if (error) throw error;
+    console.log(`🔄 Fan wall ${id} → ${status.toUpperCase()}`);
+
+    const channel = supabase.channel('fan_walls-realtime');
+    await channel.send({
+      type: 'broadcast',
+      event: 'wall_status_changed',
+      payload: { id, status },
+    });
+
+    if (makeLive) {
+      await channel.send({
+        type: 'broadcast',
+        event: 'countdown_finished',
+        payload: { id, status: 'live' },
+      });
+    }
+  } catch (err) {
+    console.error('❌ Error toggling fan wall status:', err);
+  }
 }
+

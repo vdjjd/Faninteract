@@ -1,9 +1,9 @@
 'use client';
 
 import { QRCodeCanvas } from 'qrcode.react';
-import { supabase } from '@/lib/supabaseClient';
 import { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useRealtimeChannel } from '@/providers/SupabaseRealtimeProvider';
 
 /* ---------- TRANSITION STYLES ---------- */
 const transitions: Record<string, any> = {
@@ -45,116 +45,117 @@ const speedMap: Record<string, number> = {
   Fast: 4000,
 };
 
-export default function SingleHighlightWall({ event, posts }: { event?: any; posts?: any[] }) {
+/* -------------------------------------------------------------------------- */
+/* 🧱 Single Highlight Wall (Realtime-Optimized)                              */
+/* -------------------------------------------------------------------------- */
+export default function SingleHighlightWall({
+  event,
+  posts,
+}: {
+  event?: any;
+  posts?: any[];
+}) {
+  const channelRef = useRealtimeChannel();
+
   const [livePosts, setLivePosts] = useState(posts || []);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [live, setLive] = useState(event?.status === 'live');
   const [fading, setFading] = useState(false);
-  const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
-  const [transitionLock, setTransitionLock] = useState(false);
+  const [title, setTitle] = useState(event?.title || 'Fan Zone Wall');
+  const [logo, setLogo] = useState(event?.logo_url || '/faninteractlogo.png');
+  const [bg, setBg] = useState(
+    event?.background_type === 'image'
+      ? `url(${event.background_value}) center/cover no-repeat`
+      : event?.background_value || 'linear-gradient(to bottom right,#1b2735,#090a0f)'
+  );
+  const [transitionType, setTransitionType] = useState(
+    event?.post_transition || 'Fade In / Fade Out'
+  );
+  const [displayDuration, setDisplayDuration] = useState(
+    speedMap[event?.transition_speed || 'Medium']
+  );
 
-  const transitionStyle = transitions[event?.post_transition || 'Fade In / Fade Out'];
-  const displayDuration = speedMap[event?.transition_speed || 'Medium'] || 8000;
-  const channelRef = useRef<any>(null);
+  const transitionLock = useRef(false);
 
+  /* ---------- INITIAL POPULATION ---------- */
   useEffect(() => {
-    if (livePosts.length && !hasLoadedOnce) setHasLoadedOnce(true);
-  }, [livePosts, hasLoadedOnce]);
+    if (posts?.length) setLivePosts(posts);
+  }, [posts]);
 
+  /* ---------- REALTIME LISTENER ---------- */
   useEffect(() => {
-    async function fetchApproved() {
-      if (!event?.id) return;
-      const { data, error } = await supabase
-        .from('submissions')
-        .select('*')
-        .eq('event_id', event.id)
-        .eq('status', 'approved')
-        .order('created_at', { ascending: false });
-      if (!error && data) setLivePosts(data);
-    }
-    fetchApproved();
-  }, [event?.id]);
-
-  /* ---------- FIXED REALTIME EFFECT ---------- */
-  useEffect(() => {
-    if (!event?.id) return;
-
-    const channel = supabase.channel('fan_walls-realtime', {
-      config: { broadcast: { self: true, ack: true } },
-    });
+    const channel = channelRef?.current;
+    if (!channel || !event?.id) return;
 
     const handler = (payload: any) => {
-      const data = payload?.payload;
-      if (!data || data.id !== event.id || transitionLock) return;
+      const { event: evt, payload: data } = payload;
+      if (!data?.id || data.id !== event.id) return;
 
-      if (data.status && data.status !== (live ? 'live' : 'inactive')) {
-        setTransitionLock(true);
-        setFading(true);
-
-        if (data.status === 'inactive') {
-          setTimeout(() => {
-            setLive(false);
-            setFading(false);
-            setTransitionLock(false);
-          }, 1000);
-        } else if (data.status === 'live') {
-          setTimeout(() => {
-            setLive(true);
-            setFading(false);
-            setTransitionLock(false);
-          }, 1000);
+      // 🔹 Wall-wide updates (background, title, logo, speed)
+      if (evt === 'wall_updated') {
+        if (data.background_value) {
+          const newBg =
+            data.background_type === 'image'
+              ? `url(${data.background_value}) center/cover no-repeat`
+              : data.background_value;
+          setBg(newBg);
         }
+        if (data.title) setTitle(data.title);
+        if (data.logo_url) setLogo(data.logo_url);
+        if (data.transition_speed)
+          setDisplayDuration(speedMap[data.transition_speed]);
+        if (data.post_transition)
+          setTransitionType(data.post_transition);
       }
 
-      if (payload.eventType === 'INSERT' && payload.new?.status === 'approved') {
-        setLivePosts((prev) => [payload.new, ...prev]);
+      // 🔹 Status change (live / inactive)
+      if (evt === 'wall_status_changed' && !transitionLock.current) {
+        transitionLock.current = true;
+        setFading(true);
+        const isLive = data.status === 'live';
+        setTimeout(() => {
+          setLive(isLive);
+          setFading(false);
+          transitionLock.current = false;
+        }, 1000);
+      }
+
+      // 🔹 New approved posts
+      if (evt === 'post_added' && data.status === 'approved') {
+        setLivePosts((prev) =>
+          prev.some((p) => p.id === data.id) ? prev : [data, ...prev]
+        );
       }
     };
 
-    channel.on('broadcast', { event: 'wall_status_changed' }, handler);
-
-    // ✅ Subscribe safely (no async return)
-    channel.subscribe((status: string) => {
-      if (status === 'SUBSCRIBED') {
-        console.log('✅ Joined fan_walls-realtime channel');
-      }
-    });
-
-    channelRef.current = channel;
-
-    // ✅ Cleanup
+    channel.on('broadcast', {}, handler);
     return () => {
-      supabase.removeChannel(channel);
+      try {
+        channel.unsubscribe?.();
+      } catch {}
     };
-  }, [event?.id, live, transitionLock]);
-  /* ---------- END FIXED BLOCK ---------- */
+  }, [channelRef, event?.id]);
 
-  useEffect(() => {
-    if (event?.status === 'live' && !live) setLive(true);
-  }, [event?.status, live]);
-
+  /* ---------- POST CYCLE ---------- */
   useEffect(() => {
     if (!livePosts?.length) return;
-    const interval = setInterval(
-      () => setCurrentIndex((i) => (i + 1) % livePosts.length),
-      displayDuration
-    );
+    const interval = setInterval(() => {
+      setCurrentIndex((i) => (i + 1) % livePosts.length);
+    }, displayDuration);
     return () => clearInterval(interval);
   }, [livePosts, displayDuration]);
 
+  const transitionStyle = transitions[transitionType] || transitions['Fade In / Fade Out'];
+  const current = livePosts[currentIndex % (livePosts.length || 1)];
+
+  /* ---------- FULLSCREEN ---------- */
   const handleFullscreen = () => {
     const elem = document.documentElement;
-    if (!document.fullscreenElement) elem.requestFullscreen();
+    if (!document.fullscreenElement) elem.requestFullscreen().catch(() => {});
     else document.exitFullscreen();
   };
 
-  const bg =
-    event?.background_type === 'image'
-      ? `url(${event.background_value}) center/cover no-repeat`
-      : event?.background_value || 'linear-gradient(to bottom right,#1b2735,#090a0f)';
-
-  const current = livePosts[currentIndex % (livePosts.length || 1)];
-
+  /* ---------- RENDER ---------- */
   return (
     <div
       style={{
@@ -168,7 +169,7 @@ export default function SingleHighlightWall({ event, posts }: { event?: any; pos
         overflow: 'hidden',
         position: 'relative',
         opacity: fading ? 0.4 : 1,
-        transition: 'opacity 0.8s ease-in-out',
+        transition: 'opacity 0.8s ease-in-out, background 0.6s ease',
       }}
     >
       <h1
@@ -182,7 +183,7 @@ export default function SingleHighlightWall({ event, posts }: { event?: any; pos
           textShadow: '0 0 20px rgba(0,0,0,0.6)',
         }}
       >
-        {event?.title || 'Fan Zone Wall'}
+        {title}
       </h1>
 
       <div
@@ -199,6 +200,7 @@ export default function SingleHighlightWall({ event, posts }: { event?: any; pos
           overflow: 'hidden',
         }}
       >
+        {/* LEFT: PHOTO */}
         <div
           style={{
             position: 'absolute',
@@ -245,6 +247,7 @@ export default function SingleHighlightWall({ event, posts }: { event?: any; pos
           </AnimatePresence>
         </div>
 
+        {/* RIGHT: TEXT + LOGO */}
         <div
           style={{
             flexGrow: 1,
@@ -259,7 +262,7 @@ export default function SingleHighlightWall({ event, posts }: { event?: any; pos
         >
           <div style={{ width: 'clamp(280px, 30vw, 420px)', marginBottom: '1.5vh' }}>
             <img
-              src={event?.logo_url || '/faninteractlogo.png'}
+              src={logo}
               alt="Logo"
               style={{
                 width: '100%',
@@ -291,14 +294,16 @@ export default function SingleHighlightWall({ event, posts }: { event?: any; pos
               lineHeight: 1.2,
               textAlign: 'center',
               color: '#fff',
+              textShadow: '0 0 8px rgba(0,0,0,0.6)',
+              transition: 'color 0.4s ease',
             }}
           >
-            {current?.message || (hasLoadedOnce ? '' : 'Loading posts…')}
+            {current?.message || 'Loading posts…'}
           </p>
         </div>
       </div>
 
-      {/* ---------- QR CODE ---------- */}
+      {/* QR */}
       <div
         style={{
           position: 'absolute',
@@ -323,7 +328,6 @@ export default function SingleHighlightWall({ event, posts }: { event?: any; pos
         >
           Scan Me To Join
         </p>
-
         <div
           style={{
             padding: 6,
@@ -345,7 +349,7 @@ export default function SingleHighlightWall({ event, posts }: { event?: any; pos
         </div>
       </div>
 
-      {/* ---------- FULLSCREEN BUTTON ---------- */}
+      {/* FULLSCREEN BUTTON */}
       <button
         onClick={handleFullscreen}
         style={{

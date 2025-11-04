@@ -1,7 +1,8 @@
 'use client';
 
 import { QRCodeCanvas } from 'qrcode.react';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useRef } from 'react';
+import { useRealtimeChannel } from '@/providers/SupabaseRealtimeProvider';
 
 /* ---------- COUNTDOWN DISPLAY ---------- */
 function CountdownDisplay({
@@ -30,9 +31,7 @@ function CountdownDisplay({
 
   useEffect(() => {
     if (!active || timeLeft <= 0) return;
-    const timer = setInterval(() => {
-      setTimeLeft((t) => (t > 1 ? t - 1 : 0));
-    }, 1000);
+    const timer = setInterval(() => setTimeLeft((t) => (t > 1 ? t - 1 : 0)), 1000);
     return () => clearInterval(timer);
   }, [active, timeLeft]);
 
@@ -58,9 +57,10 @@ function CountdownDisplay({
 }
 
 /* -------------------------------------------------------------------------- */
-/* 🧱 INACTIVE WALL DISPLAY (optimized)                                       */
+/* 🧱 INACTIVE WALL DISPLAY (realtime + optimized)                            */
 /* -------------------------------------------------------------------------- */
 export default function InactiveWall({ wall }: { wall: any }) {
+  const channelRef = useRealtimeChannel();
   const [bg, setBg] = useState('linear-gradient(to bottom right,#1b2735,#090a0f)');
   const [wallState, setWallState] = useState({
     countdown: '',
@@ -68,7 +68,9 @@ export default function InactiveWall({ wall }: { wall: any }) {
     title: '',
   });
 
-  // ✅ Batch updates instead of multiple state calls
+  const updateTimeout = useRef<NodeJS.Timeout | null>(null);
+
+  /* 🧠 Base setup */
   useEffect(() => {
     if (!wall) return;
     setWallState({
@@ -81,13 +83,66 @@ export default function InactiveWall({ wall }: { wall: any }) {
       wall.background_type === 'image'
         ? `url(${wall.background_value}) center/cover no-repeat`
         : wall.background_value || 'linear-gradient(to bottom right,#1b2735,#090a0f)';
-    // Debounce bg change slightly to smooth fades
+
     const t = setTimeout(() => setBg(value), 100);
     return () => clearTimeout(t);
   }, [wall]);
 
-  const displayLogo = wall?.host?.branding_logo_url || '/faninteractlogo.png';
+  /* 🛰 Listen for realtime updates */
+  useEffect(() => {
+    const channel = channelRef?.current;
+    if (!channel || !wall?.id) return;
 
+    const scheduleUpdate = (patch: any) => {
+      if (updateTimeout.current) clearTimeout(updateTimeout.current);
+      updateTimeout.current = setTimeout(() => {
+        setWallState((prev) => ({ ...prev, ...patch }));
+      }, 100);
+    };
+
+    const handleBroadcast = (payload: any) => {
+      const { event, payload: data } = payload;
+      if (!data?.id || data.id !== wall.id) return;
+
+      switch (event) {
+        case 'wall_updated':
+          if (data.background_value) {
+            const newBg =
+              data.background_type === 'image'
+                ? `url(${data.background_value}) center/cover no-repeat`
+                : data.background_value;
+            setBg(newBg);
+          }
+          if (data.title) scheduleUpdate({ title: data.title });
+          if (data.countdown) scheduleUpdate({ countdown: data.countdown });
+          break;
+
+        case 'wall_status_changed':
+          if (data.countdown_active !== undefined)
+            scheduleUpdate({ countdownActive: data.countdown_active });
+          break;
+
+        case 'countdown_finished':
+          scheduleUpdate({ countdownActive: false });
+          break;
+
+        default:
+          break;
+      }
+    };
+
+    channel.on('broadcast', {}, handleBroadcast);
+
+    return () => {
+      try {
+        channel.unsubscribe?.();
+      } catch {
+        console.log('🧹 InactiveWall channel cleanup');
+      }
+    };
+  }, [channelRef, wall?.id]);
+
+  const displayLogo = wall?.host?.branding_logo_url || '/faninteractlogo.png';
   const qrValue = useMemo(
     () => `https://faninteract.vercel.app/submit/${wall?.id || ''}`,
     [wall?.id]

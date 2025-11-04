@@ -20,19 +20,21 @@ export function SupabaseRealtimeProvider({ children }: { children: React.ReactNo
   const channelRef = useRef<any>(null);
 
   useEffect(() => {
-    // Create a single global channel for all FanInteract components
-    const channel = supabase.channel('global-fan-walls', {
+    // ✅ Single global channel name for the entire app
+    const channel = supabase.channel('fan_walls-realtime', {
       config: { broadcast: { self: true, ack: false } },
     });
 
     channel.subscribe((status) => {
-      if (status === 'SUBSCRIBED') console.log('✅ Global realtime channel ready');
+      if (status === 'SUBSCRIBED') {
+        console.log('✅ Global realtime channel ready');
+      }
     });
 
     channelRef.current = channel;
 
     return () => {
-      console.log('🧹 Cleaning up global channel');
+      console.log('🧹 Cleaning up global realtime channel');
       supabase.removeChannel(channel);
     };
   }, []);

@@ -2,6 +2,8 @@
 
 import { useEffect, useState, useRef } from 'react';
 import { QRCodeCanvas } from 'qrcode.react';
+import { useRealtimeChannel } from '@/providers/SupabaseRealtimeProvider';
+import { cn } from "../../../../../lib/utils";
 
 interface Grid4x2WallProps {
   event: any;
@@ -15,16 +17,27 @@ const speedMap: Record<string, number> = {
   Fast: 4000,
 };
 
+/* -------------------------------------------------------------------------- */
+/* 🧱 4x2 Grid Layout — Realtime Optimized                                    */
+/* -------------------------------------------------------------------------- */
 export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
+  const channelRef = useRealtimeChannel();
   const [gridPosts, setGridPosts] = useState<(any | null)[]>(Array(8).fill(null));
-  const [displayDelay, setDisplayDelay] = useState(
-    speedMap[event?.transition_speed || 'Medium']
+  const [displayDelay, setDisplayDelay] = useState(speedMap[event?.transition_speed || 'Medium']);
+  const [bg, setBg] = useState(
+    event?.background_type === 'image'
+      ? `url(${event.background_value}) center/cover no-repeat`
+      : event?.background_value || 'linear-gradient(to bottom right,#1b2735,#090a0f)'
   );
-  const resetKey = useRef(0);
+  const [title, setTitle] = useState(event?.title || 'Fan Zone Wall');
+  const [logo, setLogo] = useState(event?.logo_url || '/faninteractlogo.png');
 
+  const resetKey = useRef(0);
   const postPointer = useRef(0);
   const pairIndex = useRef(0);
   const activeRef = useRef(false);
+
+  const fadeDuration = 1200;
 
   /* ---------- UPDATE SPEED LIVE ---------- */
   useEffect(() => {
@@ -33,7 +46,46 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
     resetKey.current += 1;
   }, [event?.transition_speed]);
 
-  const fadeDuration = 1200;
+  /* ---------- BACKGROUND + TITLE LIVE ---------- */
+  useEffect(() => {
+    const channel = channelRef?.current;
+    if (!channel || !event?.id) return;
+
+    const handleBroadcast = (payload: any) => {
+      const { event: evt, payload: data } = payload;
+      if (!data?.id || data.id !== event.id) return;
+
+      if (evt === 'wall_updated') {
+        if (data.background_value) {
+          const newBg =
+            data.background_type === 'image'
+              ? `url(${data.background_value}) center/cover no-repeat`
+              : data.background_value;
+          setBg(newBg);
+        }
+        if (data.title) setTitle(data.title);
+        if (data.logo_url) setLogo(data.logo_url);
+        if (data.transition_speed) setDisplayDelay(speedMap[data.transition_speed]);
+      }
+
+      if (evt === 'post_added') {
+        const newPost = data;
+        setGridPosts((prev) => {
+          if (prev.some((p) => p?.id === newPost.id)) return prev;
+          const next = [...prev];
+          next[postPointer.current % 8] = newPost;
+          return next;
+        });
+      }
+    };
+
+    channel.on('broadcast', {}, handleBroadcast);
+    return () => {
+      try {
+        channel.unsubscribe?.();
+      } catch {}
+    };
+  }, [channelRef, event?.id]);
 
   /* ---------- INITIAL POPULATION ---------- */
   useEffect(() => {
@@ -127,18 +179,11 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
     return () => document.removeEventListener('fullscreenchange', handleChange);
   }, []);
 
-  /* ---------- BACKGROUND ---------- */
-  const bg =
-    event?.background_type === 'image'
-      ? `url(${event.background_value}) center/cover no-repeat`
-      : event?.background_value ||
-        'linear-gradient(to bottom right, #1b2735, #090a0f)';
-
   /* ---------- POST CARD ---------- */
   function PostCard({ post }: { post: any }) {
     if (!post)
       return (
-        <div className="flex items-center justify-center text-white text-lg opacity-60">
+        <div className={cn('flex', 'items-center', 'justify-center', 'text-white', 'text-lg', 'opacity-60')}>
           Fan posts will appear here soon!
         </div>
       );
@@ -234,6 +279,7 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
         justifyContent: 'flex-start',
         position: 'relative',
         overflow: 'hidden',
+        transition: 'background 0.6s ease',
       }}
     >
       {/* LOGO */}
@@ -247,7 +293,7 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
         }}
       >
         <img
-          src={event.logo_url || '/faninteractlogo.png'}
+          src={logo}
           alt="Logo"
           style={{
             width: '100%',
@@ -271,7 +317,7 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
           lineHeight: 1.1,
         }}
       >
-        {event.title || 'Fan Zone Wall'}
+        {title}
       </h1>
 
       {/* GRID */}
@@ -372,4 +418,3 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
     </div>
   );
 }
-
