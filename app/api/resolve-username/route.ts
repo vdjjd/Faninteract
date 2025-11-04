@@ -11,15 +11,23 @@ export async function POST(req: Request) {
   try {
     const { username, email } = await req.json();
 
+    // 🧩 Create Supabase admin client at runtime
+    const supabaseAdmin = getSupabaseAdmin();
+    if (!supabaseAdmin) {
+      // Happens only during build or if env vars are missing
+      console.warn('⚠️ Supabase admin client unavailable at runtime.');
+      return NextResponse.json(
+        { error: 'Supabase admin client unavailable.' },
+        { status: 503 }
+      );
+    }
+
     if (!username && !email) {
       return NextResponse.json(
         { error: 'Missing username or email' },
         { status: 400 }
       );
     }
-
-    // ✅ Create Supabase admin client at runtime (ensures live env vars)
-    const supabaseAdmin = getSupabaseAdmin();
 
     // ---------- Search "hosts" table ----------
     const { data: hostMatch, error: hostError } = await supabaseAdmin
