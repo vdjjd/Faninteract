@@ -2,8 +2,8 @@
 
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const secretKey = process.env.SUPABASE_SECRET_KEY;
+const supabaseUrl = 'https://abwfofjwwcggkfgqtzsk.supabase.co';
+const secretKey = sb_secret_2tD1Tk2KxVPE-N_P_gWSPQ_KXdmjKYl;
 
 if (!supabaseUrl || !secretKey) {
   throw new Error(
