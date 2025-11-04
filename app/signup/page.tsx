@@ -1,11 +1,13 @@
 'use client';
 
 import { useState } from 'react';
-import { supabase } from '@/lib/supabaseClient';
+import { getSupabaseClient } from '@/lib/supabaseClient'; // ✅ use runtime getter
 import { useRouter } from 'next/navigation';
 
 export default function SignUpPage() {
   const router = useRouter();
+  const supabase = getSupabaseClient(); // ✅ safe runtime initialization
+
   const [accountType, setAccountType] = useState<'master' | 'host'>('host');
   const [companyName, setCompanyName] = useState('');
   const [venueName, setVenueName] = useState('');
@@ -25,13 +27,13 @@ export default function SignUpPage() {
     setLoading(true);
 
     try {
+      if (!supabase) throw new Error('Supabase client unavailable.');
+
       // Step 1: Create Auth user
       const { data, error: signUpError } = await supabase.auth.signUp({
         email,
         password,
-        options: {
-          emailRedirectTo: 'http://localhost:3000/login',
-        },
+        options: { emailRedirectTo: `${window.location.origin}/login` },
       });
 
       if (signUpError) throw signUpError;
@@ -68,7 +70,7 @@ export default function SignUpPage() {
       // Step 3: Show success popup
       setShowPopup(true);
     } catch (err: any) {
-      console.error('Signup error:', err.message);
+      console.error('❌ Signup error:', err.message || err);
       setError(err.message);
     } finally {
       setLoading(false);
