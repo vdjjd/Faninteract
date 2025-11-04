@@ -1,46 +1,20 @@
 'use client';
 
-import { Suspense, useState, useEffect } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { getSupabaseClient } from '@/lib/supabaseClient';
 
-/* ----------------------------- DEVICE HANDLER ---------------------------- */
-function getOrCreateGuestDeviceId(): string | null {
-  if (typeof window === 'undefined') return null;
-  try {
-    let id = localStorage.getItem('guest_device_id');
-    if (!id) {
-      id = crypto.randomUUID();
-      localStorage.setItem('guest_device_id', id);
-      console.log('🆕 Created device_id:', id);
-    }
-    return id;
-  } catch (err) {
-    console.error('❌ Failed to create device ID', err);
-    return null;
-  }
-}
-
-/* --------------------------- GUEST SIGNUP PAGE --------------------------- */
-function GuestSignupPage() {
+export default function SignupPage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const redirect = searchParams.get('redirect');
-  const supabase = typeof window !== 'undefined' ? getSupabaseClient() : null;
+  const supabase = getSupabaseClient();
 
   const [form, setForm] = useState({
-    first_name: '',
-    last_name: '',
     email: '',
-    phone: '',
+    password: '',
+    venue_name: '',
   });
-  const [agree, setAgree] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-
-  useEffect(() => {
-    getOrCreateGuestDeviceId();
-  }, []);
 
   const handleChange = (e: any) =>
     setForm({ ...form, [e.target.name]: e.target.value });
@@ -48,200 +22,117 @@ function GuestSignupPage() {
   const handleSubmit = async (e: any) => {
     e.preventDefault();
     setError('');
-
-    const { first_name, last_name, email, phone } = form;
-    if (!first_name || !last_name)
-      return setError('Please enter both first and last name.');
-    if (!email && !phone)
-      return setError('Provide at least an email or phone.');
-    if (!agree) return setError('You must agree to the Terms.');
-
-    const device_id = localStorage.getItem('guest_device_id');
-    if (!device_id) return setError('No device ID. Refresh and try again.');
-    if (!supabase) return setError('Supabase client unavailable.');
-
-    setSubmitting(true);
+    setLoading(true);
 
     try {
-      const { data: existing, error: findError } = await supabase
-        .from('guest_profiles')
-        .select('*')
-        .eq('device_id', device_id)
-        .maybeSingle();
-      if (findError) throw findError;
+      const { data, error: signUpError } = await supabase.auth.signUp({
+        email: form.email,
+        password: form.password,
+      });
+      if (signUpError) throw signUpError;
 
-      let profile = existing;
-      if (!profile) {
-        const { data, error } = await supabase
-          .from('guest_profiles')
-          .insert([{ device_id, first_name, last_name, email, phone }])
-          .select()
-          .single();
-        if (error) throw error;
-        profile = data;
-      } else {
-        const { data, error } = await supabase
-          .from('guest_profiles')
-          .update({ first_name, last_name, email, phone })
-          .eq('device_id', device_id)
-          .select()
-          .single();
-        if (error) throw error;
-        profile = data;
-      }
+      const userId = data.user?.id;
+      if (!userId) throw new Error('No user ID returned.');
 
-      localStorage.setItem(
-        'guestInfo',
-        JSON.stringify({
-          firstName: profile.first_name,
-          lastName: profile.last_name,
-          email: profile.email,
-          phone: profile.phone,
-          guest_profile_id: profile.id,
-        })
-      );
+      const { error: insertError } = await supabase.from('hosts').insert([
+        {
+          id: userId,
+          email: form.email,
+          venue_name: form.venue_name || 'My Venue',
+          created_at: new Date().toISOString(),
+        },
+      ]);
+      if (insertError) throw insertError;
 
-      console.log('✅ Guest profile saved:', profile);
-      router.push(redirect || '/thankyou');
+      router.push('/login');
     } catch (err: any) {
-      console.error('❌ Signup error:', err.message || err);
-      setError('Something went wrong. Please try again.');
+      console.error('Signup error:', err.message);
+      setError(err.message || 'Signup failed.');
     } finally {
-      setSubmitting(false);
+      setLoading(false);
     }
   };
 
-  /* ------------------------------- UI LAYOUT ------------------------------ */
   return (
-    <div
-      style={{
-        minHeight: '100vh',
-        background: 'linear-gradient(180deg,#0d1b2a,#1b263b)',
-        display: 'flex',
-        justifyContent: 'center',
-        alignItems: 'center',
-        padding: 20,
-        fontFamily: 'system-ui,sans-serif',
-      }}
-    >
-      <form
-        onSubmit={handleSubmit}
-        style={{
-          width: '100%',
-          maxWidth: 420,
-          background: 'rgba(0,0,0,0.75)',
-          borderRadius: 16,
-          padding: 30,
-          color: '#fff',
-          textAlign: 'center',
-          boxShadow: '0 0 30px rgba(0,0,0,0.6)',
-        }}
-      >
-        <h2 style={{ marginBottom: 16, fontWeight: 700 }}>Join the Fan Zone</h2>
+    <div style={pageStyle}>
+      <form onSubmit={handleSubmit} style={formStyle}>
+        <h2 style={titleStyle}>Create Host Account</h2>
 
-        {['first_name', 'last_name', 'email', 'phone'].map((field) => (
-          <input
-            key={field}
-            name={field}
-            type={field === 'email' ? 'email' : 'text'}
-            placeholder={
-              field === 'first_name'
-                ? 'First Name *'
-                : field === 'last_name'
-                ? 'Last Name *'
-                : field === 'email'
-                ? 'Email (optional)'
-                : 'Phone (optional)'
-            }
-            value={(form as any)[field]}
-            onChange={handleChange}
-            style={{
-              width: '85%',
-              padding: '12px',
-              marginBottom: 12,
-              borderRadius: 10,
-              border: '1px solid #777',
-              background: 'rgba(0,0,0,0.3)',
-              color: '#fff',
-              fontSize: 16,
-              textAlign: 'center',
-            }}
-          />
-        ))}
+        <input
+          type="text"
+          name="venue_name"
+          placeholder="Venue Name"
+          onChange={handleChange}
+          style={inputStyle}
+        />
+        <input
+          type="email"
+          name="email"
+          placeholder="Email"
+          onChange={handleChange}
+          style={inputStyle}
+          required
+        />
+        <input
+          type="password"
+          name="password"
+          placeholder="Password"
+          onChange={handleChange}
+          style={inputStyle}
+          required
+        />
 
-        <label
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: 8,
-            color: '#ccc',
-            fontSize: 13,
-            margin: '10px 0 20px 0',
-          }}
-        >
-          <input
-            type="checkbox"
-            checked={agree}
-            onChange={(e) => setAgree(e.target.checked)}
-            style={{ accentColor: '#1e90ff', width: 18, height: 18 }}
-          />
-          I agree to the&nbsp;
-          <a href="/terms" target="_blank" style={{ color: '#1e90ff' }}>
-            Terms of Service
-          </a>
-        </label>
-
-        {error && <p style={{ color: 'salmon', marginBottom: 8 }}>{error}</p>}
-
-        <button
-          type="submit"
-          disabled={submitting}
-          style={{
-            width: '85%',
-            backgroundColor: submitting ? '#444' : '#1e90ff',
-            border: 'none',
-            padding: '12px 0',
-            borderRadius: 10,
-            color: '#fff',
-            fontWeight: 600,
-            cursor: submitting ? 'not-allowed' : 'pointer',
-          }}
-        >
-          {submitting ? 'Joining...' : 'Join'}
+        <button disabled={loading} style={buttonStyle}>
+          {loading ? 'Creating...' : 'Sign Up'}
         </button>
+
+        {error && <p style={{ color: 'salmon' }}>{error}</p>}
       </form>
     </div>
   );
 }
 
-/* ---------------------- SUSPENSE WRAPPER ---------------------- */
-export default function SignupPageWrapper() {
-  return (
-    <Suspense
-      fallback={
-        <div
-          style={{
-            minHeight: '100vh',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            background: 'linear-gradient(180deg,#0d1b2a,#1b263b)',
-            color: '#fff',
-            fontFamily: 'system-ui,sans-serif',
-            fontSize: '1.2rem',
-          }}
-        >
-          Loading...
-        </div>
-      }
-    >
-      <GuestSignupPage />
-    </Suspense>
-  );
-}
+/* ---------- Styles ---------- */
+const pageStyle = {
+  display: 'flex',
+  justifyContent: 'center',
+  alignItems: 'center',
+  minHeight: '100vh',
+  background: 'linear-gradient(135deg,#0a2540,#1b2b44,#000000)',
+  color: 'white',
+};
 
-/* ✅ Runtime-only flags for Vercel build safety */
-export const dynamic = 'force-dynamic';
-export const fetchCache = 'force-no-store';
-export const revalidate = 0;
+const formStyle = {
+  background: 'rgba(0,0,0,0.7)',
+  padding: '40px 30px',
+  borderRadius: 12,
+  width: 340,
+  display: 'flex',
+  flexDirection: 'column',
+  gap: '12px',
+};
+
+const titleStyle = {
+  fontWeight: 700,
+  fontSize: '1.4rem',
+  textAlign: 'center' as const,
+  marginBottom: 10,
+};
+
+const inputStyle = {
+  padding: '10px',
+  borderRadius: 8,
+  border: '1px solid #333',
+  background: 'rgba(255,255,255,0.1)',
+  color: 'white',
+};
+
+const buttonStyle = {
+  padding: '10px',
+  borderRadius: 8,
+  backgroundColor: '#1e90ff',
+  border: 'none',
+  color: 'white',
+  fontWeight: 600,
+  cursor: 'pointer',
+};
