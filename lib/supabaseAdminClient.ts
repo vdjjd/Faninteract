@@ -1,16 +1,17 @@
-
 import { createClient } from '@supabase/supabase-js';
 
-// ⚠️ TEMPORARY HARD-CODE FOR TROUBLESHOOTING ONLY
-const supabaseUrl = 'https://abwfofjwwcggkfgqtzsk.supabase.co';
-const secretKey = 'sb_secret_2tD1Tk2KxVPE-N_P_gWSPQ_KXdmjKYl'; // <-- wrapped in quotes
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-if (!supabaseUrl || !secretKey) {
-  throw new Error(
-    '❌ Missing Supabase admin environment variables. Make sure NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SECRET_KEY are defined in Vercel → Project Settings → Environment Variables.'
-  );
+if (!supabaseUrl || !serviceKey) {
+  console.error('🚨 Missing Supabase environment variables!');
+  console.error('NEXT_PUBLIC_SUPABASE_URL:', supabaseUrl);
+  console.error('SUPABASE_SERVICE_ROLE_KEY exists:', !!serviceKey);
 }
 
-export const supabaseAdmin = createClient(supabaseUrl, secretKey, {
-  auth: { persistSession: false },
-});
+export const supabaseAdmin =
+  supabaseUrl && serviceKey
+    ? createClient(supabaseUrl, serviceKey, {
+        auth: { persistSession: false },
+      })
+    : null;
