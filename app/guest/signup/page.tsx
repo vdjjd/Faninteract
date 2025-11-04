@@ -2,7 +2,7 @@
 
 import { Suspense, useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { supabase } from '@/lib/supabaseClient';
+import { getSupabaseClient } from '@/lib/supabaseClient'; // ✅ runtime getter
 
 /* ----------------------------- DEVICE HANDLER ---------------------------- */
 function getOrCreateGuestDeviceId(): string | null {
@@ -25,7 +25,9 @@ function getOrCreateGuestDeviceId(): string | null {
 function GuestSignupPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const redirect = searchParams.get('redirect'); // 👈 allows redirect after signup
+  const redirect = searchParams.get('redirect');
+
+  const supabase = getSupabaseClient(); // ✅ safe runtime initialization
 
   const [form, setForm] = useState({
     first_name: '',
@@ -58,6 +60,8 @@ function GuestSignupPage() {
 
     const device_id = localStorage.getItem('guest_device_id');
     if (!device_id) return setError('No device ID. Refresh and try again.');
+
+    if (!supabase) return setError('Supabase client unavailable.');
 
     setSubmitting(true);
 
@@ -103,9 +107,9 @@ function GuestSignupPage() {
       );
 
       console.log('✅ Guest profile saved:', profile);
-      router.push(redirect || '/thankyou'); // 👈 redirect dynamically
+      router.push(redirect || '/thankyou');
     } catch (err: any) {
-      console.error(err);
+      console.error('❌ Signup error:', err.message || err);
       setError('Something went wrong. Please try again.');
     } finally {
       setSubmitting(false);
