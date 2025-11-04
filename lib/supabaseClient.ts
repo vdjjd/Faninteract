@@ -1,8 +1,4 @@
-'use client';
 
-import { createClient } from '@supabase/supabase-js';
-
-'use server';
 
 import { createClient } from '@supabase/supabase-js';
 
