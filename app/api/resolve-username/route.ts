@@ -1,20 +1,27 @@
-// /app/api/resolve-username/route.ts
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabaseAdminClient';
 
 /**
  * POST /api/resolve-username
  * Body: { username?: string, email?: string }
- * Resolves a host or master account email by username/email.
+ * Resolves whether the provided username/email belongs
+ * to a Host or a Master account, and returns type + email.
  */
 export async function POST(req: Request) {
   try {
     const { username, email } = await req.json();
 
-    // 🧩 Create Supabase admin client at runtime
+    // 🧱 Validate request
+    if (!username && !email) {
+      return NextResponse.json(
+        { error: 'Missing username or email.' },
+        { status: 400 }
+      );
+    }
+
+    // 🧩 Create Supabase admin client
     const supabaseAdmin = getSupabaseAdmin();
     if (!supabaseAdmin) {
-      // Happens only during build or if env vars are missing
       console.warn('⚠️ Supabase admin client unavailable at runtime.');
       return NextResponse.json(
         { error: 'Supabase admin client unavailable.' },
@@ -22,18 +29,11 @@ export async function POST(req: Request) {
       );
     }
 
-    if (!username && !email) {
-      return NextResponse.json(
-        { error: 'Missing username or email' },
-        { status: 400 }
-      );
-    }
-
-    // ---------- Search "hosts" table ----------
+    // ---------- 1️⃣ Search "hosts" table ----------
     const { data: hostMatch, error: hostError } = await supabaseAdmin
       .from('hosts')
-      .select('email, username')
-      .or(`username.eq.${username},email.eq.${email}`)
+      .select('email, username, role')
+      .or(`username.eq.${username || ''},email.eq.${email || ''}`)
       .maybeSingle();
 
     if (hostError) throw hostError;
@@ -41,16 +41,17 @@ export async function POST(req: Request) {
     if (hostMatch) {
       return NextResponse.json({
         found: true,
+        type: 'host',
         email: hostMatch.email,
         username: hostMatch.username,
       });
     }
 
-    // ---------- Search "master_accounts" table ----------
+    // ---------- 2️⃣ Search "master_accounts" table ----------
     const { data: masterMatch, error: masterError } = await supabaseAdmin
       .from('master_accounts')
-      .select('contact_email')
-      .eq('contact_email', email)
+      .select('contact_email, contact_name, role')
+      .eq('contact_email', email || '')
       .maybeSingle();
 
     if (masterError) throw masterError;
@@ -58,18 +59,19 @@ export async function POST(req: Request) {
     if (masterMatch) {
       return NextResponse.json({
         found: true,
+        type: 'master',
         email: masterMatch.contact_email,
-        username: null,
+        username: masterMatch.contact_name,
       });
     }
 
-    // ---------- Nothing found ----------
+    // ---------- 3️⃣ Nothing found ----------
     return NextResponse.json(
-      { found: false, error: 'User not found' },
+      { found: false, error: 'User not found.' },
       { status: 404 }
     );
   } catch (err: any) {
-    console.error('❌ resolve-username error:', err.message || err);
+    console.error('❌ /api/resolve-username error:', err.message || err);
     return NextResponse.json(
       { error: 'Server error', details: err.message },
       { status: 500 }

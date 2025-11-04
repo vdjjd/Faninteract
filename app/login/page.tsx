@@ -8,7 +8,7 @@ export default function LoginPage() {
   const router = useRouter();
   const supabase = getSupabaseClient();
 
-  const [form, setForm] = useState({ email: '', password: '' });
+  const [form, setForm] = useState({ usernameOrEmail: '', password: '' });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -21,15 +21,41 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
+      // 🔍 Step 1: Resolve username/email and find account type
+      const resolveRes = await fetch('/api/resolve-username', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          username: form.usernameOrEmail.includes('@')
+            ? null
+            : form.usernameOrEmail,
+          email: form.usernameOrEmail.includes('@')
+            ? form.usernameOrEmail
+            : null,
+        }),
+      });
+
+      const resolveData = await resolveRes.json();
+
+      if (!resolveRes.ok || !resolveData.found) {
+        throw new Error('No matching account found.');
+      }
+
+      // 🔐 Step 2: Authenticate with Supabase
       const { error: signInError } = await supabase.auth.signInWithPassword({
-        email: form.email,
+        email: resolveData.email,
         password: form.password,
       });
       if (signInError) throw signInError;
 
-      router.push('/admin/dashboard');
+      // 🚀 Step 3: Redirect based on account type
+      if (resolveData.type === 'master') {
+        router.push('/admin/master-dashboard');
+      } else {
+        router.push('/admin/dashboard');
+      }
     } catch (err: any) {
-      console.error('Login error:', err.message);
+      console.error('❌ Login error:', err.message);
       setError(err.message || 'Login failed.');
     } finally {
       setLoading(false);
@@ -39,12 +65,13 @@ export default function LoginPage() {
   return (
     <div style={pageStyle}>
       <form onSubmit={handleLogin} style={formStyle}>
-        <h2 style={titleStyle}>Host Login</h2>
+        <h2 style={titleStyle}>Login</h2>
 
         <input
-          type="email"
-          name="email"
-          placeholder="Email"
+          type="text"
+          name="usernameOrEmail"
+          placeholder="Username or Email"
+          value={form.usernameOrEmail}
           onChange={handleChange}
           style={inputStyle}
           required
@@ -53,6 +80,7 @@ export default function LoginPage() {
           type="password"
           name="password"
           placeholder="Password"
+          value={form.password}
           onChange={handleChange}
           style={inputStyle}
           required
@@ -62,7 +90,11 @@ export default function LoginPage() {
           {loading ? 'Signing In...' : 'Login'}
         </button>
 
-        {error && <p style={{ color: 'salmon' }}>{error}</p>}
+        {error && (
+          <p style={{ color: 'salmon', marginTop: '10px', textAlign: 'center' }}>
+            {error}
+          </p>
+        )}
       </form>
     </div>
   );
