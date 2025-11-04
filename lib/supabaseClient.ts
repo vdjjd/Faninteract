@@ -1,16 +1,16 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
 /**
- * Creates a Supabase public client at runtime so Vercel’s
- * environment variables are always picked up.
+ * Safely creates a Supabase public client.
+ * Does NOT crash builds or client-side rendering if env vars are missing.
  */
-export function getSupabaseClient(): SupabaseClient {
+export function getSupabaseClient(): SupabaseClient | null {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
   if (!url || !anon) {
-    console.error('🚨 Missing Supabase public environment variables at runtime.');
-    throw new Error('Supabase public environment variables are missing.');
+    console.warn('⚠️ Supabase public environment variables are missing.');
+    return null; // <-- no crash, just safe fallback
   }
 
   return createClient(url, anon, {
@@ -23,8 +23,10 @@ export function getSupabaseClient(): SupabaseClient {
 }
 
 /**
- * Convenience export: you can still import { supabase } if you
- * don’t need to re-instantiate each time (e.g. client-side code).
+ * Default export for convenience (runtime safe)
  */
-export const supabase = getSupabaseClient();
+export const supabase =
+  getSupabaseClient() ||
+  createClient('https://placeholder.supabase.co', 'public-anon-key-placeholder');
+
 export default supabase;

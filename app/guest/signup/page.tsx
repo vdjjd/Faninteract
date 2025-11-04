@@ -1,20 +1,46 @@
 'use client';
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useEffect, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { getSupabaseClient } from '@/lib/supabaseClient';
 
-export default function SignupPage() {
+/* ---------------------- Local Device ID Helper ---------------------- */
+function getOrCreateGuestDeviceId(): string | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    let id = localStorage.getItem('guest_device_id');
+    if (!id) {
+      id = crypto.randomUUID();
+      localStorage.setItem('guest_device_id', id);
+    }
+    return id;
+  } catch (err) {
+    console.error('❌ Failed to create device ID', err);
+    return null;
+  }
+}
+
+/* ---------------------- Guest Signup Page ---------------------- */
+export default function GuestSignupPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const redirect = searchParams.get('redirect');
   const supabase = getSupabaseClient();
 
   const [form, setForm] = useState({
+    first_name: '',
+    last_name: '',
     email: '',
-    password: '',
-    venue_name: '',
+    phone: '',
   });
-  const [loading, setLoading] = useState(false);
+  const [agree, setAgree] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState(false);
+
+  useEffect(() => {
+    getOrCreateGuestDeviceId();
+  }, []);
 
   const handleChange = (e: any) =>
     setForm({ ...form, [e.target.name]: e.target.value });
@@ -22,77 +48,106 @@ export default function SignupPage() {
   const handleSubmit = async (e: any) => {
     e.preventDefault();
     setError('');
-    setLoading(true);
+    setSubmitting(true);
 
     try {
-      const { data, error: signUpError } = await supabase.auth.signUp({
-        email: form.email,
-        password: form.password,
-      });
-      if (signUpError) throw signUpError;
+      if (!agree) throw new Error('You must agree to the Terms.');
+      const device_id = localStorage.getItem('guest_device_id');
+      if (!device_id) throw new Error('Device ID not found.');
+      if (!supabase) throw new Error('Supabase client unavailable.');
 
-      const userId = data.user?.id;
-      if (!userId) throw new Error('No user ID returned.');
+      const { data: existing, error: findError } = await supabase
+        .from('guest_profiles')
+        .select('*')
+        .eq('device_id', device_id)
+        .maybeSingle();
 
-      const { error: insertError } = await supabase.from('hosts').insert([
-        {
-          id: userId,
-          email: form.email,
-          venue_name: form.venue_name || 'My Venue',
-          created_at: new Date().toISOString(),
-        },
-      ]);
-      if (insertError) throw insertError;
+      if (findError) throw findError;
 
-      router.push('/login');
+      let profile;
+      if (existing) {
+        const { data, error } = await supabase
+          .from('guest_profiles')
+          .update(form)
+          .eq('device_id', device_id)
+          .select()
+          .single();
+        if (error) throw error;
+        profile = data;
+      } else {
+        const { data, error } = await supabase
+          .from('guest_profiles')
+          .insert([{ device_id, ...form }])
+          .select()
+          .single();
+        if (error) throw error;
+        profile = data;
+      }
+
+      localStorage.setItem('guest_profile', JSON.stringify(profile));
+      setSuccess(true);
+      setTimeout(() => router.push(redirect || '/thankyou'), 1500);
     } catch (err: any) {
       console.error('Signup error:', err.message);
       setError(err.message || 'Signup failed.');
     } finally {
-      setLoading(false);
+      setSubmitting(false);
     }
   };
 
+  /* ---------------------- UI ---------------------- */
   return (
     <div style={pageStyle}>
       <form onSubmit={handleSubmit} style={formStyle}>
-        <h2 style={titleStyle}>Create Host Account</h2>
+        <h2 style={titleStyle}>Join the Fan Zone</h2>
 
-        <input
-          type="text"
-          name="venue_name"
-          placeholder="Venue Name"
-          onChange={handleChange}
-          style={inputStyle}
-        />
-        <input
-          type="email"
-          name="email"
-          placeholder="Email"
-          onChange={handleChange}
-          style={inputStyle}
-          required
-        />
-        <input
-          type="password"
-          name="password"
-          placeholder="Password"
-          onChange={handleChange}
-          style={inputStyle}
-          required
-        />
+        {['first_name', 'last_name', 'email', 'phone'].map((field) => (
+          <input
+            key={field}
+            name={field}
+            type={field === 'email' ? 'email' : 'text'}
+            placeholder={
+              field === 'first_name'
+                ? 'First Name *'
+                : field === 'last_name'
+                ? 'Last Name *'
+                : field === 'email'
+                ? 'Email (optional)'
+                : 'Phone (optional)'
+            }
+            value={(form as any)[field]}
+            onChange={handleChange}
+            required={field === 'first_name' || field === 'last_name'}
+            style={inputStyle}
+          />
+        ))}
 
-        <button disabled={loading} style={buttonStyle}>
-          {loading ? 'Creating...' : 'Sign Up'}
+        {/* ✅ Terms Agreement */}
+        <label style={checkboxLabel}>
+          <input
+            type="checkbox"
+            checked={agree}
+            onChange={(e) => setAgree(e.target.checked)}
+            style={checkboxStyle}
+          />
+          I agree to the{' '}
+          <a href="/terms" target="_blank" style={termsLink}>
+            Terms of Service
+          </a>
+        </label>
+
+        <button disabled={submitting} style={buttonStyle}>
+          {submitting ? 'Submitting...' : 'Join'}
         </button>
 
         {error && <p style={{ color: 'salmon' }}>{error}</p>}
+        {success && <p style={{ color: 'lightgreen' }}>Success! Redirecting...</p>}
       </form>
     </div>
   );
 }
 
-/* ---------- Styles ---------- */
+/* ---------------------- Styles ---------------------- */
 const pageStyle = {
   display: 'flex',
   justifyContent: 'center',
@@ -135,4 +190,25 @@ const buttonStyle = {
   color: 'white',
   fontWeight: 600,
   cursor: 'pointer',
+};
+
+const checkboxLabel = {
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  gap: 8,
+  color: '#ccc',
+  fontSize: 13,
+  margin: '10px 0 5px 0',
+};
+
+const checkboxStyle = {
+  accentColor: '#1e90ff',
+  width: 18,
+  height: 18,
+};
+
+const termsLink = {
+  color: '#1e90ff',
+  textDecoration: 'none',
 };
