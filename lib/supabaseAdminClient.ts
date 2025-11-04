@@ -1,17 +1,12 @@
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+export function getSupabaseAdmin() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-if (!supabaseUrl || !serviceKey) {
-  console.error('🚨 Missing Supabase environment variables!');
-  console.error('NEXT_PUBLIC_SUPABASE_URL:', supabaseUrl);
-  console.error('SUPABASE_SERVICE_ROLE_KEY exists:', !!serviceKey);
+  if (!url || !serviceKey) {
+    console.warn('⚠️ Missing Supabase admin environment variables at runtime');
+  }
+
+  return createClient(url!, serviceKey!, { auth: { persistSession: false } });
 }
-
-export const supabaseAdmin =
-  supabaseUrl && serviceKey
-    ? createClient(supabaseUrl, serviceKey, {
-        auth: { persistSession: false },
-      })
-    : null;
