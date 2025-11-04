@@ -1,11 +1,7 @@
 import { NextResponse } from 'next/server';
-import { supabaseAdmin } from '@/lib/supabaseAdminClient';
+import { getSupabaseAdmin } from '@/lib/supabaseAdminClient';
 
 export async function POST(req: Request) {
-  // 🔍 Diagnostic logging for environment variable visibility
-  console.log('ENV: NEXT_PUBLIC_SUPABASE_URL =', process.env.NEXT_PUBLIC_SUPABASE_URL);
-  console.log('ENV: SUPABASE_SECRET_KEY =', process.env.SUPABASE_SECRET_KEY ? 'exists ✅' : 'MISSING ❌');
-
   try {
     const body = await req.json();
     const { username, venue_name, email, first_name, last_name, master_id } = body;
@@ -14,18 +10,29 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
-    // Check duplicates
-    const { data: existing } = await supabaseAdmin
+    // ✅ Create Supabase admin client at runtime
+    const supabaseAdmin = getSupabaseAdmin();
+    if (!supabaseAdmin) {
+      console.warn('⚠️ Supabase admin client unavailable at runtime.');
+      return NextResponse.json(
+        { error: 'Supabase admin client unavailable.' },
+        { status: 503 }
+      );
+    }
+
+    // 🔍 Check duplicates
+    const { data: existing, error: dupError } = await supabaseAdmin
       .from('hosts')
       .select('id')
       .or(`username.eq.${username},email.eq.${email}`)
       .maybeSingle();
 
+    if (dupError) throw dupError;
     if (existing) {
       return NextResponse.json({ error: 'Username or email already exists' }, { status: 409 });
     }
 
-    // Insert new host
+    // ✅ Insert new host
     const { data, error } = await supabaseAdmin
       .from('hosts')
       .insert([
@@ -47,7 +54,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ success: true, host: data }, { status: 201 });
   } catch (err: any) {
-    console.error('❌ create-host error:', err.message);
-    return NextResponse.json({ error: 'Server error' }, { status: 500 });
+    console.error('❌ create-host error:', err.message || err);
+    return NextResponse.json({ error: 'Server error', details: err.message }, { status: 500 });
   }
 }
