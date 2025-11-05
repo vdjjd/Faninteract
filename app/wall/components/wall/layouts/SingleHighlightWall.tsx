@@ -6,13 +6,77 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useRealtimeChannel } from '@/providers/SupabaseRealtimeProvider';
 import { supabase } from '@/lib/supabaseClient';
 
-/* ---------- TRANSITION STYLES ---------- */
+/* ---------- FULL TRANSITION SET ---------- */
 const transitions: Record<string, any> = {
-  'Fade In / Fade Out': { initial: { opacity: 0 }, animate: { opacity: 1 }, exit: { opacity: 0 }, transition: { duration: 0.8 } },
-  'Slide Up / Slide Out': { initial: { y: 80, opacity: 0 }, animate: { y: 0, opacity: 1 }, exit: { y: -80, opacity: 0 }, transition: { duration: 0.7 } },
-  'Slide Down / Slide Out': { initial: { y: -80, opacity: 0 }, animate: { y: 0, opacity: 1 }, exit: { y: 80, opacity: 0 }, transition: { duration: 0.7 } },
-  'Slide Left / Slide Right': { initial: { x: 100, opacity: 0 }, animate: { x: 0, opacity: 1 }, exit: { x: -100, opacity: 0 }, transition: { duration: 0.7 } },
-  'Zoom In / Zoom Out': { initial: { scale: 0.8, opacity: 0 }, animate: { scale: 1, opacity: 1 }, exit: { scale: 0.8, opacity: 0 }, transition: { duration: 0.6 } },
+  'Fade In / Fade Out': {
+    initial: { opacity: 0 },
+    animate: { opacity: 1 },
+    exit: { opacity: 0 },
+    transition: { duration: 0.6, ease: 'easeInOut' },
+  },
+
+  'Slide Up / Slide Out': {
+    initial: { y: 60, opacity: 0 },
+    animate: { y: 0, opacity: 1 },
+    exit: { y: -60, opacity: 0 },
+    transition: { duration: 0.6, ease: 'easeOut' },
+  },
+
+  'Slide Down / Slide Out': {
+    initial: { y: -60, opacity: 0 },
+    animate: { y: 0, opacity: 1 },
+    exit: { y: 60, opacity: 0 },
+    transition: { duration: 0.6, ease: 'easeOut' },
+  },
+
+  'Slide Left / Slide Right': {
+    initial: { x: 80, opacity: 0 },
+    animate: { x: 0, opacity: 1 },
+    exit: { x: -80, opacity: 0 },
+    transition: { duration: 0.6, ease: 'easeOut' },
+  },
+
+  'Slide Right / Slide Left': {
+    initial: { x: -80, opacity: 0 },
+    animate: { x: 0, opacity: 1 },
+    exit: { x: 80, opacity: 0 },
+    transition: { duration: 0.6, ease: 'easeOut' },
+  },
+
+  'Zoom In / Zoom Out': {
+    initial: { scale: 0.88, opacity: 0 },
+    animate: { scale: 1, opacity: 1 },
+    exit: { scale: 0.88, opacity: 0 },
+    transition: { duration: 0.55, ease: 'easeOut' },
+  },
+
+  'Zoom Out / Zoom In': {
+    initial: { scale: 1.15, opacity: 0 },
+    animate: { scale: 1, opacity: 1 },
+    exit: { scale: 1.15, opacity: 0 },
+    transition: { duration: 0.55, ease: 'easeOut' },
+  },
+
+  'Flip': {
+    initial: { rotateY: 90, opacity: 0 },
+    animate: { rotateY: 0, opacity: 1 },
+    exit: { rotateY: -90, opacity: 0 },
+    transition: { duration: 0.65, ease: 'easeInOut' },
+  },
+
+  'Rotate In / Rotate Out': {
+    initial: { rotate: -25, scale: 0.9, opacity: 0 },
+    animate: { rotate: 0, scale: 1, opacity: 1 },
+    exit: { rotate: 25, scale: 0.9, opacity: 0 },
+    transition: { duration: 0.65, ease: 'easeOut' },
+  },
+
+  'Pop In / Pop Out': {
+    initial: { scale: 0.7, opacity: 0 },
+    animate: { scale: 1, opacity: 1 },
+    exit: { scale: 0.7, opacity: 0 },
+    transition: { duration: 0.4, ease: [0.34, 1.56, 0.64, 1] }, // elastic curve
+  },
 };
 
 const speedMap: Record<string, number> = { Slow: 12000, Medium: 8000, Fast: 4000 };
