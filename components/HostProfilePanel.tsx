@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 import { useState } from 'react';
 import {
@@ -38,7 +38,10 @@ export default function HostProfilePanel({ host }: HostProfilePanelProps) {
   }
 
   function openAdsManager() {
-    const url = `/admin/ads/${host.id}?master=${host.role === 'master'}`;
+    if (!host) return;
+
+    // ✅ Use host.profile_id instead of host.id
+    const url = `/admin/ads/${host.profile_id}?master=${host.role === 'master'}`;
 
     window.open(
       url,
@@ -49,7 +52,7 @@ export default function HostProfilePanel({ host }: HostProfilePanelProps) {
 
   if (!host) {
     return (
-      <div className={cn('flex', 'items-center', 'justify-center', 'text-gray-400', 'text-sm', 'py-6')}>
+      <div className={cn('flex items-center justify-center text-gray-400 text-sm py-6')}>
         Loading profile…
       </div>
     );
@@ -57,25 +60,24 @@ export default function HostProfilePanel({ host }: HostProfilePanelProps) {
 
   return (
     <Sheet open={isOpen} onOpenChange={setIsOpen}>
-      {/* Trigger */}
       <SheetTrigger asChild>
-        <button className={cn('rounded-full', 'w-10', 'h-10', 'overflow-hidden', 'border', 'border-gray-500', 'hover:ring-2', 'hover:ring-blue-500', 'transition-all')}>
-          <div className={cn('bg-gray-700', 'w-full', 'h-full', 'flex', 'items-center', 'justify-center', 'text-gray-200', 'font-bold')}>
+        <button className={cn('rounded-full w-10 h-10 overflow-hidden border border-gray-500 hover:ring-2 hover:ring-blue-500 transition-all')}>
+          <div className={cn('bg-gray-700 w-full h-full flex items-center justify-center text-gray-200 font-bold')}>
             {host?.first_name?.[0]?.toUpperCase() || host?.venue_name?.[0]?.toUpperCase() || 'H'}
           </div>
         </button>
       </SheetTrigger>
 
-      <SheetContent side="right" className={cn('w-80', 'bg-black/80', 'backdrop-blur-xl', 'border-l', 'border-gray-700', 'text-gray-100', 'overflow-y-auto')}>
+      <SheetContent side="right" className={cn('w-80 bg-black/80 backdrop-blur-xl border-l border-gray-700 text-gray-100 overflow-y-auto')}>
         <SheetHeader>
-          <SheetTitle className={cn('text-white', 'font-semibold', 'tracking-wide', 'text-center')}>
+          <SheetTitle className={cn('text-white font-semibold tracking-wide text-center')}>
             Host Profile
           </SheetTitle>
         </SheetHeader>
 
         <div className={cn('mt-5', 'flex', 'flex-col', 'gap-6')}>
 
-          {/* ---------- ACCOUNT ---------- */}
+          {/* ACCOUNT */}
           <section>
             <div className={cn('flex', 'items-center', 'justify-center', 'gap-3', 'mb-3', 'text-blue-400', 'font-semibold', 'text-center')}>
               <User className={cn('w-5', 'h-5')} /> Account
@@ -111,7 +113,7 @@ export default function HostProfilePanel({ host }: HostProfilePanelProps) {
             </div>
           </section>
 
-          {/* ---------- SETTINGS ---------- */}
+          {/* SETTINGS */}
           <section>
             <div className={cn('flex', 'items-center', 'justify-center', 'gap-3', 'mb-3', 'text-blue-400', 'font-semibold', 'text-center')}>
               <Settings className={cn('w-5', 'h-5')} /> Settings
@@ -123,18 +125,18 @@ export default function HostProfilePanel({ host }: HostProfilePanelProps) {
             </p>
           </section>
 
-          {/* ---------- ADS MANAGER ---------- */}
+          {/* ✅ AD MANAGER */}
           <section>
             <div className={cn('flex', 'items-center', 'justify-center', 'gap-3', 'mb-3', 'text-blue-400', 'font-semibold', 'text-center')}>
-              <SlidersHorizontal className={cn('w-5', 'h-5')} /> Sponsor Slides
+              <SlidersHorizontal className={cn('w-5', 'h-5')} /> Ad Manager
             </div>
 
             <Button variant="outline" className="w-full" onClick={openAdsManager}>
-              Open Ads Manager
+              Open Ad Manager
             </Button>
           </section>
 
-          {/* ---------- BILLING ---------- */}
+          {/* BILLING */}
           <section>
             <div className={cn('flex', 'items-center', 'justify-center', 'gap-3', 'mb-3', 'text-blue-400', 'font-semibold', 'text-center')}>
               <CreditCard className={cn('w-5', 'h-5')} /> Billing
@@ -144,11 +146,12 @@ export default function HostProfilePanel({ host }: HostProfilePanelProps) {
             </Button>
           </section>
 
-          {/* ---------- SECURITY ---------- */}
+          {/* SECURITY */}
           <section>
             <div className={cn('flex', 'items-center', 'justify-center', 'gap-3', 'mb-3', 'text-blue-400', 'font-semibold', 'text-center')}>
               <LogOut className={cn('w-5', 'h-5')} /> Security
             </div>
+
             <Button variant="destructive" className="w-full" onClick={handleLogout}>
               Logout
             </Button>
@@ -157,26 +160,19 @@ export default function HostProfilePanel({ host }: HostProfilePanelProps) {
           <div className="h-8"></div>
         </div>
 
-        {/* Modals */}
+        {/* EMAIL MODAL */}
         {showEmailModal && (
           <div className={cn('fixed', 'inset-0', 'bg-black/70', 'flex', 'items-center', 'justify-center', 'z-50')}>
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              className={cn('bg-neutral-900', 'border', 'border-gray-700', 'rounded-lg', 'shadow-lg', 'w-96', 'p-4')}
-            >
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className={cn('bg-neutral-900', 'border', 'border-gray-700', 'rounded-lg', 'shadow-lg', 'w-96', 'p-4')}>
               <ChangeEmailModal onClose={() => setShowEmailModal(false)} />
             </motion.div>
           </div>
         )}
 
+        {/* PASSWORD MODAL */}
         {showPassModal && (
           <div className={cn('fixed', 'inset-0', 'bg-black/70', 'flex', 'items-center', 'justify-center', 'z-50')}>
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              className={cn('bg-neutral-900', 'border', 'border-gray-700', 'rounded-lg', 'shadow-lg', 'w-96', 'p-4')}
-            >
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className={cn('bg-neutral-900', 'border', 'border-gray-700', 'rounded-lg', 'shadow-lg', 'w-96', 'p-4')}>
               <ChangePasswordModal onClose={() => setShowPassModal(false)} />
             </motion.div>
           </div>

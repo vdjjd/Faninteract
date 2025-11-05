@@ -28,7 +28,7 @@ export default function AdsManagerPage() {
     const { data } = await supabase
       .from("ads")
       .select("*")
-      .eq("host_id", hostId)
+      .eq("host_profile_id", hostId)
       .order("position", { ascending: true });
 
     setAds(data || []);
@@ -53,7 +53,7 @@ export default function AdsManagerPage() {
     const url = supabase.storage.from(bucket).getPublicUrl(filePath).data.publicUrl;
 
     await supabase.from("ads").insert({
-      host_id: hostId,
+      host_profile_id: hostId,
       master_id: masterMode ? hostId : null,
       type,
       url,
@@ -93,7 +93,7 @@ export default function AdsManagerPage() {
   return (
     <div className={cn("bg-black text-white w-full h-full p-4 overflow-hidden flex flex-col gap-3 relative")}>
 
-      {/* ✅ CLOSE BUTTON */}
+      {/* CLOSE BUTTON */}
       <button
         onClick={() => window.close()}
         className={cn(
@@ -104,20 +104,17 @@ export default function AdsManagerPage() {
         CLOSE
       </button>
 
-      {/* ✅ HEADER + CONTROLS */}
+      {/* HEADER + CONTROLS */}
       <div className={cn('flex justify-end items-center relative mb-1 z-20')}>
-
-        {/* Center Title */}
         <div className={cn('absolute left-0 right-0 text-center pointer-events-none')}>
-          <h1 className={cn('text-2xl', 'font-bold')}>AD Injector Manager</h1>
-          <p className={cn('text-red-400', 'text-xs', 'mt-1')}>
+          <h1 className={cn('text-2xl font-bold')}>AD Injector Manager</h1>
+          <p className={cn('text-red-400 text-xs mt-1')}>
             Images & videos must be 1920×1080 • MP4 less than 15s
           </p>
         </div>
 
-        {/* Speed */}
         <select
-          className={cn('bg-gray-800', 'text-xs', 'rounded', 'px-2', 'py-1', 'border', 'border-gray-600', 'z-20')}
+          className={cn('bg-gray-800 text-xs rounded px-2 py-1 border border-gray-600 z-20')}
           value={injectSpeed}
           onChange={(e) => setInjectSpeed(e.target.value)}
         >
@@ -126,29 +123,27 @@ export default function AdsManagerPage() {
           <option value="slow">Slow (24)</option>
         </select>
 
-        {/* Toggle */}
-        <label className={cn('flex', 'items-center', 'gap-2', 'ml-2', 'z-20')}>
-          <span className={cn('text-xs', 'opacity-60')}>Injector</span>
-          <label className={cn('relative', 'inline-flex', 'items-center', 'cursor-pointer')}>
+        <label className={cn('flex items-center gap-2 ml-2 z-20')}>
+          <span className={cn('text-xs opacity-60')}>Injector</span>
+          <label className={cn('relative inline-flex items-center cursor-pointer')}>
             <input
               type="checkbox"
-              className={cn('sr-only', 'peer')}
+              className={cn('sr-only peer')}
               checked={injectorEnabled}
               onChange={() => setInjectorEnabled(!injectorEnabled)}
             />
-            <div className={cn('w-14', 'h-7', 'bg-gray-600', 'rounded-full', 'peer-checked:bg-green-500', 'transition')} />
-            <span className={cn('absolute', 'left-1', 'top-1', 'bg-white', 'w-5', 'h-5', 'rounded-full', 'transition', 'peer-checked:translate-x-7')}/>
+            <div className={cn('w-14 h-7 bg-gray-600 rounded-full peer-checked:bg-green-500 transition')} />
+            <span className={cn('absolute left-1 top-1 bg-white w-5 h-5 rounded-full transition peer-checked:translate-x-7')}/>
           </label>
         </label>
       </div>
 
-      {/* ✅ UI BELOW HEADER */}
-      <div className={cn('flex', 'flex-col', 'gap-3', 'relative', 'flex-1')}>
+      {/* UI BELOW HEADER */}
+      <div className={cn('flex flex-col gap-3 relative flex-1')}>
 
-        {/* Upload Box */}
-        <label className={cn('border', 'border-dashed', 'border-gray-500', 'rounded-lg', 'bg-white/5', 'hover:bg-white/10', 'cursor-pointer', 'flex', 'flex-col', 'items-center', 'justify-center', 'p-6', 'text-sm')}>
+        <label className={cn('border border-dashed border-gray-500 rounded-lg bg-white/5 hover:bg-white/10 cursor-pointer flex flex-col items-center justify-center p-6 text-sm')}>
           <span className="opacity-80">Drag & Drop files here</span>
-          <span className={cn('text-xs', 'opacity-40')}>(or click to upload)</span>
+          <span className={cn('text-xs opacity-40')}>(or click to upload)</span>
 
           <input
             type="file"
@@ -163,30 +158,28 @@ export default function AdsManagerPage() {
           />
         </label>
 
-        {/* Limits */}
-        <p className={cn('text-red-400', 'text-xs', 'text-center', '-mt-2')}>
+        <p className={cn('text-red-400 text-xs text-center -mt-2')}>
           {masterMode
             ? `Master Limit: ${imageCount}/${maxImages} images • ${videoCount}/${maxVideos} videos`
             : `Host Limit: ${imageCount}/${maxImages} images • ${videoCount}/${maxVideos} videos`}
         </p>
 
-        <div className={cn('border-t', 'border-gray-700', 'opacity-40')} />
+        <div className={cn('border-t border-gray-700 opacity-40')} />
 
-        {/* Reel Order */}
-        <div className={cn('flex-1', 'rounded-lg', 'border', 'border-gray-600', 'bg-white/5', 'p-3', 'flex', 'flex-col')}>
-          <p className={cn('text-sm', 'font-semibold', 'text-center', 'mb-1')}>AD Reel Display Order</p>
-          <p className={cn('text-[10px]', 'text-center', 'mb-2', 'opacity-60')}>Drag to rearrange playback</p>
+        <div className={cn('flex-1 rounded-lg border border-gray-600 bg-white/5 p-3 flex flex-col')}>
+          <p className={cn('text-sm font-semibold text-center mb-1')}>AD Reel Display Order</p>
+          <p className={cn('text-[10px] text-center mb-2 opacity-60')}>Drag to rearrange playback</p>
 
-          <div className={cn('flex-1', 'overflow-auto')}>
+          <div className={cn('flex-1 overflow-auto')}>
             {loading ? (
-              <p className={cn('text-center', 'text-sm', 'opacity-60', 'mt-8')}>Loading...</p>
+              <p className={cn('text-center text-sm opacity-60 mt-8')}>Loading...</p>
             ) : ads.length === 0 ? (
-              <div className={cn('h-full', 'flex', 'items-center', 'justify-center', 'text-gray-400', 'text-xs', 'text-center', 'px-4')}>
+              <div className={cn('h-full flex items-center justify-center text-gray-400 text-xs text-center px-4')}>
                 No ads yet.<br/>Upload above to build your reel.
               </div>
             ) : (
               <Reorder.Group axis="y" values={ads} onReorder={saveOrder}>
-                <div className={cn('grid', 'grid-cols-4', 'gap-3', 'pr-1', 'pb-2')}>
+                <div className={cn('grid grid-cols-4 gap-3 pr-1 pb-2')}>
                   {ads.map(ad => (
                     <Reorder.Item key={ad.id} value={ad} disabled={!!ad.master_id && !masterMode}>
                       <div className={cn(
@@ -194,15 +187,15 @@ export default function AdsManagerPage() {
                         !!ad.master_id && !masterMode && "border border-gray-500 opacity-80"
                       )}>
                         {ad.type === "image" ? (
-                          <Image src={ad.url} alt="ad" width={300} height={200} className={cn('rounded-lg', 'object-cover', 'w-full', 'h-32')} />
+                          <Image src={ad.url} alt="ad" width={300} height={200} className={cn('rounded-lg object-cover w-full h-32')} />
                         ) : (
-                          <video src={ad.url} muted playsInline className={cn('rounded-lg', 'w-full', 'h-32', 'object-cover')} />
+                          <video src={ad.url} muted playsInline className={cn('rounded-lg w-full h-32 object-cover')} />
                         )}
 
                         {(!ad.master_id || masterMode) && (
                           <button
                             onClick={() => deleteAd(ad)}
-                            className={cn('absolute', 'top-2', 'right-2', 'bg-red-600', 'text-xs', 'px-2', 'py-1', 'rounded', 'opacity-0', 'group-hover:opacity-100')}
+                            className={cn('absolute top-2 right-2 bg-red-600 text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100')}
                           >
                             ✕
                           </button>
@@ -214,18 +207,16 @@ export default function AdsManagerPage() {
               </Reorder.Group>
             )}
 
-            {/* Uploading spinner */}
             {uploading && (
-              <div className={cn('fixed', 'bottom-2', 'left-2', 'bg-white/20', 'text-sm', 'p-2', 'rounded')}>
+              <div className={cn('fixed bottom-2 left-2 bg-white/20 text-sm p-2 rounded')}>
                 Uploading…
               </div>
             )}
           </div>
         </div>
 
-        {/* ✅ Overlay only covers BELOW header */}
         {!injectorEnabled && (
-          <div className={cn('absolute', 'top-28', 'left-0', 'right-0', 'bottom-0', 'bg-black/60', 'backdrop-blur-sm', 'z-10', 'flex', 'items-center', 'justify-center', 'text-white', 'font-semibold', 'text-sm')}>
+          <div className={cn('absolute top-28 left-0 right-0 bottom-0 bg-black/60 backdrop-blur-sm z-10 flex items-center justify-center text-white font-semibold text-sm')}>
             Ads Disabled — Turn Injector ON to Control
           </div>
         )}
@@ -234,5 +225,3 @@ export default function AdsManagerPage() {
     </div>
   );
 }
-
-
