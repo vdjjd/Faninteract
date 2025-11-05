@@ -41,7 +41,7 @@ export default function HostProfilePanel({ host }: HostProfilePanelProps) {
     if (!host) return;
 
     // ✅ Use host.profile_id instead of host.id
-    const url = `/admin/ads/${host.profile_id}?master=${host.role === 'master'}`;
+    const url = `/admin/ads/${host.id}?master=${host.role === 'master'}`;
 
     window.open(
       url,
