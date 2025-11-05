@@ -11,6 +11,17 @@ const nextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
+
+  // ✅ Allow Supabase storage images for Next/Image
+  images: {
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: 'zicbtsxjrhbpqjqemjrg.supabase.co',
+        pathname: '/storage/v1/object/public/**',
+      },
+    ],
+  },
 };
 
 export default nextConfig;
