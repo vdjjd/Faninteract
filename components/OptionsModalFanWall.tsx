@@ -303,18 +303,22 @@ export default function OptionsModalFanWall({
               <input
                 type="color"
                 value={localWall.color_start || '#0d47a1'}
-                onChange={(e) => {
-                  const newStart = e.target.value;
-                  const end = localWall.color_end || '#1976d2';
-                  const gradient = `linear-gradient(135deg, ${newStart}, ${end})`;
-                  setLocalWall({
-                    ...localWall,
-                    color_start: newStart,
-                    background_type: 'gradient',
-                    background_value: gradient,
-                  });
-                  handleBackgroundChange('gradient', gradient);
-                }}
+             onChange={(e) => {
+  const newEnd = e.target.value;
+  const start = localWall.color_start || '#0d47a1';
+
+  // correct directional gradient (dark UL to light DR)
+  const gradient = `linear-gradient(135deg, ${start} 0%, ${newEnd} 100%)`;
+
+  setLocalWall({
+    ...localWall,
+    color_end: newEnd,
+    background_type: 'gradient',
+    background_value: gradient,
+  });
+
+  handleBackgroundChange('gradient', gradient);
+}}
               />
             </div>
             <div>
