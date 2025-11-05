@@ -343,12 +343,30 @@ export default function OptionsModalFanWall({
           </div>
         </div>
 
-        {/* Upload */}
-        <div className={cn('mt-6', 'text-center')}>
-          <p className={cn('text-sm', 'font-semibold', 'mb-2')}>Upload Background</p>
-          <input type="file" accept="image/jpeg,image/png,image/webp" onChange={handleImageUpload} />
-          {uploading && <p className={cn('text-yellow-400', 'text-xs', 'mt-2', 'animate-pulse')}>Uploading…</p>}
-        </div>
+      {/* Upload */}
+<div className={cn('mt-6', 'text-center')}>
+  <p className={cn('text-sm', 'font-semibold', 'mb-2')}>Upload Background</p>
+
+  {/* ✅ PASTE THIS HERE */}
+  <p style={{
+    textAlign: "center",
+    color: "#ff4d4d",
+    fontSize: "0.75rem",
+    marginTop: "4px",
+    marginBottom: "6px",
+    fontWeight: 600,
+  }}>
+    1920 × 1080 recommended image size
+  </p>
+
+  <input type="file" accept="image/jpeg,image/png,image/webp" onChange={handleImageUpload} />
+  {uploading && (
+    <p className={cn('text-yellow-400', 'text-xs', 'mt-2', 'animate-pulse')}>
+      Uploading…
+    </p>
+  )}
+</div>
+
 
         {/* Buttons */}
         <div className={cn('text-center', 'mt-5', 'flex', 'justify-center', 'gap-4')}>
