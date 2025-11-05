@@ -1,21 +1,19 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams, useSearchParams, useRouter } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import { getSupabaseClient } from "@/lib/supabaseClient";
 
 export default function ThankYouPage() {
   const { id } = useParams();
   const searchParams = useSearchParams();
-  const router = useRouter();
   const supabase = getSupabaseClient();
 
   const [data, setData] = useState<any>(null);
-  const [fadeOut, setFadeOut] = useState(false);
+  const [showCloseHint, setShowCloseHint] = useState(false);
 
   const type = searchParams.get("type") || "fan_wall";
 
-  // ✅ Load wall/poll/wheel branding
   useEffect(() => {
     if (!id) return;
 
@@ -25,46 +23,33 @@ export default function ThankYouPage() {
           ? "polls"
           : type === "wheel"
           ? "prize_wheels"
-          : "fan_walls"; // default
+          : "fan_walls";
 
       const { data, error } = await supabase
         .from(table)
-        .select(`title, background_value, host:host_id (branding_logo_url)`)
+        .select(
+          `title,
+           background_value,
+           host:host_id (
+             branding_logo_url
+           )`
+        )
         .eq("id", id)
         .maybeSingle();
 
-      if (!error) setData(data);
+      if (error) console.error("❌ ThankYou fetch error:", error);
+      setData(data);
     }
 
     fetchData();
+  }, [id, type, supabase]);
 
-    // ✅ Fade & close logic
-    const fadeTimer = setTimeout(() => setFadeOut(true), 3200);
-    const closeTimer = setTimeout(() => {
-      try {
-        window.close();
-      } catch {}
-    }, 4200);
-
-    // ✅ Safety: if popup blocked, go back
-    const backTimer = setTimeout(() => {
-      router.push(`/wall/${id}`);
-    }, 5000);
-
-    return () => {
-      clearTimeout(fadeTimer);
-      clearTimeout(closeTimer);
-      clearTimeout(backTimer);
-    };
-  }, [id, type, router, supabase]);
-
-  // ✅ Message text by type
   const getMessage = () => {
     switch (type) {
       case "poll":
         return "Your vote has been recorded!";
       case "wheel":
-        return "Good luck! Your spin has been submitted!";
+        return "Good luck!";
       case "trivia":
         return "Your answer has been submitted!";
       default:
@@ -72,26 +57,28 @@ export default function ThankYouPage() {
     }
   };
 
-  // ✅ Background
   const bg =
     data?.background_value ||
     "linear-gradient(135deg,#0a2540,#1b2b44,#000000)";
 
-  const bgStyle = bg.includes("http")
-    ? { backgroundImage: `url(${bg})` }
-    : { background: bg };
-
-  // ✅ Logo
   const displayLogo =
-    data?.host?.branding_logo_url?.trim() !== ""
+    data?.host?.branding_logo_url && data.host.branding_logo_url.trim() !== ""
       ? data.host.branding_logo_url
       : "/faninteractlogo.png";
+
+  const handleClose = () => {
+    const closed = window.close();
+    if (!closed) {
+      // Browser blocked it — show hint
+      setShowCloseHint(true);
+    }
+  };
 
   return (
     <div
       style={{
-        ...bgStyle,
         minHeight: "100vh",
+        backgroundImage: bg.includes("http") ? `url(${bg})` : bg,
         backgroundSize: "cover",
         backgroundPosition: "center",
         position: "relative",
@@ -100,10 +87,7 @@ export default function ThankYouPage() {
         alignItems: "center",
         padding: 25,
         textAlign: "center",
-        opacity: fadeOut ? 0 : 1,
-        transition: "opacity 1.2s ease",
       }}
-      onClick={() => router.push(`/wall/${id}`)}
     >
       <div
         style={{
@@ -127,7 +111,6 @@ export default function ThankYouPage() {
           boxShadow: "0 0 35px rgba(0,0,0,0.6)",
         }}
       >
-        {/* Logo */}
         <img
           src={displayLogo}
           style={{
@@ -145,20 +128,26 @@ export default function ThankYouPage() {
 
         <p style={{ color: "#cbd5e1", marginBottom: 25 }}>{getMessage()}</p>
 
-        <button
-          onClick={() => router.push(`/wall/${id}`)}
-          style={{
-            padding: "12px 20px",
-            borderRadius: 10,
-            background: "linear-gradient(90deg,#0284c7,#2563eb)",
-            color: "#fff",
-            fontWeight: 600,
-            border: "none",
-            width: "100%",
-          }}
-        >
-          Back to Wall
-        </button>
+        {!showCloseHint ? (
+          <button
+            onClick={handleClose}
+            style={{
+              padding: "12px 20px",
+              borderRadius: 10,
+              background: "linear-gradient(90deg,#0284c7,#2563eb)",
+              color: "#fff",
+              fontWeight: 600,
+              border: "none",
+              width: "100%",
+            }}
+          >
+            Close
+          </button>
+        ) : (
+          <p style={{ color: "#fff", fontSize: 16 }}>
+            ✅ You can now close this tab
+          </p>
+        )}
       </div>
 
       <style>{`

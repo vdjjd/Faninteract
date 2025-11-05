@@ -40,6 +40,8 @@ interface GuestPost {
 }
 
 export function useWallData(wallId: string | string[] | undefined) {
+  const wallUUID = Array.isArray(wallId) ? wallId[0] : wallId;
+
   const [wall, setWall] = useState<WallData | null>(null);
   const [posts, setPosts] = useState<GuestPost[]>([]);
   const [loading, setLoading] = useState(true);
@@ -50,16 +52,16 @@ export function useWallData(wallId: string | string[] | undefined) {
   const updateTimeout = useRef<NodeJS.Timeout | null>(null);
 
   /* ---------------------------------------------------------------------- */
-  /* 🔄 Initial Load                                                        */
+  /* ✅ Load Wall Info                                                      */
   /* ---------------------------------------------------------------------- */
   const refresh = useCallback(async () => {
-    if (!wallId) return;
+    if (!wallUUID) return;
     if (!initialized.current) setLoading(true);
 
     const { data, error } = await supabase
       .from('fan_walls')
-      .select(`*, host:hosts (id,email,branding_logo_url)`)
-      .eq('id', wallId)
+      .select(`*, host:host_id (id,email,branding_logo_url)`)
+      .eq('id', wallUUID)
       .maybeSingle();
 
     if (error) {
@@ -68,27 +70,85 @@ export function useWallData(wallId: string | string[] | undefined) {
       return;
     }
 
-    if (data) {
-      setWall((prev) => (!prev ? data : { ...prev, ...data }));
-      setShowLive(data.status === 'live');
+    if (!data) {
+      console.warn("⚠️ No wall found for id:", wallUUID);
+      setWall(null);
+      setLoading(false);
+      return;
     }
+
+    setWall((prev) => (!prev ? data : { ...prev, ...data }));
+    setShowLive(data.status === 'live');
 
     setLoading(false);
     initialized.current = true;
-  }, [wallId]);
+  }, [wallUUID]);
 
   useEffect(() => {
     refresh();
   }, [refresh]);
 
   /* ---------------------------------------------------------------------- */
-  /* 🛰 Broadcast Listener                                                  */
+  /* ✅ Load approved posts                                                 */
+  /* ---------------------------------------------------------------------- */
+  const loadPosts = useCallback(async () => {
+    if (!wallUUID) return;
+
+    const { data, error } = await supabase
+      .from('guest_posts')
+      .select('*')
+      .eq('fan_wall_id', wallUUID)
+      .eq('status', 'approved')
+      .order('created_at', { ascending: false });
+
+    if (!error && data) setPosts(data);
+  }, [wallUUID]);
+
+  useEffect(() => {
+    loadPosts();
+  }, [loadPosts]);
+
+  /* ---------------------------------------------------------------------- */
+  /* ✅ Listen for realtime post changes                                   */
+  /* ---------------------------------------------------------------------- */
+  useEffect(() => {
+    if (!wallUUID) return;
+
+    const channel = supabase
+      .channel(`wall_posts_${wallUUID}`)
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'guest_posts',
+        filter: `fan_wall_id=eq.${wallUUID}`,
+      }, (payload: any) => {
+        const p = payload.new;
+
+        if (payload.eventType === 'INSERT' && p.status === 'approved') {
+          setPosts((old) => [p, ...old]);
+        }
+        if (payload.eventType === 'UPDATE') {
+          setPosts((old) =>
+            old.map((post) => (post.id === p.id ? p : post))
+          );
+        }
+        if (payload.eventType === 'DELETE') {
+          setPosts((old) => old.filter((post) => post.id !== payload.old.id));
+        }
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [wallUUID]);
+
+  /* ---------------------------------------------------------------------- */
+  /* ✅ Listen for wall broadcast events                                    */
   /* ---------------------------------------------------------------------- */
   useEffect(() => {
     const channel = channelRef?.current;
-    if (!channel || !wallId) return;
-
-    console.log('🛰 useWallData subscribing to global realtime channel…');
+    if (!channel || !wallUUID) return;
 
     const scheduleUpdate = (patch: Partial<WallData>) => {
       if (updateTimeout.current) clearTimeout(updateTimeout.current);
@@ -99,9 +159,7 @@ export function useWallData(wallId: string | string[] | undefined) {
 
     const handleMessage = (payload: any) => {
       const { event, payload: data } = payload;
-      if (!data?.id || data.id !== wallId) return;
-
-      console.log('📡 Broadcast received:', event, data);
+      if (!data?.id || data.id !== wallUUID) return;
 
       switch (event) {
         case 'wall_updated':
@@ -116,30 +174,20 @@ export function useWallData(wallId: string | string[] | undefined) {
           scheduleUpdate({ countdown_active: false });
           break;
         case 'wall_deleted':
-          console.warn('🗑️ Wall deleted remotely:', data.id);
           setWall(null);
           break;
       }
     };
 
     channel.on('broadcast', {}, handleMessage);
-
-    // ✅ This line was missing — actually joins the channel
-    channel.subscribe((status: string) => {
-      if (status === 'SUBSCRIBED') {
-        console.log(`✅ useWallData joined global realtime channel for wall: ${wallId}`);
-      }
-    });
+    channel.subscribe();
 
     return () => {
       try {
         channel.unsubscribe?.();
-      } catch (err) {
-        console.warn('🧹 Channel cleanup failed:', err);
-      }
+      } catch {}
     };
-  }, [channelRef, wallId]);
+  }, [channelRef, wallUUID]);
 
   return { wall, posts, loading, showLive, refresh };
 }
-

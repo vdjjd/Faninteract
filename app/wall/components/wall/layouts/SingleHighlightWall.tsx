@@ -4,6 +4,7 @@ import { QRCodeCanvas } from 'qrcode.react';
 import { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRealtimeChannel } from '@/providers/SupabaseRealtimeProvider';
+import { supabase } from '@/lib/supabaseClient';  // ✅ ADDED
 
 /* ---------- TRANSITION STYLES ---------- */
 const transitions: Record<string, any> = {
@@ -71,18 +72,39 @@ export default function SingleHighlightWall({
   const [transitionType, setTransitionType] = useState(
     event?.post_transition || 'Fade In / Fade Out'
   );
+
   const [displayDuration, setDisplayDuration] = useState(
     speedMap[event?.transition_speed || 'Medium']
   );
 
   const transitionLock = useRef(false);
 
-  /* ---------- INITIAL POPULATION ---------- */
+  /* ✅ Initial population from props */
   useEffect(() => {
     if (posts?.length) setLivePosts(posts);
   }, [posts]);
 
-  /* ---------- REALTIME LISTENER ---------- */
+  /* ✅ Load approved posts on mount */
+  useEffect(() => {
+    async function fetchApproved() {
+      if (!event?.id) return;
+
+      const { data, error } = await supabase
+        .from('guest_posts')
+        .select('*')
+        .eq('fan_wall_id', event.id)
+        .eq('status', 'approved')
+        .order('created_at', { ascending: false });
+
+      if (!error && data) {
+        setLivePosts(data);
+      }
+    }
+
+    fetchApproved();
+  }, [event?.id]);
+
+  /* ✅ Realtime Listener */
   useEffect(() => {
     const channel = channelRef?.current;
     if (!channel || !event?.id) return;
@@ -103,8 +125,7 @@ export default function SingleHighlightWall({
         if (data.logo_url) setLogo(data.logo_url);
         if (data.transition_speed)
           setDisplayDuration(speedMap[data.transition_speed]);
-        if (data.post_transition)
-          setTransitionType(data.post_transition);
+        if (data.post_transition) setTransitionType(data.post_transition);
       }
 
       if (evt === 'wall_status_changed' && !transitionLock.current) {
@@ -133,7 +154,7 @@ export default function SingleHighlightWall({
     };
   }, [channelRef, event?.id]);
 
-  /* ---------- POST ROTATION ---------- */
+  /* ✅ Automatically rotate posts */
   useEffect(() => {
     if (!livePosts?.length) return;
     const interval = setInterval(() => {
@@ -142,10 +163,12 @@ export default function SingleHighlightWall({
     return () => clearInterval(interval);
   }, [livePosts, displayDuration]);
 
-  const transitionStyle = transitions[transitionType] || transitions['Fade In / Fade Out'];
+  const transitionStyle =
+    transitions[transitionType] || transitions['Fade In / Fade Out'];
+
   const current = livePosts[currentIndex % (livePosts.length || 1)];
 
-  /* ---------- FULLSCREEN BUTTON ---------- */
+  /* ✅ Fullscreen */
   const handleFullscreen = () => {
     const elem = document.documentElement;
     if (!document.fullscreenElement) elem.requestFullscreen().catch(() => {});
@@ -245,7 +268,7 @@ export default function SingleHighlightWall({
           </AnimatePresence>
         </div>
 
-        {/* RIGHT TEXT + LOGO */}
+        {/* RIGHT MESSAGE + LOGO */}
         <div
           style={{
             flexGrow: 1,
@@ -282,7 +305,7 @@ export default function SingleHighlightWall({
               marginTop: '1vh',
               marginBottom: '2vh',
             }}
-          ></div>
+          />
 
           <p
             style={{
@@ -293,15 +316,14 @@ export default function SingleHighlightWall({
               textAlign: 'center',
               color: '#fff',
               textShadow: '0 0 8px rgba(0,0,0,0.6)',
-              transition: 'color 0.4s ease',
             }}
           >
-            {current?.message || 'Loading posts…'}
+            {current?.message || 'Be the first to post!'}
           </p>
         </div>
       </div>
 
-      {/* ✅ UPDATED QR CODE */}
+      {/* ✅ QR Code */}
       <div
         style={{
           position: 'absolute',
@@ -348,7 +370,7 @@ export default function SingleHighlightWall({
         </div>
       </div>
 
-      {/* FULLSCREEN BUTTON */}
+      {/* ✅ FULLSCREEN BUTTON */}
       <button
         onClick={handleFullscreen}
         style={{
