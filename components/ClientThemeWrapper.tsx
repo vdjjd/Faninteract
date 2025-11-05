@@ -4,21 +4,17 @@ import { usePathname } from 'next/navigation';
 import { ReactNode } from 'react';
 
 /**
- * This wrapper switches between dark (Fan Zone)
- * and light (Sign-in / Auth) themes automatically.
+ * Auth pages now use landing background and overlay,
+ * so DO NOT flip to light theme on login/signup.
  */
-function isLightRoute(path: string) {
-  return (
-    path.startsWith('/signin') ||
-    path.startsWith('/login') ||
-    path.startsWith('/signup') ||
-    path.startsWith('/auth')
-  );
+function isGuestPostingRoute(path: string) {
+  // only guest wall submission pages get the light UI
+  return path.startsWith('/post') || path.startsWith('/guest');
 }
 
 export default function ClientThemeWrapper({ children }: { children: ReactNode }) {
   const pathname = usePathname();
-  const lightMode = isLightRoute(pathname || '');
+  const lightMode = isGuestPostingRoute(pathname || '');
 
   return (
     <div
