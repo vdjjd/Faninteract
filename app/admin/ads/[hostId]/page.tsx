@@ -169,33 +169,64 @@ export default function AdsManagerPage() {
         <p className={cn('text-[10px]', 'text-center', 'mb-2', 'opacity-60')}>Drag to rearrange playback</p>
 
         {loading ? (
-          <p className={cn('text-center', 'text-sm', 'opacity-60', 'mt-8')}>Loading...</p>
-        ) : ads.length === 0 ? (
-          <div className={cn('h-full', 'flex', 'items-center', 'justify-center', 'text-gray-400', 'text-xs', 'text-center', 'px-4')}>
-            No ads yet.<br />Upload above to build your reel.
-          </div>
-        ) : (
-          <Reorder.Group axis="y" values={ads} onReorder={saveOrder} className={cn('flex', 'flex-col', 'gap-2')}>
-            {ads.map((ad) => (
-              <Reorder.Item key={ad.id} value={ad}>
-                <div className={cn('relative', 'rounded-lg', 'overflow-hidden', 'p-1', 'bg-white/10', 'group')}>
-                  {ad.type === "image" ? (
-                    <Image src={ad.url} alt="" width={300} height={200} className={cn('rounded-lg', 'object-cover', 'w-full', 'h-32')} />
-                  ) : (
-                    <video src={ad.url} className={cn('rounded-lg', 'w-full', 'h-32', 'object-cover')} muted playsInline />
-                  )}
+  <p className={cn("text-center text-sm opacity-60 mt-8")}>Loading...</p>
+) : ads.length === 0 ? (
+  <div className={cn("h-full flex items-center justify-center text-gray-400 text-xs text-center px-4")}>
+    No ads yet.<br />Upload above to build your reel.
+  </div>
+) : (
+  <Reorder.Group
+    axis="y"
+    values={ads}
+    onReorder={saveOrder}
+    className={cn('grid', 'grid-cols-4', 'gap-3', 'pr-1', 'pb-2')}
+  >
+    {ads.map((ad) => (
+      <Reorder.Item
+        key={ad.id}
+        value={ad}
+        className="cursor-move"
+        whileDrag={{ scale: 1.03, boxShadow: "0 0 10px rgba(255,255,255,0.3)" }}
+      >
+        <div
+          className={cn(
+            "relative rounded-lg overflow-hidden p-1 bg-white/10 group",
+            !!ad.master_id && !masterMode && "border border-gray-500 opacity-80"
+          )}
+        >
+          {ad.type === "image" ? (
+            <Image
+              src={ad.url}
+              alt="ad"
+              width={300}
+              height={200}
+              className={cn('rounded-lg', 'object-cover', 'w-full', 'h-32')}
+            />
+          ) : (
+            <video
+              src={ad.url}
+              muted
+              playsInline
+              className={cn('rounded-lg', 'w-full', 'h-32', 'object-cover')}
+            />
+          )}
 
-                  <button
-                    onClick={() => deleteAd(ad)}
-                    className={cn('absolute', 'top-2', 'right-2', 'bg-red-600', 'text-xs', 'px-2', 'py-1', 'rounded', 'opacity-0', 'group-hover:opacity-100')}
-                  >
-                    ✕
-                  </button>
-                </div>
-              </Reorder.Item>
-            ))}
-          </Reorder.Group>
-        )}
+          {(!ad.master_id || masterMode) && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation(); // 🔥 Prevent drag blocking delete
+                deleteAd(ad);
+              }}
+              className={cn('absolute', 'top-2', 'right-2', 'bg-red-600', 'text-xs', 'px-2', 'py-1', 'rounded', 'opacity-0', 'group-hover:opacity-100')}
+            >
+              ✕
+            </button>
+          )}
+        </div>
+      </Reorder.Item>
+    ))}
+  </Reorder.Group>
+)}
       </div>
 
       {uploading && (
