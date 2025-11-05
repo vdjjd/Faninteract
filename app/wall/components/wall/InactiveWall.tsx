@@ -5,13 +5,7 @@ import { useEffect, useMemo, useState, useRef } from 'react';
 import { useRealtimeChannel } from '@/providers/SupabaseRealtimeProvider';
 
 /* ---------- COUNTDOWN DISPLAY ---------- */
-function CountdownDisplay({
-  countdown,
-  countdownActive,
-}: {
-  countdown?: string;
-  countdownActive?: boolean;
-}) {
+function CountdownDisplay({ countdown, countdownActive }) {
   const [timeLeft, setTimeLeft] = useState(0);
   const [active, setActive] = useState(countdownActive);
 
@@ -57,9 +51,9 @@ function CountdownDisplay({
 }
 
 /* -------------------------------------------------------------------------- */
-/* 🧱 INACTIVE WALL DISPLAY (realtime + optimized)                            */
+/* INACTIVE WALL                                                              */
 /* -------------------------------------------------------------------------- */
-export default function InactiveWall({ wall }: { wall: any }) {
+export default function InactiveWall({ wall }) {
   const channelRef = useRealtimeChannel();
   const [bg, setBg] = useState('linear-gradient(to bottom right,#1b2735,#090a0f)');
   const [wallState, setWallState] = useState({
@@ -68,28 +62,19 @@ export default function InactiveWall({ wall }: { wall: any }) {
     title: '',
   });
 
-  const updateTimeout = useRef<NodeJS.Timeout | null>(null);
+  const updateTimeout = useRef(null);
 
-  /* ---------- Add pulse animation ---------- */
   const PulseStyle = (
     <style>{`
       @keyframes pulseGlow {
-        0%, 100% {
-          text-shadow: 0 0 18px rgba(255,255,255,0.3), 0 0 36px rgba(255,255,255,0.2);
-          opacity: 0.95;
-        }
-        50% {
-          text-shadow: 0 0 28px rgba(255,255,255,0.8), 0 0 60px rgba(255,255,255,0.5);
-          opacity: 1;
-        }
+        0%, 100% { text-shadow: 0 0 18px rgba(255,255,255,0.3), 0 0 36px rgba(255,255,255,0.2); opacity: 0.95; }
+        50% { text-shadow: 0 0 28px rgba(255,255,255,0.8), 0 0 60px rgba(255,255,255,0.5); opacity: 1; }
       }
-      .pulseSoon {
-        animation: pulseGlow 2.5s ease-in-out infinite;
-      }
+      .pulseSoon { animation: pulseGlow 2.5s ease-in-out infinite; }
     `}</style>
   );
 
-  /* 🧠 Base setup */
+  /* ✅ Load initial */
   useEffect(() => {
     if (!wall) return;
     setWallState({
@@ -98,47 +83,45 @@ export default function InactiveWall({ wall }: { wall: any }) {
       title: wall.title || '',
     });
 
-    const value =
-      wall.background_type === 'image'
-        ? `url(${wall.background_value}) center/cover no-repeat`
-        : wall.background_value || 'linear-gradient(to bottom right,#1b2735,#090a0f)';
+    const value = wall.background_type === 'image'
+      ? `url(${wall.background_value}) center/cover no-repeat`
+      : wall.background_value || 'linear-gradient(to bottom right,#1b2735,#090a0f)';
 
     const t = setTimeout(() => setBg(value), 100);
     return () => clearTimeout(t);
   }, [wall]);
 
-  /* 🛰 Realtime subscriptions */
+  /* ✅ Realtime updates */
   useEffect(() => {
     const channel = channelRef?.current;
     if (!channel || !wall?.id) return;
 
-    const scheduleUpdate = (patch: any) => {
+    const scheduleUpdate = (patch) => {
       if (updateTimeout.current) clearTimeout(updateTimeout.current);
       updateTimeout.current = setTimeout(() => {
         setWallState((prev) => ({ ...prev, ...patch }));
       }, 100);
     };
 
-    const handleBroadcast = (payload: any) => {
-      const { event, payload: data } = payload;
-      if (!data?.id || data.id !== wall.id) return;
+    const handleBroadcast = ({ event, payload }) => {
+      if (!payload?.id || payload.id !== wall.id) return;
 
       switch (event) {
         case 'wall_updated':
-          if (data.background_value) {
+          if (payload.background_value) {
             const newBg =
-              data.background_type === 'image'
-                ? `url(${data.background_value}) center/cover no-repeat`
-                : data.background_value;
+              payload.background_type === 'image'
+                ? `url(${payload.background_value}) center/cover no-repeat`
+                : payload.background_value;
             setBg(newBg);
           }
-          if (data.title) scheduleUpdate({ title: data.title });
-          if (data.countdown) scheduleUpdate({ countdown: data.countdown });
+          if (payload.title) scheduleUpdate({ title: payload.title });
+          if (payload.countdown) scheduleUpdate({ countdown: payload.countdown });
           break;
 
         case 'wall_status_changed':
-          if (data.countdown_active !== undefined)
-            scheduleUpdate({ countdownActive: data.countdown_active });
+          if (payload.countdown_active !== undefined)
+            scheduleUpdate({ countdownActive: payload.countdown_active });
           break;
 
         case 'countdown_finished':
@@ -148,22 +131,32 @@ export default function InactiveWall({ wall }: { wall: any }) {
     };
 
     channel.on('broadcast', {}, handleBroadcast);
-    return () => {
-      try { channel.unsubscribe?.(); } catch {}
-    };
+    return () => channel.unsubscribe?.();
   }, [channelRef, wall?.id]);
 
-  const displayLogo = wall?.host?.branding_logo_url || '/faninteractlogo.png';
+  /* ✅ Dynamic origin + QR */
+  const origin =
+    typeof window !== 'undefined'
+      ? window.location.origin
+      : 'https://faninteract.vercel.app';
+
   const qrValue = useMemo(
-    () => `https://faninteract.vercel.app/submit/${wall?.id || ''}`,
-    [wall?.id]
+    () => `${origin}/guest/signup?wall=${wall?.id}`,
+    [wall?.id, origin]
   );
 
-  /* ---------- Fullscreen handler ---------- */
+  /* ✅ Host logo */
+  const displayLogo =
+    wall?.host?.branding_logo_url?.trim()
+      ? wall.host.branding_logo_url
+      : '/faninteractlogo.png';
+
+  /* ✅ Fullscreen */
   const handleFullscreen = () => {
-    const elem = document.documentElement;
-    if (!document.fullscreenElement) elem.requestFullscreen().catch(() => {});
-    else document.exitFullscreen();
+    const el = document.documentElement;
+    !document.fullscreenElement
+      ? el.requestFullscreen().catch(() => {})
+      : document.exitFullscreen();
   };
 
   if (!wall) return <div>Loading Wall…</div>;
@@ -186,7 +179,6 @@ export default function InactiveWall({ wall }: { wall: any }) {
     >
       {PulseStyle}
 
-      {/* ---------- Title ---------- */}
       <h1
         style={{
           color: '#fff',
@@ -201,7 +193,7 @@ export default function InactiveWall({ wall }: { wall: any }) {
         {wallState.title || 'Fan Zone Wall'}
       </h1>
 
-      {/* ---------- Main container ---------- */}
+      {/* Panel */}
       <div
         style={{
           width: '90vw',
@@ -216,7 +208,8 @@ export default function InactiveWall({ wall }: { wall: any }) {
           overflow: 'hidden',
         }}
       >
-        {/* ---------- QR ----------- */}
+
+        {/* ✅ NEW QR PATH */}
         <QRCodeCanvas
           value={qrValue}
           size={620}
@@ -234,7 +227,7 @@ export default function InactiveWall({ wall }: { wall: any }) {
           }}
         />
 
-        {/* ---------- Logo ---------- */}
+        {/* Logo */}
         <img
           src={displayLogo}
           alt="Logo"
@@ -244,13 +237,12 @@ export default function InactiveWall({ wall }: { wall: any }) {
             left: 'calc(40px + 620px + 60px)',
             transform: 'translateY(-50%)',
             width: 'clamp(600px, 22vw, 400px)',
-            height: 'auto',
             objectFit: 'contain',
             filter: 'drop-shadow(2px 2px 10px rgba(0,0,0,10))',
           }}
         />
 
-        {/* ---------- Grey Bar under Logo ---------- */}
+        {/* Grey bar */}
         <div
           style={{
             position: 'absolute',
@@ -265,7 +257,7 @@ export default function InactiveWall({ wall }: { wall: any }) {
           }}
         />
 
-        {/* ---------- Text + Pulse ---------- */}
+        {/* Text */}
         <div
           style={{
             position: 'absolute',
@@ -275,23 +267,13 @@ export default function InactiveWall({ wall }: { wall: any }) {
             textAlign: 'center',
             color: '#fff',
             fontWeight: 800,
-            textShadow:
-              '0 0 10px rgba(255,255,255,0.8), 0 0 30px rgba(100,150,255,0.6)',
           }}
         >
           <div style={{ fontSize: 'clamp(4rem, 2vw, 3.5rem)' }}>
             Fan Zone Wall
           </div>
 
-          <div
-            className="pulseSoon"
-            style={{
-              fontSize: 'clamp(3rem, 2vw, 2.6rem)',
-              marginTop: '0.4rem',
-              color: '#bcd9ff',
-              fontWeight: 900,
-            }}
-          >
+          <div className="pulseSoon" style={{ fontSize: 'clamp(3rem, 2vw, 2.6rem)', color: '#bcd9ff' }}>
             Starting Soon!!
           </div>
         </div>
@@ -307,15 +289,12 @@ export default function InactiveWall({ wall }: { wall: any }) {
               textAlign: 'center',
             }}
           >
-            <CountdownDisplay
-              countdown={wallState.countdown}
-              countdownActive={wallState.countdownActive}
-            />
+            <CountdownDisplay countdown={wallState.countdown} countdownActive={wallState.countdownActive} />
           </div>
         )}
       </div>
 
-      {/* ---------- Fullscreen Button ---------- */}
+      {/* Fullscreen */}
       <button
         onClick={handleFullscreen}
         style={{

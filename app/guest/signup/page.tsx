@@ -1,164 +1,164 @@
-'use client';
+"use client";
 
-import { useEffect, useState } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
-import { getSupabaseClient } from '@/lib/supabaseClient';
-import Image from 'next/image';
-import { motion } from 'framer-motion';
-import { cn } from '@/lib/utils';
+import { useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import Image from "next/image";
+import { motion } from "framer-motion";
+import { cn } from "@/lib/utils";
 
-/* ------------------ Device ID Helper ------------------ */
-function getOrCreateGuestDeviceId(): string | null {
-  if (typeof window === 'undefined') return null;
-  let id = localStorage.getItem('guest_device_id');
-  if (!id) {
-    id = crypto.randomUUID();
-    localStorage.setItem('guest_device_id', id);
-  }
-  return id;
-}
+import { getSupabaseClient } from "@/lib/supabaseClient";
+import { syncGuestProfile, getOrCreateGuestDeviceId } from "@/lib/syncGuest";
 
 export default function GuestSignupPage() {
-  const supabase = getSupabaseClient();
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const wallId = searchParams.get('wall');
-  const redirect = `/wall/${wallId}/submit`;
+  const params = useSearchParams();
+  const wallId = params.get("wall");
 
-  const [wallBG, setWallBG] = useState<{ type: string; value: string } | null>(null);
-  const [form, setForm] = useState({ first_name: '', last_name: '', email: '', phone: '' });
+  const supabase = getSupabaseClient();
+
+  const [wall, setWall] = useState<any>(null);
+  const [form, setForm] = useState({
+    first_name: "",
+    last_name: "",
+    email: "",
+    phone: "",
+  });
   const [agree, setAgree] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState('');
 
-  /* ------------------ Auto-redirect if already signed up ------------------ */
+  /* ✅ Always ensure device id exists */
   useEffect(() => {
-    const profile = localStorage.getItem('guest_profile');
-    if (profile) router.push(redirect);
+    getOrCreateGuestDeviceId();
   }, []);
 
-  /* ------------------ Load wall background ------------------ */
+  /* ✅ Load wall for background */
   useEffect(() => {
     async function loadWall() {
       if (!wallId) return;
-      const { data, error } = await supabase
-        .from('fan_walls')
-        .select('background_type, background_value')
-        .eq('id', wallId)
+      const { data } = await supabase
+        .from("fan_walls")
+        .select("title, background_value")
+        .eq("id", wallId)
         .single();
-
-      if (!error && data) {
-        setWallBG({ type: data.background_type, value: data.background_value });
-      }
+      setWall(data);
     }
     loadWall();
-  }, [wallId]);
+  }, [wallId, supabase]);
 
-  /* ------------------ Handle Form Submit ------------------ */
-  async function handleSubmit(e: any) {
-    e.preventDefault();
-    setError('');
-    if (!agree) return setError('You must agree to the Terms.');
-    setSubmitting(true);
+  /* ✅ Smart redirect: only skip signup IF device + DB record exists */
+  useEffect(() => {
+    async function validateGuest() {
+      if (!wallId) return;
 
-    try {
-      const device_id = getOrCreateGuestDeviceId();
-      const { data: existing } = await supabase
-        .from('guest_profiles')
-        .select('*')
-        .eq('device_id', device_id)
+      const deviceId = localStorage.getItem("guest_device_id");
+      const cached = localStorage.getItem("guest_profile");
+
+      if (!deviceId || !cached) return; // no profile stored -> show signup
+
+      // Check DB to confirm profile still exists
+      const { data } = await supabase
+        .from("guest_profiles")
+        .select("id")
+        .eq("device_id", deviceId)
         .maybeSingle();
 
-      let profile;
-      if (existing) {
-        const { data } = await supabase
-          .from('guest_profiles')
-          .update(form)
-          .eq('device_id', device_id)
-          .select()
-          .single();
-        profile = data;
-      } else {
-        const { data } = await supabase
-          .from('guest_profiles')
-          .insert([{ device_id, ...form }])
-          .select()
-          .single();
-        profile = data;
+      if (!data) {
+        console.log("🔁 Ghost device detected — clearing and forcing signup");
+        localStorage.removeItem("guest_profile");
+        return; // stay on signup page
       }
 
-      localStorage.setItem('guest_profile', JSON.stringify(profile));
-      router.push(redirect);
-    } catch (err: any) {
-      setError(err.message);
+      // ✅ Profile exists in DB — skip to submit
+      router.push(`/wall/${wallId}/submit`);
+    }
+
+    validateGuest();
+  }, [wallId, router, supabase]);
+
+  /* ✅ Submit handler */
+  const handleSubmit = async (e: any) => {
+    e.preventDefault();
+    if (!agree) return alert("You must agree to continue.");
+    if (!wallId) return alert("Missing Wall ID.");
+
+    try {
+      setSubmitting(true);
+
+      const { profile } = await syncGuestProfile("", wallId, form);
+
+      localStorage.setItem("guest_profile", JSON.stringify(profile));
+
+      router.push(`/wall/${wallId}/submit`);
+    } catch (err) {
+      console.error(err);
+      alert("Error saving guest info");
     } finally {
       setSubmitting(false);
     }
-  }
-
-  /* ------------------ Determine background style ------------------ */
-  const bgStyle =
-    wallBG?.type === 'image'
-      ? {
-          backgroundImage: `url(${wallBG.value})`,
-          backgroundSize: 'cover',
-          backgroundPosition: 'center',
-        }
-      : {
-          background: wallBG?.value || 'linear-gradient(135deg,#0a2540,#1b2b44,#000000)',
-        };
+  };
 
   return (
     <main
-      className={cn('relative', 'flex', 'items-center', 'justify-center', 'min-h-screen', 'w-full', 'overflow-hidden')}
-      style={bgStyle}
+      className={cn(
+        "relative flex items-center justify-center min-h-screen w-full overflow-hidden text-white"
+      )}
     >
-      {/* Dim/blur overlay */}
-      <div className={cn('absolute', 'inset-0', 'bg-black/60', 'backdrop-blur-sm')}></div>
+      {/* ✅ Background */}
+      <div
+        className={cn("absolute inset-0 bg-cover bg-center")}
+        style={{
+          backgroundImage: wall?.background_value?.includes("http")
+            ? `url(${wall.background_value})`
+            : wall?.background_value ||
+              "linear-gradient(135deg,#0a2540,#1b2b44,#000000)",
+        }}
+      />
 
-      {/* Signup box */}
+      {/* ✅ Dim & Blur */}
+      <div className={cn('absolute', 'inset-0', 'bg-black/60', 'backdrop-blur-md')} />
+
+      {/* ✅ Glass Card */}
       <motion.div
-        initial={{ opacity: 0, scale: 0.9, y: 40 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
+        initial={{ opacity: 0, y: 30, scale: 0.97 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
         transition={{ duration: 0.5 }}
         className={cn(
-          "relative z-10 w-[90%] max-w-md rounded-3xl p-7",
-          "bg-white/10 border border-white/20 backdrop-blur-xl shadow-[0_0_30px_rgba(56,189,248,0.3)]"
+          "relative z-10 w-[95%] max-w-md rounded-2xl p-8 shadow-[0_0_40px_rgba(0,150,255,0.25)] border border-white/10 bg-white/10 backdrop-blur-lg"
         )}
       >
-        {/* Logo */}
-        <div className={cn('flex', 'justify-center', 'mb-4')}>
+        {/* ✅ Logo */}
+        <div className={cn('flex', 'justify-center', 'mb-6')}>
           <Image
             src="/faninteractlogo.png"
             alt="FanInteract"
-            width={260}
-            height={100}
-            className="drop-shadow-[0_0_25px_rgba(56,189,248,0.45)]"
+            width={360}
+            height={120}
+            className={cn('w-[240px]', 'md:w-[320px]', 'drop-shadow-[0_0_32px_rgba(56,189,248,0.4)]')}
           />
         </div>
 
-        {/* Pulse header */}
+        {/* ✅ Title */}
         <motion.h2
           animate={{
             textShadow: [
-              "0 0 8px rgba(56,189,248,0.8)",
-              "0 0 18px rgba(56,189,248,0.7)",
-              "0 0 8px rgba(56,189,248,0.8)",
+              "0 0 12px rgba(56,189,248,0.9)",
+              "0 0 28px rgba(56,189,248,0.6)",
+              "0 0 12px rgba(56,189,248,0.9)",
             ],
-            scale: [1, 1.03, 1],
           }}
-          transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
-          className={cn('text-center', 'text-xl', 'font-semibold', 'text-sky-200', 'mb-4')}
+          transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+          className={cn('text-center', 'text-2xl', 'font-semibold', 'text-sky-300', 'mb-6')}
         >
-          Join the Fan Zone!
+          Join the Fan Zone
         </motion.h2>
 
-        {/* Form */}
+        {/* ✅ Signup Form */}
         <form onSubmit={handleSubmit} className="space-y-3">
           {["first_name", "last_name", "email", "phone"].map((field) => (
             <input
               key={field}
               name={field}
+              required={field === "first_name" || field === "last_name"}
               type={field === "email" ? "email" : "text"}
               placeholder={
                 field === "first_name"
@@ -169,27 +169,35 @@ export default function GuestSignupPage() {
                   ? "Email (optional)"
                   : "Phone (optional)"
               }
-              required={field === "first_name" || field === "last_name"}
-              className={cn('w-full', 'p-3', 'rounded-xl', 'bg-black/40', 'border', 'border-white/30', 'focus:border-sky-400', 'outline-none', 'text-white')}
-              onChange={(e) => setForm({ ...form, [field]: e.target.value })}
+              value={(form as any)[field]}
+              onChange={(e) =>
+                setForm({ ...form, [e.target.name]: e.target.value })
+              }
+              className={cn('w-full', 'p-3', 'rounded-xl', 'bg-black/40', 'border', 'border-white/20', 'focus:border-sky-400', 'outline-none')}
             />
           ))}
 
-          <label className={cn('flex', 'items-center', 'gap-2', 'text-xs', 'text-gray-300')}>
+          {/* ✅ Terms */}
+          <label className={cn('flex', 'items-center', 'gap-2', 'text-sm', 'text-gray-300', 'mt-2')}>
             <input
               type="checkbox"
-              className={cn('accent-sky-500', 'w-4', 'h-4')}
+              className={cn('w-4', 'h-4', 'accent-sky-400')}
               checked={agree}
               onChange={(e) => setAgree(e.target.checked)}
             />
-            I agree to the <a href="/terms" target="_blank" className={cn('text-sky-300', 'underline')}>Terms</a>
+            I agree to the{" "}
+            <a href="/terms" target="_blank" className={cn('text-sky-400', 'underline')}>
+              Terms
+            </a>
           </label>
 
-          <button className={cn('w-full', 'py-3', 'rounded-xl', 'bg-gradient-to-r', 'from-sky-500', 'to-blue-600', 'font-semibold', 'shadow-lg', 'hover:scale-[1.02]', 'active:scale-[0.98]', 'transition-all')}>
-            {submitting ? "Submitting..." : "Enter Fan Zone"}
+          {/* ✅ Submit Button */}
+          <button
+            disabled={submitting}
+            className={cn('w-full', 'py-3', 'rounded-xl', 'bg-gradient-to-r', 'from-sky-500', 'to-blue-600', 'font-semibold', 'shadow-lg', 'hover:scale-[1.03]', 'active:scale-[0.97]', 'transition-all')}
+          >
+            {submitting ? "Submitting..." : "Continue"}
           </button>
-
-          {error && <p className={cn('text-red-300', 'text-center', 'text-sm')}>{error}</p>}
         </form>
       </motion.div>
     </main>

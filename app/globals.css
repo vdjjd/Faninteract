@@ -2,6 +2,34 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Global default */
 html, body {
-  @apply h-full w-full overflow-x-hidden bg-[#0b111d] text-white;
+  @apply h-full w-full overflow-x-hidden text-white;
+  background: transparent !important; /* ✅ allow wall backgrounds to show */
+}
+
+/* Smooth scrolling & UI polish */
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+input, textarea, button {
+  @apply outline-none;
+}
+
+/* Neon pulse utility (you can reuse for titles/buttons) */
+.glow-pulse {
+  animation: glowpulse 2.8s ease-in-out infinite;
+}
+
+@keyframes glowpulse {
+  0% {
+    text-shadow: 0 0 6px rgba(56,189,248,0.4), 0 0 12px rgba(56,189,248,0.3);
+  }
+  50% {
+    text-shadow: 0 0 12px rgba(56,189,248,0.9), 0 0 24px rgba(56,189,248,0.6);
+  }
+  100% {
+    text-shadow: 0 0 6px rgba(56,189,248,0.4), 0 0 12px rgba(56,189,248,0.3);
+  }
 }

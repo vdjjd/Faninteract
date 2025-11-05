@@ -5,6 +5,7 @@ import './globals.css';
 import type { Metadata } from 'next';
 import ClientThemeWrapper from '@/components/ClientThemeWrapper';
 import { SupabaseRealtimeProvider } from '@/providers/SupabaseRealtimeProvider';
+import { cn } from "../lib/utils";
 
 export const metadata: Metadata = {
   title: 'FanInteract',
@@ -20,16 +21,16 @@ export default function RootLayout({
     <html lang="en">
       <body
         suppressHydrationWarning
+        className={cn('min-h-screen', 'w-full', 'text-white', 'overflow-x-hidden')}
         style={{
+          // ❗️ DO NOT set background here — guest wall pages need control
           margin: 0,
-          minHeight: '100vh',
-          background: 'linear-gradient(135deg,#0a2540,#1b2b44,#000000)',
-          color: 'white',
         }}
       >
-        {/* 🛰 Shared Supabase Realtime channel available app-wide */}
         <SupabaseRealtimeProvider>
-          <ClientThemeWrapper>{children}</ClientThemeWrapper>
+          <ClientThemeWrapper>
+            {children}
+          </ClientThemeWrapper>
         </SupabaseRealtimeProvider>
       </body>
     </html>
