@@ -1,34 +1,36 @@
-'use client';
+"use client";
 
-import { useEffect, useState } from 'react';
-import { useParams, useSearchParams } from 'next/navigation';
-import { supabase } from '@/lib/supabaseClient';
+import { useEffect, useState } from "react";
+import { useParams, useSearchParams, useRouter } from "next/navigation";
+import { getSupabaseClient } from "@/lib/supabaseClient";
 
 export default function ThankYouPage() {
   const { id } = useParams();
   const searchParams = useSearchParams();
+  const router = useRouter();
+  const supabase = getSupabaseClient();
+
   const [data, setData] = useState<any>(null);
   const [fadeOut, setFadeOut] = useState(false);
 
-  const type = searchParams.get('type') || 'fan_wall'; // default
+  const type = searchParams.get("type") || "fan_wall";
 
+  /* ✅ Load wall/poll/wheel data */
   useEffect(() => {
     if (!id) return;
 
     async function fetchData() {
       const table =
-        type === 'poll'
-          ? 'polls'
-          : type === 'wheel'
-          ? 'prize_wheels'
-          : type === 'fan_wall'
-          ? 'fan_walls'
-          : 'events';
+        type === "poll"
+          ? "polls"
+          : type === "wheel"
+          ? "prize_wheels"
+          : "fan_walls";
 
       const { data, error } = await supabase
         .from(table)
-        .select('title, background_value, logo_url')
-        .eq('id', id)
+        .select(`title, background_value, host:host_id (branding_logo_url)`)
+        .eq("id", id)
         .maybeSingle();
 
       if (error) console.error(error);
@@ -37,93 +39,136 @@ export default function ThankYouPage() {
 
     fetchData();
 
-    const fadeTimer = setTimeout(() => setFadeOut(true), 3500);
+    // ✅ Auto fade + close
+    const fadeTimer = setTimeout(() => setFadeOut(true), 3200);
     const closeTimer = setTimeout(() => {
       try {
         window.close();
-      } catch {
-        console.log('Close blocked; staying open.');
-      }
-    }, 4500);
+      } catch {}
+    }, 4200);
+
+    // ✅ Fail-safe: tap screen → go back to wall
+    const backTimer = setTimeout(() => {
+      router.push(`/wall/${id}`);
+    }, 5000);
 
     return () => {
       clearTimeout(fadeTimer);
       clearTimeout(closeTimer);
+      clearTimeout(backTimer);
     };
-  }, [id, type]);
+  }, [id, type, router, supabase]);
 
-  const bg =
-    data?.background_value ||
-    'linear-gradient(180deg,#0d1b2a,#1b263b)';
-
-  /* ---------- Dynamic Messages ---------- */
+  /* ✅ Messages */
   const getMessage = () => {
     switch (type) {
-      case 'poll':
-        return 'Your vote has been recorded!';
-      case 'wheel':
-        return 'Good luck! Your spin has been logged.';
-      case 'trivia':
-        return 'Your answer has been submitted!';
+      case "poll":
+        return "Your vote has been recorded!";
+      case "wheel":
+        return "Good luck! Your spin has been submitted!";
+      case "trivia":
+        return "Your answer has been submitted!";
       default:
-        return 'Your post has been sent for approval.';
+        return "Your post has been sent for approval!";
     }
   };
+
+  /* ✅ Background */
+  const bg =
+    data?.background_value ||
+    "linear-gradient(135deg,#0a2540,#1b2b44,#000000)";
+
+  /* ✅ Logo w/ fallback */
+  const displayLogo =
+    data?.host?.branding_logo_url?.trim() !== ""
+      ? data.host.branding_logo_url
+      : "/faninteractlogo.png";
 
   return (
     <div
       style={{
-        minHeight: '100vh',
-        background: bg,
-        display: 'flex',
-        flexDirection: 'column',
-        justifyContent: 'center',
-        alignItems: 'center',
-        color: '#fff',
-        textAlign: 'center',
-        padding: 20,
-        fontFamily: 'system-ui, sans-serif',
+        minHeight: "100vh",
+        backgroundImage: bg.includes("http") ? `url(${bg})` : bg,
+        backgroundSize: "cover",
+        backgroundPosition: "center",
+        position: "relative",
+        display: "flex",
+        justifyContent: "center",
+        alignItems: "center",
+        padding: 25,
+        textAlign: "center",
         opacity: fadeOut ? 0 : 1,
-        transition: 'opacity 1.2s ease-in-out',
+        transition: "opacity 1.2s ease",
       }}
+      onClick={() => router.push(`/wall/${id}`)}
     >
-      <img
-        src={data?.logo_url || '/faninteractlogo.png'}
-        alt="FanInteract"
+      {/* Overlay */}
+      <div
         style={{
-          width: 160,
-          height: 160,
-          objectFit: 'contain',
-          marginBottom: 20,
-          filter: 'drop-shadow(0 0 12px rgba(255,255,255,0.3))',
+          position: "absolute",
+          inset: 0,
+          background: "rgba(0,0,0,0.55)",
+          backdropFilter: "blur(6px)",
         }}
       />
 
-      <h1 style={{ fontSize: '2.2rem', marginBottom: 10 }}>
-        🎉 Thank You for Participating!
-      </h1>
-
-      <p style={{ fontSize: '1rem', color: '#ccc', marginBottom: 30 }}>
-        {getMessage()}
-      </p>
-
-      <button
-        onClick={() => window.close()}
+      {/* Card */}
+      <div
         style={{
-          background: '#1e90ff',
-          border: 'none',
-          borderRadius: 10,
-          color: '#fff',
-          fontWeight: 600,
-          padding: '12px 20px',
-          fontSize: 16,
-          cursor: 'pointer',
-          opacity: fadeOut ? 0 : 1,
-          transition: 'opacity 0.8s ease-in-out',
+          position: "relative",
+          zIndex: 10,
+          maxWidth: 450,
+          width: "100%",
+          padding: "40px 25px",
+          borderRadius: 20,
+          background: "rgba(0,0,0,0.55)",
+          border: "1px solid rgba(255,255,255,0.08)",
+          boxShadow: "0 0 35px rgba(0,0,0,0.6)",
         }}
       >
-        Close
-      </button>
+        {/* Logo */}
+        <img
+          src={displayLogo}
+          style={{
+            width: "75%",
+            maxWidth: 260,
+            margin: "0 auto 20px",
+            filter: "drop-shadow(0 0 25px rgba(56,189,248,0.85))",
+            animation: "pulseGlow 2.5s ease-in-out infinite",
+          }}
+        />
+
+        {/* Title */}
+        <h1 style={{ fontSize: "2.1rem", marginBottom: 10, fontWeight: 800 }}>
+          🎉 Thank You!
+        </h1>
+
+        {/* Message */}
+        <p style={{ color: "#cbd5e1", marginBottom: 25 }}>{getMessage()}</p>
+
+        {/* Close button fallback */}
+        <button
+          onClick={() => router.push(`/wall/${id}`)}
+          style={{
+            padding: "12px 20px",
+            borderRadius: 10,
+            background: "linear-gradient(90deg,#0284c7,#2563eb)",
+            color: "#fff",
+            fontWeight: 600,
+            border: "none",
+            width: "100%",
+          }}
+        >
+          Back to Wall
+        </button>
+      </div>
+
+      <style>{`
+        @keyframes pulseGlow {
+          0%, 100% { filter: drop-shadow(0 0 15px rgba(56,189,248,0.65)); }
+          50% { filter: drop-shadow(0 0 35px rgba(56,189,248,0.95)); }
+        }
+      `}</style>
     </div>
   );
 }
