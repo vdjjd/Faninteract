@@ -15,6 +15,7 @@ import {
   Settings,
   CreditCard,
   LogOut,
+  SlidersHorizontal
 } from 'lucide-react';
 import ChangeEmailModal from '@/components/ChangeEmailModal';
 import ChangePasswordModal from '@/components/ChangePasswordModal';
@@ -24,10 +25,9 @@ import { cn } from "../lib/utils";
 interface HostProfilePanelProps {
   host: any;
   setHost: React.Dispatch<React.SetStateAction<any>>;
-  onLogoUpload?: (file: File) => Promise<void>;
 }
 
-export default function HostProfilePanel({ host, setHost }: HostProfilePanelProps) {
+export default function HostProfilePanel({ host }: HostProfilePanelProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [showEmailModal, setShowEmailModal] = useState(false);
   const [showPassModal, setShowPassModal] = useState(false);
@@ -35,6 +35,16 @@ export default function HostProfilePanel({ host, setHost }: HostProfilePanelProp
   async function handleLogout() {
     await supabase.auth.signOut();
     window.location.href = '/';
+  }
+
+  function openAdsManager() {
+    const url = `/admin/ads/${host.id}?master=${host.role === 'master'}`;
+
+    window.open(
+      url,
+      "_blank",
+      "width=1280,height=720,top=50,left=50,resizable=yes,scrollbars=yes"
+    );
   }
 
   if (!host) {
@@ -47,7 +57,7 @@ export default function HostProfilePanel({ host, setHost }: HostProfilePanelProp
 
   return (
     <Sheet open={isOpen} onOpenChange={setIsOpen}>
-      {/* Trigger Button */}
+      {/* Trigger */}
       <SheetTrigger asChild>
         <button className={cn('rounded-full', 'w-10', 'h-10', 'overflow-hidden', 'border', 'border-gray-500', 'hover:ring-2', 'hover:ring-blue-500', 'transition-all')}>
           <div className={cn('bg-gray-700', 'w-full', 'h-full', 'flex', 'items-center', 'justify-center', 'text-gray-200', 'font-bold')}>
@@ -56,11 +66,7 @@ export default function HostProfilePanel({ host, setHost }: HostProfilePanelProp
         </button>
       </SheetTrigger>
 
-      {/* Sheet Panel */}
-      <SheetContent
-        side="right"
-        className={cn('w-80', 'bg-black/80', 'backdrop-blur-xl', 'border-l', 'border-gray-700', 'text-gray-100', 'overflow-y-auto')}
-      >
+      <SheetContent side="right" className={cn('w-80', 'bg-black/80', 'backdrop-blur-xl', 'border-l', 'border-gray-700', 'text-gray-100', 'overflow-y-auto')}>
         <SheetHeader>
           <SheetTitle className={cn('text-white', 'font-semibold', 'tracking-wide', 'text-center')}>
             Host Profile
@@ -68,11 +74,11 @@ export default function HostProfilePanel({ host, setHost }: HostProfilePanelProp
         </SheetHeader>
 
         <div className={cn('mt-5', 'flex', 'flex-col', 'gap-6')}>
+
           {/* ---------- ACCOUNT ---------- */}
           <section>
-            <div className={cn('flex', 'items-center', 'justify-center', 'gap-3', 'mb-3', 'text-blue-400', 'font-semibold')}>
-              <User className={cn('w-5', 'h-5')} />
-              Account
+            <div className={cn('flex', 'items-center', 'justify-center', 'gap-3', 'mb-3', 'text-blue-400', 'font-semibold', 'text-center')}>
+              <User className={cn('w-5', 'h-5')} /> Account
             </div>
 
             <div className={cn('flex', 'flex-col', 'items-center', 'gap-3', 'text-center')}>
@@ -107,31 +113,41 @@ export default function HostProfilePanel({ host, setHost }: HostProfilePanelProp
 
           {/* ---------- SETTINGS ---------- */}
           <section>
-            <div className={cn('flex', 'items-center', 'gap-3', 'mb-3', 'text-blue-400', 'font-semibold')}>
-              <Settings className={cn('w-5', 'h-5')} />
-              Settings
+            <div className={cn('flex', 'items-center', 'justify-center', 'gap-3', 'mb-3', 'text-blue-400', 'font-semibold', 'text-center')}>
+              <Settings className={cn('w-5', 'h-5')} /> Settings
             </div>
-            <p className={cn('text-sm', 'text-gray-400')}>Venue Name: {host?.venue_name}</p>
-            <p className={cn('text-sm', 'text-gray-400')}>Username: {host?.username}</p>
-            <p className={cn('text-sm', 'text-gray-400')}>Created: {new Date(host?.created_at).toLocaleDateString()}</p>
+            <p className={cn('text-sm', 'text-gray-400', 'text-center')}>Venue: {host?.venue_name}</p>
+            <p className={cn('text-sm', 'text-gray-400', 'text-center')}>Username: {host?.username}</p>
+            <p className={cn('text-sm', 'text-gray-400', 'text-center')}>
+              Created: {new Date(host?.created_at).toLocaleDateString()}
+            </p>
+          </section>
+
+          {/* ---------- ADS MANAGER ---------- */}
+          <section>
+            <div className={cn('flex', 'items-center', 'justify-center', 'gap-3', 'mb-3', 'text-blue-400', 'font-semibold', 'text-center')}>
+              <SlidersHorizontal className={cn('w-5', 'h-5')} /> Sponsor Slides
+            </div>
+
+            <Button variant="outline" className="w-full" onClick={openAdsManager}>
+              Open Ads Manager
+            </Button>
           </section>
 
           {/* ---------- BILLING ---------- */}
           <section>
-            <div className={cn('flex', 'items-center', 'gap-3', 'mb-3', 'text-blue-400', 'font-semibold')}>
-              <CreditCard className={cn('w-5', 'h-5')} />
-              Billing
+            <div className={cn('flex', 'items-center', 'justify-center', 'gap-3', 'mb-3', 'text-blue-400', 'font-semibold', 'text-center')}>
+              <CreditCard className={cn('w-5', 'h-5')} /> Billing
             </div>
-            <Button variant="outline" className="w-full">
+            <Button variant="outline" className="w-full" disabled>
               Manage Billing (coming soon)
             </Button>
           </section>
 
-          {/* ---------- LOGOUT ---------- */}
+          {/* ---------- SECURITY ---------- */}
           <section>
-            <div className={cn('flex', 'items-center', 'gap-3', 'mb-3', 'text-blue-400', 'font-semibold')}>
-              <LogOut className={cn('w-5', 'h-5')} />
-              Security
+            <div className={cn('flex', 'items-center', 'justify-center', 'gap-3', 'mb-3', 'text-blue-400', 'font-semibold', 'text-center')}>
+              <LogOut className={cn('w-5', 'h-5')} /> Security
             </div>
             <Button variant="destructive" className="w-full" onClick={handleLogout}>
               Logout
@@ -141,13 +157,12 @@ export default function HostProfilePanel({ host, setHost }: HostProfilePanelProp
           <div className="h-8"></div>
         </div>
 
-        {/* ---------- EMAIL + PASSWORD MODALS ---------- */}
+        {/* Modals */}
         {showEmailModal && (
           <div className={cn('fixed', 'inset-0', 'bg-black/70', 'flex', 'items-center', 'justify-center', 'z-50')}>
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
-              transition={{ duration: 0.2 }}
               className={cn('bg-neutral-900', 'border', 'border-gray-700', 'rounded-lg', 'shadow-lg', 'w-96', 'p-4')}
             >
               <ChangeEmailModal onClose={() => setShowEmailModal(false)} />
@@ -160,7 +175,6 @@ export default function HostProfilePanel({ host, setHost }: HostProfilePanelProp
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
-              transition={{ duration: 0.2 }}
               className={cn('bg-neutral-900', 'border', 'border-gray-700', 'rounded-lg', 'shadow-lg', 'w-96', 'p-4')}
             >
               <ChangePasswordModal onClose={() => setShowPassModal(false)} />

@@ -16,7 +16,7 @@ export const SheetContent = React.forwardRef<
   }
 >(({ side = 'right', className, children, ...props }, ref) => (
   <Dialog.Portal>
-    <Dialog.Overlay className="fixed inset-0 bg-black/40 backdrop-blur-sm z-40" />
+    <Dialog.Overlay className={cn('fixed', 'inset-0', 'bg-black/40', 'backdrop-blur-sm', 'z-40')} />
     <Dialog.Content
       ref={ref}
       className={cn(
@@ -29,19 +29,21 @@ export const SheetContent = React.forwardRef<
       )}
       {...props}
     >
+      <Dialog.Title className="sr-only">Panel</Dialog.Title> {/* ✅ Required for accessibility */}
+
+      {/* Close Button */}
       <button
         onClick={() => (props as any).onOpenChange?.(false)}
-        className="absolute right-3 top-3 rounded-full p-1 hover:bg-black/10"
+        className={cn('absolute', 'right-3', 'top-3', 'rounded-full', 'p-1', 'hover:bg-black/10')}
       >
-        <X className="w-5 h-5" />
+        <X className={cn('w-5', 'h-5')} />
       </button>
+
       {children}
     </Dialog.Content>
   </Dialog.Portal>
 ));
 SheetContent.displayName = 'SheetContent';
-
-/* ---------- FIXED ---------- */
 
 export const SheetHeader = ({
   children,
@@ -50,11 +52,12 @@ export const SheetHeader = ({
   children: React.ReactNode;
   className?: string;
 }) => (
-  <div className={cn('border-b border-gray-200 dark:border-neutral-800 p-4', className)}>
+  <div className={cn('border-b border-gray-200 dark:border-neutral-800 p-4 text-center', className)}>
     {children}
   </div>
 );
 
+// ✅ Title wrapper now ARIA-safe because content already has Dialog.Title
 export const SheetTitle = ({
   children,
   className
@@ -62,5 +65,5 @@ export const SheetTitle = ({
   children: React.ReactNode;
   className?: string;
 }) => (
-  <h2 className={cn('text-lg font-semibold', className)}>{children}</h2>
+  <h2 className={cn('text-lg font-semibold text-center', className)}>{children}</h2>
 );

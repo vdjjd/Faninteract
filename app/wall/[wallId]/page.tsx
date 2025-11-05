@@ -10,6 +10,9 @@ import Grid4x2Wall from '@/app/wall/components/wall/layouts/Grid4x2Wall';
 import { useRealtimeChannel } from '@/providers/SupabaseRealtimeProvider';
 import { cn } from '../../../lib/utils';
 
+// ✅ Import new overlay
+import AdOverlay from '@/app/wall/components/AdOverlay';
+
 export default function FanWallPage() {
   const { wallId } = useParams();
   const wallUUID = Array.isArray(wallId) ? wallId[0] : wallId;
@@ -101,7 +104,6 @@ export default function FanWallPage() {
 
       if (!data) return;
 
-      // update ANY wall changes (title, layout, bg, status)
       if (lastUpdated !== data.updated_at) {
         lastUpdated = data.updated_at;
         setCachedWall(prev => ({ ...(prev || {}), ...data }));
@@ -114,7 +116,7 @@ export default function FanWallPage() {
       }
     }
 
-    interval = setInterval(pollWallState, 1000); // ✅ 1 second
+    interval = setInterval(pollWallState, 1000);
     return () => clearInterval(interval);
   }, [wallUUID, cachedWall?.updated_at]);
 
@@ -149,23 +151,23 @@ export default function FanWallPage() {
   if (!cachedWall)
     return <p className={cn('text-white text-center mt-20')}>Wall not found.</p>;
 
-const renderActiveWall = () => {
-  const layout = cachedWall.layout_type;
-  const bgValue = cachedWall.background_value;
+  const renderActiveWall = () => {
+    const layout = cachedWall.layout_type;
+    const bgValue = cachedWall.background_value;
 
-  switch (layout) {
-    case 'Grid 2x2':
-    case '2x2':
-    case '2x2 Grid':
-      return <Grid2x2Wall key={layoutKey} event={cachedWall} posts={cachedPosts} background={bgValue} />;
-    case 'Grid 4x2':
-    case '4x2':
-    case '4x2 Grid':
-      return <Grid4x2Wall key={layoutKey} event={cachedWall} posts={cachedPosts} background={bgValue} />;
-    default:
-      return <SingleHighlightWall key={layoutKey} event={cachedWall} posts={cachedPosts} background={bgValue} />;
-  }
-};
+    switch (layout) {
+      case 'Grid 2x2':
+      case '2x2':
+      case '2x2 Grid':
+        return <Grid2x2Wall key={layoutKey} event={cachedWall} posts={cachedPosts} background={bgValue} />;
+      case 'Grid 4x2':
+      case '4x2':
+      case '4x2 Grid':
+        return <Grid4x2Wall key={layoutKey} event={cachedWall} posts={cachedPosts} background={bgValue} />;
+      default:
+        return <SingleHighlightWall key={layoutKey} event={cachedWall} posts={cachedPosts} background={bgValue} />;
+    }
+  };
 
   return (
     <div
@@ -201,6 +203,9 @@ const renderActiveWall = () => {
       >
         {renderActiveWall()}
       </div>
+
+      {/* ✅ Sponsor Ad Overlay */}
+      <AdOverlay wallId={wallUUID} />
     </div>
   );
 }
