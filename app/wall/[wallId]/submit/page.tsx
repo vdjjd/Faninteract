@@ -63,7 +63,7 @@ export default function GuestSubmissionPage() {
   /* ✅ camera open */
   const openCamera = () => {
     if (fileRef.current) {
-      fileRef.current.setAttribute("capture", "user"); // front camera
+      fileRef.current.setAttribute("capture", "user");
       fileRef.current.click();
     }
   };
@@ -122,7 +122,10 @@ export default function GuestSubmissionPage() {
       },
     ]);
 
-    router.push(`/thanks/${wallUUID}?type=wall`);
+    // ✅ FIX: redirect to correct thank-you page
+    setTimeout(() => {
+      router.push(`/wall/${wallUUID}/thanks`);
+    }, 200);
   };
 
   if (!wall || !profile) return null;
@@ -346,4 +349,3 @@ export default function GuestSubmissionPage() {
     </div>
   );
 }
-

@@ -5,7 +5,7 @@ import { useParams, useSearchParams, useRouter } from "next/navigation";
 import { getSupabaseClient } from "@/lib/supabaseClient";
 
 export default function ThankYouPage() {
-  const { id } = useParams();
+  const { wallId } = useParams();   // ✅ FIX: use wallId
   const searchParams = useSearchParams();
   const router = useRouter();
   const supabase = getSupabaseClient();
@@ -17,7 +17,7 @@ export default function ThankYouPage() {
 
   /* ✅ Load wall/poll/wheel data */
   useEffect(() => {
-    if (!id) return;
+    if (!wallId) return;
 
     async function fetchData() {
       const table =
@@ -30,7 +30,7 @@ export default function ThankYouPage() {
       const { data, error } = await supabase
         .from(table)
         .select(`title, background_value, host:host_id (branding_logo_url)`)
-        .eq("id", id)
+        .eq("id", wallId)
         .maybeSingle();
 
       if (error) console.error(error);
@@ -39,17 +39,14 @@ export default function ThankYouPage() {
 
     fetchData();
 
-    // ✅ Auto fade + close
+    /* ✅ Auto timers */
     const fadeTimer = setTimeout(() => setFadeOut(true), 3200);
     const closeTimer = setTimeout(() => {
-      try {
-        window.close();
-      } catch {}
+      try { window.close(); } catch {}
     }, 4200);
 
-    // ✅ Fail-safe: tap screen → go back to wall
     const backTimer = setTimeout(() => {
-      router.push(`/wall/${id}`);
+      router.push(`/wall/${wallId}`);
     }, 5000);
 
     return () => {
@@ -57,9 +54,9 @@ export default function ThankYouPage() {
       clearTimeout(closeTimer);
       clearTimeout(backTimer);
     };
-  }, [id, type, router, supabase]);
+  }, [wallId, type, router, supabase]);
 
-  /* ✅ Messages */
+  /* ✅ Message based on type */
   const getMessage = () => {
     switch (type) {
       case "poll":
@@ -73,12 +70,10 @@ export default function ThankYouPage() {
     }
   };
 
-  /* ✅ Background */
   const bg =
     data?.background_value ||
     "linear-gradient(135deg,#0a2540,#1b2b44,#000000)";
 
-  /* ✅ Logo w/ fallback */
   const displayLogo =
     data?.host?.branding_logo_url?.trim() !== ""
       ? data.host.branding_logo_url
@@ -100,7 +95,7 @@ export default function ThankYouPage() {
         opacity: fadeOut ? 0 : 1,
         transition: "opacity 1.2s ease",
       }}
-      onClick={() => router.push(`/wall/${id}`)}
+      onClick={() => router.push(`/wall/${wallId}`)}
     >
       {/* Overlay */}
       <div
@@ -126,7 +121,6 @@ export default function ThankYouPage() {
           boxShadow: "0 0 35px rgba(0,0,0,0.6)",
         }}
       >
-        {/* Logo */}
         <img
           src={displayLogo}
           style={{
@@ -138,17 +132,14 @@ export default function ThankYouPage() {
           }}
         />
 
-        {/* Title */}
         <h1 style={{ fontSize: "2.1rem", marginBottom: 10, fontWeight: 800 }}>
           🎉 Thank You!
         </h1>
 
-        {/* Message */}
         <p style={{ color: "#cbd5e1", marginBottom: 25 }}>{getMessage()}</p>
 
-        {/* Close button fallback */}
         <button
-          onClick={() => router.push(`/wall/${id}`)}
+          onClick={() => router.push(`/wall/${wallId}`)}
           style={{
             padding: "12px 20px",
             borderRadius: 10,
