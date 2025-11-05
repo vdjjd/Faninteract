@@ -8,43 +8,14 @@ import { supabase } from '@/lib/supabaseClient';
 
 /* ---------- TRANSITION STYLES ---------- */
 const transitions: Record<string, any> = {
-  'Fade In / Fade Out': {
-    initial: { opacity: 0 },
-    animate: { opacity: 1 },
-    exit: { opacity: 0 },
-    transition: { duration: 0.8 },
-  },
-  'Slide Up / Slide Out': {
-    initial: { y: 80, opacity: 0 },
-    animate: { y: 0, opacity: 1 },
-    exit: { y: -80, opacity: 0 },
-    transition: { duration: 0.7 },
-  },
-  'Slide Down / Slide Out': {
-    initial: { y: -80, opacity: 0 },
-    animate: { y: 0, opacity: 1 },
-    exit: { y: 80, opacity: 0 },
-    transition: { duration: 0.7 },
-  },
-  'Slide Left / Slide Right': {
-    initial: { x: 100, opacity: 0 },
-    animate: { x: 0, opacity: 1 },
-    exit: { x: -100, opacity: 0 },
-    transition: { duration: 0.7 },
-  },
-  'Zoom In / Zoom Out': {
-    initial: { scale: 0.8, opacity: 0 },
-    animate: { scale: 1, opacity: 1 },
-    exit: { scale: 0.8, opacity: 0 },
-    transition: { duration: 0.6 },
-  },
+  'Fade In / Fade Out': { initial: { opacity: 0 }, animate: { opacity: 1 }, exit: { opacity: 0 }, transition: { duration: 0.8 } },
+  'Slide Up / Slide Out': { initial: { y: 80, opacity: 0 }, animate: { y: 0, opacity: 1 }, exit: { y: -80, opacity: 0 }, transition: { duration: 0.7 } },
+  'Slide Down / Slide Out': { initial: { y: -80, opacity: 0 }, animate: { y: 0, opacity: 1 }, exit: { y: 80, opacity: 0 }, transition: { duration: 0.7 } },
+  'Slide Left / Slide Right': { initial: { x: 100, opacity: 0 }, animate: { x: 0, opacity: 1 }, exit: { x: -100, opacity: 0 }, transition: { duration: 0.7 } },
+  'Zoom In / Zoom Out': { initial: { scale: 0.8, opacity: 0 }, animate: { scale: 1, opacity: 1 }, exit: { scale: 0.8, opacity: 0 }, transition: { duration: 0.6 } },
 };
 
-const speedMap: Record<string, number> = {
-  Slow: 12000,
-  Medium: 8000,
-  Fast: 4000,
-};
+const speedMap: Record<string, number> = { Slow: 12000, Medium: 8000, Fast: 4000 };
 
 export default function SingleHighlightWall({ event, posts }) {
   const channelRef = useRealtimeChannel();
@@ -59,21 +30,32 @@ export default function SingleHighlightWall({ event, posts }) {
   const [bg, setBg] = useState(
     event?.background_type === 'image'
       ? `url(${event.background_value}) center/cover no-repeat`
-      : event?.background_value ||
-          'linear-gradient(to bottom right,#1b2735,#090a0f)'
+      : event?.background_value || 'linear-gradient(to bottom right,#1b2735,#090a0f)'
   );
 
-  const [transitionType, setTransitionType] = useState(
-    event?.post_transition || 'Fade In / Fade Out'
-  );
-
-  const [displayDuration, setDisplayDuration] = useState(
-    speedMap[event?.transition_speed || 'Medium']
-  );
-
+  const [transitionType, setTransitionType] = useState(event?.post_transition || 'Fade In / Fade Out');
+  const [displayDuration, setDisplayDuration] = useState(speedMap[event?.transition_speed || 'Medium']);
   const transitionLock = useRef(false);
 
-  /* === ✅ INITIAL FETCH FOR APPROVED POSTS === */
+  /* ✅ fullscreen memory */
+  const wasFullscreen = useRef(false);
+
+  function ensureFullscreen() {
+    if (wasFullscreen.current && !document.fullscreenElement) {
+      document.documentElement.requestFullscreen().catch(() => {});
+    }
+  }
+
+  /* 👉 track whenever fullscreen changes */
+  useEffect(() => {
+    const handler = () => {
+      wasFullscreen.current = !!document.fullscreenElement;
+    };
+    document.addEventListener('fullscreenchange', handler);
+    return () => document.removeEventListener('fullscreenchange', handler);
+  }, []);
+
+  /* === ✅ INITIAL FETCH === */
   const loadPosts = async () => {
     if (!event?.id) return;
     const { data } = await supabase
@@ -83,16 +65,12 @@ export default function SingleHighlightWall({ event, posts }) {
       .eq('status', 'approved')
       .order('created_at', { ascending: false });
 
-    if (data) {
-      setLivePosts(data);
-    }
+    if (data) setLivePosts(data);
   };
 
-  useEffect(() => {
-    loadPosts();
-  }, [event?.id]);
+  useEffect(() => { loadPosts(); }, [event?.id]);
 
-  /* === ✅ REALTIME POSTS + APPROVALS === */
+  /* === ✅ REALTIME POSTS === */
   useEffect(() => {
     if (!event?.id) return;
 
@@ -100,29 +78,23 @@ export default function SingleHighlightWall({ event, posts }) {
       .channel(`wall_posts_${event.id}`)
       .on(
         'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'guest_posts',
-          filter: `fan_wall_id=eq.${event.id}`,
-        },
+        { event: '*', schema: 'public', table: 'guest_posts', filter: `fan_wall_id=eq.${event.id}` },
         async (payload) => {
           const row = payload.new;
 
-          // Insert approved post instantly
           if (payload.eventType === 'INSERT' && row?.status === 'approved') {
-            setLivePosts((prev) =>
-              prev.some((p) => p.id === row.id) ? prev : [row, ...prev]
-            );
+            setLivePosts(prev => prev.some(p => p.id === row.id) ? prev : [row, ...prev]);
+            ensureFullscreen(); // ✅ keep fullscreen
           }
 
-          // If they get approved later -> refresh
           if (payload.eventType === 'UPDATE') {
             await loadPosts();
+            ensureFullscreen(); // ✅ keep fullscreen
           }
 
           if (payload.eventType === 'DELETE') {
-            setLivePosts((prev) => prev.filter((p) => p.id !== payload.old.id));
+            setLivePosts(prev => prev.filter(p => p.id !== payload.old.id));
+            ensureFullscreen(); // ✅ keep fullscreen
           }
         }
       )
@@ -131,7 +103,7 @@ export default function SingleHighlightWall({ event, posts }) {
     return () => supabase.removeChannel(postsChannel);
   }, [event?.id]);
 
-  /* === ✅ REALTIME SETTINGS (BG, LOGO, TITLE, SPEED, TRANSITIONS) === */
+  /* === ✅ REALTIME SETTINGS === */
   useEffect(() => {
     if (!event?.id) return;
 
@@ -139,27 +111,23 @@ export default function SingleHighlightWall({ event, posts }) {
       .channel(`wall_settings_${event.id}`)
       .on(
         'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'fan_walls',
-          filter: `id=eq.${event.id}`,
-        },
+        { event: 'UPDATE', schema: 'public', table: 'fan_walls', filter: `id=eq.${event.id}` },
         (payload) => {
           const w = payload.new;
           if (!w) return;
 
           if (w.background_value) {
-            setBg(
-              w.background_type === 'image'
-                ? `url(${w.background_value}) center/cover no-repeat`
-                : w.background_value
+            setBg(w.background_type === 'image'
+              ? `url(${w.background_value}) center/cover no-repeat`
+              : w.background_value
             );
           }
           if (w.title) setTitle(w.title);
           if (w.logo_url) setLogo(w.logo_url);
           if (w.transition_speed) setDisplayDuration(speedMap[w.transition_speed]);
           if (w.post_transition) setTransitionType(w.post_transition);
+
+          ensureFullscreen(); // ✅ keep fullscreen when style updates
         }
       )
       .subscribe();
@@ -167,19 +135,14 @@ export default function SingleHighlightWall({ event, posts }) {
     return () => supabase.removeChannel(settingsChannel);
   }, [event?.id]);
 
-  /* === ✅ POST ROTATION === */
+  /* === ✅ ROTATION === */
   useEffect(() => {
     if (!livePosts.length) return;
-    const interval = setInterval(
-      () => setCurrentIndex((i) => (i + 1) % livePosts.length),
-      displayDuration
-    );
+    const interval = setInterval(() => setCurrentIndex(i => (i + 1) % livePosts.length), displayDuration);
     return () => clearInterval(interval);
   }, [livePosts, displayDuration]);
 
-  const transitionStyle =
-    transitions[transitionType] || transitions['Fade In / Fade Out'];
-
+  const transitionStyle = transitions[transitionType] || transitions['Fade In / Fade Out'];
   const current = livePosts[currentIndex % (livePosts.length || 1)];
 
   return (
@@ -245,28 +208,11 @@ export default function SingleHighlightWall({ event, posts }) {
         >
           <AnimatePresence mode="wait">
             {current?.photo_url ? (
-              <motion.img
-                key={current.id}
-                src={current.photo_url}
-                {...transitionStyle}
-                style={{
-                  width: '100%',
-                  height: '100%',
-                  objectFit: 'cover',
-                  borderRadius: 18,
-                }}
-              />
+              <motion.img key={current.id} src={current.photo_url} {...transitionStyle}
+                style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 18 }} />
             ) : (
-              <motion.div
-                key="no-photo"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                style={{
-                  color: 'rgba(255,255,255,0.5)',
-                  fontSize: '2rem',
-                }}
-              >
+              <motion.div key="no-photo" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                style={{ color: 'rgba(255,255,255,0.5)', fontSize: '2rem' }}>
                 No Photo
               </motion.div>
             )}
@@ -288,49 +234,36 @@ export default function SingleHighlightWall({ event, posts }) {
         >
           {/* LOGO */}
           <div style={{ width: 'clamp(280px, 30vw, 420px)', marginBottom: '1.5vh' }}>
-            <img
-              src={logo}
-              alt="Logo"
-              style={{
-                width: '100%',
-                height: 'auto',
-                objectFit: 'contain',
-                filter: 'drop-shadow(0 0 14px rgba(0,0,0,0.85))',
-              }}
-            />
+            <img src={logo} alt="Logo"
+              style={{ width: '100%', height: 'auto', objectFit: 'contain', filter: 'drop-shadow(0 0 14px rgba(0,0,0,0.85))' }} />
           </div>
 
           {/* GREY BAR */}
-          <div
-            style={{
-              width: '90%',
-              height: 16,
-              borderRadius: 6,
-              background: 'linear-gradient(to right,#000,#444)',
-              boxShadow: '0 0 14px rgba(0,0,0,0.7)',
-              opacity: 0.9,
-              marginTop: '1vh',
-              marginBottom: '2vh',
-            }}
-          />
+          <div style={{
+            width: '90%',
+            height: 16,
+            borderRadius: 6,
+            background: 'linear-gradient(to right,#000,#444)',
+            boxShadow: '0 0 14px rgba(0,0,0,0.7)',
+            opacity: 0.9,
+            marginTop: '1vh',
+            marginBottom: '2vh'
+          }}/>
 
           {/* MESSAGE */}
-          <p
-            style={{
-              fontWeight: 700,
-              margin: 0,
-              fontSize: 'clamp(1.6rem, 2.5vw, 3rem)',
-              textAlign: 'center',
-              color: '#fff',
-              textShadow: '0 0 8px rgba(0,0,0,0.6)',
-            }}
-          >
+          <p style={{
+            fontWeight: 700, margin: 0,
+            fontSize: 'clamp(1.6rem, 2.5vw, 3rem)',
+            textAlign: 'center',
+            color: '#fff',
+            textShadow: '0 0 8px rgba(0,0,0,0.6)',
+          }}>
             {current?.message || 'Be the first to post!'}
           </p>
         </div>
       </div>
 
-      {/* ✅ QR + TEXT + GLOW */}
+      {/* ✅ QR + TEXT */}
       <div
         style={{
           position: 'absolute',
@@ -342,17 +275,14 @@ export default function SingleHighlightWall({ event, posts }) {
           alignItems: 'center',
         }}
       >
-        <p
-          style={{
-            color: '#fff',
-            textAlign: 'center',
-            fontWeight: 700,
-            fontSize: 'clamp(0.9rem, 1.4vw, 1.4rem)',
-            marginBottom: '6px',
-            textShadow:
-              '0 0 12px rgba(255,255,255,0.8), 0 0 20px rgba(100,180,255,0.6)',
-          }}
-        >
+        <p style={{
+          color: '#fff',
+          textAlign: 'center',
+          fontWeight: 700,
+          fontSize: 'clamp(0.9rem, 1.4vw, 1.4rem)',
+          marginBottom: '6px',
+          textShadow: '0 0 12px rgba(255,255,255,0.8), 0 0 20px rgba(100,180,255,0.6)',
+        }}>
           Scan Me To Join
         </p>
 
@@ -377,7 +307,7 @@ export default function SingleHighlightWall({ event, posts }) {
         </div>
       </div>
 
-      {/* ✅ FULLSCREEN BUTTON — untouched */}
+      {/* ✅ FULLSCREEN BUTTON */}
       <button
         onClick={() =>
           !document.fullscreenElement
@@ -402,12 +332,12 @@ export default function SingleHighlightWall({ event, posts }) {
           justifyContent: 'center',
           transition: 'all 0.35s ease',
         }}
-        onMouseEnter={(e) => {
+        onMouseEnter={e => {
           e.currentTarget.style.opacity = '1';
           e.currentTarget.style.boxShadow = '0 0 14px rgba(255,255,255,0.7)';
           e.currentTarget.style.background = 'rgba(255,255,255,0.15)';
         }}
-        onMouseLeave={(e) => {
+        onMouseLeave={e => {
           e.currentTarget.style.opacity = '0.1';
           e.currentTarget.style.boxShadow = 'none';
           e.currentTarget.style.background = 'rgba(255,255,255,0.05)';
@@ -418,3 +348,4 @@ export default function SingleHighlightWall({ event, posts }) {
     </div>
   );
 }
+
