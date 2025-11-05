@@ -288,17 +288,18 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
 
   return (
     <div
-      style={{
-        background: bg,
-        width: '100%',
-        height: '100vh',
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'flex-start',
-        overflow: 'hidden',
-        position: 'relative',
-      }}
+  style={{
+    background: bg,
+    width: '100%',
+    height: '100vh',
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+    overflow: 'hidden',
+    position: 'relative',
+    marginTop: '-3vh', // ✅ moves everything up slightly
+  }}
     >
       {/* LOGO */}
       <div style={{ position: 'absolute', top: '3vh', right: '3vw', width: 'clamp(160px,18vw,220px)', zIndex: 20 }}>
@@ -323,7 +324,7 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
       <div
         style={{
           width: '88vw',
-          height: '70vh',
+          height: '82vh',
           display: 'grid',
           gridTemplateColumns: 'repeat(4, 1fr)',
           gridTemplateRows: 'repeat(2, 1fr)',
@@ -342,7 +343,7 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
       </div>
 
       {/* QR */}
-      <div style={{ position: 'absolute', bottom: '2vh', left: '2vw', textAlign: 'center' }}>
+      <div style={{ position: 'absolute', bottom: '0vh', left: '0vw', textAlign: 'center' }}>
         <p style={{ color: '#fff', fontWeight: 700, marginBottom: '0.4vh', fontSize: 'clamp(0.9rem,1.3vw,1.4rem)' }}>
           Scan Me To Join
         </p>
