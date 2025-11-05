@@ -122,9 +122,9 @@ export default function GuestSubmissionPage() {
       },
     ]);
 
-    // ✅ FIX: redirect to correct thank-you page
+    // ✅ FIXED thank you redirect
     setTimeout(() => {
-      router.push(`/wall/${wallUUID}/thanks`);
+      router.push(`/thanks/${wallUUID}`);
     }, 200);
   };
 
