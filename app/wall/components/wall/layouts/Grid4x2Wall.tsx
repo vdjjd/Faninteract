@@ -348,13 +348,19 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
         </p>
 
         <div
-          style={{
-            padding: 6,
-            borderRadius: 12,
-            background: 'rgba(255,255,255,0.05)',
-            boxShadow:'0 0 25px rgba(255,255,255,0.6), 0 0 40px rgba(100,180,255,0.3), inset 0 0 10px rgba(0,0,0,0.4)',
-          }}
-        >
+  style={{
+    display: 'inline-flex',              // ✅ hug content, no stretch
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 4,                          // ✅ tighter fit for your 100px QR
+    borderRadius: 10,                    // ✅ matches QR radius scale
+    background: 'rgba(255,255,255,0.05)',
+    boxShadow:
+      '0 0 18px rgba(255,255,255,0.5), 0 0 28px rgba(100,180,255,0.25), inset 0 0 6px rgba(0,0,0,0.35)',
+    width: 'auto',                       // ✅ actively prevents stretching
+    height: 'auto',
+  }}
+>
           <QRCodeCanvas
             value={`https://faninteract.vercel.app/guest/signup?wall=${event?.id}`}
             size={110}
