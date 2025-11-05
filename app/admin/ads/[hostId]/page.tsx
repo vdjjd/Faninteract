@@ -43,22 +43,32 @@ export default function AdsManagerPage() {
     const bucket = type === "image" ? "ads-images" : "ads-videos";
     const filePath = `${hostId}/${Date.now()}-${file.name}`;
 
-    const { error: uploadErr } = await supabase.storage.from(bucket).upload(filePath, file);
+    // Upload to Supabase
+    const { error: uploadErr } = await supabase.storage
+      .from(bucket)
+      .upload(filePath, file);
+
     if (uploadErr) {
+      console.error(uploadErr);
       alert("Upload failed");
       setUploading(false);
       return;
     }
 
-    const url = supabase.storage.from(bucket).getPublicUrl(filePath).data.publicUrl;
+    // Get public URL
+    const publicUrl = supabase.storage
+      .from(bucket)
+      .getPublicUrl(filePath).data.publicUrl;
 
+    // Insert into DB with storage_path
     await supabase.from("ads").insert({
       host_profile_id: hostId,
       master_id: masterMode ? hostId : null,
       type,
-      url,
+      url: publicUrl,
+      storage_path: filePath,       // ✅ KEY FIX
       order_index: ads.length,
-      active: true, // ✅ default enabled
+      active: true,
     });
 
     await loadAds();
@@ -82,11 +92,15 @@ export default function AdsManagerPage() {
     }
 
     const bucket = ad.type === "image" ? "ads-images" : "ads-videos";
-    const path = ad.url.split(`${bucket}/`).pop();
-    if (path) await supabase.storage.from(bucket).remove([path]);
+
+    // ✅ Remove correct storage path
+    if (ad.storage_path) {
+      await supabase.storage
+        .from(bucket)
+        .remove([ad.storage_path]);
+    }
 
     await supabase.from("ads").delete().eq("id", ad.id);
-
     await loadAds();
   }
 
@@ -99,8 +113,7 @@ export default function AdsManagerPage() {
 
   return (
     <div className={cn("bg-black text-white w-full h-full p-4 overflow-hidden flex flex-col gap-3 relative")}>
-
-      {/* CLOSE */}
+      {/* CLOSE BUTTON */}
       <button
         onClick={() => window.close()}
         className={cn(
@@ -120,7 +133,7 @@ export default function AdsManagerPage() {
           </p>
         </div>
 
-        {/* Speed */}
+        {/* SPEED */}
         <select
           className={cn("bg-gray-800 text-xs rounded px-2 py-1 border border-gray-600 z-20")}
           value={injectSpeed}
@@ -131,7 +144,7 @@ export default function AdsManagerPage() {
           <option value="slow">Slow (24)</option>
         </select>
 
-        {/* Toggle */}
+        {/* TOGGLE */}
         <label className={cn("flex items-center gap-2 ml-2 z-20")}>
           <span className={cn("text-xs opacity-60")}>Injector</span>
           <label className={cn("relative inline-flex items-center cursor-pointer")}>
@@ -142,20 +155,17 @@ export default function AdsManagerPage() {
               onChange={() => setInjectorEnabled(!injectorEnabled)}
             />
             <div className={cn("w-14 h-7 bg-gray-600 rounded-full peer-checked:bg-green-500 transition")} />
-            <span className={cn("absolute left-1 top-1 bg-white w-5 h-5 rounded-full transition peer-checked:translate-x-7" )} />
+            <span className={cn("absolute left-1 top-1 bg-white w-5 h-5 rounded-full transition peer-checked:translate-x-7")} />
           </label>
         </label>
       </div>
 
-      {/* BODY */}
+      {/* MAIN BODY */}
       <div className={cn("flex flex-col gap-3 relative flex-1")}>
-
-        {/* Upload */}
+        {/* UPLOAD */}
         <label className={cn("border border-dashed border-gray-500 rounded-lg bg-white/5 hover:bg-white/10 cursor-pointer flex flex-col items-center justify-center p-6 text-sm")}>
           <span className="opacity-80">Drag & Drop files here</span>
-          <span className={cn("text-xs opacity-40")}>
-            (or click to upload)
-          </span>
+          <span className={cn("text-xs opacity-40")}>(or click to upload)</span>
 
           <input
             type="file"
@@ -170,7 +180,7 @@ export default function AdsManagerPage() {
           />
         </label>
 
-        {/* Limits */}
+        {/* LIMITS */}
         <p className={cn("text-red-400 text-xs text-center -mt-2")}>
           {masterMode
             ? `Master Limit: ${imageCount}/${maxImages} images • ${videoCount}/${maxVideos} videos`
@@ -179,12 +189,10 @@ export default function AdsManagerPage() {
 
         <div className={cn("border-t border-gray-700 opacity-40")} />
 
-        {/* Reel Order */}
+        {/* ORDER LIST */}
         <div className={cn("flex-1 rounded-lg border border-gray-600 bg-white/5 p-3 flex flex-col")}>
           <p className={cn("text-sm font-semibold text-center mb-1")}>AD Reel Display Order</p>
-          <p className={cn("text-[10px] text-center mb-2 opacity-60")}>
-            Drag to rearrange playback
-          </p>
+          <p className={cn("text-[10px] text-center mb-2 opacity-60")}>Drag to rearrange playback</p>
 
           <div className={cn("flex-1 overflow-auto")}>
             {loading ? (
@@ -203,9 +211,20 @@ export default function AdsManagerPage() {
                         !!ad.master_id && !masterMode && "border border-gray-500 opacity-80"
                       )}>
                         {ad.type === "image" ? (
-                          <Image src={ad.url} alt="ad" width={300} height={200} className={cn("rounded-lg object-cover w-full h-32")} />
+                          <Image
+                            src={ad.url}
+                            alt="ad"
+                            width={300}
+                            height={200}
+                            className={cn("rounded-lg object-cover w-full h-32")}
+                          />
                         ) : (
-                          <video src={ad.url} muted playsInline className={cn("rounded-lg w-full h-32 object-cover")} />
+                          <video
+                            src={ad.url}
+                            muted
+                            playsInline
+                            className={cn("rounded-lg w-full h-32 object-cover")}
+                          />
                         )}
 
                         {(!ad.master_id || masterMode) && (
