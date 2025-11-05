@@ -24,30 +24,22 @@ export default function FanWallGrid({
   const [localWalls, setLocalWalls] = useState<any[]>(walls || []);
   const refreshTimeout = useRef<NodeJS.Timeout | null>(null);
 
-  /* ✅ Keep local state synced with props */
   useEffect(() => {
     setLocalWalls(walls || []);
   }, [walls]);
 
-  /* 🛰 Shared broadcast helper */
   async function safeBroadcast(event: string, data: any) {
     try {
       const channel = channelRef?.current || supabase.channel('fan_walls-realtime');
-      if (!channel) {
-        console.warn('⚠️ No realtime channel available for broadcast');
-        return;
-      }
+      if (!channel) return;
 
-      console.log(`📡 Sending broadcast [${event}]`, data);
-      const { error } = await channel.send({
+      await channel.send({
         type: 'broadcast',
         event,
         payload: data,
       });
-      if (error) console.error('❌ Broadcast error:', error);
-      else console.log(`✅ Broadcast sent [${event}]`, data);
     } catch (err) {
-      console.error('❌ Broadcast exception:', err);
+      console.error(err);
     }
   }
 
@@ -55,16 +47,13 @@ export default function FanWallGrid({
     setLocalWalls((prev) => prev.map((w) => (w.id === id ? { ...w, ...updates } : w)));
   }
 
-  /* 🚀 Launch popup */
   function handleLaunch(id: string) {
     const url = `${window.location.origin}/wall/${id}`;
     const popup = window.open(url, '_blank', 'width=1280,height=800,resizable=yes,scrollbars=yes');
     popup?.focus();
   }
 
-  /* ▶️ Start wall */
   async function handleStart(id: string) {
-    console.log('▶️ Starting wall:', id);
     updateLocalWall(id, { status: 'live', countdown_active: false });
 
     try {
@@ -75,8 +64,6 @@ export default function FanWallGrid({
         .single();
 
       if (current?.countdown && current.countdown !== 'none') {
-        // Countdown active
-        console.log('⏱ Starting countdown:', current.countdown);
         updateLocalWall(id, { countdown_active: true });
 
         await supabase
@@ -88,7 +75,6 @@ export default function FanWallGrid({
 
         const durationMs = parseCountdownDuration(current.countdown);
         setTimeout(async () => {
-          console.log('🚀 Countdown finished → wall live');
           await supabase
             .from('fan_walls')
             .update({ status: 'live', countdown_active: false, updated_at: new Date().toISOString() })
@@ -97,7 +83,6 @@ export default function FanWallGrid({
           delayedRefresh();
         }, durationMs);
       } else {
-        // No countdown
         await supabase
           .from('fan_walls')
           .update({ status: 'live', countdown_active: false, updated_at: new Date().toISOString() })
@@ -106,7 +91,7 @@ export default function FanWallGrid({
         delayedRefresh();
       }
     } catch (err) {
-      console.error('❌ Error starting wall:', err);
+      console.error(err);
     }
   }
 
@@ -117,66 +102,57 @@ export default function FanWallGrid({
     return 0;
   }
 
-  /* ⏹ Stop wall */
   async function handleStop(id: string) {
-    console.log('⏹ Stopping wall:', id);
     updateLocalWall(id, { status: 'inactive', countdown_active: false });
 
-    try {
-      await supabase
-        .from('fan_walls')
-        .update({
-          status: 'inactive',
-          countdown_active: false,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', id);
+    await supabase
+      .from('fan_walls')
+      .update({ status: 'inactive', countdown_active: false, updated_at: new Date().toISOString() })
+      .eq('id', id);
 
-      await safeBroadcast('wall_status_changed', { id, status: 'inactive' });
-      delayedRefresh();
-    } catch (err) {
-      console.error('❌ Error stopping wall:', err);
-    }
+    await safeBroadcast('wall_status_changed', { id, status: 'inactive' });
+    delayedRefresh();
   }
 
-  /* 🧹 Clear posts */
   async function handleClear(id: string) {
-    console.log('🧹 Clearing posts for wall:', id);
     clearFanWallPosts(id).catch(console.error);
     delayedRefresh();
   }
 
-  /* ❌ Delete wall */
   async function handleDelete(id: string) {
-    console.log('❌ Deleting wall:', id);
     setLocalWalls((prev) => prev.filter((w) => w.id !== id));
     deleteFanWall(id).catch(console.error);
     await safeBroadcast('wall_status_changed', { id, status: 'deleted' });
     delayedRefresh();
   }
 
-  /* 🧩 Moderation popup */
+  /* ✅ MODERATION POPUP — NEW AND POLISHED */
   function openModerationPopup(wallId: string) {
-    const w = 1280,
-      h = 720;
+    const w = 1280, h = 720;
     const left = window.screenX + (window.outerWidth - w) / 2;
     const top = window.screenY + (window.outerHeight - h) / 2;
+
+    const url = `${window.location.origin}/admin/moderation/${wallId}`;
+
     const popup = window.open(
-      `/admin/moderation/${wallId}`,
+      url,
       `moderation_${wallId}`,
       `width=${w},height=${h},left=${left},top=${top},resizable=yes,scrollbars=yes`
     );
-    popup?.focus();
 
-    const checkPopup = setInterval(() => {
-      if (popup?.closed) {
-        clearInterval(checkPopup);
+    if (!popup) return alert("Enable pop-ups to moderate posts.");
+
+    popup.focus();
+
+    const checkInterval = setInterval(() => {
+      if (popup.closed) {
+        clearInterval(checkInterval);
+        window.focus(); // ✅ bring dashboard back into focus
         delayedRefresh();
       }
-    }, 1000);
+    }, 800);
   }
 
-  /* 🕓 Throttled refresh */
   function delayedRefresh() {
     if (refreshTimeout.current) clearTimeout(refreshTimeout.current);
     refreshTimeout.current = setTimeout(() => {
@@ -184,24 +160,19 @@ export default function FanWallGrid({
     }, 500);
   }
 
-  /* 🟡 Pending counts */
   useEffect(() => {
     async function fetchPendingCounts() {
-      try {
-        const { data, error } = await supabase
-          .from('guest_posts')
-          .select('fan_wall_id')
-          .eq('status', 'pending');
-        if (error) throw error;
+      const { data } = await supabase
+        .from('guest_posts')
+        .select('fan_wall_id')
+        .eq('status', 'pending');
 
-        const counts: Record<string, number> = {};
-        data?.forEach((p: any) => {
-          counts[p.fan_wall_id] = (counts[p.fan_wall_id] || 0) + 1;
-        });
-        setPendingCounts(counts);
-      } catch (err) {
-        console.error('❌ Error loading pending counts:', err);
-      }
+      const counts: Record<string, number> = {};
+      data?.forEach((p: any) => {
+        counts[p.fan_wall_id] = (counts[p.fan_wall_id] || 0) + 1;
+      });
+
+      setPendingCounts(counts);
     }
 
     fetchPendingCounts();
@@ -216,7 +187,6 @@ export default function FanWallGrid({
     };
   }, [host?.id]);
 
-  /* 🖼️ Render grid */
   return (
     <div className={cn('mt-10 w-full max-w-6xl')}>
       <h2 className={cn('text-xl font-semibold mb-3')}>🎤 Fan Zone Walls</h2>
@@ -265,6 +235,8 @@ export default function FanWallGrid({
                     : 'INACTIVE'}
                 </span>
               </p>
+
+              {/* ✅ PENDING BUTTON — updated to open popup */}
               <div className={cn('flex', 'justify-center', 'mb-3')}>
                 <button
                   onClick={() => openModerationPopup(wall.id)}
@@ -288,23 +260,23 @@ export default function FanWallGrid({
               </div>
             </div>
 
-            <div className={cn('flex', 'flex-wrap', 'justify-center', 'gap-2', 'mt-auto', 'pt-2', 'border-t', 'border-white/10')}>
-              <button onClick={() => handleLaunch(wall.id)} className={cn('bg-blue-600', 'hover:bg-blue-700', 'px-2', 'py-1', 'rounded', 'text-sm', 'font-semibold')}>
+            <div className={cn('flex flex-wrap justify-center gap-2 mt-auto pt-2 border-t border-white/10')}>
+              <button onClick={() => handleLaunch(wall.id)} className={cn('bg-blue-600 hover:bg-blue-700 px-2 py-1 rounded text-sm font-semibold')}>
                 🚀 Launch
               </button>
-              <button onClick={() => handleStart(wall.id)} className={cn('bg-green-600', 'hover:bg-green-700', 'px-2', 'py-1', 'rounded', 'text-sm', 'font-semibold')}>
+              <button onClick={() => handleStart(wall.id)} className={cn('bg-green-600 hover:bg-green-700 px-2 py-1 rounded text-sm font-semibold')}>
                 ▶️ Play
               </button>
-              <button onClick={() => handleStop(wall.id)} className={cn('bg-red-600', 'hover:bg-red-700', 'px-2', 'py-1', 'rounded', 'text-sm', 'font-semibold')}>
+              <button onClick={() => handleStop(wall.id)} className={cn('bg-red-600 hover:bg-red-700 px-2 py-1 rounded text-sm font-semibold')}>
                 ⏹ Stop
               </button>
-              <button onClick={() => handleClear(wall.id)} className={cn('bg-cyan-500', 'hover:bg-cyan-600', 'px-2', 'py-1', 'rounded', 'text-sm', 'font-semibold')}>
+              <button onClick={() => handleClear(wall.id)} className={cn('bg-cyan-500 hover:bg-cyan-600 px-2 py-1 rounded text-sm font-semibold')}>
                 🧹 Clear
               </button>
-              <button onClick={() => onOpenOptions(wall)} className={cn('bg-indigo-500', 'hover:bg-indigo-600', 'px-2', 'py-1', 'rounded', 'text-sm', 'font-semibold')}>
+              <button onClick={() => onOpenOptions(wall)} className={cn('bg-indigo-500 hover:bg-indigo-600 px-2 py-1 rounded text-sm font-semibold')}>
                 ⚙ Options
               </button>
-              <button onClick={() => handleDelete(wall.id)} className={cn('bg-red-700', 'hover:bg-red-800', 'px-2', 'py-1', 'rounded', 'text-sm', 'font-semibold')}>
+              <button onClick={() => handleDelete(wall.id)} className={cn('bg-red-700 hover:bg-red-800 px-2 py-1 rounded text-sm font-semibold')}>
                 ❌ Delete
               </button>
             </div>

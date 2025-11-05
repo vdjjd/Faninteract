@@ -17,9 +17,6 @@ const speedMap: Record<string, number> = {
   Fast: 4000,
 };
 
-/* -------------------------------------------------------------------------- */
-/* 🧱 4x2 Grid Layout — Realtime Optimized                                    */
-/* -------------------------------------------------------------------------- */
 export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
   const channelRef = useRealtimeChannel();
   const [gridPosts, setGridPosts] = useState<(any | null)[]>(Array(8).fill(null));
@@ -39,20 +36,20 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
 
   const fadeDuration = 1200;
 
-  /* ---------- UPDATE SPEED LIVE ---------- */
   useEffect(() => {
     const newDelay = speedMap[event?.transition_speed || 'Medium'];
     setDisplayDelay(newDelay);
     resetKey.current += 1;
   }, [event?.transition_speed]);
 
-  /* ---------- BACKGROUND + TITLE LIVE ---------- */
+  /* LISTEN FOR LIVE UPDATES */
   useEffect(() => {
     const channel = channelRef?.current;
     if (!channel || !event?.id) return;
 
     const handleBroadcast = (payload: any) => {
       const { event: evt, payload: data } = payload;
+
       if (!data?.id || data.id !== event.id) return;
 
       if (evt === 'wall_updated') {
@@ -81,22 +78,21 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
 
     channel.on('broadcast', {}, handleBroadcast);
     return () => {
-      try {
-        channel.unsubscribe?.();
-      } catch {}
+      try { channel.unsubscribe?.(); } catch {}
     };
   }, [channelRef, event?.id]);
 
-  /* ---------- INITIAL POPULATION ---------- */
+  /* INITIAL GRID POPULATION */
   useEffect(() => {
     if (!posts?.length) return;
     setGridPosts((prev) => prev.map((_, i) => posts[i % posts.length] || null));
     postPointer.current = 8 % posts.length;
   }, [posts, resetKey.current]);
 
-  /* ---------- SEQUENTIAL PAIR LOOP ---------- */
+  /* GRID FADE-CYCLE LOGIC */
   useEffect(() => {
     if (!posts?.length) return;
+
     const pairs: [number, number][] = [
       [0, 4],
       [1, 5],
@@ -107,24 +103,14 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
     let cancelled = false;
     activeRef.current = true;
 
-    async function fadeOutCell(index: number) {
-      const el = document.getElementById(`cell-${index}`);
+    async function fade(id: string, to: number) {
+      const el = document.getElementById(id);
       if (!el) return;
-      await el.animate([{ opacity: 1 }, { opacity: 0 }], {
+      await el.animate([{ opacity: to ? 0 : 1 }, { opacity: to ? 1 : 0 }], {
         duration: fadeDuration,
         easing: 'ease-in-out',
       }).finished;
-      if (!cancelled) el.style.opacity = '0';
-    }
-
-    async function fadeInCell(index: number) {
-      const el = document.getElementById(`cell-${index}`);
-      if (!el) return;
-      await el.animate([{ opacity: 0 }, { opacity: 1 }], {
-        duration: fadeDuration,
-        easing: 'ease-in-out',
-      }).finished;
-      if (!cancelled) el.style.opacity = '1';
+      el.style.opacity = String(to);
     }
 
     async function runCycle() {
@@ -132,23 +118,23 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
         const [top, bottom] = pairs[pairIndex.current];
         const nextPost = posts[postPointer.current % posts.length];
 
-        await fadeOutCell(bottom);
-        await new Promise((r) => setTimeout(r, 300));
-        await fadeOutCell(top);
+        await fade(`cell-${bottom}`, 0);
+        await new Promise((r) => setTimeout(r, 250));
+        await fade(`cell-${top}`, 0);
 
         setGridPosts((prev) => {
           const updated = [...prev];
           updated[bottom] = prev[top];
           return updated;
         });
-        await fadeInCell(bottom);
+        await fade(`cell-${bottom}`, 1);
 
         setGridPosts((prev) => {
           const updated = [...prev];
           updated[top] = nextPost;
           return updated;
         });
-        await fadeInCell(top);
+        await fade(`cell-${top}`, 1);
 
         postPointer.current = (postPointer.current + 1) % posts.length;
         pairIndex.current = (pairIndex.current + 1) % pairs.length;
@@ -164,10 +150,10 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
     };
   }, [posts, displayDelay, resetKey.current]);
 
-  /* ---------- AUTO RESTORE FULLSCREEN ---------- */
+  /* Prevent exiting fullscreen accidentally */
   useEffect(() => {
     let wasFullscreen = !!document.fullscreenElement;
-    const handleChange = () => {
+    const onChange = () => {
       if (!document.fullscreenElement && wasFullscreen) {
         setTimeout(() => {
           document.documentElement.requestFullscreen().catch(() => {});
@@ -175,15 +161,14 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
       }
       wasFullscreen = !!document.fullscreenElement;
     };
-    document.addEventListener('fullscreenchange', handleChange);
-    return () => document.removeEventListener('fullscreenchange', handleChange);
+    document.addEventListener('fullscreenchange', onChange);
+    return () => document.removeEventListener('fullscreenchange', onChange);
   }, []);
 
-  /* ---------- POST CARD ---------- */
   function PostCard({ post }: { post: any }) {
     if (!post)
       return (
-        <div className={cn('flex', 'items-center', 'justify-center', 'text-white', 'text-lg', 'opacity-60')}>
+        <div className={cn('flex','items-center','justify-center','text-white','text-lg','opacity-60')}>
           Fan posts will appear here soon!
         </div>
       );
@@ -202,7 +187,7 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
           backdropFilter: 'blur(10px)',
         }}
       >
-        <div style={{ height: '70%', position: 'relative', padding: 2 }}>
+        <div style={{ height: '70%', padding: 2 }}>
           <img
             src={post.photo_url}
             alt="Guest submission"
@@ -211,8 +196,6 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
               height: '100%',
               objectFit: 'cover',
               borderRadius: 12,
-              display: 'block',
-              opacity: 0.9,
             }}
           />
         </div>
@@ -227,8 +210,6 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
             background: 'rgba(0,0,0,0.3)',
             backdropFilter: 'blur(10px)',
             borderTop: '1px solid rgba(255,255,255,0.15)',
-            borderRadius: '0 0 12px 12px',
-            textAlign: 'center',
           }}
         >
           <h3
@@ -238,10 +219,10 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
               fontSize: '1.2rem',
               marginBottom: 4,
               textShadow: '0 0 6px rgba(0,0,0,0.8)',
+              maxWidth: '90%',
               whiteSpace: 'nowrap',
               overflow: 'hidden',
               textOverflow: 'ellipsis',
-              maxWidth: '90%',
             }}
           >
             {post.nickname || ''}
@@ -250,13 +231,10 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
             style={{
               color: '#ddd',
               fontSize: '1rem',
-              fontWeight: 500,
               lineHeight: 1.3,
               margin: 0,
               maxWidth: '90%',
-              textShadow: '0 0 4px rgba(0,0,0,0.6)',
               wordWrap: 'break-word',
-              overflowWrap: 'anywhere',
             }}
           >
             {post.message || ''}
@@ -266,7 +244,6 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
     );
   }
 
-  /* ---------- RENDER ---------- */
   return (
     <div
       style={{
@@ -279,10 +256,9 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
         justifyContent: 'flex-start',
         position: 'relative',
         overflow: 'hidden',
-        transition: 'background 0.6s ease',
       }}
     >
-      {/* LOGO */}
+      {/* Logo */}
       <div
         style={{
           position: 'absolute',
@@ -303,24 +279,21 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
         />
       </div>
 
-      {/* TITLE */}
+      {/* Title */}
       <h1
         style={{
           color: '#fff',
-          textAlign: 'center',
-          textShadow: '0 0 20px rgba(0,0,0,0.6)',
           fontWeight: 900,
-          letterSpacing: '1px',
           marginTop: '3vh',
           marginBottom: '2vh',
           fontSize: 'clamp(2.5rem, 4vw, 5rem)',
-          lineHeight: 1.1,
+          textAlign: 'center',
         }}
       >
         {title}
       </h1>
 
-      {/* GRID */}
+      {/* Grid */}
       <div
         style={{
           width: '88vw',
@@ -332,57 +305,50 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
           borderRadius: 20,
           overflow: 'hidden',
           background: 'rgba(255,255,255,0.07)',
-          backdropFilter: 'blur(14px) saturate(150%)',
-          border: '1px solid rgba(255,255,255,0.18)',
-          boxShadow:
-            '0 0 40px rgba(0,0,0,0.5), inset 0 0 20px rgba(255,255,255,0.08)',
+          backdropFilter: 'blur(14px)',
         }}
       >
-        {gridPosts.map((post, i) => (
+        {gridPosts.map((p, i) => (
           <div id={`cell-${i}`} key={i} style={{ width: '100%', height: '100%' }}>
-            <PostCard post={post} />
+            <PostCard post={p} />
           </div>
         ))}
       </div>
 
-      {/* QR */}
+      {/* ✅ UPDATED QR CODE */}
       <div
         style={{
           position: 'absolute',
           bottom: '2vh',
           left: '2vw',
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          justifyContent: 'center',
+          textAlign: 'center',
         }}
       >
         <p
           style={{
             color: '#fff',
             fontWeight: 700,
-            fontSize: 'clamp(0.9rem, 1.3vw, 1.4rem)',
             marginBottom: '0.4vh',
-            textAlign: 'center',
+            fontSize: 'clamp(0.9rem, 1.3vw, 1.4rem)',
           }}
         >
           Scan Me To Join
         </p>
+
         <QRCodeCanvas
-          value={`https://faninteract.vercel.app/submit/${event.id}`}
+          value={`https://faninteract.vercel.app/guest/signup?wall=${event?.id}`}
           size={100}
-          bgColor="#ffffff"
-          fgColor="#000000"
+          bgColor="#fff"
+          fgColor="#000"
           level="H"
           style={{
             borderRadius: 10,
-            boxShadow:
-              '0 0 20px rgba(255,255,255,0.5), 0 0 30px rgba(255,255,255,0.25), inset 0 0 8px rgba(0,0,0,0.4)',
+            boxShadow: '0 0 20px rgba(255,255,255,0.5)',
           }}
         />
       </div>
 
-      {/* FULLSCREEN BUTTON */}
+      {/* Fullscreen Toggle */}
       <div
         style={{
           position: 'fixed',
@@ -395,25 +361,19 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
           alignItems: 'center',
           justifyContent: 'center',
           cursor: 'pointer',
-          zIndex: 9999,
           opacity: 0.25,
           background: 'rgba(255,255,255,0.08)',
-          backdropFilter: 'blur(6px)',
           border: '1px solid rgba(255,255,255,0.2)',
-          transition: 'opacity 0.3s ease',
         }}
         onMouseEnter={(e) => (e.currentTarget.style.opacity = '1')}
         onMouseLeave={(e) => (e.currentTarget.style.opacity = '0.25')}
         onClick={() => {
           if (!document.fullscreenElement)
-            document.documentElement.requestFullscreen().catch(console.error);
+            document.documentElement.requestFullscreen();
           else document.exitFullscreen();
         }}
-        title="Toggle Fullscreen"
       >
-        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="white" style={{ width: 26, height: 26 }}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M3 9V4h5M21 9V4h-5M3 15v5h5M21 15v5h-5" />
-        </svg>
+        ⛶
       </div>
     </div>
   );

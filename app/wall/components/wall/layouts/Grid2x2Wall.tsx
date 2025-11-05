@@ -154,8 +154,7 @@ export default function Grid2x2Wall({ event, posts }: Grid2x2WallProps) {
           background: 'rgba(255,255,255,0.06)',
           backdropFilter: 'blur(10px)',
           border: '1px solid rgba(255,255,255,0.15)',
-          boxShadow:
-            '0 0 20px rgba(255,255,255,0.1), 0 0 30px rgba(100,180,255,0.15)',
+          boxShadow: '0 0 20px rgba(255,255,255,0.1), 0 0 30px rgba(100,180,255,0.15)',
         }}
       >
         <div style={{ flex: 1, position: 'relative', padding: '2px 0 2px 2px' }}>
@@ -200,7 +199,6 @@ export default function Grid2x2Wall({ event, posts }: Grid2x2WallProps) {
             background: 'rgba(0,0,0,0.25)',
             backdropFilter: 'blur(12px)',
             borderLeft: '1px solid rgba(255,255,255,0.15)',
-            boxShadow: 'inset 0 0 12px rgba(255,255,255,0.08)',
             borderTopRightRadius: 12,
             borderBottomRightRadius: 12,
           }}
@@ -211,8 +209,7 @@ export default function Grid2x2Wall({ event, posts }: Grid2x2WallProps) {
                 color: '#fff',
                 fontWeight: 800,
                 fontSize: 'clamp(1.6rem, 2.2vw, 2.4rem)',
-                textShadow:
-                  '0 0 12px rgba(255,255,255,0.8), 0 0 20px rgba(100,180,255,0.6)',
+                textShadow: '0 0 12px rgba(255,255,255,0.8), 0 0 20px rgba(100,180,255,0.6)',
                 margin: 0,
               }}
             >
@@ -226,8 +223,6 @@ export default function Grid2x2Wall({ event, posts }: Grid2x2WallProps) {
                 fontSize: 'clamp(1.1rem, 1.6vw, 1.8rem)',
                 fontWeight: 500,
                 lineHeight: 1.5,
-                textShadow: '0 0 8px rgba(0,0,0,0.6)',
-                filter: 'drop-shadow(0 0 4px rgba(255,255,255,0.2))',
                 margin: 0,
               }}
             >
@@ -239,22 +234,12 @@ export default function Grid2x2Wall({ event, posts }: Grid2x2WallProps) {
     );
   }
 
-  /* ---------- FADE VARIANTS ---------- */
   const fadeVariants = {
     enter: { opacity: 0, scale: 0.98 },
-    center: {
-      opacity: 1,
-      scale: 1,
-      transition: { duration: 1.2, ease: 'easeInOut' },
-    },
-    exit: {
-      opacity: 0,
-      scale: 1.02,
-      transition: { duration: 1.2, ease: 'easeInOut', delay: 0.2 },
-    },
+    center: { opacity: 1, scale: 1, transition: { duration: 1.2, ease: 'easeInOut' } },
+    exit: { opacity: 0, scale: 1.02, transition: { duration: 1.2, ease: 'easeInOut', delay: 0.2 } },
   };
 
-  /* ---------- RENDER ---------- */
   return (
     <div
       style={{
@@ -267,7 +252,6 @@ export default function Grid2x2Wall({ event, posts }: Grid2x2WallProps) {
         justifyContent: 'flex-start',
         overflow: 'hidden',
         position: 'relative',
-        transition: 'background 0.6s ease',
       }}
     >
       {/* LOGO */}
@@ -290,7 +274,6 @@ export default function Grid2x2Wall({ event, posts }: Grid2x2WallProps) {
           marginTop: '3vh',
           marginBottom: '2vh',
           fontSize: 'clamp(2.5rem,4vw,5rem)',
-          lineHeight: 1.1,
         }}
       >
         {title}
@@ -328,7 +311,7 @@ export default function Grid2x2Wall({ event, posts }: Grid2x2WallProps) {
         ))}
       </div>
 
-      {/* QR */}
+      {/* ✅ UPDATED QR CODE */}
       <div style={{ position: 'absolute', bottom: '4vh', left: '4vw', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
         <p
           style={{
@@ -347,12 +330,11 @@ export default function Grid2x2Wall({ event, posts }: Grid2x2WallProps) {
             padding: 8,
             borderRadius: 16,
             background: 'rgba(255,255,255,0.05)',
-            boxShadow:
-              '0 0 25px rgba(255,255,255,0.6),0 0 40px rgba(100,180,255,0.3),inset 0 0 10px rgba(0,0,0,0.4)',
+            boxShadow: '0 0 25px rgba(255,255,255,0.6),0 0 40px rgba(255,255,255,0.3),inset 0 0 10px rgba(0,0,0,0.4)',
           }}
         >
           <QRCodeCanvas
-            value={`https://faninteract.vercel.app/submit/${event.id}`}
+            value={`https://faninteract.vercel.app/guest/signup?wall=${event?.id}`}
             size={140}
             bgColor="#ffffff"
             fgColor="#000000"
@@ -380,7 +362,6 @@ export default function Grid2x2Wall({ event, posts }: Grid2x2WallProps) {
           background: 'rgba(255,255,255,0.08)',
           backdropFilter: 'blur(6px)',
           border: '1px solid rgba(255,255,255,0.2)',
-          transition: 'opacity 0.3s ease',
         }}
         onMouseEnter={(e) => (e.currentTarget.style.opacity = '1')}
         onMouseLeave={(e) => (e.currentTarget.style.opacity = '0.25')}
@@ -398,4 +379,3 @@ export default function Grid2x2Wall({ event, posts }: Grid2x2WallProps) {
     </div>
   );
 }
-

@@ -45,9 +45,6 @@ const speedMap: Record<string, number> = {
   Fast: 4000,
 };
 
-/* -------------------------------------------------------------------------- */
-/* 🧱 Single Highlight Wall (Realtime-Optimized)                              */
-/* -------------------------------------------------------------------------- */
 export default function SingleHighlightWall({
   event,
   posts,
@@ -70,6 +67,7 @@ export default function SingleHighlightWall({
       ? `url(${event.background_value}) center/cover no-repeat`
       : event?.background_value || 'linear-gradient(to bottom right,#1b2735,#090a0f)'
   );
+
   const [transitionType, setTransitionType] = useState(
     event?.post_transition || 'Fade In / Fade Out'
   );
@@ -93,7 +91,6 @@ export default function SingleHighlightWall({
       const { event: evt, payload: data } = payload;
       if (!data?.id || data.id !== event.id) return;
 
-      // 🔹 Wall-wide updates (background, title, logo, speed)
       if (evt === 'wall_updated') {
         if (data.background_value) {
           const newBg =
@@ -110,7 +107,6 @@ export default function SingleHighlightWall({
           setTransitionType(data.post_transition);
       }
 
-      // 🔹 Status change (live / inactive)
       if (evt === 'wall_status_changed' && !transitionLock.current) {
         transitionLock.current = true;
         setFading(true);
@@ -122,7 +118,6 @@ export default function SingleHighlightWall({
         }, 1000);
       }
 
-      // 🔹 New approved posts
       if (evt === 'post_added' && data.status === 'approved') {
         setLivePosts((prev) =>
           prev.some((p) => p.id === data.id) ? prev : [data, ...prev]
@@ -138,7 +133,7 @@ export default function SingleHighlightWall({
     };
   }, [channelRef, event?.id]);
 
-  /* ---------- POST CYCLE ---------- */
+  /* ---------- POST ROTATION ---------- */
   useEffect(() => {
     if (!livePosts?.length) return;
     const interval = setInterval(() => {
@@ -150,14 +145,13 @@ export default function SingleHighlightWall({
   const transitionStyle = transitions[transitionType] || transitions['Fade In / Fade Out'];
   const current = livePosts[currentIndex % (livePosts.length || 1)];
 
-  /* ---------- FULLSCREEN ---------- */
+  /* ---------- FULLSCREEN BUTTON ---------- */
   const handleFullscreen = () => {
     const elem = document.documentElement;
     if (!document.fullscreenElement) elem.requestFullscreen().catch(() => {});
     else document.exitFullscreen();
   };
 
-  /* ---------- RENDER ---------- */
   return (
     <div
       style={{
@@ -174,6 +168,7 @@ export default function SingleHighlightWall({
         transition: 'opacity 0.8s ease-in-out, background 0.6s ease',
       }}
     >
+      {/* Title */}
       <h1
         style={{
           color: '#fff',
@@ -188,6 +183,7 @@ export default function SingleHighlightWall({
         {title}
       </h1>
 
+      {/* Main Container */}
       <div
         style={{
           width: '90vw',
@@ -202,7 +198,7 @@ export default function SingleHighlightWall({
           overflow: 'hidden',
         }}
       >
-        {/* LEFT: PHOTO */}
+        {/* LEFT IMAGE */}
         <div
           style={{
             position: 'absolute',
@@ -249,7 +245,7 @@ export default function SingleHighlightWall({
           </AnimatePresence>
         </div>
 
-        {/* RIGHT: TEXT + LOGO */}
+        {/* RIGHT TEXT + LOGO */}
         <div
           style={{
             flexGrow: 1,
@@ -305,7 +301,7 @@ export default function SingleHighlightWall({
         </div>
       </div>
 
-      {/* QR */}
+      {/* ✅ UPDATED QR CODE */}
       <div
         style={{
           position: 'absolute',
@@ -330,6 +326,7 @@ export default function SingleHighlightWall({
         >
           Scan Me To Join
         </p>
+
         <div
           style={{
             padding: 6,
@@ -340,7 +337,7 @@ export default function SingleHighlightWall({
           }}
         >
           <QRCodeCanvas
-            value={`https://faninteract.vercel.app/submit/${event?.id}`}
+            value={`https://faninteract.vercel.app/guest/signup?wall=${event?.id}`}
             size={140}
             bgColor="#ffffff"
             fgColor="#000000"
