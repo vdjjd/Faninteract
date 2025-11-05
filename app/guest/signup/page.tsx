@@ -3,212 +3,195 @@
 import { useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { getSupabaseClient } from '@/lib/supabaseClient';
+import Image from 'next/image';
+import { motion } from 'framer-motion';
+import { cn } from '@/lib/utils';
 
-/* ---------------------- Local Device ID Helper ---------------------- */
+/* ------------------ Device ID Helper ------------------ */
 function getOrCreateGuestDeviceId(): string | null {
   if (typeof window === 'undefined') return null;
-  try {
-    let id = localStorage.getItem('guest_device_id');
-    if (!id) {
-      id = crypto.randomUUID();
-      localStorage.setItem('guest_device_id', id);
-    }
-    return id;
-  } catch (err) {
-    console.error('❌ Failed to create device ID', err);
-    return null;
+  let id = localStorage.getItem('guest_device_id');
+  if (!id) {
+    id = crypto.randomUUID();
+    localStorage.setItem('guest_device_id', id);
   }
+  return id;
 }
 
-/* ---------------------- Guest Signup Page ---------------------- */
 export default function GuestSignupPage() {
+  const supabase = getSupabaseClient();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const redirect = searchParams.get('redirect');
-  const supabase = getSupabaseClient();
+  const wallId = searchParams.get('wall');
+  const redirect = `/wall/${wallId}/submit`;
 
-  const [form, setForm] = useState({
-    first_name: '',
-    last_name: '',
-    email: '',
-    phone: '',
-  });
+  const [wallBG, setWallBG] = useState<{ type: string; value: string } | null>(null);
+  const [form, setForm] = useState({ first_name: '', last_name: '', email: '', phone: '' });
   const [agree, setAgree] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
-  const [success, setSuccess] = useState(false);
 
+  /* ------------------ Auto-redirect if already signed up ------------------ */
   useEffect(() => {
-    getOrCreateGuestDeviceId();
+    const profile = localStorage.getItem('guest_profile');
+    if (profile) router.push(redirect);
   }, []);
 
-  const handleChange = (e: any) =>
-    setForm({ ...form, [e.target.name]: e.target.value });
+  /* ------------------ Load wall background ------------------ */
+  useEffect(() => {
+    async function loadWall() {
+      if (!wallId) return;
+      const { data, error } = await supabase
+        .from('fan_walls')
+        .select('background_type, background_value')
+        .eq('id', wallId)
+        .single();
 
-  const handleSubmit = async (e: any) => {
+      if (!error && data) {
+        setWallBG({ type: data.background_type, value: data.background_value });
+      }
+    }
+    loadWall();
+  }, [wallId]);
+
+  /* ------------------ Handle Form Submit ------------------ */
+  async function handleSubmit(e: any) {
     e.preventDefault();
     setError('');
+    if (!agree) return setError('You must agree to the Terms.');
     setSubmitting(true);
 
     try {
-      if (!agree) throw new Error('You must agree to the Terms.');
-      const device_id = localStorage.getItem('guest_device_id');
-      if (!device_id) throw new Error('Device ID not found.');
-      if (!supabase) throw new Error('Supabase client unavailable.');
-
-      const { data: existing, error: findError } = await supabase
+      const device_id = getOrCreateGuestDeviceId();
+      const { data: existing } = await supabase
         .from('guest_profiles')
         .select('*')
         .eq('device_id', device_id)
         .maybeSingle();
 
-      if (findError) throw findError;
-
       let profile;
       if (existing) {
-        const { data, error } = await supabase
+        const { data } = await supabase
           .from('guest_profiles')
           .update(form)
           .eq('device_id', device_id)
           .select()
           .single();
-        if (error) throw error;
         profile = data;
       } else {
-        const { data, error } = await supabase
+        const { data } = await supabase
           .from('guest_profiles')
           .insert([{ device_id, ...form }])
           .select()
           .single();
-        if (error) throw error;
         profile = data;
       }
 
       localStorage.setItem('guest_profile', JSON.stringify(profile));
-      setSuccess(true);
-      setTimeout(() => router.push(redirect || '/thankyou'), 1500);
+      router.push(redirect);
     } catch (err: any) {
-      console.error('Signup error:', err.message);
-      setError(err.message || 'Signup failed.');
+      setError(err.message);
     } finally {
       setSubmitting(false);
     }
-  };
+  }
 
-  /* ---------------------- UI ---------------------- */
+  /* ------------------ Determine background style ------------------ */
+  const bgStyle =
+    wallBG?.type === 'image'
+      ? {
+          backgroundImage: `url(${wallBG.value})`,
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+        }
+      : {
+          background: wallBG?.value || 'linear-gradient(135deg,#0a2540,#1b2b44,#000000)',
+        };
+
   return (
-    <div style={pageStyle}>
-      <form onSubmit={handleSubmit} style={formStyle}>
-        <h2 style={titleStyle}>Join the Fan Zone</h2>
+    <main
+      className={cn('relative', 'flex', 'items-center', 'justify-center', 'min-h-screen', 'w-full', 'overflow-hidden')}
+      style={bgStyle}
+    >
+      {/* Dim/blur overlay */}
+      <div className={cn('absolute', 'inset-0', 'bg-black/60', 'backdrop-blur-sm')}></div>
 
-        {['first_name', 'last_name', 'email', 'phone'].map((field) => (
-          <input
-            key={field}
-            name={field}
-            type={field === 'email' ? 'email' : 'text'}
-            placeholder={
-              field === 'first_name'
-                ? 'First Name *'
-                : field === 'last_name'
-                ? 'Last Name *'
-                : field === 'email'
-                ? 'Email (optional)'
-                : 'Phone (optional)'
-            }
-            value={(form as any)[field]}
-            onChange={handleChange}
-            required={field === 'first_name' || field === 'last_name'}
-            style={inputStyle}
+      {/* Signup box */}
+      <motion.div
+        initial={{ opacity: 0, scale: 0.9, y: 40 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+        className={cn(
+          "relative z-10 w-[90%] max-w-md rounded-3xl p-7",
+          "bg-white/10 border border-white/20 backdrop-blur-xl shadow-[0_0_30px_rgba(56,189,248,0.3)]"
+        )}
+      >
+        {/* Logo */}
+        <div className={cn('flex', 'justify-center', 'mb-4')}>
+          <Image
+            src="/faninteractlogo.png"
+            alt="FanInteract"
+            width={260}
+            height={100}
+            className="drop-shadow-[0_0_25px_rgba(56,189,248,0.45)]"
           />
-        ))}
+        </div>
 
-        {/* ✅ Terms Agreement */}
-        <label style={checkboxLabel}>
-          <input
-            type="checkbox"
-            checked={agree}
-            onChange={(e) => setAgree(e.target.checked)}
-            style={checkboxStyle}
-          />
-          I agree to the{' '}
-          <a href="/terms" target="_blank" style={termsLink}>
-            Terms of Service
-          </a>
-        </label>
+        {/* Pulse header */}
+        <motion.h2
+          animate={{
+            textShadow: [
+              "0 0 8px rgba(56,189,248,0.8)",
+              "0 0 18px rgba(56,189,248,0.7)",
+              "0 0 8px rgba(56,189,248,0.8)",
+            ],
+            scale: [1, 1.03, 1],
+          }}
+          transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
+          className={cn('text-center', 'text-xl', 'font-semibold', 'text-sky-200', 'mb-4')}
+        >
+          Join the Fan Zone!
+        </motion.h2>
 
-        <button disabled={submitting} style={buttonStyle}>
-          {submitting ? 'Submitting...' : 'Join'}
-        </button>
+        {/* Form */}
+        <form onSubmit={handleSubmit} className="space-y-3">
+          {["first_name", "last_name", "email", "phone"].map((field) => (
+            <input
+              key={field}
+              name={field}
+              type={field === "email" ? "email" : "text"}
+              placeholder={
+                field === "first_name"
+                  ? "First Name *"
+                  : field === "last_name"
+                  ? "Last Name *"
+                  : field === "email"
+                  ? "Email (optional)"
+                  : "Phone (optional)"
+              }
+              required={field === "first_name" || field === "last_name"}
+              className={cn('w-full', 'p-3', 'rounded-xl', 'bg-black/40', 'border', 'border-white/30', 'focus:border-sky-400', 'outline-none', 'text-white')}
+              onChange={(e) => setForm({ ...form, [field]: e.target.value })}
+            />
+          ))}
 
-        {error && <p style={{ color: 'salmon' }}>{error}</p>}
-        {success && <p style={{ color: 'lightgreen' }}>Success! Redirecting...</p>}
-      </form>
-    </div>
+          <label className={cn('flex', 'items-center', 'gap-2', 'text-xs', 'text-gray-300')}>
+            <input
+              type="checkbox"
+              className={cn('accent-sky-500', 'w-4', 'h-4')}
+              checked={agree}
+              onChange={(e) => setAgree(e.target.checked)}
+            />
+            I agree to the <a href="/terms" target="_blank" className={cn('text-sky-300', 'underline')}>Terms</a>
+          </label>
+
+          <button className={cn('w-full', 'py-3', 'rounded-xl', 'bg-gradient-to-r', 'from-sky-500', 'to-blue-600', 'font-semibold', 'shadow-lg', 'hover:scale-[1.02]', 'active:scale-[0.98]', 'transition-all')}>
+            {submitting ? "Submitting..." : "Enter Fan Zone"}
+          </button>
+
+          {error && <p className={cn('text-red-300', 'text-center', 'text-sm')}>{error}</p>}
+        </form>
+      </motion.div>
+    </main>
   );
 }
-
-/* ---------------------- Styles ---------------------- */
-const pageStyle = {
-  display: 'flex',
-  justifyContent: 'center',
-  alignItems: 'center',
-  minHeight: '100vh',
-  background: 'linear-gradient(135deg,#0a2540,#1b2b44,#000000)',
-  color: 'white',
-};
-
-const formStyle = {
-  background: 'rgba(0,0,0,0.7)',
-  padding: '40px 30px',
-  borderRadius: 12,
-  width: 340,
-  display: 'flex',
-  flexDirection: 'column',
-  gap: '12px',
-};
-
-const titleStyle = {
-  fontWeight: 700,
-  fontSize: '1.4rem',
-  textAlign: 'center' as const,
-  marginBottom: 10,
-};
-
-const inputStyle = {
-  padding: '10px',
-  borderRadius: 8,
-  border: '1px solid #333',
-  background: 'rgba(255,255,255,0.1)',
-  color: 'white',
-};
-
-const buttonStyle = {
-  padding: '10px',
-  borderRadius: 8,
-  backgroundColor: '#1e90ff',
-  border: 'none',
-  color: 'white',
-  fontWeight: 600,
-  cursor: 'pointer',
-};
-
-const checkboxLabel = {
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  gap: 8,
-  color: '#ccc',
-  fontSize: 13,
-  margin: '10px 0 5px 0',
-};
-
-const checkboxStyle = {
-  accentColor: '#1e90ff',
-  width: 18,
-  height: 18,
-};
-
-const termsLink = {
-  color: '#1e90ff',
-  textDecoration: 'none',
-};
