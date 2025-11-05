@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef } from 'react';
 import { QRCodeCanvas } from 'qrcode.react';
+import { supabase } from '@/lib/supabaseClient';
 import { useRealtimeChannel } from '@/providers/SupabaseRealtimeProvider';
 import { cn } from "../../../../../lib/utils";
 
@@ -10,7 +11,6 @@ interface Grid4x2WallProps {
   posts: any[];
 }
 
-/* ---------- SPEED MAP ---------- */
 const speedMap: Record<string, number> = {
   Slow: 12000,
   Medium: 8000,
@@ -21,6 +21,7 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
   const channelRef = useRealtimeChannel();
   const [gridPosts, setGridPosts] = useState<(any | null)[]>(Array(8).fill(null));
   const [displayDelay, setDisplayDelay] = useState(speedMap[event?.transition_speed || 'Medium']);
+
   const [bg, setBg] = useState(
     event?.background_type === 'image'
       ? `url(${event.background_value}) center/cover no-repeat`
@@ -33,63 +34,120 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
   const postPointer = useRef(0);
   const pairIndex = useRef(0);
   const activeRef = useRef(false);
-
   const fadeDuration = 1200;
 
+  /* ✅ FULLSCREEN MEMORY */
   useEffect(() => {
-    const newDelay = speedMap[event?.transition_speed || 'Medium'];
-    setDisplayDelay(newDelay);
+    let wasFullscreen = !!document.fullscreenElement;
+    const handler = () => {
+      if (!document.fullscreenElement && wasFullscreen) {
+        setTimeout(() => {
+          document.documentElement.requestFullscreen().catch(() => {});
+        }, 300);
+      }
+      wasFullscreen = !!document.fullscreenElement;
+    };
+    document.addEventListener('fullscreenchange', handler);
+    return () => document.removeEventListener('fullscreenchange', handler);
+  }, []);
+
+  /* ✅ SETTINGS & BACKGROUND LIVE UPDATE */
+  useEffect(() => {
+    if (!event?.id) return;
+
+    const settingsChannel = supabase
+      .channel(`wall_settings_${event.id}`)
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'fan_walls', filter: `id=eq.${event.id}` },
+        (payload) => {
+          const w = payload.new;
+          if (!w) return;
+
+          if (w.background_value) {
+            setBg(
+              w.background_type === 'image'
+                ? `url(${w.background_value}) center/cover no-repeat`
+                : w.background_value
+            );
+          }
+          if (w.title) setTitle(w.title);
+          if (w.logo_url) setLogo(w.logo_url);
+          if (w.transition_speed) setDisplayDelay(speedMap[w.transition_speed]);
+        }
+      )
+      .subscribe();
+
+    return () => supabase.removeChannel(settingsChannel);
+  }, [event?.id]);
+
+  /* ✅ REALTIME POSTS LIKE SINGLE HIGHLIGHT */
+  useEffect(() => {
+    if (!event?.id) return;
+
+    const postsChannel = supabase
+      .channel(`wall_posts_${event.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'guest_posts',
+          filter: `fan_wall_id=eq.${event.id}`,
+        },
+        (payload) => {
+          const row = payload.new;
+
+          if (payload.eventType === 'INSERT' && row?.status === 'approved') {
+            setGridPosts((prev) => {
+              if (prev.some((p) => p?.id === row.id)) return prev;
+              const next = [...prev];
+              next[postPointer.current % 8] = row;
+              return next;
+            });
+          }
+
+          if (payload.eventType === 'UPDATE' || payload.eventType === 'DELETE') {
+            // Reload posts from DB to sync state
+            loadPosts();
+          }
+        }
+      )
+      .subscribe();
+
+    async function loadPosts() {
+      const { data } = await supabase
+        .from('guest_posts')
+        .select('*')
+        .eq('fan_wall_id', event.id)
+        .eq('status', 'approved')
+        .order('created_at', { ascending: false });
+
+      if (data) {
+        setGridPosts((prev) =>
+          prev.map((_, i) => data[i % data.length] || null)
+        );
+        postPointer.current = 8 % data.length;
+      }
+    }
+
+    return () => supabase.removeChannel(postsChannel);
+  }, [event?.id]);
+
+  /* ✅ REACT TO SPEED CHANGE */
+  useEffect(() => {
+    setDisplayDelay(speedMap[event?.transition_speed || 'Medium']);
     resetKey.current += 1;
   }, [event?.transition_speed]);
 
-  /* LISTEN FOR LIVE UPDATES */
-  useEffect(() => {
-    const channel = channelRef?.current;
-    if (!channel || !event?.id) return;
-
-    const handleBroadcast = (payload: any) => {
-      const { event: evt, payload: data } = payload;
-
-      if (!data?.id || data.id !== event.id) return;
-
-      if (evt === 'wall_updated') {
-        if (data.background_value) {
-          const newBg =
-            data.background_type === 'image'
-              ? `url(${data.background_value}) center/cover no-repeat`
-              : data.background_value;
-          setBg(newBg);
-        }
-        if (data.title) setTitle(data.title);
-        if (data.logo_url) setLogo(data.logo_url);
-        if (data.transition_speed) setDisplayDelay(speedMap[data.transition_speed]);
-      }
-
-      if (evt === 'post_added') {
-        const newPost = data;
-        setGridPosts((prev) => {
-          if (prev.some((p) => p?.id === newPost.id)) return prev;
-          const next = [...prev];
-          next[postPointer.current % 8] = newPost;
-          return next;
-        });
-      }
-    };
-
-    channel.on('broadcast', {}, handleBroadcast);
-    return () => {
-      try { channel.unsubscribe?.(); } catch {}
-    };
-  }, [channelRef, event?.id]);
-
-  /* INITIAL GRID POPULATION */
+  /* ✅ INITIAL FILL */
   useEffect(() => {
     if (!posts?.length) return;
-    setGridPosts((prev) => prev.map((_, i) => posts[i % posts.length] || null));
+    setGridPosts(Array.from({ length: 8 }, (_, i) => posts[i % posts.length] || null));
     postPointer.current = 8 % posts.length;
   }, [posts, resetKey.current]);
 
-  /* GRID FADE-CYCLE LOGIC */
+  /* ✅ CYCLING FADE LOGIC (UNCHANGED BEHAVIOR) */
   useEffect(() => {
     if (!posts?.length) return;
 
@@ -103,20 +161,20 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
     let cancelled = false;
     activeRef.current = true;
 
-    async function fade(id: string, to: number) {
+    const fade = async (id: string, to: number) => {
       const el = document.getElementById(id);
       if (!el) return;
-      await el.animate([{ opacity: to ? 0 : 1 }, { opacity: to ? 1 : 0 }], {
-        duration: fadeDuration,
-        easing: 'ease-in-out',
-      }).finished;
+      await el.animate(
+        [{ opacity: to ? 0 : 1 }, { opacity: to ? 1 : 0 }],
+        { duration: fadeDuration, easing: 'ease-in-out' }
+      ).finished;
       el.style.opacity = String(to);
-    }
+    };
 
-    async function runCycle() {
+    async function run() {
       while (activeRef.current && !cancelled) {
         const [top, bottom] = pairs[pairIndex.current];
-        const nextPost = posts[postPointer.current % posts.length];
+        const next = posts[postPointer.current % posts.length];
 
         await fade(`cell-${bottom}`, 0);
         await new Promise((r) => setTimeout(r, 250));
@@ -131,7 +189,7 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
 
         setGridPosts((prev) => {
           const updated = [...prev];
-          updated[top] = nextPost;
+          updated[top] = next;
           return updated;
         });
         await fade(`cell-${top}`, 1);
@@ -143,27 +201,12 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
       }
     }
 
-    runCycle();
+    run();
     return () => {
       cancelled = true;
       activeRef.current = false;
     };
   }, [posts, displayDelay, resetKey.current]);
-
-  /* Prevent exiting fullscreen accidentally */
-  useEffect(() => {
-    let wasFullscreen = !!document.fullscreenElement;
-    const onChange = () => {
-      if (!document.fullscreenElement && wasFullscreen) {
-        setTimeout(() => {
-          document.documentElement.requestFullscreen().catch(() => {});
-        }, 300);
-      }
-      wasFullscreen = !!document.fullscreenElement;
-    };
-    document.addEventListener('fullscreenchange', onChange);
-    return () => document.removeEventListener('fullscreenchange', onChange);
-  }, []);
 
   function PostCard({ post }: { post: any }) {
     if (!post)
@@ -218,8 +261,6 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
               fontWeight: 800,
               fontSize: '1.2rem',
               marginBottom: 4,
-              textShadow: '0 0 6px rgba(0,0,0,0.8)',
-              maxWidth: '90%',
               whiteSpace: 'nowrap',
               overflow: 'hidden',
               textOverflow: 'ellipsis',
@@ -232,9 +273,10 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
               color: '#ddd',
               fontSize: '1rem',
               lineHeight: 1.3,
-              margin: 0,
               maxWidth: '90%',
               wordWrap: 'break-word',
+              textAlign: 'center',
+              margin: 0,
             }}
           >
             {post.message || ''}
@@ -254,46 +296,30 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
         flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'flex-start',
-        position: 'relative',
         overflow: 'hidden',
+        position: 'relative',
       }}
     >
-      {/* Logo */}
-      <div
-        style={{
-          position: 'absolute',
-          top: '3vh',
-          right: '3vw',
-          width: 'clamp(160px, 18vw, 220px)',
-          zIndex: 20,
-        }}
-      >
-        <img
-          src={logo}
-          alt="Logo"
-          style={{
-            width: '100%',
-            height: 'auto',
-            filter: 'drop-shadow(0 0 12px rgba(0,0,0,0.8))',
-          }}
-        />
+      {/* LOGO */}
+      <div style={{ position: 'absolute', top: '3vh', right: '3vw', width: 'clamp(160px,18vw,220px)', zIndex: 20 }}>
+        <img src={logo} style={{ width: '100%', height: 'auto', filter: 'drop-shadow(0 0 12px rgba(0,0,0,0.85))' }} />
       </div>
 
-      {/* Title */}
+      {/* TITLE */}
       <h1
         style={{
           color: '#fff',
           fontWeight: 900,
           marginTop: '3vh',
           marginBottom: '2vh',
-          fontSize: 'clamp(2.5rem, 4vw, 5rem)',
+          fontSize: 'clamp(2.5rem,4vw,5rem)',
           textAlign: 'center',
         }}
       >
         {title}
       </h1>
 
-      {/* Grid */}
+      {/* GRID */}
       <div
         style={{
           width: '88vw',
@@ -315,40 +341,32 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
         ))}
       </div>
 
-      {/* ✅ UPDATED QR CODE */}
-      <div
-        style={{
-          position: 'absolute',
-          bottom: '2vh',
-          left: '2vw',
-          textAlign: 'center',
-        }}
-      >
-        <p
-          style={{
-            color: '#fff',
-            fontWeight: 700,
-            marginBottom: '0.4vh',
-            fontSize: 'clamp(0.9rem, 1.3vw, 1.4rem)',
-          }}
-        >
+      {/* QR */}
+      <div style={{ position: 'absolute', bottom: '2vh', left: '2vw', textAlign: 'center' }}>
+        <p style={{ color: '#fff', fontWeight: 700, marginBottom: '0.4vh', fontSize: 'clamp(0.9rem,1.3vw,1.4rem)' }}>
           Scan Me To Join
         </p>
 
-        <QRCodeCanvas
-          value={`https://faninteract.vercel.app/guest/signup?wall=${event?.id}`}
-          size={100}
-          bgColor="#fff"
-          fgColor="#000"
-          level="H"
+        <div
           style={{
-            borderRadius: 10,
-            boxShadow: '0 0 20px rgba(255,255,255,0.5)',
+            padding: 6,
+            borderRadius: 12,
+            background: 'rgba(255,255,255,0.05)',
+            boxShadow:'0 0 25px rgba(255,255,255,0.6), 0 0 40px rgba(100,180,255,0.3), inset 0 0 10px rgba(0,0,0,0.4)',
           }}
-        />
+        >
+          <QRCodeCanvas
+            value={`https://faninteract.vercel.app/guest/signup?wall=${event?.id}`}
+            size={110}
+            bgColor="#ffffff"
+            fgColor="#000000"
+            level="H"
+            style={{ borderRadius: 10 }}
+          />
+        </div>
       </div>
 
-      {/* Fullscreen Toggle */}
+      {/* FULLSCREEN */}
       <div
         style={{
           position: 'fixed',
@@ -367,13 +385,15 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
         }}
         onMouseEnter={(e) => (e.currentTarget.style.opacity = '1')}
         onMouseLeave={(e) => (e.currentTarget.style.opacity = '0.25')}
-        onClick={() => {
-          if (!document.fullscreenElement)
-            document.documentElement.requestFullscreen();
-          else document.exitFullscreen();
-        }}
+        onClick={() =>
+          !document.fullscreenElement
+            ? document.documentElement.requestFullscreen().catch(console.error)
+            : document.exitFullscreen()
+        }
       >
-        ⛶
+        <svg xmlns="http://www.w3.org/2000/svg" stroke="white" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} style={{ width: 26, height: 26 }}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M3 9V4h5M21 9V4h-5M3 15v5h5M21 15v5h-5" />
+        </svg>
       </div>
     </div>
   );
