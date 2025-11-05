@@ -5,7 +5,7 @@ import { useParams, useSearchParams, useRouter } from "next/navigation";
 import { getSupabaseClient } from "@/lib/supabaseClient";
 
 export default function ThankYouPage() {
-  const { wallId } = useParams();   // ✅ FIX: use wallId
+  const { id } = useParams();
   const searchParams = useSearchParams();
   const router = useRouter();
   const supabase = getSupabaseClient();
@@ -15,9 +15,9 @@ export default function ThankYouPage() {
 
   const type = searchParams.get("type") || "fan_wall";
 
-  /* ✅ Load wall/poll/wheel data */
+  // ✅ Load wall/poll/wheel branding
   useEffect(() => {
-    if (!wallId) return;
+    if (!id) return;
 
     async function fetchData() {
       const table =
@@ -25,28 +25,30 @@ export default function ThankYouPage() {
           ? "polls"
           : type === "wheel"
           ? "prize_wheels"
-          : "fan_walls";
+          : "fan_walls"; // default
 
       const { data, error } = await supabase
         .from(table)
         .select(`title, background_value, host:host_id (branding_logo_url)`)
-        .eq("id", wallId)
+        .eq("id", id)
         .maybeSingle();
 
-      if (error) console.error(error);
-      setData(data);
+      if (!error) setData(data);
     }
 
     fetchData();
 
-    /* ✅ Auto timers */
+    // ✅ Fade & close logic
     const fadeTimer = setTimeout(() => setFadeOut(true), 3200);
     const closeTimer = setTimeout(() => {
-      try { window.close(); } catch {}
+      try {
+        window.close();
+      } catch {}
     }, 4200);
 
+    // ✅ Safety: if popup blocked, go back
     const backTimer = setTimeout(() => {
-      router.push(`/wall/${wallId}`);
+      router.push(`/wall/${id}`);
     }, 5000);
 
     return () => {
@@ -54,9 +56,9 @@ export default function ThankYouPage() {
       clearTimeout(closeTimer);
       clearTimeout(backTimer);
     };
-  }, [wallId, type, router, supabase]);
+  }, [id, type, router, supabase]);
 
-  /* ✅ Message based on type */
+  // ✅ Message text by type
   const getMessage = () => {
     switch (type) {
       case "poll":
@@ -70,10 +72,16 @@ export default function ThankYouPage() {
     }
   };
 
+  // ✅ Background
   const bg =
     data?.background_value ||
     "linear-gradient(135deg,#0a2540,#1b2b44,#000000)";
 
+  const bgStyle = bg.includes("http")
+    ? { backgroundImage: `url(${bg})` }
+    : { background: bg };
+
+  // ✅ Logo
   const displayLogo =
     data?.host?.branding_logo_url?.trim() !== ""
       ? data.host.branding_logo_url
@@ -82,8 +90,8 @@ export default function ThankYouPage() {
   return (
     <div
       style={{
+        ...bgStyle,
         minHeight: "100vh",
-        backgroundImage: bg.includes("http") ? `url(${bg})` : bg,
         backgroundSize: "cover",
         backgroundPosition: "center",
         position: "relative",
@@ -95,9 +103,8 @@ export default function ThankYouPage() {
         opacity: fadeOut ? 0 : 1,
         transition: "opacity 1.2s ease",
       }}
-      onClick={() => router.push(`/wall/${wallId}`)}
+      onClick={() => router.push(`/wall/${id}`)}
     >
-      {/* Overlay */}
       <div
         style={{
           position: "absolute",
@@ -107,7 +114,6 @@ export default function ThankYouPage() {
         }}
       />
 
-      {/* Card */}
       <div
         style={{
           position: "relative",
@@ -121,6 +127,7 @@ export default function ThankYouPage() {
           boxShadow: "0 0 35px rgba(0,0,0,0.6)",
         }}
       >
+        {/* Logo */}
         <img
           src={displayLogo}
           style={{
@@ -139,7 +146,7 @@ export default function ThankYouPage() {
         <p style={{ color: "#cbd5e1", marginBottom: 25 }}>{getMessage()}</p>
 
         <button
-          onClick={() => router.push(`/wall/${wallId}`)}
+          onClick={() => router.push(`/wall/${id}`)}
           style={{
             padding: "12px 20px",
             borderRadius: 10,
@@ -163,5 +170,3 @@ export default function ThankYouPage() {
     </div>
   );
 }
-
-
