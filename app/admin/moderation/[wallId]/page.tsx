@@ -1,11 +1,11 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
 
 /* -------------------------------------------------------------------------- */
-/* 📸 TYPE DEFINITIONS                                                        */
+/* 📸 TYPES                                                                   */
 /* -------------------------------------------------------------------------- */
 interface GuestPost {
   id: string;
@@ -18,28 +18,51 @@ interface GuestPost {
 }
 
 /* -------------------------------------------------------------------------- */
-/* 🧠 MAIN COMPONENT: MODERATION PAGE                                         */
+/* 🧠 MAIN COMPONENT                                                          */
 /* -------------------------------------------------------------------------- */
 export default function ModerationPage() {
+  const router = useRouter();
   const { wallId } = useParams();
+
   const [posts, setPosts] = useState<GuestPost[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedImg, setSelectedImg] = useState<string | null>(null);
   const [toast, setToast] = useState<{ text: string; color: string } | null>(null);
 
-  const isPopup = typeof window !== 'undefined' && !!window.opener;
+  const isPopup = typeof window !== 'undefined' && window.opener;
 
-  /* ---------------------------------------------------------------------- */
-  /* 🧭 HELPER: Toast Notification                                          */
-  /* ---------------------------------------------------------------------- */
+  /* ✅ Popup safety & redirect guard */
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    // ❌ If opened accidentally in a wall tab or directly by URL → send back to dashboard
+    const url = window.location.href;
+    const openerUrl = window.opener?.location?.href;
+
+    if (!isPopup || !openerUrl?.includes('/admin/dashboard')) {
+      // Give a little time for devtools/manual loads so it doesn't freak
+      setTimeout(() => {
+        router.replace('/admin/dashboard');
+      }, 50);
+    }
+
+    // ✅ If parent closes, close popup
+    const checkParent = setInterval(() => {
+      if (isPopup && window.opener && window.opener.closed) {
+        window.close();
+      }
+    }, 1000);
+
+    return () => clearInterval(checkParent);
+  }, [isPopup, router]);
+
+  /* ✅ Toast helper */
   function showToast(text: string, color = '#00ff88') {
     setToast({ text, color });
     setTimeout(() => setToast(null), 2500);
   }
 
-  /* ---------------------------------------------------------------------- */
-  /* 🧾 LOAD ALL POSTS                                                      */
-  /* ---------------------------------------------------------------------- */
+  /* ✅ Load posts */
   async function loadAll() {
     if (!wallId) return;
     const { data, error } = await supabase
@@ -48,58 +71,30 @@ export default function ModerationPage() {
       .eq('fan_wall_id', wallId)
       .order('created_at', { ascending: false });
 
-    if (!error && data) setPosts(data);
-    else console.error('❌ Error fetching guest_posts:', error);
+    if (!error) setPosts(data);
     setLoading(false);
   }
 
-  /* ---------------------------------------------------------------------- */
-  /* ✅ APPROVE / REJECT / DELETE                                           */
-  /* ---------------------------------------------------------------------- */
+  /* ✅ Actions */
   async function handleApprove(id: string) {
-    const { error } = await supabase
-      .from('guest_posts')
-      .update({ status: 'approved' })
-      .eq('id', id)
-      .select()
-      .single();
-
-    if (error) console.error(error);
-    else {
-      showToast('✅ Post Approved');
-      setPosts((prev) => prev.map((p) => (p.id === id ? { ...p, status: 'approved' } : p)));
-    }
+    await supabase.from('guest_posts').update({ status: 'approved' }).eq('id', id);
+    setPosts((p) => p.map((x) => (x.id === id ? { ...x, status: 'approved' } : x)));
+    showToast('✅ Approved');
   }
 
   async function handleReject(id: string) {
-    const { error } = await supabase
-      .from('guest_posts')
-      .update({ status: 'rejected' })
-      .eq('id', id)
-      .select()
-      .single();
-
-    if (error) console.error(error);
-    else {
-      showToast('🚫 Post Rejected', '#ff4444');
-      setPosts((prev) => prev.map((p) => (p.id === id ? { ...p, status: 'rejected' } : p)));
-    }
+    await supabase.from('guest_posts').update({ status: 'rejected' }).eq('id', id);
+    setPosts((p) => p.map((x) => (x.id === id ? { ...x, status: 'rejected' } : x)));
+    showToast('🚫 Rejected', '#ff4444');
   }
 
   async function handleDelete(id: string) {
-    const { error } = await supabase.from('guest_posts').delete().eq('id', id);
-    if (error) {
-      showToast('❌ Delete failed', '#ff4444');
-      console.error(error);
-    } else {
-      showToast('🧹 Post Deleted', '#bbb');
-      setPosts((prev) => prev.filter((p) => p.id !== id));
-    }
+    await supabase.from('guest_posts').delete().eq('id', id);
+    setPosts((p) => p.filter((x) => x.id !== id));
+    showToast('🗑 Deleted', '#bbb');
   }
 
-  /* ---------------------------------------------------------------------- */
-  /* 🔄 REALTIME SUBSCRIPTION                                               */
-  /* ---------------------------------------------------------------------- */
+  /* ✅ Real-time sync */
   useEffect(() => {
     if (!wallId) return;
     loadAll();
@@ -108,362 +103,120 @@ export default function ModerationPage() {
       .channel(`moderation_${wallId}`)
       .on(
         'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'guest_posts',
-          filter: `fan_wall_id=eq.${wallId}`,
-        },
-        (payload: any) => {
-          const newData = payload?.new as GuestPost | undefined;
-          if (payload.eventType === 'INSERT' && newData) setPosts((p) => [newData, ...p]);
-          if (payload.eventType === 'UPDATE' && newData)
-            setPosts((p) => p.map((s) => (s.id === newData.id ? newData : s)));
-          if (payload.eventType === 'DELETE' && newData)
-            setPosts((p) => p.filter((s) => s.id !== newData.id));
+        { event: '*', schema: 'public', table: 'guest_posts', filter: `fan_wall_id=eq.${wallId}` },
+        (payload) => {
+          const n = payload.new as GuestPost;
+          if (payload.eventType === 'INSERT') setPosts((p) => [n, ...p]);
+          if (payload.eventType === 'UPDATE') setPosts((p) => p.map((x) => (x.id === n.id ? n : x)));
+          if (payload.eventType === 'DELETE') setPosts((p) => p.filter((x) => x.id !== n.id));
         }
       )
       .subscribe();
 
-    return () => {
-      void supabase.removeChannel(channel);
-    };
+    return () => supabase.removeChannel(channel);
   }, [wallId]);
 
-  /* ---------------------------------------------------------------------- */
-  /* 🧮 SORT POSTS BY STATUS                                                */
-  /* ---------------------------------------------------------------------- */
-  const pending = posts.filter((s) => s.status === 'pending');
-  const approved = posts.filter((s) => s.status === 'approved');
-  const rejected = posts.filter((s) => s.status === 'rejected');
+  const pending = posts.filter((x) => x.status === 'pending');
+  const approved = posts.filter((x) => x.status === 'approved');
+  const rejected = posts.filter((x) => x.status === 'rejected');
 
-  /* ---------------------------------------------------------------------- */
-  /* 🎨 RENDER PAGE                                                        */
-  /* ---------------------------------------------------------------------- */
+  /* ✅ UI */
   return (
     <div
       style={{
         height: '100vh',
         width: '100%',
-        maxWidth: isPopup ? '1280px' : '100%',
-        overflowY: 'auto',
-        margin: '0 auto',
+        maxWidth: '1280px',
         background: 'linear-gradient(to bottom right,#4dc6ff,#001f4d)',
-        padding: isPopup ? '12px 18px' : '30px 20px',
-        fontFamily: 'Inter,sans-serif',
+        padding: '14px 18px',
         color: '#fff',
-        boxSizing: 'border-box',
+        overflowY: 'auto',
       }}
     >
       <div style={{ textAlign: 'center', marginBottom: 12 }}>
-        <h1 style={{ fontSize: 22, fontWeight: 600, marginBottom: 6 }}>Moderation</h1>
-        {isPopup && (
-          <button
-            onClick={() => window.close()}
-            style={{
-              background: 'rgba(255,255,255,0.15)',
-              border: 'none',
-              color: '#fff',
-              padding: '5px 12px',
-              borderRadius: 6,
-              cursor: 'pointer',
-              fontSize: 13,
-            }}
-          >
-            ✖ Close
-          </button>
-        )}
-        <div
+        <h1 style={{ fontSize: 22, fontWeight: 600 }}>Moderation</h1>
+
+        <button
+          onClick={() => window.close()}
           style={{
-            display: 'flex',
-            justifyContent: 'center',
-            gap: 20,
-            fontSize: 14,
-            marginTop: 8,
+            background: 'rgba(255,255,255,0.15)',
+            border: 'none',
+            color: '#fff',
+            padding: '6px 14px',
+            borderRadius: 6,
+            cursor: 'pointer',
+            fontSize: 13,
+            marginTop: 6,
           }}
         >
-          <span>🕓 {pending.length} Pending</span>
-          <span>✅ {approved.length} Approved</span>
-          <span>🚫 {rejected.length} Rejected</span>
-        </div>
+          ✖ Close
+        </button>
       </div>
 
+      <Stats pending={pending.length} approved={approved.length} rejected={rejected.length} />
+
       {loading ? (
-        <p style={{ textAlign: 'center' }}>Loading...</p>
+        <p style={{ textAlign: 'center' }}>Loading…</p>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-          <Section
-            title="Pending"
-            color="#ffd966"
-            data={pending}
-            onApprove={handleApprove}
-            onReject={handleReject}
-            onImageClick={setSelectedImg}
-          />
-          <Section
-            title="Approved"
-            color="#00ff88"
-            data={approved}
-            onDelete={handleDelete}
-            showDelete
-            onImageClick={setSelectedImg}
-          />
-          <Section
-            title="Rejected"
-            color="#ff4444"
-            data={rejected}
-            onDelete={handleDelete}
-            showDelete
-            onImageClick={setSelectedImg}
-          />
-        </div>
-      )}
-
-      {selectedImg && (
-        <div
-          onClick={() => setSelectedImg(null)}
-          style={{
-            position: 'fixed',
-            inset: 0,
-            background: 'rgba(0,0,0,0.85)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 9999,
-          }}
-        >
-          <div style={{ position: 'relative', maxWidth: '90%', maxHeight: '90%' }}>
-            <img
-              src={selectedImg}
-              alt="preview"
-              style={{
-                maxWidth: '100%',
-                maxHeight: '100%',
-                borderRadius: 8,
-                boxShadow: '0 0 20px rgba(0,0,0,0.5)',
-              }}
-            />
-            <button
-              onClick={() => setSelectedImg(null)}
-              style={{
-                position: 'absolute',
-                top: -32,
-                right: 0,
-                background: '#da3633',
-                border: 'none',
-                color: '#fff',
-                padding: '5px 10px',
-                borderRadius: 4,
-                cursor: 'pointer',
-              }}
-            >
-              ✖
-            </button>
-          </div>
+          <Section title="Pending" color="#ffd966" data={pending} onApprove={handleApprove} onReject={handleReject} onImageClick={setSelectedImg} />
+          <Section title="Approved" color="#00ff88" data={approved} onDelete={handleDelete} showDelete onImageClick={setSelectedImg} />
+          <Section title="Rejected" color="#ff4444" data={rejected} onDelete={handleDelete} showDelete onImageClick={setSelectedImg} />
         </div>
       )}
 
       {toast && (
-        <div
-          style={{
-            position: 'fixed',
-            bottom: 16,
-            left: '50%',
-            transform: 'translateX(-50%)',
-            background: toast.color,
-            color: '#000',
-            padding: '8px 16px',
-            borderRadius: 8,
-            fontWeight: 600,
-            fontSize: 14,
-            boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
-            animation: 'slideUp 0.4s ease, fadeOut 0.4s ease 2.3s forwards',
-            zIndex: 99999,
-          }}
-        >
+        <div style={{
+          position: 'fixed', bottom: 16, left: '50%', transform: 'translateX(-50%)',
+          background: toast.color, padding: '8px 16px', borderRadius: 8,
+          color: '#000', fontWeight: 600, zIndex: 9999,
+        }}>
           {toast.text}
         </div>
       )}
-
-      <style>{`
-        @keyframes slideUp {
-          from { transform: translate(-50%, 40px); opacity: 0; }
-          to { transform: translate(-50%, 0); opacity: 1; }
-        }
-        @keyframes fadeOut {
-          to { opacity: 0; transform: translate(-50%, 40px); }
-        }
-      `}</style>
     </div>
   );
 }
 
-/* -------------------------------------------------------------------------- */
-/* 🧩 SECTION COMPONENT                                                      */
-/* -------------------------------------------------------------------------- */
-function Section({
-  title,
-  color,
-  data,
-  onApprove,
-  onReject,
-  onDelete,
-  showDelete,
-  onImageClick,
-}: {
-  title: string;
-  color: string;
-  data: GuestPost[];
-  onApprove?: (id: string) => void;
-  onReject?: (id: string) => void;
-  onDelete?: (id: string) => void;
-  showDelete?: boolean;
-  onImageClick?: (url: string) => void;
-}) {
+/* ✅ Stats Strip */
+function Stats({ pending, approved, rejected }) {
+  return (
+    <div style={{ display: 'flex', justifyContent: 'center', gap: 20, fontSize: 14, marginBottom: 10 }}>
+      <span>🕓 {pending} Pending</span>
+      <span>✅ {approved} Approved</span>
+      <span>🚫 {rejected} Rejected</span>
+    </div>
+  );
+}
+
+/* ✅ Section Component */
+function Section({ title, color, data, onApprove, onReject, onDelete, showDelete, onImageClick }) {
   return (
     <div>
-      <h2
-        style={{
-          marginBottom: 8,
-          borderLeft: `4px solid ${color}`,
-          paddingLeft: 8,
-          fontWeight: 600,
-          fontSize: 16,
-        }}
-      >
-        {title} ({data.length})
-      </h2>
-
-      {data.length === 0 ? (
-        <p style={{ color: '#ccc', marginLeft: 10, fontSize: 13 }}>None in this section.</p>
-      ) : (
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill,minmax(220px,1fr))',
-            gap: 8,
-          }}
-        >
+      <h2 style={{ marginBottom: 6, borderLeft: `4px solid ${color}`, paddingLeft: 8 }}>{title} ({data.length})</h2>
+      {data.length === 0 ? <p style={{ color: '#ccc' }}>None</p> : (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(220px,1fr))', gap: 8 }}>
           {data.map((s) => (
-            <div
-              key={s.id}
-              style={{
-                display: 'flex',
-                background: '#0b0f19',
-                borderRadius: 8,
-                overflow: 'hidden',
-                border: '1px solid #333',
-                height: 110,
-              }}
-            >
-              <div
-                style={{
-                  flex: '0 0 45%',
-                  cursor: s.photo_url ? 'pointer' : 'default',
-                }}
-                onClick={() => s.photo_url && onImageClick?.(s.photo_url!)}
-              >
-                {s.photo_url ? (
-                  <img
-                    src={s.photo_url}
-                    alt="submission"
-                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                  />
-                ) : (
-                  <div
-                    style={{
-                      width: '100%',
-                      height: '100%',
-                      background: '#333',
-                      color: '#777',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      fontSize: 11,
-                    }}
-                  >
-                    No Image
-                  </div>
-                )}
+            <div key={s.id} style={{ display: 'flex', background: '#0b0f19', borderRadius: 8, overflow: 'hidden', border: '1px solid #333', height: 110 }}>
+              <div style={{ flex: '0 0 45%', cursor: s.photo_url ? 'pointer' : 'default' }} onClick={() => s.photo_url && onImageClick(s.photo_url)}>
+                {s.photo_url ?
+                  <img src={s.photo_url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> :
+                  <div style={{ background: '#222', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#777' }}>No Img</div>
+                }
               </div>
-
-              <div
-                style={{
-                  flex: 1,
-                  padding: '6px 6px',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  justifyContent: 'space-between',
-                }}
-              >
+              <div style={{ flex: 1, padding: 6, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
                 <div>
                   <strong style={{ fontSize: 12 }}>{s.nickname || 'Anonymous'}</strong>
-                  <p
-                    style={{
-                      fontSize: 11,
-                      color: '#ccc',
-                      margin: '3px 0 6px',
-                      lineHeight: 1.3,
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      display: '-webkit-box',
-                      WebkitLineClamp: 2,
-                      WebkitBoxOrient: 'vertical',
-                    }}
-                  >
-                    {s.message || '(no message)'}
-                  </p>
+                  <p style={{ fontSize: 11, color: '#ccc', lineHeight: 1.2, overflow: 'hidden' }}>{s.message || '(no message)'}</p>
                 </div>
 
                 {!showDelete ? (
                   <div style={{ display: 'flex', gap: 4 }}>
-                    <button
-                      onClick={() => onApprove?.(s.id)}
-                      style={{
-                        flex: 1,
-                        background: '#238636',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: 4,
-                        padding: '3px 0',
-                        fontSize: 11,
-                        cursor: 'pointer',
-                      }}
-                    >
-                      ✅
-                    </button>
-                    <button
-                      onClick={() => onReject?.(s.id)}
-                      style={{
-                        flex: 1,
-                        background: '#da3633',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: 4,
-                        padding: '3px 0',
-                        fontSize: 11,
-                        cursor: 'pointer',
-                      }}
-                    >
-                      🚫
-                    </button>
+                    <button onClick={() => onApprove(s.id)} style={{ flex: 1, background: '#238636', color: '#fff', borderRadius: 4 }}>✅</button>
+                    <button onClick={() => onReject(s.id)} style={{ flex: 1, background: '#da3633', color: '#fff', borderRadius: 4 }}>🚫</button>
                   </div>
                 ) : (
-                  <button
-                    onClick={() => onDelete?.(s.id)}
-                    style={{
-                      width: '100%',
-                      background: '#444',
-                      color: '#fff',
-                      border: 'none',
-                      borderRadius: 4,
-                      padding: '3px 0',
-                      fontSize: 11,
-                      cursor: 'pointer',
-                    }}
-                  >
-                    🗑 Delete
-                  </button>
+                  <button onClick={() => onDelete(s.id)} style={{ width: '100%', background: '#444', color: '#fff', borderRadius: 4 }}>🗑</button>
                 )}
               </div>
             </div>
