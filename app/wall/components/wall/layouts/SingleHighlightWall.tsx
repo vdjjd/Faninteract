@@ -73,68 +73,70 @@ export default function SingleHighlightWall({ event, posts }) {
 
   const transitionLock = useRef(false);
 
-  /* ✅ Load approved posts on mount */
-  useEffect(() => {
+  /* === ✅ INITIAL FETCH FOR APPROVED POSTS === */
+  const loadPosts = async () => {
     if (!event?.id) return;
-    supabase
+    const { data } = await supabase
       .from('guest_posts')
       .select('*')
       .eq('fan_wall_id', event.id)
       .eq('status', 'approved')
-      .order('created_at', { ascending: false })
-      .then(({ data }) => data && setLivePosts(data));
+      .order('created_at', { ascending: false });
+
+    if (data) {
+      setLivePosts(data);
+    }
+  };
+
+  useEffect(() => {
+    loadPosts();
   }, [event?.id]);
 
-  /* ✅ Realtime post + wall update listener */
-  useEffect(() => {
-    const channel = channelRef?.current;
-    if (!channel || !event?.id) return;
-
-    channel.on('broadcast', {}, ({ event: evt, payload }) => {
-      if (!payload?.id || payload.id !== event.id) return;
-
-      if (evt === 'wall_updated') {
-        if (payload.background_value) {
-          const newBg =
-            payload.background_type === 'image'
-              ? `url(${payload.background_value}) center/cover no-repeat`
-              : payload.background_value;
-          setBg(newBg);
-        }
-        if (payload.title) setTitle(payload.title);
-        if (payload.logo_url) setLogo(payload.logo_url);
-        if (payload.transition_speed)
-          setDisplayDuration(speedMap[payload.transition_speed]);
-        if (payload.post_transition)
-          setTransitionType(payload.post_transition);
-      }
-
-      if (evt === 'post_added' && payload.status === 'approved') {
-        setLivePosts(prev =>
-          prev.some(p => p.id === payload.id) ? prev : [payload, ...prev]
-        );
-      }
-
-      if (evt === 'wall_status_changed' && !transitionLock.current) {
-        transitionLock.current = true;
-        setFading(true);
-        setTimeout(() => {
-          setLive(payload.status === 'live');
-          setFading(false);
-          transitionLock.current = false;
-        }, 1000);
-      }
-    });
-
-    return () => channel.unsubscribe?.();
-  }, [channelRef, event?.id]);
-
-  /* ✅ Background realtime listener ONLY */
+  /* === ✅ REALTIME POSTS + APPROVALS === */
   useEffect(() => {
     if (!event?.id) return;
 
-    const sub = supabase
-      .channel(`wall_bg_${event.id}`)
+    const postsChannel = supabase
+      .channel(`wall_posts_${event.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'guest_posts',
+          filter: `fan_wall_id=eq.${event.id}`,
+        },
+        async (payload) => {
+          const row = payload.new;
+
+          // Insert approved post instantly
+          if (payload.eventType === 'INSERT' && row?.status === 'approved') {
+            setLivePosts((prev) =>
+              prev.some((p) => p.id === row.id) ? prev : [row, ...prev]
+            );
+          }
+
+          // If they get approved later -> refresh
+          if (payload.eventType === 'UPDATE') {
+            await loadPosts();
+          }
+
+          if (payload.eventType === 'DELETE') {
+            setLivePosts((prev) => prev.filter((p) => p.id !== payload.old.id));
+          }
+        }
+      )
+      .subscribe();
+
+    return () => supabase.removeChannel(postsChannel);
+  }, [event?.id]);
+
+  /* === ✅ REALTIME SETTINGS (BG, LOGO, TITLE, SPEED, TRANSITIONS) === */
+  useEffect(() => {
+    if (!event?.id) return;
+
+    const settingsChannel = supabase
+      .channel(`wall_settings_${event.id}`)
       .on(
         'postgres_changes',
         {
@@ -143,8 +145,10 @@ export default function SingleHighlightWall({ event, posts }) {
           table: 'fan_walls',
           filter: `id=eq.${event.id}`,
         },
-        payload => {
+        (payload) => {
           const w = payload.new;
+          if (!w) return;
+
           if (w.background_value) {
             setBg(
               w.background_type === 'image'
@@ -152,19 +156,22 @@ export default function SingleHighlightWall({ event, posts }) {
                 : w.background_value
             );
           }
+          if (w.title) setTitle(w.title);
+          if (w.logo_url) setLogo(w.logo_url);
+          if (w.transition_speed) setDisplayDuration(speedMap[w.transition_speed]);
+          if (w.post_transition) setTransitionType(w.post_transition);
         }
       )
       .subscribe();
 
-    return () => supabase.removeChannel(sub);
+    return () => supabase.removeChannel(settingsChannel);
   }, [event?.id]);
 
-  /* ✅ Rotate posts */
+  /* === ✅ POST ROTATION === */
   useEffect(() => {
-    if (!livePosts?.length) return;
+    if (!livePosts.length) return;
     const interval = setInterval(
-      () =>
-        setCurrentIndex(i => (i + 1) % livePosts.length),
+      () => setCurrentIndex((i) => (i + 1) % livePosts.length),
       displayDuration
     );
     return () => clearInterval(interval);
@@ -323,7 +330,7 @@ export default function SingleHighlightWall({ event, posts }) {
         </div>
       </div>
 
-      {/* ✅ QR CODE + TEXT + FRAME BACK EXACTLY */}
+      {/* ✅ QR + TEXT + GLOW */}
       <div
         style={{
           position: 'absolute',
@@ -370,7 +377,7 @@ export default function SingleHighlightWall({ event, posts }) {
         </div>
       </div>
 
-      {/* ✅ FULLSCREEN BUTTON BACK */}
+      {/* ✅ FULLSCREEN BUTTON — untouched */}
       <button
         onClick={() =>
           !document.fullscreenElement
@@ -395,12 +402,12 @@ export default function SingleHighlightWall({ event, posts }) {
           justifyContent: 'center',
           transition: 'all 0.35s ease',
         }}
-        onMouseEnter={e => {
+        onMouseEnter={(e) => {
           e.currentTarget.style.opacity = '1';
           e.currentTarget.style.boxShadow = '0 0 14px rgba(255,255,255,0.7)';
           e.currentTarget.style.background = 'rgba(255,255,255,0.15)';
         }}
-        onMouseLeave={e => {
+        onMouseLeave={(e) => {
           e.currentTarget.style.opacity = '0.1';
           e.currentTarget.style.boxShadow = 'none';
           e.currentTarget.style.background = 'rgba(255,255,255,0.05)';
