@@ -250,16 +250,36 @@ export default function SingleHighlightWall({ event, posts }) {
             marginBottom: '2vh'
           }}/>
 
-          {/* MESSAGE */}
-          <p style={{
-            fontWeight: 700, margin: 0,
-            fontSize: 'clamp(1.6rem, 2.5vw, 3rem)',
-            textAlign: 'center',
-            color: '#fff',
-            textShadow: '0 0 8px rgba(0,0,0,0.6)',
-          }}>
-            {current?.message || 'Be the first to post!'}
-          </p>
+          {/* NAME */}
+<p
+  style={{
+    fontWeight: 900,
+    margin: 0,
+    fontSize: 'clamp(2.5rem, 3vw, 4rem)',
+    textAlign: 'center',
+    color: '#fff',
+    textTransform: 'uppercase',
+    textShadow: '0 0 15px rgba(0,0,0,0.8)',
+    marginBottom: '1vh',
+  }}
+>
+  {current?.nickname || 'Guest'}
+</p>
+
+{/* MESSAGE */}
+<p
+  style={{
+    fontWeight: 600,
+    margin: 0,
+    fontSize: 'clamp(1.4rem, 2vw, 2.6rem)',
+    textAlign: 'center',
+    color: '#fff',
+    textShadow: '0 0 8px rgba(0,0,0,0.6)',
+    maxWidth: '90%',
+  }}
+>
+  {current?.message || 'Be the first to post!'}
+</p>
         </div>
       </div>
 
