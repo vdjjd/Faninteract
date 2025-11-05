@@ -102,25 +102,28 @@ export default function GuestSubmissionPage() {
     return data.publicUrl;
   };
 
-  /* ✅ submit */
-  const submitPost = async (e: any) => {
-    e.preventDefault();
+/* ✅ submit */
+const submitPost = async (e: any) => {
+  e.preventDefault();
 
-    if (!message && !imageSrc) return alert("Add a message or photo");
+  if (!message.trim()) {
+    alert("Please enter a message to post.");
+    return;
+  }
 
-    setSubmitting(true);
-    const photoUrl = await uploadImage();
+  setSubmitting(true);
+  const photoUrl = await uploadImage();
 
-    await supabase.from("guest_posts").insert([
-      {
-        fan_wall_id: wallUUID,
-        guest_profile_id: profile.id,
-        nickname: profile.first_name,
-        message,
-        photo_url: photoUrl,
-        status: "pending",
-      },
-    ]);
+  await supabase.from("guest_posts").insert([
+    {
+      fan_wall_id: wallUUID,
+      guest_profile_id: profile.id,
+      nickname: profile.first_name,
+      message,
+      photo_url: photoUrl,
+      status: "pending",
+    },
+  ]);
 
     // ✅ FIXED thank you redirect
     setTimeout(() => {
