@@ -29,7 +29,7 @@ export default function AdsManagerPage() {
       .from("ads")
       .select("*")
       .eq("host_profile_id", hostId)
-      .order("position", { ascending: true });
+      .order("order_index", { ascending: true }); // ✅ FIXED
 
     setAds(data || []);
     setLoading(false);
@@ -53,11 +53,11 @@ export default function AdsManagerPage() {
     const url = supabase.storage.from(bucket).getPublicUrl(filePath).data.publicUrl;
 
     await supabase.from("ads").insert({
-      host_profile_id: hostId,
+      host_profile_id: hostId, // ✅ FIXED
       master_id: masterMode ? hostId : null,
       type,
       url,
-      position: ads.length,
+      order_index: ads.length, // ✅ FIXED
     });
 
     await loadAds();
@@ -67,7 +67,10 @@ export default function AdsManagerPage() {
   async function saveOrder(newOrder: any[]) {
     setAds(newOrder);
     for (let i = 0; i < newOrder.length; i++) {
-      await supabase.from("ads").update({ position: i }).eq("id", newOrder[i].id);
+      await supabase
+        .from("ads")
+        .update({ order_index: i }) // ✅ FIXED
+        .eq("id", newOrder[i].id);
     }
   }
 
@@ -104,7 +107,7 @@ export default function AdsManagerPage() {
         CLOSE
       </button>
 
-      {/* HEADER + CONTROLS */}
+      {/* HEADER */}
       <div className={cn('flex justify-end items-center relative mb-1 z-20')}>
         <div className={cn('absolute left-0 right-0 text-center pointer-events-none')}>
           <h1 className={cn('text-2xl font-bold')}>AD Injector Manager</h1>
@@ -113,6 +116,7 @@ export default function AdsManagerPage() {
           </p>
         </div>
 
+        {/* Speed */}
         <select
           className={cn('bg-gray-800 text-xs rounded px-2 py-1 border border-gray-600 z-20')}
           value={injectSpeed}
@@ -123,6 +127,7 @@ export default function AdsManagerPage() {
           <option value="slow">Slow (24)</option>
         </select>
 
+        {/* Toggle */}
         <label className={cn('flex items-center gap-2 ml-2 z-20')}>
           <span className={cn('text-xs opacity-60')}>Injector</span>
           <label className={cn('relative inline-flex items-center cursor-pointer')}>
@@ -138,9 +143,10 @@ export default function AdsManagerPage() {
         </label>
       </div>
 
-      {/* UI BELOW HEADER */}
+      {/* BODY */}
       <div className={cn('flex flex-col gap-3 relative flex-1')}>
 
+        {/* Upload */}
         <label className={cn('border border-dashed border-gray-500 rounded-lg bg-white/5 hover:bg-white/10 cursor-pointer flex flex-col items-center justify-center p-6 text-sm')}>
           <span className="opacity-80">Drag & Drop files here</span>
           <span className={cn('text-xs opacity-40')}>(or click to upload)</span>
@@ -158,6 +164,7 @@ export default function AdsManagerPage() {
           />
         </label>
 
+        {/* Limits */}
         <p className={cn('text-red-400 text-xs text-center -mt-2')}>
           {masterMode
             ? `Master Limit: ${imageCount}/${maxImages} images • ${videoCount}/${maxVideos} videos`
@@ -166,6 +173,7 @@ export default function AdsManagerPage() {
 
         <div className={cn('border-t border-gray-700 opacity-40')} />
 
+        {/* Reel Order */}
         <div className={cn('flex-1 rounded-lg border border-gray-600 bg-white/5 p-3 flex flex-col')}>
           <p className={cn('text-sm font-semibold text-center mb-1')}>AD Reel Display Order</p>
           <p className={cn('text-[10px] text-center mb-2 opacity-60')}>Drag to rearrange playback</p>
@@ -192,6 +200,7 @@ export default function AdsManagerPage() {
                           <video src={ad.url} muted playsInline className={cn('rounded-lg w-full h-32 object-cover')} />
                         )}
 
+                        {/* Delete button if host is allowed */}
                         {(!ad.master_id || masterMode) && (
                           <button
                             onClick={() => deleteAd(ad)}
@@ -215,14 +224,13 @@ export default function AdsManagerPage() {
           </div>
         </div>
 
+        {/* Disabled Overlay */}
         {!injectorEnabled && (
           <div className={cn('absolute top-28 left-0 right-0 bottom-0 bg-black/60 backdrop-blur-sm z-10 flex items-center justify-center text-white font-semibold text-sm')}>
             Ads Disabled — Turn Injector ON to Control
           </div>
         )}
-
       </div>
     </div>
   );
 }
-
