@@ -12,11 +12,64 @@ const transitions: Record<string, any> = {
   'Fade In / Fade Out': {
     initial: { opacity: 0 },
     animate: { opacity: 1 },
-    exit: { opacity: 1 },
-    transition: { duration: 0.6, ease: 'easeInOut' },
+    exit: { opacity: 0 },
+    transition: { duration: 0.8, ease: 'easeInOut' },
+  },
+  'Slide Up / Slide Out': {
+    initial: { opacity: 0, y: 100 },
+    animate: { opacity: 1, y: 0 },
+    exit: { opacity: 0, y: -100 },
+    transition: { duration: 0.9, ease: 'easeInOut' },
+  },
+  'Slide Down / Slide Out': {
+    initial: { opacity: 0, y: -100 },
+    animate: { opacity: 1, y: 0 },
+    exit: { opacity: 0, y: 100 },
+    transition: { duration: 0.9, ease: 'easeInOut' },
+  },
+  'Slide Left / Slide Right': {
+    initial: { opacity: 0, x: 120 },
+    animate: { opacity: 1, x: 0 },
+    exit: { opacity: 0, x: -120 },
+    transition: { duration: 0.9, ease: 'easeInOut' },
+  },
+  'Slide Right / Slide Left': {
+    initial: { opacity: 0, x: -120 },
+    animate: { opacity: 1, x: 0 },
+    exit: { opacity: 0, x: 120 },
+    transition: { duration: 0.9, ease: 'easeInOut' },
+  },
+  'Zoom In / Zoom Out': {
+    initial: { opacity: 0, scale: 0.8 },
+    animate: { opacity: 1, scale: 1 },
+    exit: { opacity: 0, scale: 1.15 },
+    transition: { duration: 0.9, ease: 'easeInOut' },
+  },
+  'Zoom Out / Zoom In': {
+    initial: { opacity: 0, scale: 1.15 },
+    animate: { opacity: 1, scale: 1 },
+    exit: { opacity: 0, scale: 0.85 },
+    transition: { duration: 0.9, ease: 'easeInOut' },
+  },
+  Flip: {
+    initial: { opacity: 0, rotateY: 180 },
+    animate: { opacity: 1, rotateY: 0 },
+    exit: { opacity: 0, rotateY: -180 },
+    transition: { duration: 1, ease: 'easeInOut' },
+  },
+  'Rotate In / Rotate Out': {
+    initial: { opacity: 0, rotate: -30, scale: 0.9 },
+    animate: { opacity: 1, rotate: 0, scale: 1 },
+    exit: { opacity: 0, rotate: 30, scale: 0.9 },
+    transition: { duration: 1, ease: 'easeInOut' },
+  },
+  'Pop In / Pop Out': {
+    initial: { opacity: 0, scale: 0.5 },
+    animate: { opacity: 1, scale: 1 },
+    exit: { opacity: 0, scale: 0.5 },
+    transition: { duration: 0.7, ease: 'easeOut' },
   },
 };
-
 const speedMap: Record<string, number> = {
   Slow: 12000,
   Medium: 8000,
