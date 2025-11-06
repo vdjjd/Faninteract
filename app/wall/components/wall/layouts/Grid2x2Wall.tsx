@@ -152,7 +152,7 @@ export default function Grid2x2Wall({ event, posts }: Grid2x2WallProps) {
     return () => supabase.removeChannel(settingsChannel);
   }, [event?.id]);
 
-  /* ✅ Grid cycling with injector trigger */
+  /* ✅ UPDATED: Grid cycling with HALF interval trigger */
   useEffect(() => {
     if (!livePosts?.length) return;
     if (intervalRef.current) clearInterval(intervalRef.current);
@@ -170,8 +170,10 @@ export default function Grid2x2Wall({ event, posts }: Grid2x2WallProps) {
       postIndex.current = (postIndex.current + 1) % livePosts.length;
       cellIndex.current = (cellIndex.current + 1) % 4;
 
-      // ✅ Count one "rotation" when all 4 tiles have updated
+      // ✅ When all 4 tiles updated → rotation completed
       if (cellIndex.current === 0) {
+        // ✅ Trigger twice for half interval
+        handlePostRotationTick?.();
         handlePostRotationTick?.();
       }
     };

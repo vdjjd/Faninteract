@@ -186,7 +186,7 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
     };
 
     async function run() {
-      let rotations = 0; // ✅ local rotation tracker
+      let rotations = 0;
 
       while (activeRef.current && !cancelled) {
         const [top, bottom] = pairs[pairIndex.current];
@@ -216,6 +216,9 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
         // ✅ After all 4 pairs complete → full rotation
         if (pairIndex.current === 0) {
           rotations++;
+
+          // ✅ GRID WALLS = HALF INTERVAL (double tick)
+          handlePostRotationTick?.();
           handlePostRotationTick?.();
         }
 
