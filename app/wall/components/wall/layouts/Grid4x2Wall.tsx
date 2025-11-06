@@ -4,6 +4,8 @@ import { useEffect, useState, useRef } from 'react';
 import { QRCodeCanvas } from 'qrcode.react';
 import { supabase } from '@/lib/supabaseClient';
 import { useRealtimeChannel } from '@/providers/SupabaseRealtimeProvider';
+import { useAdInjector } from '@/hooks/useAdInjector'; // ✅ added
+import AdOverlay from '@/app/wall/components/AdOverlay'; // ✅ added
 import { cn } from "../../../../../lib/utils";
 
 interface Grid4x2WallProps {
@@ -35,6 +37,19 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
   const pairIndex = useRef(0);
   const activeRef = useRef(false);
   const fadeDuration = 1200;
+
+  /* ✅ Ad Injector Hook */
+  const {
+    ads,
+    showAd,
+    currentAdIndex,
+    setShowAd,
+    handlePostRotationTick,
+    injectorEnabled,
+  } = useAdInjector({
+    hostId: event?.host_profile_id || event?.host_id || event?.id,
+    triggerInterval: event?.trigger_interval || 8,
+  });
 
   /* ✅ FULLSCREEN MEMORY */
   useEffect(() => {
@@ -81,7 +96,7 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
     return () => supabase.removeChannel(settingsChannel);
   }, [event?.id]);
 
-  /* ✅ REALTIME POSTS LIKE SINGLE HIGHLIGHT */
+  /* ✅ REALTIME POSTS */
   useEffect(() => {
     if (!event?.id) return;
 
@@ -108,7 +123,6 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
           }
 
           if (payload.eventType === 'UPDATE' || payload.eventType === 'DELETE') {
-            // Reload posts from DB to sync state
             loadPosts();
           }
         }
@@ -147,7 +161,7 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
     postPointer.current = 8 % posts.length;
   }, [posts, resetKey.current]);
 
-  /* ✅ CYCLING FADE LOGIC (UNCHANGED BEHAVIOR) */
+  /* ✅ CYCLING FADE LOGIC + Injector Trigger */
   useEffect(() => {
     if (!posts?.length) return;
 
@@ -172,6 +186,8 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
     };
 
     async function run() {
+      let rotations = 0; // ✅ local rotation tracker
+
       while (activeRef.current && !cancelled) {
         const [top, bottom] = pairs[pairIndex.current];
         const next = posts[postPointer.current % posts.length];
@@ -196,6 +212,12 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
 
         postPointer.current = (postPointer.current + 1) % posts.length;
         pairIndex.current = (pairIndex.current + 1) % pairs.length;
+
+        // ✅ After all 4 pairs complete → full rotation
+        if (pairIndex.current === 0) {
+          rotations++;
+          handlePostRotationTick?.();
+        }
 
         await new Promise((r) => setTimeout(r, displayDelay));
       }
@@ -288,18 +310,18 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
 
   return (
     <div
-  style={{
-    background: bg,
-    width: '100%',
-    height: '100vh',
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    justifyContent: 'flex-start',
-    overflow: 'hidden',
-    position: 'relative',
-    marginTop: '-3vh', // ✅ moves everything up slightly
-  }}
+      style={{
+        background: bg,
+        width: '100%',
+        height: '100vh',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'flex-start',
+        overflow: 'hidden',
+        position: 'relative',
+        marginTop: '-3vh',
+      }}
     >
       {/* LOGO */}
       <div style={{ position: 'absolute', top: '3vh', right: '3vw', width: 'clamp(160px,18vw,220px)', zIndex: 20 }}>
@@ -347,21 +369,18 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
         <p style={{ color: '#fff', fontWeight: 700, marginBottom: '0.4vh', fontSize: 'clamp(0.9rem,1.3vw,1.4rem)' }}>
           Scan Me To Join
         </p>
-
         <div
-  style={{
-    display: 'inline-flex',              // ✅ hug content, no stretch
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 4,                          // ✅ tighter fit for your 100px QR
-    borderRadius: 10,                    // ✅ matches QR radius scale
-    background: 'rgba(255,255,255,0.05)',
-    boxShadow:
-      '0 0 18px rgba(255,255,255,0.5), 0 0 28px rgba(100,180,255,0.25), inset 0 0 6px rgba(0,0,0,0.35)',
-    width: 'auto',                       // ✅ actively prevents stretching
-    height: 'auto',
-  }}
->
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 4,
+            borderRadius: 10,
+            background: 'rgba(255,255,255,0.05)',
+            boxShadow:
+              '0 0 18px rgba(255,255,255,0.5), 0 0 28px rgba(100,180,255,0.25), inset 0 0 6px rgba(0,0,0,0.35)',
+          }}
+        >
           <QRCodeCanvas
             value={`https://faninteract.vercel.app/guest/signup?wall=${event?.id}`}
             size={110}
@@ -373,7 +392,7 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
         </div>
       </div>
 
-      {/* FULLSCREEN */}
+      {/* FULLSCREEN BUTTON */}
       <div
         style={{
           position: 'fixed',
@@ -402,6 +421,14 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
           <path strokeLinecap="round" strokeLinejoin="round" d="M3 9V4h5M21 9V4h-5M3 15v5h5M21 15v5h-5" />
         </svg>
       </div>
+
+      {/* ✅ AD OVERLAY */}
+      <AdOverlay
+        showAd={showAd && injectorEnabled}
+        ads={ads}
+        currentAdIndex={currentAdIndex}
+        onAdEnd={() => setShowAd(false)}
+      />
     </div>
   );
 }

@@ -8,6 +8,7 @@ import DashboardHeader from './components/DashboardHeader';
 import FanWallGrid from './components/FanWallGrid';
 import CreateFanWallModal from '@/components/CreateFanWallModal';
 import OptionsModalFanWall from '@/components/OptionsModalFanWall';
+import AdsManagerModal from '@/components/AdsManagerModal'; // ✅ new modal import
 import HostProfilePanel from '@/components/HostProfilePanel';
 import { cn } from '@/lib/utils';
 
@@ -19,33 +20,24 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [isFanWallModalOpen, setFanWallModalOpen] = useState(false);
   const [selectedWall, setSelectedWall] = useState<any | null>(null);
+  const [isAdsModalOpen, setAdsModalOpen] = useState(false); // ✅ NEW STATE
 
-  /* ---------------------------------------------------------------------- */
-  /* 🔹 Load initial data                                                  */
-  /* ---------------------------------------------------------------------- */
   useEffect(() => {
     async function load() {
       try {
-        if (!supabase) throw new Error('Supabase client unavailable.');
-
         const {
           data: { user },
-          error: userError,
         } = await supabase.auth.getUser();
-        if (userError) throw userError;
         if (!user) throw new Error('No authenticated user');
 
-        // 🔍 Fetch or create host profile
-        let { data: hostRow, error: hostError } = await supabase
+        let { data: hostRow } = await supabase
           .from('hosts')
           .select('*')
           .eq('auth_id', user.id)
           .maybeSingle();
 
-        if (hostError) throw hostError;
-
         if (!hostRow) {
-          const { data: inserted, error: insertError } = await supabase
+          const { data: inserted } = await supabase
             .from('hosts')
             .insert([
               {
@@ -62,8 +54,6 @@ export default function DashboardPage() {
             ])
             .select()
             .maybeSingle();
-
-          if (insertError) throw insertError;
           hostRow = inserted;
         }
 
@@ -79,13 +69,9 @@ export default function DashboardPage() {
         setLoading(false);
       }
     }
-
     load();
   }, [supabase]);
 
-  /* ---------------------------------------------------------------------- */
-  /* 🔁 Refresh function                                                   */
-  /* ---------------------------------------------------------------------- */
   const refreshFanWalls = async () => {
     if (host?.id) {
       const updated = await getFanWallsByHost(host.id);
@@ -93,89 +79,18 @@ export default function DashboardPage() {
     }
   };
 
-  /* ---------------------------------------------------------------------- */
-  /* 📡 Realtime wall status listener (fixed)                              */
-  /* ---------------------------------------------------------------------- */
-  useEffect(() => {
-    if (!supabase || !host?.id) return;
-
-    const channel = supabase
-      .channel('global-fan-walls')
-      .on('broadcast', { event: 'wall_status_changed' }, (payload) => {
-        const { id, status } = payload?.payload || {};
-        if (!id) return;
-
-        // 🛑 Prevent infinite refreshes and loops
-        if (status === 'deleted') {
-          console.log('🗑️ Removing deleted wall:', id);
-          setFanWalls((prev) => prev.filter((w) => w.id !== id));
-          return;
-        }
-
-        console.log('📡 Realtime wall update:', id, status);
-        setFanWalls((prev) =>
-          prev.map((w) => (w.id === id ? { ...w, status } : w))
-        );
-      })
-      .subscribe((status) => {
-        if (status === 'SUBSCRIBED')
-          console.log('✅ Subscribed to global-fan-walls');
-      });
-
-    return () => {
-      console.log('🧹 Unsubscribing from global-fan-walls');
-      supabase.removeChannel(channel);
-    };
-  }, [host?.id, supabase]);
-
-  /* ---------------------------------------------------------------------- */
-  /* 🕓 Loading State                                                      */
-  /* ---------------------------------------------------------------------- */
   if (loading)
     return (
-      <div
-        className={cn(
-          'flex',
-          'items-center',
-          'justify-center',
-          'h-screen',
-          'bg-black',
-          'text-white'
-        )}
-      >
+      <div className={cn('flex items-center justify-center h-screen bg-black text-white')}>
         <p>Loading Dashboard…</p>
       </div>
     );
 
-  /* ---------------------------------------------------------------------- */
-  /* 🧱 Render Dashboard                                                   */
-  /* ---------------------------------------------------------------------- */
   return (
-    <div
-      className={cn(
-        'min-h-screen',
-        'bg-[#0b111d]',
-        'text-white',
-        'flex',
-        'flex-col',
-        'items-center',
-        'p-8'
-      )}
-    >
+    <div className={cn('min-h-screen bg-[#0b111d] text-white flex flex-col items-center p-8')}>
       {/* ---------- HEADER ---------- */}
-      <div
-        className={cn(
-          'w-full',
-          'flex',
-          'items-center',
-          'justify-between',
-          'mb-6'
-        )}
-      >
+      <div className={cn('w-full flex items-center justify-between mb-6')}>
         <HostProfilePanel host={host} setHost={setHost} />
-        <h1 className={cn('text-2xl', 'font-bold', 'flex-1', 'text-center')}>
-          FanInteract Dashboard
-        </h1>
         <div className="w-10" />
       </div>
 
@@ -184,6 +99,7 @@ export default function DashboardPage() {
         onCreateFanWall={() => setFanWallModalOpen(true)}
         onCreatePoll={() => {}}
         onCreatePrizeWheel={() => {}}
+        onOpenAds={() => setAdsModalOpen(true)} // ✅ Opens the Ads modal
       />
 
       {/* ---------- FAN ZONE WALLS ---------- */}
@@ -211,9 +127,16 @@ export default function DashboardPage() {
           refreshFanWalls={refreshFanWalls}
         />
       )}
+
+      {/* ---------- ADS MANAGER MODAL ---------- */}
+      {isAdsModalOpen && (
+        <AdsManagerModal
+          host={host}
+          onClose={() => setAdsModalOpen(false)} // ✅ close button + outside click
+        />
+      )}
     </div>
   );
 }
 
-/* ✅ Prevent Next.js prerendering — required for Supabase runtime client */
 export const dynamic = 'force-dynamic';

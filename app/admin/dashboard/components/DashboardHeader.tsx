@@ -6,34 +6,40 @@ interface DashboardHeaderProps {
   onCreateFanWall: () => void;
   onCreatePoll: () => void;
   onCreatePrizeWheel: () => void;
+  onOpenAds: () => void;
 }
 
 export default function DashboardHeader({
   onCreateFanWall,
   onCreatePoll,
   onCreatePrizeWheel,
+  onOpenAds,
 }: DashboardHeaderProps) {
   return (
-    <div className={cn('text-center mb-6')}>
-      <img
-        src="/faninteractlogo.png"
-        alt="FanInteract Logo"
-        className={cn('w-44', 'animate-pulse', 'mb-2', 'drop-shadow-lg', 'mx-auto')}
-      />
-      <h1 className={cn('text-2xl', 'font-bold', 'mb-4')}>🎛 Host Dashboard</h1>
+    <div className={cn('text-center mb-2')}>
+      <h1 className={cn('text-2xl font-bold mb-4')}>🎛 Host Dashboard</h1>
 
-      <div className={cn('flex', 'justify-center', 'gap-4', 'flex-wrap')}>
+      {/* ✅ Open Ads button below title */}
+      <div className={cn('flex justify-center w-full mb-4')}>
+        <button
+          onClick={onOpenAds}
+          className={cn(
+            'bg-indigo-600 hover:bg-indigo-700 text-white font-semibold',
+            'px-4 py-2 rounded-lg transition-all',
+            'w-50' // ✅ consistent, real Tailwind width
+          )}
+        >
+          📺 Open Ad Manager
+        </button>
+      </div>
+
+      {/* ✅ Action Buttons */}
+      <div className={cn('flex justify-center gap-4 flex-wrap')}>
         <button
           onClick={onCreateFanWall}
           className={cn(
-            'bg-blue-500',
-            'hover:bg-blue-600',
-            'text-white',
-            'px-4',
-            'py-2',
-            'rounded-lg',
-            'font-semibold',
-            'transition-all'
+            'bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg font-semibold transition-all',
+            'w-50'
           )}
         >
           ➕ New Fan Zone Wall
@@ -42,14 +48,8 @@ export default function DashboardHeader({
         <button
           onClick={onCreatePoll}
           className={cn(
-            'bg-green-500',
-            'hover:bg-green-600',
-            'text-white',
-            'px-4',
-            'py-2',
-            'rounded-lg',
-            'font-semibold',
-            'transition-all'
+            'bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg font-semibold transition-all',
+            'w-50'
           )}
         >
           📊 New Live Poll Wall
@@ -58,14 +58,8 @@ export default function DashboardHeader({
         <button
           onClick={onCreatePrizeWheel}
           className={cn(
-            'bg-purple-600',
-            'hover:bg-purple-700',
-            'text-white',
-            'px-4',
-            'py-2',
-            'rounded-lg',
-            'font-semibold',
-            'transition-all'
+            'bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg font-semibold transition-all',
+            'w-50'
           )}
         >
           🎡 New Prize Wheel
@@ -74,4 +68,3 @@ export default function DashboardHeader({
     </div>
   );
 }
-

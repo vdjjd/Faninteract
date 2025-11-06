@@ -1,86 +1,56 @@
-"use client";
-import React, { useEffect, useRef } from "react";
+'use client';
+import React from 'react';
+import { cn } from '@/lib/utils';
 
-export default function AdOverlay({
-  url,
-  type,
-  onFinished,
-}: {
-  url: string;
-  type: "image" | "video";
-  onFinished?: () => void;
-}) {
-  const vidRef = useRef<HTMLVideoElement>(null);
+interface AdOverlayProps {
+  showAd: boolean;
+  ads: any[];
+  currentAdIndex: number;
+  onAdEnd: () => void;
+}
 
-  // Restart video when URL changes
-  useEffect(() => {
-    if (type === "video" && vidRef.current) {
-      vidRef.current.currentTime = 0;
-      vidRef.current.play().catch(() => {});
-    }
-  }, [url, type]);
+/**
+ * 🔹 Full-screen ad takeover overlay.
+ * When active, blocks interaction (like a touchscreen takeover).
+ * When inactive, it becomes invisible and click-through.
+ */
+export default function AdOverlay({ showAd, ads, currentAdIndex, onAdEnd }: AdOverlayProps) {
+  if (!showAd || !ads?.length) return null;
 
-  // Auto-finish images (default = 8s)
-  useEffect(() => {
-    if (type === "image") {
-      const timeout = setTimeout(() => {
-        onFinished?.();
-      }, 8000); // matches default ad duration
-
-      return () => clearTimeout(timeout);
-    }
-  }, [url, type, onFinished]);
+  const ad = ads[currentAdIndex];
+  if (!ad) return null;
 
   return (
     <div
+      className={cn(
+        'fixed inset-0 z-[9998] flex items-center justify-center transition-opacity duration-500',
+        showAd ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
+      )}
       style={{
-        position: "absolute",
-        inset: 0,
-        zIndex: 999,
-        background: "black",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        animation: "fadeIn 0.4s ease, fadeOut 0.4s ease 7.6s", // fade out before end
+        backgroundColor: 'transparent', // ✅ absolutely clear, no tint
       }}
     >
-      {type === "image" ? (
+      {ad.type === 'image' ? (
         <img
-          src={url}
+          src={ad.url}
+          alt="Sponsor Ad"
+          className={cn('max-w-full max-h-full object-contain rounded-xl shadow-2xl')}
           style={{
-            width: "100%",
-            height: "100%",
-            objectFit: "cover", // ✅ No black bars
+            pointerEvents: 'none', // ✅ ad visuals don’t capture clicks
           }}
         />
       ) : (
         <video
-          ref={vidRef}
-          src={url}
+          src={ad.url}
           autoPlay
-          playsInline
           muted
+          onEnded={onAdEnd}
+          className={cn('max-w-full max-h-full object-contain rounded-xl shadow-2xl')}
           style={{
-            width: "100%",
-            height: "100%",
-            objectFit: "cover", // ✅ No letterboxing
+            pointerEvents: 'none',
           }}
-          onEnded={() => onFinished?.()}
         />
       )}
-
-      <style jsx>{`
-        @keyframes fadeIn {
-          from { opacity: 0; }
-          to { opacity: 1; }
-        }
-
-        @keyframes fadeOut {
-          from { opacity: 1; }
-          to { opacity: 0; }
-        }
-      `}</style>
     </div>
   );
 }
-

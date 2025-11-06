@@ -15,7 +15,6 @@ import {
   Settings,
   CreditCard,
   LogOut,
-  SlidersHorizontal
 } from 'lucide-react';
 import ChangeEmailModal from '@/components/ChangeEmailModal';
 import ChangePasswordModal from '@/components/ChangePasswordModal';
@@ -35,19 +34,6 @@ export default function HostProfilePanel({ host }: HostProfilePanelProps) {
   async function handleLogout() {
     await supabase.auth.signOut();
     window.location.href = '/';
-  }
-
-  function openAdsManager() {
-    if (!host) return;
-
-    // ✅ Use host.profile_id instead of host.id
-    const url = `/admin/ads/${host.id}?master=${host.role === 'master'}`;
-
-    window.open(
-      url,
-      "_blank",
-      "width=1280,height=720,top=50,left=50,resizable=yes,scrollbars=yes"
-    );
   }
 
   if (!host) {
@@ -125,16 +111,7 @@ export default function HostProfilePanel({ host }: HostProfilePanelProps) {
             </p>
           </section>
 
-          {/* ✅ AD MANAGER */}
-          <section>
-            <div className={cn('flex', 'items-center', 'justify-center', 'gap-3', 'mb-3', 'text-blue-400', 'font-semibold', 'text-center')}>
-              <SlidersHorizontal className={cn('w-5', 'h-5')} /> Ad Manager
-            </div>
-
-            <Button variant="outline" className="w-full" onClick={openAdsManager}>
-              Open Ad Manager
-            </Button>
-          </section>
+          {/* ✅ (Ad section removed) */}
 
           {/* BILLING */}
           <section>
@@ -151,7 +128,6 @@ export default function HostProfilePanel({ host }: HostProfilePanelProps) {
             <div className={cn('flex', 'items-center', 'justify-center', 'gap-3', 'mb-3', 'text-blue-400', 'font-semibold', 'text-center')}>
               <LogOut className={cn('w-5', 'h-5')} /> Security
             </div>
-
             <Button variant="destructive" className="w-full" onClick={handleLogout}>
               Logout
             </Button>

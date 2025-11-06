@@ -66,7 +66,6 @@ export default function OptionsModalFanWall({
           ? '4x2 Grid'
           : 'Single Highlight Post';
 
-      // ✅ Only allow custom transitions in single highlight
       const postTransition =
         layoutKey === 'Single Highlight Post'
           ? (localWall.post_transition || 'Fade In / Fade Out')
@@ -237,7 +236,7 @@ export default function OptionsModalFanWall({
           <option>4 Column × 2 Row</option>
         </select>
 
-        {/* ✅ Transition selector always visible, greyed out for grids */}
+        {/* Transition */}
         <label className={cn('block', 'mt-3', 'text-sm')}>Post Transition:</label>
         <select
           className={cn('w-full', 'p-2', 'rounded-md', 'text-black', 'mt-1')}
@@ -294,42 +293,54 @@ export default function OptionsModalFanWall({
           )}
         </select>
 
-        {/* Gradient Editor */}
+        {/* 🎨 Gradient Editor */}
         <div className={cn('mt-6', 'text-center')}>
           <p className={cn('text-sm', 'font-semibold', 'mb-2')}>🎨 Custom Gradient</p>
           <div className={cn('flex', 'justify-center', 'gap-4', 'mb-3')}>
             <div>
-              <label className={cn('block', 'text-xs', 'mb-1')}>Start</label>
+              <label className={cn('block', 'text-xs', 'mb-1')}>Left Color (Upper-Left)</label>
               <input
                 type="color"
                 value={localWall.color_start || '#0d47a1'}
-             onChange={(e) => {
-  const newEnd = e.target.value;
-  const start = localWall.color_start || '#0d47a1';
-
-  // correct directional gradient (dark UL to light DR)
-  const gradient = `linear-gradient(135deg, ${start} 0%, ${newEnd} 100%)`;
-
-  setLocalWall({
-    ...localWall,
-    color_end: newEnd,
-    background_type: 'gradient',
-    background_value: gradient,
-  });
-
-  handleBackgroundChange('gradient', gradient);
-}}
+                onChange={(e) => {
+                  const newStart = e.target.value;
+                  const end = localWall.color_end || '#1976d2';
+                  const gradient = `
+                    linear-gradient(
+                      135deg,
+                      ${newStart} 0%,
+                      ${newStart}80 20%,
+                      ${end}60 50%,
+                      ${end} 100%
+                    )
+                  `.replace(/\s+/g, ' ');
+                  setLocalWall({
+                    ...localWall,
+                    color_start: newStart,
+                    background_type: 'gradient',
+                    background_value: gradient,
+                  });
+                  handleBackgroundChange('gradient', gradient);
+                }}
               />
             </div>
             <div>
-              <label className={cn('block', 'text-xs', 'mb-1')}>End</label>
+              <label className={cn('block', 'text-xs', 'mb-1')}>Right Color (Lower-Right)</label>
               <input
                 type="color"
                 value={localWall.color_end || '#1976d2'}
                 onChange={(e) => {
                   const newEnd = e.target.value;
                   const start = localWall.color_start || '#0d47a1';
-                  const gradient = `linear-gradient(135deg, ${start}, ${newEnd})`;
+                  const gradient = `
+                    linear-gradient(
+                      135deg,
+                      ${start} 0%,
+                      ${start}80 20%,
+                      ${newEnd}60 50%,
+                      ${newEnd} 100%
+                    )
+                  `.replace(/\s+/g, ' ');
                   setLocalWall({
                     ...localWall,
                     color_end: newEnd,
@@ -343,30 +354,28 @@ export default function OptionsModalFanWall({
           </div>
         </div>
 
-      {/* Upload */}
-<div className={cn('mt-6', 'text-center')}>
-  <p className={cn('text-sm', 'font-semibold', 'mb-2')}>Upload Background</p>
-
-  {/* ✅ PASTE THIS HERE */}
-  <p style={{
-    textAlign: "center",
-    color: "#ff4d4d",
-    fontSize: "0.75rem",
-    marginTop: "4px",
-    marginBottom: "6px",
-    fontWeight: 600,
-  }}>
-    1920 × 1080 recommended image size
-  </p>
-
-  <input type="file" accept="image/jpeg,image/png,image/webp" onChange={handleImageUpload} />
-  {uploading && (
-    <p className={cn('text-yellow-400', 'text-xs', 'mt-2', 'animate-pulse')}>
-      Uploading…
-    </p>
-  )}
-</div>
-
+        {/* Upload */}
+        <div className={cn('mt-6', 'text-center')}>
+          <p className={cn('text-sm', 'font-semibold', 'mb-2')}>Upload Background</p>
+          <p
+            style={{
+              textAlign: "center",
+              color: "#ff4d4d",
+              fontSize: "0.75rem",
+              marginTop: "4px",
+              marginBottom: "6px",
+              fontWeight: 600,
+            }}
+          >
+            1920 × 1080 recommended image size
+          </p>
+          <input type="file" accept="image/jpeg,image/png,image/webp" onChange={handleImageUpload} />
+          {uploading && (
+            <p className={cn('text-yellow-400', 'text-xs', 'mt-2', 'animate-pulse')}>
+              Uploading…
+            </p>
+          )}
+        </div>
 
         {/* Buttons */}
         <div className={cn('text-center', 'mt-5', 'flex', 'justify-center', 'gap-4')}>
@@ -384,7 +393,6 @@ export default function OptionsModalFanWall({
             ✖ Close
           </button>
         </div>
-
       </div>
     </div>
   );
