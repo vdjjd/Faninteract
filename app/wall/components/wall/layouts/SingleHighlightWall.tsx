@@ -116,9 +116,12 @@ useEffect(() => {
             );
           }
 
-          // 🟢 title/logo live update
-          if (w.title) setTitle(w.title);
-          if (w.logo_url) setLogo(w.logo_url);
+          // 🟢 also update title, logo, and transition live
+if (w.title) setTitle(w.title);
+if (w.logo_url) setLogo(w.logo_url);
+if (w.post_transition && w.post_transition !== transitionType) {
+  setTransitionType(w.post_transition);
+}
         }
       )
       .subscribe();
