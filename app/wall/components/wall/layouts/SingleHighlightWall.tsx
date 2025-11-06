@@ -169,28 +169,51 @@ useEffect(() => {
             );
           }
 
-          // 🟢 also update title, logo, transition, and speed live
-if (w.title) setTitle(w.title);
-if (w.logo_url) setLogo(w.logo_url);
+          /* ✅ 🔥 NEW — Realtime background + title updates */
+useEffect(() => {
+  if (!event?.id) return;
 
-if (w.post_transition && w.post_transition !== transitionType) {
-  setTransitionType(w.post_transition);
-}
+  const wallChannel = supabase
+    .channel(`wall_settings_${event.id}`)
+    .on(
+      'postgres_changes',
+      { event: 'UPDATE', schema: 'public', table: 'fan_walls', filter: `id=eq.${event.id}` },
+      (payload) => {
+        const w = payload.new;
+        if (!w) return;
 
-// 🔹 live update for transition speed (Slow / Medium / Fast)
-if (w.transition_speed) {
-  const newDuration = speedMap[w.transition_speed] || speedMap['Medium'];
-  if (newDuration !== displayDuration) {
-    setDisplayDuration(newDuration);
-  }
-}
-      )
-      .subscribe();
+        // 🟢 background updates instantly
+        if (w.background_value) {
+          setBg(
+            w.background_type === 'image'
+              ? `url(${w.background_value}) center/cover no-repeat`
+              : w.background_value
+          );
+        }
 
-    return () => {
-      supabase.removeChannel(wallChannel);
-    };
-  }, [event?.id]);
+        // 🟢 also update title, logo, transition, and speed live
+        if (w.title) setTitle(w.title);
+        if (w.logo_url) setLogo(w.logo_url);
+
+        if (w.post_transition && w.post_transition !== transitionType) {
+          setTransitionType(w.post_transition);
+        }
+
+        // 🔹 live update for transition speed (Slow / Medium / Fast)
+        if (w.transition_speed) {
+          const newDuration = speedMap[w.transition_speed] || speedMap['Medium'];
+          if (newDuration !== displayDuration) {
+            setDisplayDuration(newDuration);
+          }
+        }
+      }
+    )
+    .subscribe();
+
+  return () => {
+    supabase.removeChannel(wallChannel);
+  };
+}, [event?.id, transitionType, displayDuration]);
   /* 🔥 END realtime update */
 
   const transitionStyle =
