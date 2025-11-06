@@ -137,30 +137,28 @@ export function useAdInjector({ hostId, triggerInterval: defaultTrigger }: AdInj
 };
 
   /* ------------------ SHOW AD OVERLAY ------------------ */
-  const triggerAdOverlay = () => {
-    if (showAd || !ads.length) return;
+const triggerAdOverlay = () => {
+  if (showAd || !ads.length) return;
 
-    const ad = ads[currentAdIndex];
-    if (!ad) return;
+  const ad = ads[currentAdIndex];
+  if (!ad) return;
 
-    setShowAd(true);
-    const nextIndex = (currentAdIndex + 1) % ads.length;
-    setCurrentAdIndex(nextIndex);
+  setShowAd(true);
+  const nextIndex = (currentAdIndex + 1) % ads.length;
+  setCurrentAdIndex(nextIndex);
 
-    // ✅ Adjust for fade-in/out of 1.2s each
-    const FADE_DURATION = 1200;
-    const baseDuration =
-      ad.type === 'video'
-        ? Math.min(Number(ad.duration_seconds || 15) * 1000, 15000)
-        : 8000; // images show for 8s
+  // ✅ Timing setup
+  const FADE_DURATION = 2000; // 2s fade in/out
+  const DISPLAY_DURATION =
+    ad.type === 'video'
+      ? Math.min(Number(ad.duration_seconds || 15) * 1000, 15000) // respect video length
+      : 8000; // image fully visible for 8s
 
-    const totalDuration = baseDuration + FADE_DURATION * 2; // fade in/out padding
+  const totalDuration = DISPLAY_DURATION + FADE_DURATION * 2;
 
-    if (timeoutRef.current) clearTimeout(timeoutRef.current);
-    timeoutRef.current = setTimeout(() => {
-      setShowAd(false);
-    }, totalDuration);
-  };
+  if (timeoutRef.current) clearTimeout(timeoutRef.current);
+  timeoutRef.current = setTimeout(() => setShowAd(false), totalDuration);
+};
 
   /* ------------------ CLEANUP ------------------ */
   useEffect(() => {
