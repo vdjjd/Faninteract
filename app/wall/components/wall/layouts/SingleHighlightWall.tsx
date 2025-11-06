@@ -169,13 +169,21 @@ useEffect(() => {
             );
           }
 
-          // 🟢 also update title, logo, and transition live
+          // 🟢 also update title, logo, transition, and speed live
 if (w.title) setTitle(w.title);
 if (w.logo_url) setLogo(w.logo_url);
+
 if (w.post_transition && w.post_transition !== transitionType) {
   setTransitionType(w.post_transition);
 }
-        }
+
+// 🔹 live update for transition speed (Slow / Medium / Fast)
+if (w.transition_speed) {
+  const newDuration = speedMap[w.transition_speed] || speedMap['Medium'];
+  if (newDuration !== displayDuration) {
+    setDisplayDuration(newDuration);
+  }
+}
       )
       .subscribe();
 
