@@ -40,14 +40,13 @@ export default function OptionsModalFanWall({
     debounceTimer.current = setTimeout(async () => {
       try {
         await channel.send({ type: 'broadcast', event, payload });
-        console.log(`📡 Broadcast sent [${event}]`, payload);
       } catch (err) {
         console.error(`❌ Broadcast error [${event}]`, err);
       }
     }, 200);
   }
 
-  /* ✅ SAVE WALL */
+  /* ✅ SAVE LOGIC */
   async function handleSave() {
     try {
       setSaving(true);
@@ -55,9 +54,7 @@ export default function OptionsModalFanWall({
       const isNoCountdown =
         !localWall.countdown || localWall.countdown === 'none';
 
-      const countdownValue = isNoCountdown
-        ? null
-        : String(localWall.countdown);
+      const countdownValue = isNoCountdown ? null : String(localWall.countdown);
 
       const layoutKey =
         localWall.layout_type?.includes('2 Column')
@@ -68,7 +65,7 @@ export default function OptionsModalFanWall({
 
       const postTransition =
         layoutKey === 'Single Highlight Post'
-          ? (localWall.post_transition || 'Fade In / Fade Out')
+          ? localWall.post_transition || 'Fade In / Fade Out'
           : 'Fade In / Fade Out';
 
       const updates: Record<string, any> = {
@@ -113,7 +110,7 @@ export default function OptionsModalFanWall({
     }
   }
 
-  /* ✅ IMAGE UPLOADS */
+  /* ✅ IMAGE UPLOAD */
   async function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
     try {
       const file = e.target.files?.[0];
@@ -125,9 +122,14 @@ export default function OptionsModalFanWall({
       }
 
       const previewUrl = URL.createObjectURL(file);
-      setLocalWall({ ...localWall, background_type: 'image', background_value: previewUrl });
+      setLocalWall({
+        ...localWall,
+        background_type: 'image',
+        background_value: previewUrl,
+      });
 
       setUploading(true);
+
       const compressed = await imageCompression(file, {
         maxWidthOrHeight: 1920,
         useWebWorker: true,
@@ -135,16 +137,25 @@ export default function OptionsModalFanWall({
 
       const ext = file.type.split('/')[1];
       const filePath = `host_${hostId}/wall_${localWall.id}/background-${Date.now()}.${ext}`;
-      await supabase.storage.from('wall-backgrounds').upload(filePath, compressed, { upsert: true });
 
-      const { data: publicUrl } = supabase.storage.from('wall-backgrounds').getPublicUrl(filePath);
+      await supabase.storage
+        .from('wall-backgrounds')
+        .upload(filePath, compressed, { upsert: true });
+
+      const { data: publicUrl } = supabase.storage
+        .from('wall-backgrounds')
+        .getPublicUrl(filePath);
+
       const imageUrl = publicUrl.publicUrl;
 
-      await supabase.from('fan_walls').update({
-        background_type: 'image',
-        background_value: imageUrl,
-        updated_at: new Date().toISOString(),
-      }).eq('id', localWall.id);
+      await supabase
+        .from('fan_walls')
+        .update({
+          background_type: 'image',
+          background_value: imageUrl,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', localWall.id);
 
       broadcast('wall_updated', {
         id: localWall.id,
@@ -152,7 +163,12 @@ export default function OptionsModalFanWall({
         background_value: imageUrl,
       });
 
-      setLocalWall({ ...localWall, background_type: 'image', background_value: imageUrl });
+      setLocalWall({
+        ...localWall,
+        background_type: 'image',
+        background_value: imageUrl,
+      });
+
       await refreshFanWalls?.();
     } catch (err) {
       console.error('❌ Upload failed:', err);
@@ -164,234 +180,296 @@ export default function OptionsModalFanWall({
 
   /* ✅ BACKGROUND CHANGE */
   async function handleBackgroundChange(type: 'solid' | 'gradient', value: string) {
-    setLocalWall({ ...localWall, background_type: type, background_value: value });
-    broadcast('wall_updated', { id: localWall.id, background_type: type, background_value: value });
-
-    await supabase.from('fan_walls').update({
+    setLocalWall({
+      ...localWall,
       background_type: type,
-      background_value: value || DEFAULT_GRADIENT,
-      updated_at: new Date().toISOString(),
-    }).eq('id', localWall.id);
+      background_value: value,
+    });
+
+    broadcast('wall_updated', {
+      id: localWall.id,
+      background_type: type,
+      background_value: value,
+    });
+
+    await supabase
+      .from('fan_walls')
+      .update({
+        background_type: type,
+        background_value: value || DEFAULT_GRADIENT,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', localWall.id);
 
     await refreshFanWalls?.();
   }
 
-  /* ✅ FULL UI */
+  /* ✅ MODAL WRAPPER (MATCHES ADS + MODERATION MODALS) */
   return (
-    <div className={cn('fixed inset-0 bg-black/80 flex items-center justify-center z-50 backdrop-blur-md')}>
+    <div
+      className={cn('fixed', 'inset-0', 'bg-black/70', 'backdrop-blur-md', 'z-[9999]', 'flex', 'items-center', 'justify-center', 'animate-fadeIn')}
+      onClick={onClose}
+    >
       <div
-        className={cn('border border-blue-400 p-6 rounded-2xl shadow-2xl w-96 text-white animate-fadeIn overflow-y-auto max-h-[90vh]')}
-        style={{
-          background:
-            localWall.background_type === 'image'
-              ? `url(${localWall.background_value}) center/cover no-repeat`
-              : localWall.background_value || DEFAULT_GRADIENT,
-          backdropFilter: 'blur(8px)',
-          backgroundBlendMode: 'overlay',
-        }}
+        onClick={(e) => e.stopPropagation()}
+        className={cn('relative', 'w-full', 'max-w-[960px]', 'max-h-[90vh]', 'overflow-hidden', 'rounded-2xl', 'border', 'border-blue-500/30', 'shadow-[0_0_40px_rgba(0,140,255,0.45)]', 'bg-gradient-to-br', 'from-[#0b0f1a]/95', 'to-[#111827]/95', 'animate-zoomIn', 'p-6')}
       >
-        <h3 className={cn('text-center', 'text-xl', 'font-bold', 'mb-3')}>⚙ Edit Fan Zone Wall</h3>
-
-        {/* Titles */}
-        <label className={cn('block', 'mt-3', 'text-sm')}>Title (Private):</label>
-        <input
-          type="text"
-          value={localWall.host_title || ''}
-          onChange={(e) => setLocalWall({ ...localWall, host_title: e.target.value })}
-          className={cn('w-full', 'p-2', 'rounded-md', 'text-black', 'mt-1')}
-        />
-
-        <label className={cn('block', 'mt-3', 'text-sm')}>Public Title:</label>
-        <input
-          type="text"
-          value={localWall.title || ''}
-          onChange={(e) => setLocalWall({ ...localWall, title: e.target.value })}
-          className={cn('w-full', 'p-2', 'rounded-md', 'text-black', 'mt-1')}
-        />
-
-        {/* Countdown */}
-        <label className={cn('block', 'mt-3', 'text-sm')}>Countdown:</label>
-        <select
-          className={cn('w-full', 'p-2', 'rounded-md', 'text-black', 'mt-1')}
-          value={localWall.countdown || 'none'}
-          onChange={(e) => setLocalWall({ ...localWall, countdown: e.target.value })}
+        {/* ✅ Close Button */}
+        <button
+          onClick={onClose}
+          className={cn('absolute', 'top-3', 'right-3', 'text-white/80', 'hover:text-white', 'text-xl')}
         >
-          <option value="none">No Countdown / Start Immediately</option>
-          {[
-            '30 Seconds','1 Minute','2 Minutes','3 Minutes','4 Minutes','5 Minutes',
-            '10 Minutes','15 Minutes','20 Minutes','25 Minutes','30 Minutes',
-            '45 Minutes','60 Minutes',
-          ].map(opt => <option key={opt}>{opt}</option>)}
-        </select>
+          ✕
+        </button>
 
-        {/* Layout */}
-        <label className={cn('block', 'mt-3', 'text-sm')}>Layout:</label>
-        <select
-          className={cn('w-full', 'p-2', 'rounded-md', 'text-black', 'mt-1')}
-          value={localWall.layout_type || 'Single Highlight Post'}
-          onChange={(e) => setLocalWall({ ...localWall, layout_type: e.target.value })}
-        >
-          <option>Single Highlight Post</option>
-          <option>2 Column × 2 Row</option>
-          <option>4 Column × 2 Row</option>
-        </select>
+        {/* ✅ Scrollable Content */}
+        <div className={cn('overflow-y-auto', 'max-h-[75vh]', 'pr-1')}>
+          <h3 className={cn('text-center', 'text-xl', 'font-bold', 'mb-3')}>⚙ Edit Fan Zone Wall</h3>
 
-        {/* Transition */}
-        <label className={cn('block', 'mt-3', 'text-sm')}>Post Transition:</label>
-        <select
-          className={cn('w-full', 'p-2', 'rounded-md', 'text-black', 'mt-1')}
-          value={
-            localWall.layout_type === 'Single Highlight Post'
-              ? localWall.post_transition || 'Fade In / Fade Out'
-              : 'Fade In / Fade Out'
-          }
-          onChange={(e) => setLocalWall({ ...localWall, post_transition: e.target.value })}
-          disabled={localWall.layout_type !== 'Single Highlight Post'}
-          style={{
-            opacity: localWall.layout_type !== 'Single Highlight Post' ? 0.5 : 1,
-            cursor: localWall.layout_type !== 'Single Highlight Post' ? 'not-allowed' : 'pointer'
-          }}
-        >
-          {[
-            'Fade In / Fade Out',
-            'Slide Up / Slide Out',
-            'Slide Down / Slide Out',
-            'Slide Left / Slide Right',
-            'Slide Right / Slide Left',
-            'Zoom In / Zoom Out',
-            'Zoom Out / Zoom In',
-            'Flip',
-            'Rotate In / Rotate Out',
-            'Pop In / Pop Out',
-          ].map(opt => <option key={opt}>{opt}</option>)}
-        </select>
+          {/* ✅ Titles */}
+          <label className={cn('block', 'mt-3', 'text-sm')}>Title (Private):</label>
+          <input
+            type="text"
+            value={localWall.host_title || ''}
+            onChange={(e) =>
+              setLocalWall({ ...localWall, host_title: e.target.value })
+            }
+            className={cn('w-full', 'p-2', 'rounded-md', 'text-black', 'mt-1')}
+          />
 
-        {/* Speed */}
-        <label className={cn('block', 'mt-3', 'text-sm')}>Transition Speed:</label>
-        <select
-          className={cn('w-full', 'p-2', 'rounded-md', 'text-black', 'mt-1')}
-          value={localWall.transition_speed || 'Medium'}
-          onChange={(e) => setLocalWall({ ...localWall, transition_speed: e.target.value })}
-        >
-          <option>Slow</option>
-          <option>Medium</option>
-          <option>Fast</option>
-        </select>
+          <label className={cn('block', 'mt-3', 'text-sm')}>Public Title:</label>
+          <input
+            type="text"
+            value={localWall.title || ''}
+            onChange={(e) =>
+              setLocalWall({ ...localWall, title: e.target.value })
+            }
+            className={cn('w-full', 'p-2', 'rounded-md', 'text-black', 'mt-1')}
+          />
 
-        {/* Auto Delete */}
-        <label className={cn('block', 'mt-3', 'text-sm')}>Auto Delete Posts:</label>
-        <select
-          className={cn('w-full', 'p-2', 'rounded-md', 'text-black', 'mt-1')}
-          value={localWall.auto_delete_minutes ?? 0}
-          onChange={(e) =>
-            setLocalWall({ ...localWall, auto_delete_minutes: parseInt(e.target.value) })
-          }
-        >
-          <option value={0}>Never (Keep All Posts)</option>
-          {[5, 10, 15, 20, 30, 45, 60].map(min =>
-            <option key={min} value={min}>{min} Minutes</option>
-          )}
-        </select>
+          {/* ✅ Countdown */}
+          <label className={cn('block', 'mt-3', 'text-sm')}>Countdown:</label>
+          <select
+            className={cn('w-full', 'p-2', 'rounded-md', 'text-black', 'mt-1')}
+            value={localWall.countdown || 'none'}
+            onChange={(e) =>
+              setLocalWall({ ...localWall, countdown: e.target.value })
+            }
+          >
+            <option value="none">No Countdown / Start Immediately</option>
+            {[
+              '30 Seconds','1 Minute','2 Minutes','3 Minutes','4 Minutes','5 Minutes',
+              '10 Minutes','15 Minutes','20 Minutes','25 Minutes','30 Minutes',
+              '45 Minutes','60 Minutes',
+            ].map((opt) => (
+              <option key={opt}>{opt}</option>
+            ))}
+          </select>
 
-        {/* 🎨 Gradient Editor */}
-        <div className={cn('mt-6', 'text-center')}>
-          <p className={cn('text-sm', 'font-semibold', 'mb-2')}>🎨 Custom Gradient</p>
-          <div className={cn('flex', 'justify-center', 'gap-4', 'mb-3')}>
-            <div>
-              <label className={cn('block', 'text-xs', 'mb-1')}>Left Color (Upper-Left)</label>
-              <input
-                type="color"
-                value={localWall.color_start || '#0d47a1'}
-                onChange={(e) => {
-                  const newStart = e.target.value;
-                  const end = localWall.color_end || '#1976d2';
-                  const gradient = `
-                    linear-gradient(
-                      135deg,
-                      ${newStart} 0%,
-                      ${newStart}80 20%,
-                      ${end}60 50%,
-                      ${end} 100%
-                    )
-                  `.replace(/\s+/g, ' ');
-                  setLocalWall({
-                    ...localWall,
-                    color_start: newStart,
-                    background_type: 'gradient',
-                    background_value: gradient,
-                  });
-                  handleBackgroundChange('gradient', gradient);
-                }}
-              />
-            </div>
-            <div>
-              <label className={cn('block', 'text-xs', 'mb-1')}>Right Color (Lower-Right)</label>
-              <input
-                type="color"
-                value={localWall.color_end || '#1976d2'}
-                onChange={(e) => {
-                  const newEnd = e.target.value;
-                  const start = localWall.color_start || '#0d47a1';
-                  const gradient = `
-                    linear-gradient(
-                      135deg,
-                      ${start} 0%,
-                      ${start}80 20%,
-                      ${newEnd}60 50%,
-                      ${newEnd} 100%
-                    )
-                  `.replace(/\s+/g, ' ');
-                  setLocalWall({
-                    ...localWall,
-                    color_end: newEnd,
-                    background_type: 'gradient',
-                    background_value: gradient,
-                  });
-                  handleBackgroundChange('gradient', gradient);
-                }}
-              />
-            </div>
-          </div>
-        </div>
+          {/* ✅ Layout */}
+          <label className={cn('block', 'mt-3', 'text-sm')}>Layout:</label>
+          <select
+            className={cn('w-full', 'p-2', 'rounded-md', 'text-black', 'mt-1')}
+            value={localWall.layout_type || 'Single Highlight Post'}
+            onChange={(e) =>
+              setLocalWall({ ...localWall, layout_type: e.target.value })
+            }
+          >
+            <option>Single Highlight Post</option>
+            <option>2 Column × 2 Row</option>
+            <option>4 Column × 2 Row</option>
+          </select>
 
-        {/* Upload */}
-        <div className={cn('mt-6', 'text-center')}>
-          <p className={cn('text-sm', 'font-semibold', 'mb-2')}>Upload Background</p>
-          <p
+          {/* ✅ Transition */}
+          <label className={cn('block', 'mt-3', 'text-sm')}>Post Transition:</label>
+          <select
+            className={cn('w-full', 'p-2', 'rounded-md', 'text-black', 'mt-1')}
+            value={
+              localWall.layout_type === 'Single Highlight Post'
+                ? localWall.post_transition || 'Fade In / Fade Out'
+                : 'Fade In / Fade Out'
+            }
+            onChange={(e) =>
+              setLocalWall({ ...localWall, post_transition: e.target.value })
+            }
+            disabled={localWall.layout_type !== 'Single Highlight Post'}
             style={{
-              textAlign: "center",
-              color: "#ff4d4d",
-              fontSize: "0.75rem",
-              marginTop: "4px",
-              marginBottom: "6px",
-              fontWeight: 600,
+              opacity:
+                localWall.layout_type !== 'Single Highlight Post' ? 0.5 : 1,
+              cursor:
+                localWall.layout_type !== 'Single Highlight Post'
+                  ? 'not-allowed'
+                  : 'pointer',
             }}
           >
-            1920 × 1080 recommended image size
-          </p>
-          <input type="file" accept="image/jpeg,image/png,image/webp" onChange={handleImageUpload} />
-          {uploading && (
-            <p className={cn('text-yellow-400', 'text-xs', 'mt-2', 'animate-pulse')}>
-              Uploading…
-            </p>
-          )}
-        </div>
+            {[
+              'Fade In / Fade Out',
+              'Slide Up / Slide Out',
+              'Slide Down / Slide Out',
+              'Slide Left / Slide Right',
+              'Slide Right / Slide Left',
+              'Zoom In / Zoom Out',
+              'Zoom Out / Zoom In',
+              'Flip',
+              'Rotate In / Rotate Out',
+              'Pop In / Pop Out',
+            ].map((opt) => (
+              <option key={opt}>{opt}</option>
+            ))}
+          </select>
 
-        {/* Buttons */}
-        <div className={cn('text-center', 'mt-5', 'flex', 'justify-center', 'gap-4')}>
-          <button
-            disabled={saving}
-            onClick={handleSave}
-            className={`${saving ? 'bg-gray-500' : 'bg-green-600 hover:bg-green-700'} px-4 py-2 rounded font-semibold`}
+          {/* ✅ Speed */}
+          <label className={cn('block', 'mt-3', 'text-sm')}>Transition Speed:</label>
+          <select
+            className={cn('w-full', 'p-2', 'rounded-md', 'text-black', 'mt-1')}
+            value={localWall.transition_speed || 'Medium'}
+            onChange={(e) =>
+              setLocalWall({ ...localWall, transition_speed: e.target.value })
+            }
           >
-            {saving ? 'Saving…' : '💾 Save'}
-          </button>
-          <button
-            onClick={onClose}
-            className={cn('bg-red-600', 'hover:bg-red-700', 'px-4', 'py-2', 'rounded', 'font-semibold')}
+            <option>Slow</option>
+            <option>Medium</option>
+            <option>Fast</option>
+          </select>
+
+          {/* ✅ Auto delete */}
+          <label className={cn('block', 'mt-3', 'text-sm')}>Auto Delete Posts:</label>
+          <select
+            className={cn('w-full', 'p-2', 'rounded-md', 'text-black', 'mt-1')}
+            value={localWall.auto_delete_minutes ?? 0}
+            onChange={(e) =>
+              setLocalWall({
+                ...localWall,
+                auto_delete_minutes: parseInt(e.target.value),
+              })
+            }
           >
-            ✖ Close
-          </button>
+            <option value={0}>Never (Keep All Posts)</option>
+            {[5, 10, 15, 20, 30, 45, 60].map((min) => (
+              <option key={min} value={min}>
+                {min} Minutes
+              </option>
+            ))}
+          </select>
+
+          {/* ✅ Gradient Editor */}
+          <div className={cn('mt-6', 'text-center')}>
+            <p className={cn('text-sm', 'font-semibold', 'mb-2')}>🎨 Custom Gradient</p>
+            <div className={cn('flex', 'justify-center', 'gap-4', 'mb-3')}>
+              <div>
+                <label className={cn('block', 'text-xs', 'mb-1')}>Left Color</label>
+                <input
+                  type="color"
+                  value={localWall.color_start || '#0d47a1'}
+                  onChange={(e) => {
+                    const newStart = e.target.value;
+                    const end = localWall.color_end || '#1976d2';
+
+                    const gradient = `
+                      linear-gradient(
+                        135deg,
+                        ${newStart} 0%,
+                        ${newStart}80 20%,
+                        ${end}60 50%,
+                        ${end} 100%
+                      )
+                    `.replace(/\s+/g, ' ');
+
+                    setLocalWall({
+                      ...localWall,
+                      color_start: newStart,
+                      background_type: 'gradient',
+                      background_value: gradient,
+                    });
+
+                    handleBackgroundChange('gradient', gradient);
+                  }}
+                />
+              </div>
+
+              <div>
+                <label className={cn('block', 'text-xs', 'mb-1')}>Right Color</label>
+                <input
+                  type="color"
+                  value={localWall.color_end || '#1976d2'}
+                  onChange={(e) => {
+                    const newEnd = e.target.value;
+                    const start = localWall.color_start || '#0d47a1';
+
+                    const gradient = `
+                      linear-gradient(
+                        135deg,
+                        ${start} 0%,
+                        ${start}80 20%,
+                        ${newEnd}60 50%,
+                        ${newEnd} 100%
+                      )
+                    `.replace(/\s+/g, ' ');
+
+                    setLocalWall({
+                      ...localWall,
+                      color_end: newEnd,
+                      background_type: 'gradient',
+                      background_value: gradient,
+                    });
+
+                    handleBackgroundChange('gradient', gradient);
+                  }}
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* ✅ Upload section */}
+          <div className={cn('mt-6', 'text-center')}>
+            <p className={cn('text-sm', 'font-semibold', 'mb-2')}>Upload Background</p>
+            <p
+              style={{
+                textAlign: 'center',
+                color: '#ff4d4d',
+                fontSize: '0.75rem',
+                marginTop: '4px',
+                marginBottom: '6px',
+                fontWeight: 600,
+              }}
+            >
+              1920 × 1080 recommended image size
+            </p>
+
+            <input
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              onChange={handleImageUpload}
+            />
+
+            {uploading && (
+              <p className={cn('text-yellow-400', 'text-xs', 'mt-2', 'animate-pulse')}>
+                Uploading…
+              </p>
+            )}
+          </div>
+
+          {/* ✅ Save + Close */}
+          <div className={cn('text-center', 'mt-5', 'flex', 'justify-center', 'gap-4')}>
+            <button
+              disabled={saving}
+              onClick={handleSave}
+              className={`${
+                saving
+                  ? 'bg-gray-500'
+                  : 'bg-green-600 hover:bg-green-700'
+              } px-4 py-2 rounded font-semibold`}
+            >
+              {saving ? 'Saving…' : '💾 Save'}
+            </button>
+
+            <button
+              onClick={onClose}
+              className={cn('bg-red-600', 'hover:bg-red-700', 'px-4', 'py-2', 'rounded', 'font-semibold')}
+            >
+              ✖ Close
+            </button>
+          </div>
         </div>
       </div>
     </div>
