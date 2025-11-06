@@ -4,6 +4,7 @@ import { useEffect, useState, useRef } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import Image from 'next/image';
 import { cn } from '@/lib/utils';
+import { Info } from 'lucide-react';
 
 interface AdsManagerModalProps {
   host: any;
@@ -18,9 +19,6 @@ export default function AdsManagerModal({ host, onClose }: AdsManagerModalProps)
   const [injectorEnabled, setInjectorEnabled] = useState(true);
   const dragIndex = useRef<number | null>(null);
 
-  const maxImages = 10;
-  const maxVideos = 2;
-
   /* -------------------------- LOAD SETTINGS + ADS -------------------------- */
   useEffect(() => {
     loadHostSettings();
@@ -34,7 +32,6 @@ export default function AdsManagerModal({ host, onClose }: AdsManagerModalProps)
       .select('injector_enabled, trigger_interval')
       .eq('id', host.id)
       .single();
-
     if (error) console.error('Error loading host settings:', error);
     if (data) {
       setInjectorEnabled(data.injector_enabled ?? true);
@@ -48,7 +45,6 @@ export default function AdsManagerModal({ host, onClose }: AdsManagerModalProps)
       .from('hosts')
       .update({ injector_enabled: enabled, trigger_interval: interval })
       .eq('id', host.id);
-
     if (error) console.error('Error saving host settings:', error);
   }
 
@@ -60,7 +56,6 @@ export default function AdsManagerModal({ host, onClose }: AdsManagerModalProps)
       .select('*')
       .eq('host_profile_id', host.id)
       .order('order_index', { ascending: true });
-
     if (error) console.error('Error loading ads:', error);
     setAds(data || []);
     setLoading(false);
@@ -70,11 +65,8 @@ export default function AdsManagerModal({ host, onClose }: AdsManagerModalProps)
   const uploadFiles = async (files: FileList | null) => {
     if (!files) return;
     setUploading(true);
-
     for (const file of Array.from(files)) {
       const type = file.type.startsWith('video/') ? 'video' : 'image';
-
-      // ⏱️ Limit video duration
       if (type === 'video') {
         const video = document.createElement('video');
         video.src = URL.createObjectURL(file);
@@ -84,22 +76,14 @@ export default function AdsManagerModal({ host, onClose }: AdsManagerModalProps)
           continue;
         }
       }
-
       const bucket = type === 'image' ? 'ads-images' : 'ads-videos';
       const filePath = `${host.id}/${Date.now()}-${file.name}`;
-
-      const { error: uploadError } = await supabase.storage
-        .from(bucket)
-        .upload(filePath, file);
-
+      const { error: uploadError } = await supabase.storage.from(bucket).upload(filePath, file);
       if (uploadError) {
         console.error(uploadError);
         continue;
       }
-
-      const publicUrl =
-        supabase.storage.from(bucket).getPublicUrl(filePath).data.publicUrl;
-
+      const publicUrl = supabase.storage.from(bucket).getPublicUrl(filePath).data.publicUrl;
       await supabase.from('ads').insert({
         host_profile_id: host.id,
         type,
@@ -110,7 +94,6 @@ export default function AdsManagerModal({ host, onClose }: AdsManagerModalProps)
         active: true,
       });
     }
-
     await loadAds();
     setUploading(false);
   };
@@ -118,9 +101,7 @@ export default function AdsManagerModal({ host, onClose }: AdsManagerModalProps)
   /* ------------------------------- RENDER UI ------------------------------- */
   return (
     <div
-      className={cn(
-        'fixed inset-0 z-[9999] bg-black/80 flex items-center justify-center'
-      )}
+      className={cn('fixed', 'inset-0', 'z-[9999]', 'bg-black/70', 'backdrop-blur-md', 'flex', 'items-center', 'justify-center')}
       onClick={onClose}
       onDragOver={(e) => e.preventDefault()}
       onDrop={(e) => {
@@ -131,74 +112,66 @@ export default function AdsManagerModal({ host, onClose }: AdsManagerModalProps)
       <div
         onClick={(e) => e.stopPropagation()}
         className={cn(
-          'bg-black text-white w-full max-w-[900px] max-h-[90vh]',
-          'p-4 flex flex-col gap-3 relative rounded-xl border border-white/20 shadow-2xl overflow-hidden'
+          'relative w-full max-w-[960px] max-h-[90vh] rounded-2xl border border-blue-500/20 bg-gradient-to-br from-[#0b0f1a]/90 to-[#111827]/90 text-white shadow-[0_0_30px_rgba(0,180,255,0.25)] p-6 flex flex-col overflow-hidden'
         )}
       >
-        {/* Close */}
+        {/* ❌ Close Button */}
         <button
           onClick={onClose}
-          className={cn(
-            'absolute top-3 right-3 bg-red-600 hover:bg-red-700 text-white text-sm px-3 py-1 rounded'
-          )}
+          className={cn('absolute', 'top-3', 'right-3', 'text-white/80', 'hover:text-white', 'transition')}
         >
           ✕
         </button>
 
-        {/* Header */}
-        <div className={cn('text-center mt-2 mb-2')}>
-          <h1 className={cn('text-xl', 'font-bold')}>Ad Injector Manager</h1>
-          <p className={cn('text-red-400', 'text-xs', 'mt-1')}>
-            Images 1920×1080 • MP4 ≤ 15s (min 8s)
+        {/* 🔹 Header */}
+        <div className={cn('text-center', 'mb-4', 'border-b', 'border-white/10', 'pb-3')}>
+          <h1 className={cn('text-2xl', 'font-bold', 'bg-gradient-to-r', 'from-blue-400', 'to-cyan-400', 'bg-clip-text', 'text-transparent')}>
+            Ad Injector Manager
+          </h1>
+          <p className={cn('text-xs', 'text-blue-300/70', 'mt-1')}>
+            Images: 1920×1080 • MP4: 8–15s • Max 10 images / 2 videos
           </p>
         </div>
 
-        {/* Toggle + Rotation */}
-        <div className={cn('flex', 'items-center', 'justify-center', 'gap-6', 'mb-2')}>
-          {/* Toggle */}
-          <div className={cn('flex', 'items-center', 'gap-2')}>
-            <span className={cn('text-sm', 'opacity-70')}>Injector:</span>
-            <label className={cn('relative', 'inline-flex', 'items-center', 'cursor-pointer')}>
-              <input
-                type="checkbox"
-                className={cn('sr-only', 'peer')}
-                checked={injectorEnabled}
-                onChange={async (e) => {
-                  const enabled = e.target.checked;
-                  setInjectorEnabled(enabled);
-                  await saveHostSettings(enabled, triggerInterval);
-
-                  // ✅ Broadcast toggle change to all connected walls
-                  try {
-                    await supabase.channel('fan_wall_broadcast').send({
-                      type: 'broadcast',
-                      event: 'injector_toggled',
-                      payload: { host_id: host.id, enabled },
-                    });
-                  } catch (err) {
-                    console.error('Broadcast failed:', err);
-                  }
-                }}
-              />
-              <div
-                className={cn(
-                  'w-12 h-6 rounded-full bg-gray-600 peer-checked:bg-green-500 transition-all'
-                )}
-              ></div>
+        {/* ⚙️ Control Bar */}
+        <div className={cn('flex', 'items-center', 'justify-between', 'bg-white/5', 'rounded-lg', 'px-4', 'py-3', 'mb-4', 'border', 'border-white/10', 'shadow-inner')}>
+          <div className={cn('flex', 'items-center', 'gap-3')}>
+            <span className={cn('text-sm', 'text-white/80', 'font-medium')}>Ad Injector:</span>
+            <div
+              onClick={async () => {
+                const enabled = !injectorEnabled;
+                setInjectorEnabled(enabled);
+                await saveHostSettings(enabled, triggerInterval);
+                try {
+                  await supabase.channel('fan_wall_broadcast').send({
+                    type: 'broadcast',
+                    event: 'injector_toggled',
+                    payload: { host_id: host.id, enabled },
+                  });
+                } catch (err) {
+                  console.error('Broadcast failed:', err);
+                }
+              }}
+              className={cn(
+                'relative w-14 h-7 rounded-full cursor-pointer transition-all',
+                injectorEnabled ? 'bg-gradient-to-r from-green-400 to-emerald-500 shadow-[0_0_12px_rgba(0,255,128,0.5)]' : 'bg-gray-600'
+              )}
+            >
               <span
                 className={cn(
-                  'absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-all',
-                  injectorEnabled ? 'translate-x-6' : 'translate-x-0'
+                  'absolute top-1 left-1 w-5 h-5 rounded-full bg-white shadow transition-all',
+                  injectorEnabled ? 'translate-x-7' : ''
                 )}
               />
-            </label>
+            </div>
           </div>
 
-          {/* Rotation Count */}
           <div className={cn('flex', 'items-center', 'gap-2')}>
-            <span className={cn('text-sm', 'opacity-70')}>Post Rotation Count:</span>
+            <span className={cn('text-sm', 'text-white/80', 'font-medium', 'flex', 'items-center', 'gap-1')}>
+              Post Rotation <Info size={14} className="text-blue-400/70" />
+            </span>
             <select
-              className={cn('bg-gray-800', 'text-xs', 'rounded', 'px-2', 'py-1', 'border', 'border-gray-600')}
+              className={cn('bg-black/60', 'border', 'border-blue-500/30', 'text-white', 'text-xs', 'rounded', 'px-2', 'py-1')}
               value={triggerInterval}
               onChange={(e) => {
                 const newVal = Number(e.target.value);
@@ -213,39 +186,30 @@ export default function AdsManagerModal({ host, onClose }: AdsManagerModalProps)
           </div>
         </div>
 
-        <p className={cn('text-xs', 'text-center', 'opacity-60', 'mb-1')}>
-          Show an ad overlay after this many guest post rotations.
-        </p>
-
-        {/* Upload */}
+        {/* 🧭 Upload Dropzone */}
         <label
           className={cn(
-            'border border-dashed border-gray-500 rounded-lg bg-white/5 hover:bg-white/10',
-            'cursor-pointer flex flex-col items-center justify-center p-4 text-sm'
+            'border border-dashed border-blue-500/40 rounded-lg bg-gradient-to-br from-blue-500/5 to-cyan-400/5 hover:from-blue-500/10 hover:to-cyan-400/10',
+            'cursor-pointer flex flex-col items-center justify-center p-6 mb-3 transition-all duration-300'
           )}
         >
-          Drag & Drop files here
-          <span className={cn('text-xs', 'opacity-40')}>(or click to upload)</span>
-          <input
-            type="file"
-            multiple
-            hidden
-            onChange={(e) => uploadFiles(e.target.files)}
-          />
+          <p className={cn('text-sm', 'font-medium', 'text-blue-100/80')}>Drag & Drop files here</p>
+          <span className={cn('text-xs', 'text-blue-300/60')}>(or click to upload)</span>
+          <input type="file" multiple hidden onChange={(e) => uploadFiles(e.target.files)} />
         </label>
 
-        {/* Grid */}
-        <div className={cn('flex-1', 'border', 'border-gray-600', 'bg-white/5', 'p-3', 'rounded-lg', 'overflow-auto')}>
+        {/* 🧩 Grid */}
+        <div className={cn('flex-1', 'border', 'border-white/10', 'bg-white/5', 'p-3', 'rounded-lg', 'overflow-auto')}>
           {loading ? (
-            <p className={cn('text-center', 'opacity-60', 'mt-8')}>Loading...</p>
+            <p className={cn('text-center', 'opacity-60', 'mt-8')}>Loading ads...</p>
           ) : ads.length === 0 ? (
             <p className={cn('text-center', 'opacity-60', 'mt-8')}>No ads yet</p>
           ) : (
             <div className={cn('grid', 'grid-cols-4', 'gap-3')}>
-              {ads.map((ad, i) => (
+              {ads.map((ad) => (
                 <div
                   key={ad.id}
-                  className={cn('relative', 'rounded-lg', 'bg-white/10', 'p-1', 'group')}
+                  className={cn('relative', 'group', 'rounded-lg', 'bg-white/10', 'overflow-hidden', 'border', 'border-white/10', 'hover:scale-[1.03]', 'hover:shadow-[0_0_20px_rgba(0,150,255,0.3)]', 'transition-all')}
                 >
                   {ad.type === 'image' ? (
                     <Image
@@ -253,26 +217,29 @@ export default function AdsManagerModal({ host, onClose }: AdsManagerModalProps)
                       alt="ad"
                       width={300}
                       height={200}
-                      className={cn('h-32', 'w-full', 'object-cover', 'rounded')}
+                      className={cn('h-32', 'w-full', 'object-cover')}
                     />
                   ) : (
-                    <video
-                      src={ad.url}
-                      muted
-                      className={cn('h-32', 'w-full', 'object-cover', 'rounded')}
-                    />
+                    <video src={ad.url} muted className={cn('h-32', 'w-full', 'object-cover')} />
                   )}
+
+                  {/* Badges */}
+                  <span className={cn('absolute', 'top-1', 'left-1', 'bg-blue-500/80', 'text-white', 'text-[10px]', 'px-2', 'py-[1px]', 'rounded-full', 'shadow')}>
+                    {ad.type === 'image' ? 'Image' : 'Video'}
+                  </span>
+                  <span className={cn('absolute', 'bottom-1', 'right-1', 'bg-black/60', 'text-blue-300', 'text-[10px]', 'px-2', 'py-[1px]', 'rounded-full')}>
+                    {ad.duration_seconds}s
+                  </span>
+
+                  {/* Delete */}
                   <button
                     onClick={async () => {
-                      const bucket =
-                        ad.type === 'image' ? 'ads-images' : 'ads-videos';
-                      await supabase.storage
-                        .from(bucket)
-                        .remove([ad.storage_path]);
+                      const bucket = ad.type === 'image' ? 'ads-images' : 'ads-videos';
+                      await supabase.storage.from(bucket).remove([ad.storage_path]);
                       await supabase.from('ads').delete().eq('id', ad.id);
                       loadAds();
                     }}
-                    className={cn('absolute', 'top-2', 'right-2', 'bg-red-600', 'text-xs', 'px-2', 'py-1', 'rounded', 'opacity-0', 'group-hover:opacity-100', 'transition')}
+                    className={cn('absolute', 'top-1', 'right-1', 'bg-red-600', 'hover:bg-red-700', 'text-[11px]', 'px-2', 'py-[1px]', 'rounded', 'opacity-0', 'group-hover:opacity-100', 'transition')}
                   >
                     ✕
                   </button>
@@ -281,11 +248,16 @@ export default function AdsManagerModal({ host, onClose }: AdsManagerModalProps)
             </div>
           )}
           {uploading && (
-            <div className={cn('fixed', 'bottom-2', 'left-2', 'bg-white/30', 'text-sm', 'p-2', 'rounded')}>
-              Uploading…
+            <div className={cn('absolute', 'bottom-4', 'left-4', 'bg-blue-500/20', 'text-blue-200', 'text-sm', 'px-3', 'py-1', 'rounded-lg', 'shadow', 'animate-pulse')}>
+              Uploading...
             </div>
           )}
         </div>
+
+        {/* 🧾 Footer */}
+        <p className={cn('text-center', 'text-xs', 'text-blue-300/50', 'mt-3')}>
+          💡 Tip: Videos auto-limit to 15s. Reorder coming soon.
+        </p>
       </div>
     </div>
   );
