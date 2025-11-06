@@ -23,7 +23,7 @@ export default function AdOverlay({ showAd, ads, currentAdIndex, onAdEnd }: AdOv
   return (
     <div
       className={cn(
-        'fixed inset-0 z-[9998] flex items-center justify-center transition-opacity duration-500',
+        'fixed inset-0 z-[9998] flex items-center justify-center transition-opacity duration-2000',
         showAd ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
       )}
       style={{
