@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabaseClient';
 import { clearFanWallPosts, deleteFanWall } from '@/lib/actions/fan_walls';
 import { cn } from '../../../../lib/utils';
 import { useRealtimeChannel } from '@/providers/SupabaseRealtimeProvider';
+import ModerationModal from '@/components/ModerationModal';   // ✅ NEW IMPORT
 
 interface FanWallGridProps {
   walls: any[] | undefined;
@@ -23,6 +24,10 @@ export default function FanWallGrid({
   const [pendingCounts, setPendingCounts] = useState<Record<string, number>>({});
   const [localWalls, setLocalWalls] = useState<any[]>(walls || []);
   const refreshTimeout = useRef<NodeJS.Timeout | null>(null);
+
+  // ✅ State for the Modal
+  const [showModeration, setShowModeration] = useState(false);
+  const [selectedWallId, setSelectedWallId] = useState<string | null>(null);
 
   useEffect(() => {
     setLocalWalls(walls || []);
@@ -126,31 +131,10 @@ export default function FanWallGrid({
     delayedRefresh();
   }
 
-  /* ✅ MODERATION POPUP — NEW AND POLISHED */
-  function openModerationPopup(wallId: string) {
-    const w = 1280, h = 720;
-    const left = window.screenX + (window.outerWidth - w) / 2;
-    const top = window.screenY + (window.outerHeight - h) / 2;
-
-    const url = `${window.location.origin}/admin/moderation/${wallId}`;
-
-    const popup = window.open(
-      url,
-      `moderation_${wallId}`,
-      `width=${w},height=${h},left=${left},top=${top},resizable=yes,scrollbars=yes`
-    );
-
-    if (!popup) return alert("Enable pop-ups to moderate posts.");
-
-    popup.focus();
-
-    const checkInterval = setInterval(() => {
-      if (popup.closed) {
-        clearInterval(checkInterval);
-        window.focus(); // ✅ bring dashboard back into focus
-        delayedRefresh();
-      }
-    }, 800);
+  // ✅ REMOVE POPUP CODE — REPLACED WITH MODAL HANDLER
+  function openModerationModal(wallId: string) {
+    setSelectedWallId(wallId);
+    setShowModeration(true);
   }
 
   function delayedRefresh() {
@@ -214,10 +198,10 @@ export default function FanWallGrid({
             }}
           >
             <div>
-              <h3 className={cn('font-bold', 'text-lg', 'text-center', 'mb-1')}>
+              <h3 className={cn('font-bold text-lg text-center mb-1')}>
                 {wall.host_title || wall.title || 'Untitled Wall'}
               </h3>
-              <p className={cn('text-sm', 'mb-2')}>
+              <p className={cn('text-sm mb-2')}>
                 <strong>Status:</strong>{' '}
                 <span
                   className={
@@ -236,10 +220,10 @@ export default function FanWallGrid({
                 </span>
               </p>
 
-              {/* ✅ PENDING BUTTON — updated to open popup */}
-              <div className={cn('flex', 'justify-center', 'mb-3')}>
+              {/* ✅ UPDATED — now opens modal */}
+              <div className={cn('flex justify-center mb-3')}>
                 <button
-                  onClick={() => openModerationPopup(wall.id)}
+                  onClick={() => openModerationModal(wall.id)}
                   className={`px-3 py-1 rounded-md text-sm font-semibold flex items-center gap-1 shadow-md transition ${
                     (pendingCounts[wall.id] || 0) > 0
                       ? 'bg-yellow-500 hover:bg-yellow-600 text-black'
@@ -283,6 +267,14 @@ export default function FanWallGrid({
           </div>
         ))}
       </div>
+
+      {/* ✅ Render Moderation Modal */}
+      {showModeration && selectedWallId && (
+        <ModerationModal
+          wallId={selectedWallId}
+          onClose={() => setShowModeration(false)}
+        />
+      )}
     </div>
   );
 }
