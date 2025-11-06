@@ -1,5 +1,4 @@
 'use client';
-
 import { QRCodeCanvas } from 'qrcode.react';
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -7,7 +6,7 @@ import { supabase } from '@/lib/supabaseClient';
 import AdOverlay from '@/app/wall/components/AdOverlay';
 import { useAdInjector } from '@/hooks/useAdInjector';
 
-/* ✅ Transition styles — adjusted for crossfade (no black flash) */
+/* ✅ Transition styles */
 const transitions: Record<string, any> = {
   'Fade In / Fade Out': {
     initial: { opacity: 0 },
@@ -70,6 +69,8 @@ const transitions: Record<string, any> = {
     transition: { duration: 0.7, ease: 'easeOut' },
   },
 };
+
+/* ✅ Speed map — affects interval only */
 const speedMap: Record<string, number> = {
   Slow: 12000,
   Medium: 8000,
@@ -85,7 +86,7 @@ export default function SingleHighlightWall({ event, posts }) {
     event?.background_type === 'image'
       ? `url(${event.background_value}) center/cover no-repeat`
       : event?.background_value ||
-        'linear-gradient(to bottom right,#1b2735,#090a0f)'
+        'linear-gradient(135deg, #1b2735 0%, #1b2735 50%, #090a0f 100%)'
   );
   const [transitionType, setTransitionType] = useState(
     event?.post_transition || 'Fade In / Fade Out'
@@ -123,26 +124,26 @@ export default function SingleHighlightWall({ event, posts }) {
   }, [event?.id]);
 
   /* ✅ Rotation logic + tick injector */
-useEffect(() => {
-  if (!livePosts.length) return;
+  useEffect(() => {
+    if (!livePosts.length) return;
 
-  let mounted = true;
-  const interval = setInterval(() => {
-    if (!mounted) return;
-    setCurrentIndex((i) => {
-      const next = (i + 1) % livePosts.length;
-      handlePostRotationTick();
-      return next;
-    });
-  }, displayDuration);
+    let mounted = true;
+    const interval = setInterval(() => {
+      if (!mounted) return;
+      setCurrentIndex((i) => {
+        const next = (i + 1) % livePosts.length;
+        handlePostRotationTick();
+        return next;
+      });
+    }, displayDuration);
 
-  return () => {
-    mounted = false;
-    clearInterval(interval);
-  };
-}, [livePosts, displayDuration, handlePostRotationTick]);
+    return () => {
+      mounted = false;
+      clearInterval(interval);
+    };
+  }, [livePosts, displayDuration, handlePostRotationTick]);
 
-  /* ✅ 🔥 Realtime background + title updates */
+  /* ✅ 🔥 Realtime updates for wall properties */
   useEffect(() => {
     if (!event?.id) return;
 
@@ -150,17 +151,12 @@ useEffect(() => {
       .channel(`wall_settings_${event.id}`)
       .on(
         'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'fan_walls',
-          filter: `id=eq.${event.id}`,
-        },
+        { event: 'UPDATE', schema: 'public', table: 'fan_walls', filter: `id=eq.${event.id}` },
         (payload) => {
           const w = payload.new;
           if (!w) return;
 
-          // 🟢 background updates instantly
+          // background
           if (w.background_value) {
             setBg(
               w.background_type === 'image'
@@ -169,57 +165,31 @@ useEffect(() => {
             );
           }
 
-          /* ✅ 🔥 NEW — Realtime background + title updates */
-useEffect(() => {
-  if (!event?.id) return;
+          // title / logo / transition type / speed
+          if (w.title) setTitle(w.title);
+          if (w.logo_url) setLogo(w.logo_url);
+          if (w.post_transition && w.post_transition !== transitionType)
+            setTransitionType(w.post_transition);
 
-  const wallChannel = supabase
-    .channel(`wall_settings_${event.id}`)
-    .on(
-      'postgres_changes',
-      { event: 'UPDATE', schema: 'public', table: 'fan_walls', filter: `id=eq.${event.id}` },
-      (payload) => {
-        const w = payload.new;
-        if (!w) return;
-
-        // 🟢 background updates instantly
-        if (w.background_value) {
-          setBg(
-            w.background_type === 'image'
-              ? `url(${w.background_value}) center/cover no-repeat`
-              : w.background_value
-          );
-        }
-
-        // 🟢 also update title, logo, transition, and speed live
-        if (w.title) setTitle(w.title);
-        if (w.logo_url) setLogo(w.logo_url);
-
-        if (w.post_transition && w.post_transition !== transitionType) {
-          setTransitionType(w.post_transition);
-        }
-
-        // 🔹 live update for transition speed (Slow / Medium / Fast)
-        if (w.transition_speed) {
-          const newDuration = speedMap[w.transition_speed] || speedMap['Medium'];
-          if (newDuration !== displayDuration) {
-            setDisplayDuration(newDuration);
+          if (w.transition_speed) {
+            const newDuration = speedMap[w.transition_speed] || speedMap['Medium'];
+            if (newDuration !== displayDuration) setDisplayDuration(newDuration);
           }
         }
-      }
-    )
-    .subscribe();
+      )
+      .subscribe();
 
-  return () => {
-    supabase.removeChannel(wallChannel);
-  };
-}, [event?.id, transitionType, displayDuration]);
-  /* 🔥 END realtime update */
+    return () => {
+      supabase.removeChannel(wallChannel);
+    };
+  }, [event?.id, transitionType, displayDuration]);
 
+  /* ✅ Active transition style */
   const transitionStyle =
     transitions[transitionType] || transitions['Fade In / Fade Out'];
   const current = livePosts[currentIndex % (livePosts.length || 1)];
 
+  /* ✅ Render */
   return (
     <div
       style={{
@@ -249,7 +219,7 @@ useEffect(() => {
         {title}
       </h1>
 
-      {/* Main Container */}
+      {/* Main container */}
       <div
         style={{
           width: '90vw',
@@ -291,7 +261,6 @@ useEffect(() => {
                   height: '100%',
                   objectFit: 'cover',
                   borderRadius: 18,
-                  backgroundColor: 'transparent',
                 }}
               />
             ) : (
@@ -304,7 +273,6 @@ useEffect(() => {
                 style={{
                   color: 'rgba(255,255,255,0.5)',
                   fontSize: '2rem',
-                  background: 'transparent',
                 }}
               >
                 No Photo
@@ -327,12 +295,7 @@ useEffect(() => {
           }}
         >
           {/* Logo */}
-          <div
-            style={{
-              width: 'clamp(280px, 30vw, 420px)',
-              marginBottom: '1.5vh',
-            }}
-          >
+          <div style={{ width: 'clamp(280px,30vw,420px)', marginBottom: '1.5vh' }}>
             <img
               src={logo}
               alt="Logo"
@@ -362,7 +325,7 @@ useEffect(() => {
             style={{
               fontWeight: 900,
               margin: 0,
-              fontSize: 'clamp(2.5rem, 3vw, 4rem)',
+              fontSize: 'clamp(2.5rem,3vw,4rem)',
               textAlign: 'center',
               color: '#fff',
               textTransform: 'uppercase',
@@ -377,7 +340,7 @@ useEffect(() => {
             style={{
               fontWeight: 600,
               margin: 0,
-              fontSize: 'clamp(1.4rem, 2vw, 2.6rem)',
+              fontSize: 'clamp(1.4rem,2vw,2.6rem)',
               textAlign: 'center',
               color: '#fff',
               textShadow: '0 0 8px rgba(0,0,0,0.6)',
@@ -393,8 +356,8 @@ useEffect(() => {
       <div
         style={{
           position: 'absolute',
-          bottom: '5px',
-          left: '5px',
+          bottom: 5,
+          left: 5,
           zIndex: 50,
           display: 'flex',
           flexDirection: 'column',
@@ -406,8 +369,8 @@ useEffect(() => {
             color: '#fff',
             textAlign: 'center',
             fontWeight: 700,
-            fontSize: 'clamp(0.9rem, 1.4vw, 1.4rem)',
-            marginBottom: '6px',
+            fontSize: 'clamp(0.9rem,1.4vw,1.4rem)',
+            marginBottom: 6,
             textShadow:
               '0 0 12px rgba(255,255,255,0.8), 0 0 20px rgba(100,180,255,0.6)',
           }}
@@ -435,7 +398,7 @@ useEffect(() => {
         </div>
       </div>
 
-      {/* ✅ Ad Overlay */}
+      {/* Ad Overlay */}
       <AdOverlay
         showAd={showAd && injectorEnabled}
         ads={ads}
@@ -443,7 +406,7 @@ useEffect(() => {
         onAdEnd={() => setShowAd(false)}
       />
 
-      {/* 🔳 Fullscreen Toggle */}
+      {/* Fullscreen Toggle */}
       <div
         style={{
           position: 'fixed',
