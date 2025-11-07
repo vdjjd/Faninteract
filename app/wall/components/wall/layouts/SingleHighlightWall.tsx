@@ -84,7 +84,30 @@ export default function SingleHighlightWall({ event, posts }) {
     load();
   }, [event?.id]);
 
-  /* ✅ Rotation logic */
+  /* ✅ POLLING LOOP (replaces realtime) */
+  useEffect(() => {
+    if (!event?.id) return;
+
+    const interval = setInterval(async () => {
+      const { data } = await supabase
+        .from('guest_posts')
+        .select('*')
+        .eq('fan_wall_id', event.id)
+        .eq('status', 'approved')
+        .order('created_at', { ascending: false });
+
+      if (data) {
+        setLivePosts((prev) => {
+          if (JSON.stringify(prev) === JSON.stringify(data)) return prev;
+          return data;
+        });
+      }
+    }, 3000);
+
+    return () => clearInterval(interval);
+  }, [event?.id]);
+
+  /* ✅ Rotation logic (unchanged) */
   useEffect(() => {
     if (!livePosts.length) return;
 
@@ -99,78 +122,7 @@ export default function SingleHighlightWall({ event, posts }) {
     return () => clearInterval(id);
   }, [livePosts, displayDuration]);
 
-  /* ✅ REALTIME PATCH (same as Grid 4×2 + 2×2) */
-  useEffect(() => {
-    if (!event?.id || !rt?.current) return;
-
-    const channel = rt.current;
-
-    const upsert = (row: any) => {
-      if (!row || row.fan_wall_id !== event.id || row.status !== 'approved')
-        return;
-
-      setLivePosts((prev) => {
-        const exists = prev.find((p) => p.id === row.id);
-        if (exists) {
-          return prev.map((p) => (p.id === row.id ? row : p));
-        }
-        return [row, ...prev];
-      });
-    };
-
-    const remove = (row: any) => {
-      if (!row) return;
-      setLivePosts((prev) => prev.filter((p) => p.id !== row.id));
-    };
-
-    /* INSERT */
-    channel.on(
-      'postgres_changes',
-      {
-        event: 'INSERT',
-        schema: 'public',
-        table: 'guest_posts',
-        filter: `fan_wall_id=eq.${event.id}`,
-      },
-      (payload) => {
-        if (payload.new?.status === 'approved') upsert(payload.new);
-      }
-    );
-
-    /* UPDATE */
-    channel.on(
-      'postgres_changes',
-      {
-        event: 'UPDATE',
-        schema: 'public',
-        table: 'guest_posts',
-        filter: `fan_wall_id=eq.${event.id}`,
-      },
-      (payload) => {
-        const row = payload.new;
-        const old = payload.old;
-
-        if (row?.status === 'approved') upsert(row);
-        if (old?.status === 'approved' && row?.status !== 'approved') {
-          remove(row);
-        }
-      }
-    );
-
-    /* DELETE */
-    channel.on(
-      'postgres_changes',
-      {
-        event: 'DELETE',
-        schema: 'public',
-        table: 'guest_posts',
-        filter: `fan_wall_id=eq.${event.id}`,
-      },
-      (payload) => remove(payload.old)
-    );
-  }, [rt, event?.id]);
-
-  /* ✅ Realtime wall settings */
+  /* ✅ Keep realtime ONLY for fan_walls settings */
   useEffect(() => {
     if (!event?.id) return;
 
@@ -195,16 +147,13 @@ export default function SingleHighlightWall({ event, posts }) {
                 : w.background_value
             );
           }
-
           if (w.title) setTitle(w.title);
           if (w.logo_url) setLogo(w.logo_url);
           if (w.post_transition) setTransitionType(w.post_transition);
 
           if (w.transition_speed) {
             const newDur = speedMap[w.transition_speed];
-            if (newDur !== displayDuration) {
-              setDisplayDuration(newDur);
-            }
+            if (newDur !== displayDuration) setDisplayDuration(newDur);
           }
         }
       )
@@ -245,7 +194,7 @@ export default function SingleHighlightWall({ event, posts }) {
         {title}
       </h1>
 
-      {/* Big container */}
+      {/* Main container */}
       <div
         style={{
           width: '90vw',

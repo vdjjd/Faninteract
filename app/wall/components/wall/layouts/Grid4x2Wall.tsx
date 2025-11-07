@@ -80,7 +80,7 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
   }, []);
 
   /* -------------------------------------------------- */
-  /* REALTIME WALL SETTINGS                              */
+  /* ✅ REALTIME WALL SETTINGS ONLY                      */
   /* -------------------------------------------------- */
   useEffect(() => {
     if (!event?.id) return;
@@ -123,82 +123,36 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
 
 
   /* -------------------------------------------------- */
-  /* ✅ REALTIME POSTS (patched identical to SingleHighlight) */
+  /* ✅ REMOVE REALTIME POST LISTENERS – USE POLLING     */
   /* -------------------------------------------------- */
   useEffect(() => {
-    if (!event?.id || !rt?.current) return;
+    if (!event?.id) return;
 
-    const channel = rt.current;
+    const interval = setInterval(async () => {
+      const { data } = await supabase
+        .from('guest_posts')
+        .select('*')
+        .eq('fan_wall_id', event.id)
+        .eq('status', 'approved')
+        .order('created_at', { ascending: false });
 
-    const upsertPost = (row: any) => {
-      if (!row || row.fan_wall_id !== event.id) return;
-      if (row.status !== 'approved') return;
+      if (!data) return;
 
+      // fill the grid keeping the rotation intact
       setGridPosts((prev) => {
-        // Already exists -> update
-        if (prev.some((p) => p?.id === row.id)) {
-          return prev.map((p) => (p?.id === row.id ? row : p));
-        }
+        // if unchanged -> skip
+        if (JSON.stringify(prev) === JSON.stringify(prev)) return prev;
 
-        // Insert new into rotating slot
-        const next = [...prev];
-        next[postPointer.current % 8] = row;
-        return next;
+        let updated = [...prev];
+        for (let i = 0; i < 8; i++) {
+          updated[i] = data[i] || null;
+        }
+        return updated;
       });
-    };
+    }, 3000);
 
-    const removePost = (row: any) => {
-      if (!row) return;
-      setGridPosts((prev) => prev.map((p) => (p?.id === row.id ? null : p)));
-    };
-
-    /* INSERT */
-    channel.on(
-      'postgres_changes',
-      {
-        event: 'INSERT',
-        schema: 'public',
-        table: 'guest_posts',
-        filter: `fan_wall_id=eq.${event.id}`,
-      },
-      (payload) => {
-        if (payload.new?.status === 'approved') upsertPost(payload.new);
-      }
-    );
-
-    /* UPDATE */
-    channel.on(
-      'postgres_changes',
-      {
-        event: 'UPDATE',
-        schema: 'public',
-        table: 'guest_posts',
-        filter: `fan_wall_id=eq.${event.id}`,
-      },
-      (payload) => {
-        const row = payload.new;
-        const old = payload.old;
-
-        if (row?.status === 'approved') upsertPost(row);
-        if (old?.status === 'approved' && row?.status !== 'approved') {
-          removePost(row);
-        }
-      }
-    );
-
-    /* DELETE */
-    channel.on(
-      'postgres_changes',
-      {
-        event: 'DELETE',
-        schema: 'public',
-        table: 'guest_posts',
-        filter: `fan_wall_id=eq.${event.id}`,
-      },
-      (payload) => removePost(payload.old)
-    );
-
-  }, [event?.id, rt]);
+    return () => clearInterval(interval);
+  }, [event?.id]);
 
 
   /* -------------------------------------------------- */
@@ -207,17 +161,16 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
   useEffect(() => {
     if (!posts?.length) return;
 
-    setGridPosts(Array.from(
-      { length: 8 },
-      (_, i) => posts[i % posts.length] || null
-    ));
+    setGridPosts(
+      Array.from({ length: 8 }, (_, i) => posts[i % posts.length] || null)
+    );
 
     postPointer.current = 8 % posts.length;
   }, [posts]);
 
 
   /* -------------------------------------------------- */
-  /* GRID ROTATION | unchanged from your version         */
+  /* GRID ROTATION – KEEP EXACT LOGIC                    */
   /* -------------------------------------------------- */
   useEffect(() => {
     if (!posts?.length) return;
@@ -537,5 +490,6 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
     </div>
   );
 }
+
 
 

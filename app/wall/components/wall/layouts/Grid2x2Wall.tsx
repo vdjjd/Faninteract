@@ -1,4 +1,3 @@
-// ✅ GRID 2×2 WALL — FULL REALTIME PATCH
 'use client';
 
 import { useEffect, useState, useRef } from 'react';
@@ -15,6 +14,7 @@ interface Grid2x2WallProps {
   posts: any[];
 }
 
+/* ---------- SPEED MAP ---------- */
 const speedMap: Record<string, number> = {
   Slow: 12000,
   Medium: 8000,
@@ -24,9 +24,7 @@ const speedMap: Record<string, number> = {
 export default function Grid2x2Wall({ event, posts }: Grid2x2WallProps) {
   const rt = useRealtimeChannel();
 
-  /* ------------------------------------------------------------------ */
-  /* STATE                                                              */
-  /* ------------------------------------------------------------------ */
+  /* ---------- STATE ---------- */
   const [livePosts, setLivePosts] = useState(posts || []);
   const [gridPosts, setGridPosts] = useState<(any | null)[]>(Array(4).fill(null));
   const [displayDuration, setDisplayDuration] = useState(
@@ -46,9 +44,7 @@ export default function Grid2x2Wall({ event, posts }: Grid2x2WallProps) {
   const cellPointer = useRef(0);
   const rotationTimer = useRef<NodeJS.Timeout | null>(null);
 
-  /* ------------------------------------------------------------------ */
-  /* AD-INJECTOR                                                        */
-  /* ------------------------------------------------------------------ */
+  /* ---------- AD INJECTOR ---------- */
   const {
     ads,
     showAd,
@@ -61,29 +57,40 @@ export default function Grid2x2Wall({ event, posts }: Grid2x2WallProps) {
     triggerInterval: event?.trigger_interval || 8,
   });
 
-  /* ------------------------------------------------------------------ */
-  /* FULLSCREEN FIX                                                     */
-  /* ------------------------------------------------------------------ */
-  const fullRef = useRef(false);
+  /* ---------- FULLSCREEN FIX ---------- */
+  const wasFS = useRef(false);
   useEffect(() => {
-    const handler = () => (fullRef.current = !!document.fullscreenElement);
+    const handler = () => {
+      wasFS.current = !!document.fullscreenElement;
+    };
     document.addEventListener('fullscreenchange', handler);
     return () => document.removeEventListener('fullscreenchange', handler);
   }, []);
 
   const restoreFullscreen = () => {
-    if (fullRef.current && !document.fullscreenElement) {
+    if (wasFS.current && !document.fullscreenElement) {
       document.documentElement.requestFullscreen().catch(() => {});
     }
   };
 
-  /* ------------------------------------------------------------------ */
-  /* INITIAL LOAD                                                       */
-  /* ------------------------------------------------------------------ */
+  /* ---------- INITIAL POSTS ---------- */
+  useEffect(() => {
+    if (!posts?.length) return;
+
+    setLivePosts(posts);
+
+    const initial = posts.slice(0, 4);
+    setGridPosts(initial.concat(Array(4 - initial.length).fill(null)));
+
+    postPointer.current = 4 % posts.length;
+    cellPointer.current = 0;
+  }, [posts]);
+
+  /* ---------- SAFE BACKGROUND POLLING (no realtime) ---------- */
   useEffect(() => {
     if (!event?.id) return;
 
-    const load = async () => {
+    const poll = async () => {
       const { data } = await supabase
         .from('guest_posts')
         .select('*')
@@ -91,95 +98,22 @@ export default function Grid2x2Wall({ event, posts }: Grid2x2WallProps) {
         .eq('status', 'approved')
         .order('created_at', { ascending: false });
 
-      if (data) {
-        setLivePosts(data);
-
-        const initial = data.slice(0, 4);
-        setGridPosts(initial.concat(Array(4 - initial.length).fill(null)));
-
-        postPointer.current = 4 % data.length;
-        cellPointer.current = 0;
-      }
-    };
-
-    load();
-  }, [event?.id]);
-
-  /* ------------------------------------------------------------------ */
-  /* ✅ REALTIME LISTENER (MATCHES 4×2 WORKING VERSION)                 */
-  /* ------------------------------------------------------------------ */
-  useEffect(() => {
-    if (!rt?.current || !event?.id) return;
-    const channel = rt.current;
-
-    const upsert = (row: any) => {
-      if (!row || row.fan_wall_id !== event.id || row.status !== 'approved')
-        return;
+      if (!data) return;
 
       setLivePosts((prev) => {
-        if (prev.some((p) => p.id === row.id)) {
-          return prev.map((p) => (p.id === row.id ? row : p));
-        }
-        return [row, ...prev];
+        const changed =
+          prev.length !== data.length ||
+          prev.some((p, i) => p.id !== data[i]?.id);
+
+        return changed ? data : prev;
       });
     };
 
-    const remove = (row: any) => {
-      if (!row) return;
-      setLivePosts((prev) => prev.filter((p) => p.id !== row.id));
-    };
+    const id = setInterval(poll, 1000);
+    return () => clearInterval(id);
+  }, [event?.id]);
 
-    channel.on(
-      'postgres_changes',
-      {
-        event: 'INSERT',
-        schema: 'public',
-        table: 'guest_posts',
-        filter: `fan_wall_id=eq.${event.id}`,
-      },
-      (payload) => {
-        if (payload.new?.status === 'approved') upsert(payload.new);
-        restoreFullscreen();
-      }
-    );
-
-    channel.on(
-      'postgres_changes',
-      {
-        event: 'UPDATE',
-        schema: 'public',
-        table: 'guest_posts',
-        filter: `fan_wall_id=eq.${event.id}`,
-      },
-      (payload) => {
-        const row = payload.new;
-        const old = payload.old;
-        if (row?.status === 'approved') upsert(row);
-        if (old?.status === 'approved' && row?.status !== 'approved') {
-          remove(row);
-        }
-        restoreFullscreen();
-      }
-    );
-
-    channel.on(
-      'postgres_changes',
-      {
-        event: 'DELETE',
-        schema: 'public',
-        table: 'guest_posts',
-        filter: `fan_wall_id=eq.${event.id}`,
-      },
-      (payload) => {
-        remove(payload.old);
-        restoreFullscreen();
-      }
-    );
-  }, [rt, event?.id]);
-
-  /* ------------------------------------------------------------------ */
-  /* LIVE WALL SETTINGS                                                 */
-  /* ------------------------------------------------------------------ */
+  /* ---------- REALTIME SETTINGS ONLY ---------- */
   useEffect(() => {
     if (!event?.id) return;
 
@@ -219,9 +153,7 @@ export default function Grid2x2Wall({ event, posts }: Grid2x2WallProps) {
     return () => supabase.removeChannel(settingsChannel);
   }, [event?.id]);
 
-  /* ------------------------------------------------------------------ */
-  /* ROTATION ENGINE (unchanged)                                       */
-  /* ------------------------------------------------------------------ */
+  /* ---------- ROTATION ENGINE ---------- */
   useEffect(() => {
     if (!livePosts.length) return;
 
@@ -242,7 +174,6 @@ export default function Grid2x2Wall({ event, posts }: Grid2x2WallProps) {
       postPointer.current = (postPointer.current + 1) % livePosts.length;
       cellPointer.current = (cellPointer.current + 1) % 4;
 
-      /* Full rotation */
       if (cellPointer.current === 0) {
         handlePostRotationTick?.();
         handlePostRotationTick?.();
@@ -254,9 +185,7 @@ export default function Grid2x2Wall({ event, posts }: Grid2x2WallProps) {
     return () => clearInterval(rotationTimer.current as NodeJS.Timeout);
   }, [livePosts, displayDuration]);
 
-  /* ------------------------------------------------------------------ */
-  /* MOTION / POST CARD                                                 */
-  /* ------------------------------------------------------------------ */
+  /* ---------- TRANSITION VARIANTS ---------- */
   const fadeVariants = {
     enter: { opacity: 0, scale: 0.98 },
     center: {
@@ -271,6 +200,7 @@ export default function Grid2x2Wall({ event, posts }: Grid2x2WallProps) {
     },
   };
 
+  /* ---------- POST CARD ---------- */
   function PostCard({ post }: { post: any }) {
     if (!post)
       return (
@@ -291,7 +221,6 @@ export default function Grid2x2Wall({ event, posts }: Grid2x2WallProps) {
           background: 'rgba(255,255,255,0.06)',
           backdropFilter: 'blur(10px)',
           border: '1px solid rgba(255,255,255,0.15)',
-          boxShadow: '0 0 20px rgba(255,255,255,0.1),0 0 30px rgba(100,180,255,0.15)',
         }}
       >
         <div style={{ flex: 1, padding: 2 }}>
@@ -331,8 +260,6 @@ export default function Grid2x2Wall({ event, posts }: Grid2x2WallProps) {
             background: 'rgba(0,0,0,0.25)',
             backdropFilter: 'blur(12px)',
             borderLeft: '1px solid rgba(255,255,255,0.15)',
-            borderTopRightRadius: 12,
-            borderBottomRightRadius: 12,
           }}
         >
           <div
@@ -381,9 +308,7 @@ export default function Grid2x2Wall({ event, posts }: Grid2x2WallProps) {
     );
   }
 
-  /* ------------------------------------------------------------------ */
-  /* RENDER                                                             */
-  /* ------------------------------------------------------------------ */
+  /* ---------- RENDER ---------- */
   return (
     <div
       style={{
@@ -439,7 +364,6 @@ export default function Grid2x2Wall({ event, posts }: Grid2x2WallProps) {
           overflow: 'hidden',
           background: 'rgba(255,255,255,0.04)',
           border: '1px solid rgba(255,255,255,0.15)',
-          boxShadow: '10px 10px 30px rgba(0,0,0,0.4)',
           backdropFilter: 'blur(14px)',
         }}
       >
@@ -465,19 +389,11 @@ export default function Grid2x2Wall({ event, posts }: Grid2x2WallProps) {
           position: 'absolute',
           bottom: '4vh',
           left: '4vw',
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
+          textAlign: 'center',
         }}
       >
-        <p
-          style={{
-            color: '#fff',
-            fontWeight: 700,
-          }}
-        >
-          Scan Me To Join
-        </p>
+        <p style={{ color: '#fff', fontWeight: 700 }}>Scan Me To Join</p>
+
         <div
           style={{
             padding: 8,
@@ -507,16 +423,17 @@ export default function Grid2x2Wall({ event, posts }: Grid2x2WallProps) {
           width: 48,
           height: 48,
           borderRadius: 10,
+          background: 'rgba(255,255,255,0.08)',
+          border: '1px solid rgba(255,255,255,0.2)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
           cursor: 'pointer',
           opacity: 0.25,
-          background: 'rgba(255,255,255,0.08)',
-          border: '1px solid rgba(255,255,255,0.2)',
-          backdropFilter: 'blur(6px)',
           zIndex: 9999,
         }}
+        onMouseEnter={(e) => (e.currentTarget.style.opacity = '1')}
+        onMouseLeave={(e) => (e.currentTarget.style.opacity = '0.25')}
         onClick={() =>
           !document.fullscreenElement
             ? document.documentElement.requestFullscreen().catch(() => {})
@@ -525,10 +442,10 @@ export default function Grid2x2Wall({ event, posts }: Grid2x2WallProps) {
       >
         <svg
           xmlns="http://www.w3.org/2000/svg"
+          stroke="white"
           fill="none"
           viewBox="0 0 24 24"
           strokeWidth={1.5}
-          stroke="white"
           style={{ width: 26, height: 26 }}
         >
           <path strokeLinecap="round" strokeLinejoin="round" d="M3 9V4h5M21 9V4h-5M3 15v5h5M21 15v5h-5" />
@@ -545,5 +462,3 @@ export default function Grid2x2Wall({ event, posts }: Grid2x2WallProps) {
     </div>
   );
 }
-
-
