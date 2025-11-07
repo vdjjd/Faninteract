@@ -22,6 +22,9 @@ const transitions: Record<string, any> = {
   'Pop In / Pop Out': { initial: { opacity: 0, scale: 0.5 }, animate: { opacity: 1, scale: 1 }, exit: { opacity: 0, scale: 0.5 }, transition: { duration: 0.7, ease: 'easeOut' } },
 };
 
+/* ✅ Create a clean array of transition names */
+const transitionKeys = Object.keys(transitions);
+
 /* ✅ Speed map */
 const speedMap: Record<string, number> = {
   Slow: 12000,
@@ -45,12 +48,14 @@ export default function SingleHighlightWall({ event, posts }) {
         'linear-gradient(135deg, #1b2735 0%, #1b2735 50%, #090a0f 100%)'
   );
 
-  /* ✅ NEW brightness state */
   const [brightness, setBrightness] = useState(event?.background_brightness || 100);
 
   const [transitionType, setTransitionType] = useState(
     event?.post_transition || 'Fade In / Fade Out'
   );
+
+  /* ✅ STORE the random transition picked each cycle */
+  const [randomTransition, setRandomTransition] = useState<string | null>(null);
 
   const [displayDuration, setDisplayDuration] = useState(
     speedMap[event?.transition_speed || 'Medium']
@@ -142,7 +147,11 @@ export default function SingleHighlightWall({ event, posts }) {
 
           if (w.title) setTitle(w.title);
           if (w.logo_url) setLogo(w.logo_url);
-          if (w.post_transition) setTransitionType(w.post_transition);
+
+          if (w.post_transition) {
+            setTransitionType(w.post_transition);
+            setRandomTransition(null); // ✅ reset random on setting change
+          }
 
           if (w.transition_speed) {
             const newDur = speedMap[w.transition_speed];
@@ -155,8 +164,40 @@ export default function SingleHighlightWall({ event, posts }) {
     return () => supabase.removeChannel(wallChannel);
   }, [event?.id, displayDuration]);
 
-  const transitionStyle =
-    transitions[transitionType] || transitions['Fade In / Fade Out'];
+  /* ✅ ✅ ✅ ROTATION ENGINE — CHANGED ONLY TO SUPPORT RANDOM */
+  useEffect(() => {
+    if (!livePosts.length || showAd) return;
+
+    const rotation = setInterval(() => {
+      setCurrentIndex(prev => (prev + 1) % livePosts.length);
+
+      /* ✅ If Random mode, pick a new transition each rotation */
+      if (transitionType === "Random") {
+        const next = transitionKeys[Math.floor(Math.random() * transitionKeys.length)];
+        setRandomTransition(next);
+      }
+
+      if (injectorEnabled && handlePostRotationTick) {
+        handlePostRotationTick();
+      }
+    }, displayDuration);
+
+    return () => clearInterval(rotation);
+  }, [
+    livePosts.length,
+    displayDuration,
+    showAd,
+    transitionType,
+    injectorEnabled,
+    handlePostRotationTick,
+  ]);
+  /* ✅ END ROTATION ENGINE */
+
+  /* ✅ PICK transition for this render */
+  const effectiveTransition =
+    transitionType === "Random"
+      ? transitions[randomTransition || "Fade In / Fade Out"]
+      : transitions[transitionType] || transitions['Fade In / Fade Out'];
 
   const current = livePosts[currentIndex % (livePosts.length || 1)];
 
@@ -164,7 +205,7 @@ export default function SingleHighlightWall({ event, posts }) {
     <div
       style={{
         background: bg,
-        filter: `brightness(${brightness}%)`,    /* ✅ PATCHED */
+        filter: `brightness(${brightness}%)`,
         width: '100%',
         height: '100vh',
         display: 'flex',
@@ -219,7 +260,7 @@ export default function SingleHighlightWall({ event, posts }) {
               <motion.img
                 key={current.id}
                 src={current.photo_url}
-                {...transitionStyle}
+                {...effectiveTransition}
                 style={{
                   width: '100%',
                   height: '100%',

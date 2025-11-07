@@ -43,7 +43,7 @@ function buildGradient(start: string, end: string, pos: number, brightness: numb
 }
 
 /* -------------------------------------------------------- */
-/* ✅ CANONICAL LAYOUT NORMALIZER (handles all old/new labels) */
+/* ✅ CANONICAL LAYOUT NORMALIZER */
 /* -------------------------------------------------------- */
 function canonicalLayout(input?: string): 'Single Highlight Post' | '2x2 Grid' | '4x2 Grid' {
   const raw = (input || '').toLowerCase().replace(/\s+/g, ' ').trim();
@@ -53,11 +53,9 @@ function canonicalLayout(input?: string): 'Single Highlight Post' | '2x2 Grid' |
     raw.replace(/[^a-z0-9]/g, '') === 'singlehighlightpost'
   ) return 'Single Highlight Post';
 
-  // handle prior labels like "2 Column × 2 Row", "2 column x 2 row", etc.
   if (raw.includes('2x2') || /2.*(column|col).*(2.*(row|r))/.test(raw)) return '2x2 Grid';
   if (raw.includes('4x2') || /4.*(column|col).*(2.*(row|r))/.test(raw)) return '4x2 Grid';
 
-  // fallback to single to avoid accidental greying
   return 'Single Highlight Post';
 }
 
@@ -70,7 +68,7 @@ export default function OptionsModalFanWall({
   onClose,
   refreshFanWalls,
 }) {
-  const channelRef = useRealtimeChannel(); // ✅ realtime used ONLY on save
+  const channelRef = useRealtimeChannel(); 
 
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -101,7 +99,7 @@ export default function OptionsModalFanWall({
   });
 
   /* -------------------------------------------------------- */
-  /* ✅ SAVE — ONLY PLACE WE USE REALTIME */
+  /* ✅ SAVE */
   /* -------------------------------------------------------- */
   async function handleSave() {
     try {
@@ -157,7 +155,6 @@ export default function OptionsModalFanWall({
 
       if (error) throw error;
 
-      // ✅ ONLY REALTIME EVENT ON SAVE
       const channel = channelRef?.current;
       if (channel) {
         await channel.send({
@@ -348,6 +345,7 @@ export default function OptionsModalFanWall({
                   setLocalWall(prev => ({ ...prev, post_transition: e.target.value }))
                 }
               >
+                <option>Random</option>
                 <option>Fade In / Fade Out</option>
                 <option>Slide Up / Slide Out</option>
                 <option>Slide Down / Slide Out</option>
@@ -559,20 +557,40 @@ export default function OptionsModalFanWall({
               <p className={cn('text-xs', 'mt-1')}>{brightness}%</p>
             </div>
 
-            {/* UPLOAD */}
-            <div className={cn('w-full', 'flex', 'flex-col', 'items-center', 'mt-5')}>
+            {/* ✅✅✅ PATCHED UPLOAD SECTION ✅✅✅ */}
+            <div className={cn('w-full', 'flex', 'flex-col', 'items-center', 'mt-6')}>
               <p className={cn('text-sm', 'font-semibold', 'mb-2')}>Upload Background</p>
 
+              {/* ✅ Clean “Choose File” button */}
+              <label
+                htmlFor="fileUpload"
+                className={cn(
+                  "px-4 py-2 rounded-md",
+                  "bg-blue-600 hover:bg-blue-700",
+                  "text-white font-semibold",
+                  "cursor-pointer text-center"
+                )}
+              >
+                Choose File
+              </label>
+
+              {/* ✅ Hidden real file input */}
               <input
+                id="fileUpload"
                 type="file"
                 accept="image/png,image/jpeg,image/webp"
                 onChange={handleImageUpload}
-                className={cn('w-full', 'max-w-[360px]')}
+                className="hidden"
               />
 
-              {uploading && (
-                <p className={cn('text-yellow-400', 'text-xs', 'mt-2', 'animate-pulse')}>Uploading…</p>
-              )}
+              {/* ✅ Filename centered */}
+              <p className={cn('text-xs', 'text-gray-300', 'mt-2', 'text-center')}>
+                {uploading
+                  ? "Uploading..."
+                  : localWall.background_type === "image"
+                  ? localWall.background_value?.split('/').pop()
+                  : "No file chosen"}
+              </p>
 
               {localWall.background_type === "image" && (
                 <button
