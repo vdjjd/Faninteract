@@ -37,11 +37,12 @@ function CountdownDisplay({ countdown, countdownActive }) {
   return (
     <div
       style={{
-        fontSize: 'clamp(3rem,4vw,5rem)',
+        /* ✅ MATCHES PRIZE WHEEL EXACTLY */
+        fontSize: 'clamp(6rem,8vw,9rem)',
         fontWeight: 900,
         color: '#fff',
-        marginTop: '1vh',
-        textShadow: '0 0 30px rgba(0,0,0,0.8)',
+        marginTop: '2vh',
+        textShadow: '0 0 40px rgba(0,0,0,0.7)',
       }}
     >
       {m}:{s.toString().padStart(2, '0')}
@@ -177,7 +178,7 @@ export default function InactiveWall({ wall }) {
     <div
       style={{
         background: bg,
-        filter: `brightness(${brightness}%)`,   /* ✅ NEW brightness filter */
+        filter: `brightness(${brightness}%)`,
         width: '100%',
         height: '100vh',
         overflow: 'hidden',
@@ -297,7 +298,7 @@ export default function InactiveWall({ wall }) {
             className="pulseSoon"
             style={{
               color: '#bcd9ff',
-              fontSize: 'clamp(1.8rem,2.4vw,3rem)',
+              fontSize: 'clamp(3rem, 2vw, 2.6rem)',   /* ✅ MATCHES PRIZE WHEEL */
               marginTop: '1vh',
               textAlign: 'center',
               fontWeight: 700,
@@ -306,6 +307,7 @@ export default function InactiveWall({ wall }) {
             Starting Soon!!
           </p>
 
+          {/* ✅ Countdown now matches wheel */}
           <CountdownDisplay
             countdown={wallState.countdown}
             countdownActive={wallState.countdownActive}
