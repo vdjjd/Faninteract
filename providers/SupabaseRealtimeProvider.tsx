@@ -4,42 +4,44 @@ import { createContext, useContext, useEffect, useRef } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 
 const SupabaseRealtimeContext = createContext<any>(null);
+
+// ✅ global singleton channel
 let globalChannel: any = null;
 
-export function SupabaseRealtimeProvider({ children }: { children: React.ReactNode }) {
+export function SupabaseRealtimeProvider({ children }) {
   const channelRef = useRef<any>(null);
 
   useEffect(() => {
-    if (channelRef.current) return;
+    if (channelRef.current) return; // already initialized
 
-    const presenceKey =
-      typeof window !== 'undefined'
-        ? `client-${window.location.host}-${Math.random().toString(36).slice(2)}`
-        : 'server-client';
+    // ✅ Wait 1 tick to ensure Supabase client is fully ready
+    setTimeout(() => {
+      if (!globalChannel) {
+        console.log("🛰 Creating unified realtime channel…");
 
-    if (!globalChannel) {
-      globalChannel = supabase.channel('faninteract-realtime', {
-        config: {
-          broadcast: { self: false },
-          presence: {
-            key: presenceKey,   // ✅ UNIQUE PER TAB / HOST
+        globalChannel = supabase.channel('faninteract-realtime', {
+          config: {
+            // ✅ no presence (anon keys + presence = CLOSED)
+            broadcast: { self: false },
           },
-        },
-      });
+        });
 
-      globalChannel.subscribe((status: string) =>
-        console.log('🔔 Realtime:', status, 'key:', presenceKey)
-      );
-    }
+        globalChannel.subscribe((status: string) => {
+          console.log("🔔 Realtime status:", status);
+        });
+      }
 
-    channelRef.current = globalChannel;
+      channelRef.current = globalChannel;
+    }, 0);
 
-    return () => {
-      if (process.env.NODE_ENV === 'production') {
+    // ✅ no cleanup in dev
+    if (process.env.NODE_ENV === 'production') {
+      return () => {
+        console.log("🧹 Removing realtime channel");
         supabase.removeChannel(globalChannel);
         globalChannel = null;
-      }
-    };
+      };
+    }
   }, []);
 
   return (
