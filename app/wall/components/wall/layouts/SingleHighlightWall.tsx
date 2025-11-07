@@ -3,6 +3,7 @@ import { QRCodeCanvas } from 'qrcode.react';
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '@/lib/supabaseClient';
+import { useRealtimeChannel } from '@/providers/SupabaseRealtimeProvider';
 import AdOverlay from '@/app/wall/components/AdOverlay';
 import { useAdInjector } from '@/hooks/useAdInjector';
 
@@ -78,6 +79,8 @@ const speedMap: Record<string, number> = {
 };
 
 export default function SingleHighlightWall({ event, posts }) {
+  const rt = useRealtimeChannel();
+
   const [livePosts, setLivePosts] = useState(posts || []);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [title, setTitle] = useState(event?.title || 'Fan Zone Wall');
@@ -108,7 +111,7 @@ export default function SingleHighlightWall({ event, posts }) {
     triggerInterval: event?.trigger_interval || 8,
   });
 
-  /* ✅ Load posts */
+  /* ✅ Load posts initially */
   useEffect(() => {
     const loadPosts = async () => {
       if (!event?.id) return;
@@ -123,7 +126,7 @@ export default function SingleHighlightWall({ event, posts }) {
     loadPosts();
   }, [event?.id]);
 
-  /* ✅ Rotation logic + tick injector */
+  /* ✅ Rotation logic + injector tick */
   useEffect(() => {
     if (!livePosts.length) return;
 
@@ -143,7 +146,78 @@ export default function SingleHighlightWall({ event, posts }) {
     };
   }, [livePosts, displayDuration, handlePostRotationTick]);
 
-  /* ✅ 🔥 Realtime updates for wall properties */
+  /* ✅ Realtime updates for posts */
+  useEffect(() => {
+    if (!event?.id || !rt?.current) return;
+
+    const channel = rt.current;
+
+    const upsertPost = (row: any) => {
+      setLivePosts((prev) => {
+        if (!row || row.fan_wall_id !== event.id) return prev;
+        if (row.status !== 'approved') return prev;
+
+        const exists = prev.find((p) => p.id === row.id);
+
+        if (exists) {
+          return prev.map((p) => (p.id === row.id ? row : p));
+        }
+
+        // ✅ Prepend new approved post
+        return [row, ...prev];
+      });
+    };
+
+    const removePost = (row: any) => {
+      setLivePosts((prev) => prev.filter((p) => p.id !== row?.id));
+    };
+
+    channel.on(
+      'postgres_changes',
+      {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'guest_posts',
+        filter: `fan_wall_id=eq.${event.id}`,
+      },
+      (payload) => {
+        if (payload.new?.status === 'approved') upsertPost(payload.new);
+      }
+    );
+
+    channel.on(
+      'postgres_changes',
+      {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'guest_posts',
+        filter: `fan_wall_id=eq.${event.id}`,
+      },
+      (payload) => {
+        const row = payload.new;
+        const old = payload.old;
+
+        if (row?.status === 'approved') upsertPost(row);
+
+        if (old?.status === 'approved' && row?.status !== 'approved') {
+          removePost(row);
+        }
+      }
+    );
+
+    channel.on(
+      'postgres_changes',
+      {
+        event: 'DELETE',
+        schema: 'public',
+        table: 'guest_posts',
+        filter: `fan_wall_id=eq.${event.id}`,
+      },
+      (payload) => removePost(payload.old)
+    );
+  }, [event?.id, rt]);
+
+  /* ✅ Realtime wall settings (background, title, etc.) */
   useEffect(() => {
     if (!event?.id) return;
 
@@ -151,12 +225,16 @@ export default function SingleHighlightWall({ event, posts }) {
       .channel(`wall_settings_${event.id}`)
       .on(
         'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'fan_walls', filter: `id=eq.${event.id}` },
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'fan_walls',
+          filter: `id=eq.${event.id}`,
+        },
         (payload) => {
           const w = payload.new;
           if (!w) return;
 
-          // background
           if (w.background_value) {
             setBg(
               w.background_type === 'image'
@@ -164,16 +242,15 @@ export default function SingleHighlightWall({ event, posts }) {
                 : w.background_value
             );
           }
-
-          // title / logo / transition type / speed
           if (w.title) setTitle(w.title);
           if (w.logo_url) setLogo(w.logo_url);
-          if (w.post_transition && w.post_transition !== transitionType)
-            setTransitionType(w.post_transition);
+          if (w.post_transition) setTransitionType(w.post_transition);
 
           if (w.transition_speed) {
-            const newDuration = speedMap[w.transition_speed] || speedMap['Medium'];
-            if (newDuration !== displayDuration) setDisplayDuration(newDuration);
+            const newDuration = speedMap[w.transition_speed];
+            if (newDuration !== displayDuration) {
+              setDisplayDuration(newDuration);
+            }
           }
         }
       )
@@ -182,7 +259,7 @@ export default function SingleHighlightWall({ event, posts }) {
     return () => {
       supabase.removeChannel(wallChannel);
     };
-  }, [event?.id, transitionType, displayDuration]);
+  }, [event?.id, displayDuration]);
 
   /* ✅ Active transition style */
   const transitionStyle =
@@ -451,3 +528,4 @@ export default function SingleHighlightWall({ event, posts }) {
     </div>
   );
 }
+
