@@ -1,56 +1,39 @@
 'use client';
 
-import { createContext, useContext, useEffect, useRef } from 'react';
+import { createContext, useContext, useRef, useEffect } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 
-const SupabaseRealtimeContext = createContext<any>(null);
-
-// ✅ global singleton channel
-let globalChannel: any = null;
+const RTContext = createContext(null);
 
 export function SupabaseRealtimeProvider({ children }) {
-  const channelRef = useRef<any>(null);
+  const channelRef = useRef(null);
 
   useEffect(() => {
-    if (channelRef.current) return; // already initialized
+    if (!channelRef.current) {
+      const ch = supabase.channel('faninteract_unified', {
+        config: {
+          broadcast: { self: false },
+          presence: { key: `tab-${Math.random().toString(36).slice(2)}` },
+        },
+      });
 
-    // ✅ Wait 1 tick to ensure Supabase client is fully ready
-    setTimeout(() => {
-      if (!globalChannel) {
-        console.log("🛰 Creating unified realtime channel…");
+      ch.subscribe((status) => {
+        console.log('✅ Unified Realtime:', status);
+      });
 
-        globalChannel = supabase.channel('faninteract-realtime', {
-          config: {
-            // ✅ no presence (anon keys + presence = CLOSED)
-            broadcast: { self: false },
-          },
-        });
-
-        globalChannel.subscribe((status: string) => {
-          console.log("🔔 Realtime status:", status);
-        });
-      }
-
-      channelRef.current = globalChannel;
-    }, 0);
-
-    // ✅ no cleanup in dev
-    if (process.env.NODE_ENV === 'production') {
-      return () => {
-        console.log("🧹 Removing realtime channel");
-        supabase.removeChannel(globalChannel);
-        globalChannel = null;
-      };
+      channelRef.current = ch;
     }
+
+    return () => {};
   }, []);
 
   return (
-    <SupabaseRealtimeContext.Provider value={channelRef}>
+    <RTContext.Provider value={channelRef}>
       {children}
-    </SupabaseRealtimeContext.Provider>
+    </RTContext.Provider>
   );
 }
 
 export function useRealtimeChannel() {
-  return useContext(SupabaseRealtimeContext);
+  return useContext(RTContext);
 }
