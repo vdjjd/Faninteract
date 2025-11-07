@@ -1,7 +1,8 @@
 'use client';
-import { QRCodeCanvas } from 'qrcode.react';
+
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { QRCodeCanvas } from 'qrcode.react';
 import { supabase } from '@/lib/supabaseClient';
 import { useRealtimeChannel } from '@/providers/SupabaseRealtimeProvider';
 import AdOverlay from '@/app/wall/components/AdOverlay';
@@ -9,69 +10,19 @@ import { useAdInjector } from '@/hooks/useAdInjector';
 
 /* ✅ Transition styles */
 const transitions: Record<string, any> = {
-  'Fade In / Fade Out': {
-    initial: { opacity: 0 },
-    animate: { opacity: 1 },
-    exit: { opacity: 0 },
-    transition: { duration: 0.8, ease: 'easeInOut' },
-  },
-  'Slide Up / Slide Out': {
-    initial: { opacity: 0, y: 100 },
-    animate: { opacity: 1, y: 0 },
-    exit: { opacity: 0, y: -100 },
-    transition: { duration: 0.9, ease: 'easeInOut' },
-  },
-  'Slide Down / Slide Out': {
-    initial: { opacity: 0, y: -100 },
-    animate: { opacity: 1, y: 0 },
-    exit: { opacity: 0, y: 100 },
-    transition: { duration: 0.9, ease: 'easeInOut' },
-  },
-  'Slide Left / Slide Right': {
-    initial: { opacity: 0, x: 120 },
-    animate: { opacity: 1, x: 0 },
-    exit: { opacity: 0, x: -120 },
-    transition: { duration: 0.9, ease: 'easeInOut' },
-  },
-  'Slide Right / Slide Left': {
-    initial: { opacity: 0, x: -120 },
-    animate: { opacity: 1, x: 0 },
-    exit: { opacity: 0, x: 120 },
-    transition: { duration: 0.9, ease: 'easeInOut' },
-  },
-  'Zoom In / Zoom Out': {
-    initial: { opacity: 0, scale: 0.8 },
-    animate: { opacity: 1, scale: 1 },
-    exit: { opacity: 0, scale: 1.15 },
-    transition: { duration: 0.9, ease: 'easeInOut' },
-  },
-  'Zoom Out / Zoom In': {
-    initial: { opacity: 0, scale: 1.15 },
-    animate: { opacity: 1, scale: 1 },
-    exit: { opacity: 0, scale: 0.85 },
-    transition: { duration: 0.9, ease: 'easeInOut' },
-  },
-  Flip: {
-    initial: { opacity: 0, rotateY: 180 },
-    animate: { opacity: 1, rotateY: 0 },
-    exit: { opacity: 0, rotateY: -180 },
-    transition: { duration: 1, ease: 'easeInOut' },
-  },
-  'Rotate In / Rotate Out': {
-    initial: { opacity: 0, rotate: -30, scale: 0.9 },
-    animate: { opacity: 1, rotate: 0, scale: 1 },
-    exit: { opacity: 0, rotate: 30, scale: 0.9 },
-    transition: { duration: 1, ease: 'easeInOut' },
-  },
-  'Pop In / Pop Out': {
-    initial: { opacity: 0, scale: 0.5 },
-    animate: { opacity: 1, scale: 1 },
-    exit: { opacity: 0, scale: 0.5 },
-    transition: { duration: 0.7, ease: 'easeOut' },
-  },
+  'Fade In / Fade Out': { initial: { opacity: 0 }, animate: { opacity: 1 }, exit: { opacity: 0 }, transition: { duration: 0.8, ease: 'easeInOut' } },
+  'Slide Up / Slide Out': { initial: { opacity: 0, y: 100 }, animate: { opacity: 1, y: 0 }, exit: { opacity: 0, y: -100 }, transition: { duration: 0.9, ease: 'easeInOut' } },
+  'Slide Down / Slide Out': { initial: { opacity: 0, y: -100 }, animate: { opacity: 1, y: 0 }, exit: { opacity: 0, y: 100 }, transition: { duration: 0.9, ease: 'easeInOut' } },
+  'Slide Left / Slide Right': { initial: { opacity: 0, x: 120 }, animate: { opacity: 1, x: 0 }, exit: { opacity: 0, x: -120 }, transition: { duration: 0.9, ease: 'easeInOut' } },
+  'Slide Right / Slide Left': { initial: { opacity: 0, x: -120 }, animate: { opacity: 1, x: 0 }, exit: { opacity: 0, x: 120 }, transition: { duration: 0.9, ease: 'easeInOut' } },
+  'Zoom In / Zoom Out': { initial: { opacity: 0, scale: 0.8 }, animate: { opacity: 1, scale: 1 }, exit: { opacity: 0, scale: 1.15 }, transition: { duration: 0.9, ease: 'easeInOut' } },
+  'Zoom Out / Zoom In': { initial: { opacity: 0, scale: 1.15 }, animate: { opacity: 1, scale: 1 }, exit: { opacity: 0, scale: 0.85 }, transition: { duration: 0.9, ease: 'easeInOut' } },
+  Flip: { initial: { opacity: 0, rotateY: 180 }, animate: { opacity: 1, rotateY: 0 }, exit: { opacity: 0, rotateY: -180 }, transition: { duration: 1, ease: 'easeInOut' } },
+  'Rotate In / Rotate Out': { initial: { opacity: 0, rotate: -30, scale: 0.9 }, animate: { opacity: 1, rotate: 0, scale: 1 }, exit: { opacity: 0, rotate: 30, scale: 0.9 }, transition: { duration: 1, ease: 'easeInOut' } },
+  'Pop In / Pop Out': { initial: { opacity: 0, scale: 0.5 }, animate: { opacity: 1, scale: 1 }, exit: { opacity: 0, scale: 0.5 }, transition: { duration: 0.7, ease: 'easeOut' } },
 };
 
-/* ✅ Speed map — affects interval only */
+/* ✅ Speed map */
 const speedMap: Record<string, number> = {
   Slow: 12000,
   Medium: 8000,
@@ -83,22 +34,26 @@ export default function SingleHighlightWall({ event, posts }) {
 
   const [livePosts, setLivePosts] = useState(posts || []);
   const [currentIndex, setCurrentIndex] = useState(0);
+
   const [title, setTitle] = useState(event?.title || 'Fan Zone Wall');
   const [logo, setLogo] = useState(event?.logo_url || '/faninteractlogo.png');
+
   const [bg, setBg] = useState(
     event?.background_type === 'image'
       ? `url(${event.background_value}) center/cover no-repeat`
       : event?.background_value ||
         'linear-gradient(135deg, #1b2735 0%, #1b2735 50%, #090a0f 100%)'
   );
+
   const [transitionType, setTransitionType] = useState(
     event?.post_transition || 'Fade In / Fade Out'
   );
+
   const [displayDuration, setDisplayDuration] = useState(
     speedMap[event?.transition_speed || 'Medium']
   );
 
-  /* 🔗 Ad injector hook */
+  /* ✅ Ad Injector */
   const {
     ads,
     showAd,
@@ -111,28 +66,29 @@ export default function SingleHighlightWall({ event, posts }) {
     triggerInterval: event?.trigger_interval || 8,
   });
 
-  /* ✅ Load posts initially */
+  /* ✅ Initial load of approved posts */
   useEffect(() => {
-    const loadPosts = async () => {
-      if (!event?.id) return;
+    if (!event?.id) return;
+
+    const load = async () => {
       const { data } = await supabase
         .from('guest_posts')
         .select('*')
         .eq('fan_wall_id', event.id)
         .eq('status', 'approved')
         .order('created_at', { ascending: false });
+
       if (data) setLivePosts(data);
     };
-    loadPosts();
+
+    load();
   }, [event?.id]);
 
-  /* ✅ Rotation logic + injector tick */
+  /* ✅ Rotation logic */
   useEffect(() => {
     if (!livePosts.length) return;
 
-    let mounted = true;
-    const interval = setInterval(() => {
-      if (!mounted) return;
+    const id = setInterval(() => {
       setCurrentIndex((i) => {
         const next = (i + 1) % livePosts.length;
         handlePostRotationTick();
@@ -140,38 +96,34 @@ export default function SingleHighlightWall({ event, posts }) {
       });
     }, displayDuration);
 
-    return () => {
-      mounted = false;
-      clearInterval(interval);
-    };
-  }, [livePosts, displayDuration, handlePostRotationTick]);
+    return () => clearInterval(id);
+  }, [livePosts, displayDuration]);
 
-  /* ✅ Realtime updates for posts */
+  /* ✅ REALTIME PATCH (same as Grid 4×2 + 2×2) */
   useEffect(() => {
     if (!event?.id || !rt?.current) return;
 
     const channel = rt.current;
 
-    const upsertPost = (row: any) => {
+    const upsert = (row: any) => {
+      if (!row || row.fan_wall_id !== event.id || row.status !== 'approved')
+        return;
+
       setLivePosts((prev) => {
-        if (!row || row.fan_wall_id !== event.id) return prev;
-        if (row.status !== 'approved') return prev;
-
         const exists = prev.find((p) => p.id === row.id);
-
         if (exists) {
           return prev.map((p) => (p.id === row.id ? row : p));
         }
-
-        // ✅ Prepend new approved post
         return [row, ...prev];
       });
     };
 
-    const removePost = (row: any) => {
-      setLivePosts((prev) => prev.filter((p) => p.id !== row?.id));
+    const remove = (row: any) => {
+      if (!row) return;
+      setLivePosts((prev) => prev.filter((p) => p.id !== row.id));
     };
 
+    /* INSERT */
     channel.on(
       'postgres_changes',
       {
@@ -181,10 +133,11 @@ export default function SingleHighlightWall({ event, posts }) {
         filter: `fan_wall_id=eq.${event.id}`,
       },
       (payload) => {
-        if (payload.new?.status === 'approved') upsertPost(payload.new);
+        if (payload.new?.status === 'approved') upsert(payload.new);
       }
     );
 
+    /* UPDATE */
     channel.on(
       'postgres_changes',
       {
@@ -197,14 +150,14 @@ export default function SingleHighlightWall({ event, posts }) {
         const row = payload.new;
         const old = payload.old;
 
-        if (row?.status === 'approved') upsertPost(row);
-
+        if (row?.status === 'approved') upsert(row);
         if (old?.status === 'approved' && row?.status !== 'approved') {
-          removePost(row);
+          remove(row);
         }
       }
     );
 
+    /* DELETE */
     channel.on(
       'postgres_changes',
       {
@@ -213,16 +166,16 @@ export default function SingleHighlightWall({ event, posts }) {
         table: 'guest_posts',
         filter: `fan_wall_id=eq.${event.id}`,
       },
-      (payload) => removePost(payload.old)
+      (payload) => remove(payload.old)
     );
-  }, [event?.id, rt]);
+  }, [rt, event?.id]);
 
-  /* ✅ Realtime wall settings (background, title, etc.) */
+  /* ✅ Realtime wall settings */
   useEffect(() => {
     if (!event?.id) return;
 
     const wallChannel = supabase
-      .channel(`wall_settings_${event.id}`)
+      .channel(`single_settings_${event.id}`)
       .on(
         'postgres_changes',
         {
@@ -242,31 +195,29 @@ export default function SingleHighlightWall({ event, posts }) {
                 : w.background_value
             );
           }
+
           if (w.title) setTitle(w.title);
           if (w.logo_url) setLogo(w.logo_url);
           if (w.post_transition) setTransitionType(w.post_transition);
 
           if (w.transition_speed) {
-            const newDuration = speedMap[w.transition_speed];
-            if (newDuration !== displayDuration) {
-              setDisplayDuration(newDuration);
+            const newDur = speedMap[w.transition_speed];
+            if (newDur !== displayDuration) {
+              setDisplayDuration(newDur);
             }
           }
         }
       )
       .subscribe();
 
-    return () => {
-      supabase.removeChannel(wallChannel);
-    };
+    return () => supabase.removeChannel(wallChannel);
   }, [event?.id, displayDuration]);
 
-  /* ✅ Active transition style */
   const transitionStyle =
     transitions[transitionType] || transitions['Fade In / Fade Out'];
+
   const current = livePosts[currentIndex % (livePosts.length || 1)];
 
-  /* ✅ Render */
   return (
     <div
       style={{
@@ -276,7 +227,6 @@ export default function SingleHighlightWall({ event, posts }) {
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
-        justifyContent: 'flex-start',
         overflow: 'hidden',
         position: 'relative',
       }}
@@ -290,13 +240,12 @@ export default function SingleHighlightWall({ event, posts }) {
           marginTop: '3vh',
           marginBottom: '1.5vh',
           textAlign: 'center',
-          textShadow: '0 0 20px rgba(0,0,0,0.6)',
         }}
       >
         {title}
       </h1>
 
-      {/* Main container */}
+      {/* Big container */}
       <div
         style={{
           width: '90vw',
@@ -304,14 +253,13 @@ export default function SingleHighlightWall({ event, posts }) {
           backdropFilter: 'blur(20px)',
           background: 'rgba(255,255,255,0.08)',
           borderRadius: 24,
-          boxShadow: '0 0 40px rgba(0,0,0,0.5)',
           border: '1px solid rgba(255,255,255,0.15)',
-          position: 'relative',
           display: 'flex',
+          position: 'relative',
           overflow: 'hidden',
         }}
       >
-        {/* Left Image */}
+        {/* Left photo */}
         <div
           style={{
             position: 'absolute',
@@ -319,12 +267,8 @@ export default function SingleHighlightWall({ event, posts }) {
             left: '40px',
             width: '42%',
             height: 'calc(100% - 80px)',
-            overflow: 'hidden',
             borderRadius: 18,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            backgroundColor: 'transparent',
+            overflow: 'hidden',
           }}
         >
           <AnimatePresence mode="popLayout">
@@ -345,11 +289,10 @@ export default function SingleHighlightWall({ event, posts }) {
                 key="no-photo"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
-                exit={{ opacity: 1 }}
-                transition={{ duration: 0.5 }}
+                exit={{ opacity: 0 }}
                 style={{
-                  color: 'rgba(255,255,255,0.5)',
                   fontSize: '2rem',
+                  color: 'rgba(255,255,255,0.6)',
                 }}
               >
                 No Photo
@@ -358,28 +301,24 @@ export default function SingleHighlightWall({ event, posts }) {
           </AnimatePresence>
         </div>
 
-        {/* Right Content */}
+        {/* Right content */}
         <div
           style={{
             flexGrow: 1,
             marginLeft: '44%',
+            paddingTop: '3vh',
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
-            justifyContent: 'flex-start',
-            height: '100%',
-            paddingTop: '3vh',
           }}
         >
           {/* Logo */}
-          <div style={{ width: 'clamp(280px,30vw,420px)', marginBottom: '1.5vh' }}>
+          <div style={{ width: 'clamp(280px,30vw,420px)' }}>
             <img
               src={logo}
-              alt="Logo"
               style={{
                 width: '100%',
                 height: 'auto',
-                objectFit: 'contain',
                 filter: 'drop-shadow(0 0 14px rgba(0,0,0,0.85))',
               }}
             />
@@ -389,25 +328,21 @@ export default function SingleHighlightWall({ event, posts }) {
             style={{
               width: '90%',
               height: 16,
+              marginTop: '2vh',
+              marginBottom: '2vh',
               borderRadius: 6,
               background: 'linear-gradient(to right,#000,#444)',
-              boxShadow: '0 0 14px rgba(0,0,0,0.7)',
-              opacity: 0.9,
-              marginTop: '1vh',
-              marginBottom: '2vh',
             }}
           />
 
           <p
             style={{
+              fontSize: 'clamp(2.4rem,3vw,4rem)',
               fontWeight: 900,
-              margin: 0,
-              fontSize: 'clamp(2.5rem,3vw,4rem)',
-              textAlign: 'center',
               color: '#fff',
               textTransform: 'uppercase',
-              textShadow: '0 0 15px rgba(0,0,0,0.8)',
-              marginBottom: '1vh',
+              margin: 0,
+              textAlign: 'center',
             }}
           >
             {current?.nickname || 'Guest'}
@@ -415,13 +350,12 @@ export default function SingleHighlightWall({ event, posts }) {
 
           <p
             style={{
-              fontWeight: 600,
-              margin: 0,
               fontSize: 'clamp(1.4rem,2vw,2.6rem)',
-              textAlign: 'center',
+              fontWeight: 600,
               color: '#fff',
-              textShadow: '0 0 8px rgba(0,0,0,0.6)',
+              textAlign: 'center',
               maxWidth: '90%',
+              marginTop: '1vh',
             }}
           >
             {current?.message || 'Be the first to post!'}
@@ -429,13 +363,12 @@ export default function SingleHighlightWall({ event, posts }) {
         </div>
       </div>
 
-      {/* QR Code */}
+      {/* QR */}
       <div
         style={{
           position: 'absolute',
           bottom: 5,
           left: 5,
-          zIndex: 50,
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
@@ -444,23 +377,21 @@ export default function SingleHighlightWall({ event, posts }) {
         <p
           style={{
             color: '#fff',
-            textAlign: 'center',
             fontWeight: 700,
-            fontSize: 'clamp(0.9rem,1.4vw,1.4rem)',
             marginBottom: 6,
-            textShadow:
-              '0 0 12px rgba(255,255,255,0.8), 0 0 20px rgba(100,180,255,0.6)',
+            fontSize: 'clamp(1rem,1.4vw,1.4rem)',
           }}
         >
           Scan Me To Join
         </p>
+
         <div
           style={{
             padding: 6,
             borderRadius: 14,
             background: 'rgba(255,255,255,0.05)',
             boxShadow:
-              '0 0 25px rgba(255,255,255,0.6), 0 0 40px rgba(100,180,255,0.3), inset 0 0 10px rgba(0,0,0,0.4)',
+              '0 0 25px rgba(255,255,255,0.6),0 0 40px rgba(255,255,255,0.3)',
           }}
         >
           <QRCodeCanvas
@@ -469,13 +400,12 @@ export default function SingleHighlightWall({ event, posts }) {
             bgColor="#ffffff"
             fgColor="#000000"
             level="H"
-            includeMargin={false}
-            style={{ borderRadius: 10, display: 'block' }}
+            style={{ borderRadius: 10 }}
           />
         </div>
       </div>
 
-      {/* Ad Overlay */}
+      {/* AD OVERLAY */}
       <AdOverlay
         showAd={showAd && injectorEnabled}
         ads={ads}
@@ -483,7 +413,7 @@ export default function SingleHighlightWall({ event, posts }) {
         onAdEnd={() => setShowAd(false)}
       />
 
-      {/* Fullscreen Toggle */}
+      {/* Fullscreen button */}
       <div
         style={{
           position: 'fixed',
@@ -492,21 +422,20 @@ export default function SingleHighlightWall({ event, posts }) {
           width: 48,
           height: 48,
           borderRadius: 10,
+          background: 'rgba(255,255,255,0.08)',
+          border: '1px solid rgba(255,255,255,0.2)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
           cursor: 'pointer',
-          zIndex: 9999,
           opacity: 0.25,
-          background: 'rgba(255,255,255,0.08)',
-          border: '1px solid rgba(255,255,255,0.2)',
-          transition: 'opacity 0.3s',
+          zIndex: 9999,
         }}
         onMouseEnter={(e) => (e.currentTarget.style.opacity = '1')}
         onMouseLeave={(e) => (e.currentTarget.style.opacity = '0.25')}
         onClick={() =>
           !document.fullscreenElement
-            ? document.documentElement.requestFullscreen().catch(console.error)
+            ? document.documentElement.requestFullscreen().catch(() => {})
             : document.exitFullscreen()
         }
       >

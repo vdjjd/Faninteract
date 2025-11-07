@@ -41,7 +41,6 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
   const [title, setTitle] = useState(event?.title || 'Fan Zone Wall');
   const [logo, setLogo] = useState(event?.logo_url || '/faninteractlogo.png');
 
-  /* Internal refs */
   const resetKey = useRef(0);
   const postPointer = useRef(0);
   const pairIndex = useRef(0);
@@ -81,7 +80,7 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
   }, []);
 
   /* -------------------------------------------------- */
-  /* REALTIME WALL SETTINGS (background, title, speed)   */
+  /* REALTIME WALL SETTINGS                              */
   /* -------------------------------------------------- */
   useEffect(() => {
     if (!event?.id) return;
@@ -124,35 +123,33 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
 
 
   /* -------------------------------------------------- */
-  /* ✅ REALTIME POSTS | Same engine as SingleHighlight  */
+  /* ✅ REALTIME POSTS (patched identical to SingleHighlight) */
   /* -------------------------------------------------- */
   useEffect(() => {
     if (!event?.id || !rt?.current) return;
 
     const channel = rt.current;
 
-    /** Insert/update helper */
     const upsertPost = (row: any) => {
       if (!row || row.fan_wall_id !== event.id) return;
       if (row.status !== 'approved') return;
 
       setGridPosts((prev) => {
-        // already exists = update it
+        // Already exists -> update
         if (prev.some((p) => p?.id === row.id)) {
           return prev.map((p) => (p?.id === row.id ? row : p));
         }
 
-        // otherwise insert into rotating pointer
+        // Insert new into rotating slot
         const next = [...prev];
         next[postPointer.current % 8] = row;
         return next;
       });
     };
 
-    /** Remove helper */
     const removePost = (row: any) => {
       if (!row) return;
-      setGridPosts((prev) => prev.filter((p) => p?.id !== row.id));
+      setGridPosts((prev) => prev.map((p) => (p?.id === row.id ? null : p)));
     };
 
     /* INSERT */
@@ -200,11 +197,12 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
       },
       (payload) => removePost(payload.old)
     );
+
   }, [event?.id, rt]);
 
 
   /* -------------------------------------------------- */
-  /* INITIAL FILL                                        */
+  /* INITIAL GRID FILL                                   */
   /* -------------------------------------------------- */
   useEffect(() => {
     if (!posts?.length) return;
@@ -219,7 +217,7 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
 
 
   /* -------------------------------------------------- */
-  /* GRID ROTATION FADE LOGIC (unchanged)                */
+  /* GRID ROTATION | unchanged from your version         */
   /* -------------------------------------------------- */
   useEffect(() => {
     if (!posts?.length) return;
@@ -234,10 +232,12 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
     const fade = async (id: string, to: number) => {
       const el = document.getElementById(id);
       if (!el) return;
+
       await el.animate(
         [{ opacity: to ? 0 : 1 }, { opacity: to ? 1 : 0 }],
         { duration: fadeDuration, easing: 'ease-in-out' }
       ).finished;
+
       el.style.opacity = String(to);
     };
 
@@ -267,9 +267,7 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
         postPointer.current = (postPointer.current + 1) % posts.length;
         pairIndex.current = (pairIndex.current + 1) % pairs.length;
 
-        /* Full rotation completed */
         if (pairIndex.current === 0) {
-          handlePostRotationTick?.();
           handlePostRotationTick?.();
         }
 
@@ -286,10 +284,10 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
 
 
   /* -------------------------------------------------- */
-  /* GRID ITEM                                           */
+  /* INDIVIDUAL CELL COMPONENT                           */
   /* -------------------------------------------------- */
   function PostCard({ post }: { post: any }) {
-    if (!post)
+    if (!post) {
       return (
         <div className={cn(
           'flex items-center justify-center text-white text-lg opacity-60'
@@ -297,6 +295,7 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
           Fan posts will appear here soon!
         </div>
       );
+    }
 
     return (
       <div
@@ -334,7 +333,6 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
             justifyContent: 'center',
             padding: '10px',
             background: 'rgba(0,0,0,0.3)',
-            backdropFilter: 'blur(10px)',
             borderTop: '1px solid rgba(255,255,255,0.15)',
           }}
         >
@@ -355,9 +353,7 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
             style={{
               color: '#ddd',
               fontSize: '1rem',
-              lineHeight: 1.3,
               maxWidth: '90%',
-              wordWrap: 'break-word',
               textAlign: 'center',
               margin: 0,
             }}
@@ -387,7 +383,7 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
         marginTop: '-3vh',
       }}
     >
-      {/* LOGO */}
+      {/* Logo */}
       <div
         style={{
           position: 'absolute',
@@ -407,7 +403,7 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
         />
       </div>
 
-      {/* TITLE */}
+      {/* Title */}
       <h1
         style={{
           color: '#fff',
@@ -421,7 +417,7 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
         {title}
       </h1>
 
-      {/* GRID */}
+      {/* Grid */}
       <div
         style={{
           width: '88vw',
@@ -490,7 +486,7 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
         </div>
       </div>
 
-      {/* FULLSCREEN */}
+      {/* Fullscreen */}
       <div
         style={{
           position: 'fixed',
@@ -531,7 +527,7 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
         </svg>
       </div>
 
-      {/* AD OVERLAY */}
+      {/* Ads */}
       <AdOverlay
         showAd={showAd && injectorEnabled}
         ads={ads}
@@ -541,4 +537,5 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
     </div>
   );
 }
+
 
