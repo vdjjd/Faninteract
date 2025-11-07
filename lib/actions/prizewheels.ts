@@ -1,15 +1,15 @@
 'use server';
 
-import { supabaseAdmin } from '@/lib/supabaseClient';
-const supabase = supabaseAdmin!;
+import { supabase } from '@/lib/supabaseClient';
 
 /* -------------------------------------------------------------------------- */
 /* 🟢 CREATE PRIZE WHEEL (server only)                                        */
 /* -------------------------------------------------------------------------- */
 export async function createPrizeWheel(hostId: string, data: any) {
   try {
-    const { title, prizes } = data;
+    const { title } = data;
 
+    // ✅ NO PRIZES — matches your actual table schema
     const newWheel = {
       host_id: hostId,
       title: title || 'Untitled Prize Wheel',
@@ -17,7 +17,6 @@ export async function createPrizeWheel(hostId: string, data: any) {
       status: 'inactive',
       background_type: 'gradient',
       background_value: 'linear-gradient(135deg,#1a237e,#3949ab)',
-      prizes: prizes || [],
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
@@ -37,13 +36,19 @@ export async function createPrizeWheel(hostId: string, data: any) {
 
     const { data: updated, error: updateError } = await supabase
       .from('prize_wheels')
-      .update({ qr_url: qrUrl, updated_at: new Date().toISOString() })
+      .update({
+        qr_url: qrUrl,
+        updated_at: new Date().toISOString(),
+      })
       .eq('id', created.id)
       .select()
       .maybeSingle();
 
     if (updateError) {
-      console.warn('⚠️ Wheel created but failed to save QR URL:', updateError.message);
+      console.warn(
+        '⚠️ Wheel created but failed to save QR URL:',
+        updateError.message
+      );
       return created;
     }
 
@@ -56,7 +61,7 @@ export async function createPrizeWheel(hostId: string, data: any) {
 }
 
 /* -------------------------------------------------------------------------- */
-/* 🔍 GET PRIZE WHEELS BY HOST (server only)                                  */
+/* 🔍 GET PRIZE WHEELS BY HOST                                                */
 /* -------------------------------------------------------------------------- */
 export async function getPrizeWheelsByHost(hostId: string) {
   try {
@@ -79,9 +84,12 @@ export async function getPrizeWheelsByHost(hostId: string) {
 }
 
 /* -------------------------------------------------------------------------- */
-/* 🟠 TOGGLE PRIZE WHEEL STATUS (server only)                                 */
+/* 🟠 TOGGLE PRIZE WHEEL STATUS                                               */
 /* -------------------------------------------------------------------------- */
-export async function togglePrizeWheelStatus(wheelId: string, newStatus: 'live' | 'inactive') {
+export async function togglePrizeWheelStatus(
+  wheelId: string,
+  newStatus: 'live' | 'inactive'
+) {
   try {
     const { data, error } = await supabase
       .from('prize_wheels')
@@ -107,12 +115,17 @@ export async function togglePrizeWheelStatus(wheelId: string, newStatus: 'live' 
 }
 
 /* -------------------------------------------------------------------------- */
-/* 🔴 DELETE PRIZE WHEEL (server only)                                        */
+/* 🔴 DELETE PRIZE WHEEL                                                      */
 /* -------------------------------------------------------------------------- */
 export async function deletePrizeWheel(wheelId: string) {
   try {
-    const { error } = await supabase.from('prize_wheels').delete().eq('id', wheelId);
+    const { error } = await supabase
+      .from('prize_wheels')
+      .delete()
+      .eq('id', wheelId);
+
     if (error) throw error;
+
     console.log(`🗑️ Prize wheel ${wheelId} deleted`);
   } catch (err) {
     console.error('❌ Error deleting prize wheel:', err);
@@ -120,7 +133,7 @@ export async function deletePrizeWheel(wheelId: string) {
 }
 
 /* -------------------------------------------------------------------------- */
-/* 🧹 CLEAR PRIZE WHEEL ENTRIES (server only)                                 */
+/* 🧹 CLEAR PRIZE WHEEL ENTRIES                                               */
 /* -------------------------------------------------------------------------- */
 export async function clearPrizeWheel(wheelId: string) {
   try {
@@ -128,6 +141,7 @@ export async function clearPrizeWheel(wheelId: string) {
       .from('prize_entries')
       .delete()
       .eq('wheel_id', wheelId);
+
     if (error) throw error;
 
     console.log(`🧹 Cleared prize entries for wheel ${wheelId}`);

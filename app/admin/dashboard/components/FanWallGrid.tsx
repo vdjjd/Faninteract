@@ -5,7 +5,7 @@ import { supabase } from '@/lib/supabaseClient';
 import { clearFanWallPosts, deleteFanWall } from '@/lib/actions/fan_walls';
 import { cn } from '../../../../lib/utils';
 import { useRealtimeChannel } from '@/providers/SupabaseRealtimeProvider';
-import ModerationModal from '@/components/ModerationModal';   // ✅ NEW IMPORT
+import ModerationModal from '@/components/ModerationModal';
 
 interface FanWallGridProps {
   walls: any[] | undefined;
@@ -23,11 +23,10 @@ export default function FanWallGrid({
   const channelRef = useRealtimeChannel();
   const [pendingCounts, setPendingCounts] = useState<Record<string, number>>({});
   const [localWalls, setLocalWalls] = useState<any[]>(walls || []);
-  const refreshTimeout = useRef<NodeJS.Timeout | null>(null);
-
-  // ✅ State for the Modal
   const [showModeration, setShowModeration] = useState(false);
   const [selectedWallId, setSelectedWallId] = useState<string | null>(null);
+
+  const refreshTimeout = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     setLocalWalls(walls || []);
@@ -84,7 +83,9 @@ export default function FanWallGrid({
             .from('fan_walls')
             .update({ status: 'live', countdown_active: false, updated_at: new Date().toISOString() })
             .eq('id', id);
+
           await safeBroadcast('countdown_finished', { id, status: 'live' });
+
           delayedRefresh();
         }, durationMs);
       } else {
@@ -92,6 +93,7 @@ export default function FanWallGrid({
           .from('fan_walls')
           .update({ status: 'live', countdown_active: false, updated_at: new Date().toISOString() })
           .eq('id', id);
+
         await safeBroadcast('wall_status_changed', { id, status: 'live' });
         delayedRefresh();
       }
@@ -127,11 +129,11 @@ export default function FanWallGrid({
   async function handleDelete(id: string) {
     setLocalWalls((prev) => prev.filter((w) => w.id !== id));
     deleteFanWall(id).catch(console.error);
+
     await safeBroadcast('wall_status_changed', { id, status: 'deleted' });
     delayedRefresh();
   }
 
-  // ✅ REMOVE POPUP CODE — REPLACED WITH MODAL HANDLER
   function openModerationModal(wallId: string) {
     setSelectedWallId(wallId);
     setShowModeration(true);
@@ -174,9 +176,10 @@ export default function FanWallGrid({
   return (
     <div className={cn('mt-10 w-full max-w-6xl')}>
       <h2 className={cn('text-xl font-semibold mb-3')}>🎤 Fan Zone Walls</h2>
+
       <div className={cn('grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5')}>
         {(!localWalls || localWalls.length === 0) && (
-          <p className={cn('text-gray-400 italic')}>No Fan Zone Walls created yet.</p>
+          <p className={cn('text-gray-400', 'italic')}>No Fan Zone Walls created yet.</p>
         )}
 
         {localWalls.map((wall) => (
@@ -198,10 +201,11 @@ export default function FanWallGrid({
             }}
           >
             <div>
-              <h3 className={cn('font-bold text-lg text-center mb-1')}>
+              <h3 className={cn('font-bold', 'text-lg', 'mb-1')}>
                 {wall.host_title || wall.title || 'Untitled Wall'}
               </h3>
-              <p className={cn('text-sm mb-2')}>
+
+              <p className={cn('text-sm', 'mb-2')}>
                 <strong>Status:</strong>{' '}
                 <span
                   className={
@@ -220,23 +224,24 @@ export default function FanWallGrid({
                 </span>
               </p>
 
-              {/* ✅ UPDATED — now opens modal */}
-              <div className={cn('flex justify-center mb-3')}>
+              <div className={cn('flex', 'justify-center', 'mb-3')}>
                 <button
                   onClick={() => openModerationModal(wall.id)}
-                  className={`px-3 py-1 rounded-md text-sm font-semibold flex items-center gap-1 shadow-md transition ${
-                    (pendingCounts[wall.id] || 0) > 0
+                  className={cn(
+                    'px-3 py-1 rounded-md text-sm font-semibold flex items-center gap-1 shadow-md transition',
+                    pendingCounts[wall.id] > 0
                       ? 'bg-yellow-500 hover:bg-yellow-600 text-black'
                       : 'bg-gray-600 hover:bg-gray-700 text-white/80'
-                  }`}
+                  )}
                 >
                   🕓 Pending
                   <span
-                    className={`px-1.5 py-0.5 rounded-md text-xs font-bold ${
-                      (pendingCounts[wall.id] || 0) > 0
+                    className={cn(
+                      'px-1.5 py-0.5 rounded-md text-xs font-bold',
+                      pendingCounts[wall.id] > 0
                         ? 'bg-black/70 text-white'
                         : 'bg-white/20 text-gray-300'
-                    }`}
+                    )}
                   >
                     {pendingCounts[wall.id] || 0}
                   </span>
@@ -244,23 +249,23 @@ export default function FanWallGrid({
               </div>
             </div>
 
-            <div className={cn('flex flex-wrap justify-center gap-2 mt-auto pt-2 border-t border-white/10')}>
-              <button onClick={() => handleLaunch(wall.id)} className={cn('bg-blue-600 hover:bg-blue-700 px-2 py-1 rounded text-sm font-semibold')}>
+            <div className={cn('flex', 'flex-wrap', 'justify-center', 'gap-2', 'mt-auto', 'pt-2', 'border-t', 'border-white/10')}>
+              <button onClick={() => handleLaunch(wall.id)} className={cn('bg-blue-600', 'hover:bg-blue-700', 'px-2', 'py-1', 'rounded', 'text-sm', 'font-semibold')}>
                 🚀 Launch
               </button>
-              <button onClick={() => handleStart(wall.id)} className={cn('bg-green-600 hover:bg-green-700 px-2 py-1 rounded text-sm font-semibold')}>
+              <button onClick={() => handleStart(wall.id)} className={cn('bg-green-600', 'hover:bg-green-700', 'px-2', 'py-1', 'rounded', 'text-sm', 'font-semibold')}>
                 ▶️ Play
               </button>
-              <button onClick={() => handleStop(wall.id)} className={cn('bg-red-600 hover:bg-red-700 px-2 py-1 rounded text-sm font-semibold')}>
+              <button onClick={() => handleStop(wall.id)} className={cn('bg-red-600', 'hover:bg-red-700', 'px-2', 'py-1', 'rounded', 'text-sm', 'font-semibold')}>
                 ⏹ Stop
               </button>
-              <button onClick={() => handleClear(wall.id)} className={cn('bg-cyan-500 hover:bg-cyan-600 px-2 py-1 rounded text-sm font-semibold')}>
+              <button onClick={() => handleClear(wall.id)} className={cn('bg-cyan-500', 'hover:bg-cyan-600', 'px-2', 'py-1', 'rounded', 'text-sm', 'font-semibold')}>
                 🧹 Clear
               </button>
-              <button onClick={() => onOpenOptions(wall)} className={cn('bg-indigo-500 hover:bg-indigo-600 px-2 py-1 rounded text-sm font-semibold')}>
+              <button onClick={() => onOpenOptions(wall)} className={cn('bg-indigo-500', 'hover:bg-indigo-600', 'px-2', 'py-1', 'rounded', 'text-sm', 'font-semibold')}>
                 ⚙ Options
               </button>
-              <button onClick={() => handleDelete(wall.id)} className={cn('bg-red-700 hover:bg-red-800 px-2 py-1 rounded text-sm font-semibold')}>
+              <button onClick={() => handleDelete(wall.id)} className={cn('bg-red-700', 'hover:bg-red-800', 'px-2', 'py-1', 'rounded', 'text-sm', 'font-semibold')}>
                 ❌ Delete
               </button>
             </div>
@@ -268,12 +273,8 @@ export default function FanWallGrid({
         ))}
       </div>
 
-      {/* ✅ Render Moderation Modal */}
       {showModeration && selectedWallId && (
-        <ModerationModal
-          wallId={selectedWallId}
-          onClose={() => setShowModeration(false)}
-        />
+        <ModerationModal wallId={selectedWallId} onClose={() => setShowModeration(false)} />
       )}
     </div>
   );

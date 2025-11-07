@@ -24,9 +24,7 @@ export default function DashboardHeader({
         <button
           onClick={onOpenAds}
           className={cn(
-            'bg-indigo-600 hover:bg-indigo-700 text-white font-semibold',
-            'px-4 py-2 rounded-lg transition-all',
-            'w-50' // ✅ consistent, real Tailwind width
+            'bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-4 py-2 rounded-lg transition-all'
           )}
         >
           📺 Open Ad Manager
@@ -38,8 +36,7 @@ export default function DashboardHeader({
         <button
           onClick={onCreateFanWall}
           className={cn(
-            'bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg font-semibold transition-all',
-            'w-50'
+            'bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg font-semibold transition-all'
           )}
         >
           ➕ New Fan Zone Wall
@@ -48,8 +45,7 @@ export default function DashboardHeader({
         <button
           onClick={onCreatePoll}
           className={cn(
-            'bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg font-semibold transition-all',
-            'w-50'
+            'bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg font-semibold transition-all'
           )}
         >
           📊 New Live Poll Wall
@@ -58,8 +54,7 @@ export default function DashboardHeader({
         <button
           onClick={onCreatePrizeWheel}
           className={cn(
-            'bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg font-semibold transition-all',
-            'w-50'
+            'bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg font-semibold transition-all'
           )}
         >
           🎡 New Prize Wheel

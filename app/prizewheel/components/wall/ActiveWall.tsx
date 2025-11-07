@@ -1,205 +1,255 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { motion, useAnimation } from 'framer-motion';
-import { supabase } from '@/lib/supabaseClient';
+import { useEffect, useRef } from 'react';
+import * as THREE from 'three';
+import { CSS3DRenderer, CSS3DObject } from 'three/examples/jsm/renderers/CSS3DRenderer.js';
 
-export default function ActiveWall({ event }: { event: any }) {
-  const [spinSpeed, setSpinSpeed] = useState(event?.spin_speed || 'Medium');
-  const [spinning, setSpinning] = useState(false);
-  const controls = useAnimation();
+/* -----------------------------------------------------------
+   ✅ UTIL: GET INITIALS 
+----------------------------------------------------------- */
+function getInitials(name: string) {
+  if (!name) return '';
+  const parts = name.split(' ');
+  const first = parts[0]?.[0]?.toUpperCase() || '';
+  const last = parts[1]?.[0]?.toUpperCase() || '';
+  return `${first}${last}`;
+}
 
-  const bg =
-    event?.background_type === 'image'
-      ? `url(${event.background_value}) center/cover no-repeat`
-      : event?.background_value ||
-        'linear-gradient(to bottom right,#1b2735,#090a0f)';
+/* -----------------------------------------------------------
+   ✅ ACTIVE 3D PRIZE WHEEL — PRICE IS RIGHT DRUM
+----------------------------------------------------------- */
+export default function ActivePrizeWheel3D({ wheel, entries }) {
+  const mountRef = useRef(null);
 
-  const displayLogo =
-    event?.host?.branding_logo_url ||
-    event?.logo_url ||
-    '/faninteractlogo.png';
+  /* -----------------------------------------------------------
+     ✅ SIZE & LAYOUT
+  ----------------------------------------------------------- */
+  const DRUM_WIDTH = 1400;
+  const DRUM_HEIGHT = 620;
+  const TILE_SIZE = 220;
+  const TILE_COUNT = 16;
+  const RADIUS = 680;
+  const ANGLE_STEP = 360 / TILE_COUNT;
 
-  /* ---------- Spin Durations ---------- */
-  const spinDurations: Record<string, number> = {
-    Short: 10,
-    Medium: 15,
-    Long: 20,
-  };
+  /* -----------------------------------------------------------
+     ✅ TILE COLORS (pulled from dashboard later)
+  ----------------------------------------------------------- */
+  const colorA = wheel?.tile_color_a || 'rgba(255,255,255,0.14)';
+  const colorB = wheel?.tile_color_b || 'rgba(255,255,255,0.22)';
 
-  /* ---------- Listen for Spin Trigger ---------- */
-  useEffect(() => {
-    if (!event?.id) return;
-
-    const channel = supabase
-      .channel(`prizewheel-${event.id}`)
-      .on('broadcast', { event: 'spin_trigger' }, async () => {
-        console.log('🎡 Spin trigger received!');
-        startSpin();
-      })
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [event?.id, spinSpeed]);
-
-  /* ---------- Start Spin ---------- */
-  async function startSpin() {
-    if (spinning) return;
-    setSpinning(true);
-
-    const duration = spinDurations[spinSpeed] || 15;
-    const randomAngle = 360 * 10 + Math.floor(Math.random() * 360); // 10 full spins + random stop
-
-    await controls.start({
-      rotate: randomAngle,
-      transition: {
-        duration: duration,
-        ease: [0.2, 0.9, 0.3, 1],
-      },
+  const tiles = Array(TILE_COUNT)
+    .fill(null)
+    .map((_, i) => {
+      const entry = entries?.[i] || null;
+      return {
+        bg: i % 2 === 0 ? colorA : colorB,
+        initials: entry ? getInitials(entry.full_name) : '--',
+        image: entry?.photo_url || null,
+      };
     });
 
-    // Reset angle after stop to prevent overflow
-    controls.set({ rotate: randomAngle % 360 });
-    setSpinning(false);
-  }
+  /* -----------------------------------------------------------
+     ✅ MAIN THREE.JS SETUP
+  ----------------------------------------------------------- */
+  useEffect(() => {
+    if (!mountRef.current) return;
 
+    /* Scene + Camera */
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(
+      32,
+      window.innerWidth / window.innerHeight,
+      1,
+      5000
+    );
+    camera.position.set(0, 0, 1600);
+
+    /* WebGL Renderer */
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(window.devicePixelRatio);
+    mountRef.current.appendChild(renderer.domElement);
+
+    /* CSS3D Renderer */
+    const cssRenderer = new CSS3DRenderer();
+    cssRenderer.setSize(window.innerWidth, window.innerHeight);
+    cssRenderer.domElement.style.position = 'absolute';
+    cssRenderer.domElement.style.top = '0';
+    mountRef.current.appendChild(cssRenderer.domElement);
+
+    /* -----------------------------------------------------------
+       ✅ DRUM GEOMETRY (big chrome oval)
+    ----------------------------------------------------------- */
+    const drumGeo = new THREE.CylinderGeometry(
+      DRUM_HEIGHT / 2,
+      DRUM_HEIGHT / 2,
+      DRUM_WIDTH,
+      64,
+      1,
+      true
+    );
+
+    const drumMat = new THREE.MeshPhysicalMaterial({
+      metalness: 1.0,
+      roughness: 0.25,
+      reflectivity: 1.0,
+      clearcoat: 1.0,
+      clearcoatRoughness: 0.1,
+      color: 0xffffff,
+      side: THREE.DoubleSide,
+    });
+
+    const drumMesh = new THREE.Mesh(drumGeo, drumMat);
+    drumMesh.rotation.z = Math.PI / 2;
+    scene.add(drumMesh);
+
+    /* -----------------------------------------------------------
+       ✅ CREATE TILES
+    ----------------------------------------------------------- */
+    tiles.forEach((tile, index) => {
+      const wrapper = document.createElement('div');
+      wrapper.style.width = TILE_SIZE + 'px';
+      wrapper.style.height = TILE_SIZE + 'px';
+      wrapper.style.borderRadius = '18px';
+      wrapper.style.backdropFilter = 'blur(8px)';
+      wrapper.style.border = '1px solid rgba(255,255,255,0.22)';
+      wrapper.style.boxShadow = '0 0 20px rgba(0,0,0,0.55)';
+      wrapper.style.display = 'flex';
+      wrapper.style.flexDirection = 'column';
+      wrapper.style.alignItems = 'center';
+      wrapper.style.justifyContent = 'center';
+      wrapper.style.background = tile.bg;
+
+      if (tile.image) {
+        const img = document.createElement('img');
+        img.src = tile.image;
+        img.style.width = '70px';
+        img.style.height = '70px';
+        img.style.borderRadius = '12px';
+        img.style.objectFit = 'cover';
+        img.style.marginBottom = '8px';
+        wrapper.appendChild(img);
+      }
+
+      const txt = document.createElement('div');
+      txt.style.fontSize = '3rem';
+      txt.style.fontWeight = '900';
+      txt.style.color = 'white';
+      txt.style.textShadow = '0 0 12px rgba(0,0,0,0.7)';
+      txt.innerText = tile.initials;
+      wrapper.appendChild(txt);
+
+      const cssObj = new CSS3DObject(wrapper);
+
+      const angle = index * (ANGLE_STEP * (Math.PI / 180));
+
+      cssObj.position.x = Math.sin(angle) * RADIUS;
+      cssObj.position.y = 0;
+      cssObj.position.z = Math.cos(angle) * RADIUS;
+
+      cssObj.rotation.y = angle + Math.PI;
+      scene.add(cssObj);
+    });
+
+    /* -----------------------------------------------------------
+       ✅ SPINNING
+    ----------------------------------------------------------- */
+    function spinWheel() {
+      const target =
+        drumMesh.rotation.y + Math.PI * 8 + Math.random() * Math.PI * 2;
+      const start = drumMesh.rotation.y;
+      const duration = 2400;
+      const startTime = performance.now();
+
+      function animateSpin(t) {
+        const p = Math.min((t - startTime) / duration, 1);
+        const eased = 1 - Math.pow(1 - p, 3);
+        drumMesh.rotation.y = start + (target - start) * eased;
+        requestAnimationFrame(animateSpin);
+      }
+      animateSpin(performance.now());
+    }
+
+    wheel?._spin?.subscribe?.(() => spinWheel());
+
+    /* -----------------------------------------------------------
+       ✅ ANIMATION LOOP
+    ----------------------------------------------------------- */
+    function animate() {
+      requestAnimationFrame(animate);
+      renderer.render(scene, camera);
+      cssRenderer.render(scene, camera);
+    }
+    animate();
+
+    /* -----------------------------------------------------------
+       ✅ CLEANUP
+    ----------------------------------------------------------- */
+    return () => {
+      mountRef.current?.removeChild(renderer.domElement);
+      mountRef.current?.removeChild(cssRenderer.domElement);
+      renderer.dispose();
+    };
+  }, [entries, wheel]);
+
+  /* -----------------------------------------------------------
+     ✅ FULLSCREEN
+  ----------------------------------------------------------- */
+  const toggleFullscreen = () => {
+    const el = document.documentElement;
+    if (!document.fullscreenElement) el.requestFullscreen();
+    else document.exitFullscreen();
+  };
+
+  /* -----------------------------------------------------------
+     ✅ BACKGROUND (wired from DB)
+  ----------------------------------------------------------- */
+  const bg =
+    wheel?.background_type === 'image'
+      ? `url(${wheel.background_value}) center/cover no-repeat`
+      : wheel?.background_value ||
+        'linear-gradient(to bottom right,#1b2735,#090a0f)';
+
+  /* -----------------------------------------------------------
+     ✅ RENDER ROOT
+  ----------------------------------------------------------- */
   return (
     <div
+      ref={mountRef}
       style={{
-        background: bg,
         width: '100%',
         height: '100vh',
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'flex-start',
         overflow: 'hidden',
+        position: 'relative',
+        transition: 'background 0.8s ease',
+        background: bg,
       }}
     >
-      {/* ---------- TITLE ---------- */}
-      <h1
+      {/* ✅ FULLSCREEN BUTTON */}
+      <button
+        onClick={toggleFullscreen}
         style={{
-          color: '#fff',
-          textAlign: 'center',
-          textShadow: '0 0 25px rgba(0,0,0,0.7)',
-          fontWeight: 900,
-          letterSpacing: '1px',
-          marginTop: '4vh',
-          marginBottom: '2vh',
-          fontSize: 'clamp(2.5rem, 4vw, 5rem)',
-        }}
-      >
-        {event?.title || 'Prize Wheel'}
-      </h1>
-
-      {/* ---------- DISPLAY AREA ---------- */}
-      <div
-        style={{
-          width: '80vw',
-          height: '70vh',
-          backdropFilter: 'blur(18px)',
-          background: 'rgba(255,255,255,0.08)',
-          borderRadius: 20,
-          boxShadow: '10px 10px 30px rgba(0,0,0,0.4)',
-          border: '1px solid rgba(255,255,255,0.15)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          position: 'relative',
-          overflow: 'hidden',
-        }}
-      >
-        {/* ---------- WHEEL ---------- */}
-        <motion.img
-          src="/wheel.png"
-          alt="Prize Wheel"
-          animate={controls}
-          initial={{ rotate: 0 }}
-          style={{
-            width: 'clamp(400px, 65vw, 800px)',
-            height: 'auto',
-            filter: 'drop-shadow(0 0 25px rgba(0,0,0,0.8))',
-          }}
-        />
-
-        {/* ---------- CENTER LOGO ---------- */}
-        <img
-          src={displayLogo}
-          alt="Center Logo"
-          style={{
-            position: 'absolute',
-            width: '18%',
-            height: '18%',
-            borderRadius: '50%',
-            objectFit: 'cover',
-            border: '4px solid rgba(255,255,255,0.8)',
-            boxShadow: '0 0 15px rgba(0,0,0,0.7)',
-          }}
-        />
-
-        {/* ---------- TOP ARROW ---------- */}
-        <div
-          style={{
-            position: 'absolute',
-            top: '5%',
-            left: '50%',
-            transform: 'translateX(-50%)',
-            width: 0,
-            height: 0,
-            borderLeft: '18px solid transparent',
-            borderRight: '18px solid transparent',
-            borderBottom: '35px solid #ffcc00',
-            filter: 'drop-shadow(0 0 6px rgba(0,0,0,0.7))',
-          }}
-        />
-      </div>
-
-      {/* ---------- FULLSCREEN BUTTON ---------- */}
-      <div
-        style={{
-          position: 'fixed',
-          bottom: 10,
-          right: 10,
+          position: 'absolute',
+          bottom: '2vh',
+          right: '2vw',
           width: 48,
           height: 48,
           borderRadius: 10,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          cursor: 'pointer',
-          zIndex: 9999,
-          transition: 'opacity 0.3s ease',
-          opacity: 0.2,
           background: 'rgba(255,255,255,0.1)',
           backdropFilter: 'blur(6px)',
           border: '1px solid rgba(255,255,255,0.2)',
+          color: '#fff',
+          opacity: 0.25,
+          cursor: 'pointer',
+          transition: '0.25s',
+          zIndex: 99,
+          fontSize: '1.4rem',
         }}
         onMouseEnter={(e) => (e.currentTarget.style.opacity = '1')}
-        onMouseLeave={(e) => (e.currentTarget.style.opacity = '0.2')}
-        onClick={() => {
-          if (!document.fullscreenElement)
-            document.documentElement.requestFullscreen().catch(console.error);
-          else document.exitFullscreen();
-        }}
-        title="Toggle Fullscreen"
+        onMouseLeave={(e) => (e.currentTarget.style.opacity = '0.25')}
       >
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          fill="none"
-          viewBox="0 0 24 24"
-          strokeWidth={1.5}
-          stroke="white"
-          style={{ width: 26, height: 26 }}
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            d="M3 9V4h5M21 9V4h-5M3 15v5h5M21 15v5h-5"
-          />
-        </svg>
-      </div>
+        ⛶
+      </button>
     </div>
   );
 }

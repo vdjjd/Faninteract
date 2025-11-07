@@ -6,28 +6,44 @@ import { getFanWallsByHost } from '@/lib/actions/fan_walls';
 
 import DashboardHeader from './components/DashboardHeader';
 import FanWallGrid from './components/FanWallGrid';
+import PrizeWheelGrid from './components/PrizeWheelGrid';
+
 import CreateFanWallModal from '@/components/CreateFanWallModal';
+import CreatePrizeWheelModal from '@/components/CreatePrizeWheelModal';
 import OptionsModalFanWall from '@/components/OptionsModalFanWall';
-import AdsManagerModal from '@/components/AdsManagerModal'; // ✅ new modal import
+import OptionsModalPrizeWheel from '@/components/OptionsModalPrizeWheel';   // ✅ NEW
+import AdsManagerModal from '@/components/AdsManagerModal';
 import HostProfilePanel from '@/components/HostProfilePanel';
+
 import { cn } from '@/lib/utils';
 
 export default function DashboardPage() {
   const supabase = getSupabaseClient();
 
   const [host, setHost] = useState<any>(null);
-  const [fanWalls, setFanWalls] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [isFanWallModalOpen, setFanWallModalOpen] = useState(false);
-  const [selectedWall, setSelectedWall] = useState<any | null>(null);
-  const [isAdsModalOpen, setAdsModalOpen] = useState(false); // ✅ NEW STATE
 
+  const [fanWalls, setFanWalls] = useState<any[]>([]);
+  const [prizeWheels, setPrizeWheels] = useState<any[]>([]);
+
+  const [loading, setLoading] = useState(true);
+
+  const [isFanWallModalOpen, setFanWallModalOpen] = useState(false);
+  const [isPrizeWheelModalOpen, setPrizeWheelModalOpen] = useState(false);
+  const [isAdsModalOpen, setAdsModalOpen] = useState(false);
+
+  const [selectedWall, setSelectedWall] = useState<any | null>(null);
+  const [selectedPrizeWheel, setSelectedPrizeWheel] = useState<any | null>(null);  // ✅ NEW
+
+  /* ------------------------------------------------------- */
+  /* ✅ INITIAL LOAD */
+  /* ------------------------------------------------------- */
   useEffect(() => {
     async function load() {
       try {
         const {
           data: { user },
         } = await supabase.auth.getUser();
+
         if (!user) throw new Error('No authenticated user');
 
         let { data: hostRow } = await supabase
@@ -54,6 +70,7 @@ export default function DashboardPage() {
             ])
             .select()
             .maybeSingle();
+
           hostRow = inserted;
         }
 
@@ -62,23 +79,49 @@ export default function DashboardPage() {
         if (hostRow?.id) {
           const fetchedWalls = await getFanWallsByHost(hostRow.id);
           setFanWalls(fetchedWalls);
+
+          const { data: wheels } = await supabase
+            .from('prize_wheels')
+            .select('*')
+            .eq('host_id', hostRow.id)
+            .order('created_at', { ascending: false });
+
+          setPrizeWheels(wheels || []);
         }
       } catch (err: any) {
-        console.error('❌ Error loading dashboard data:', err.message || err);
+        console.error('❌ Dashboard load error:', err.message || err);
       } finally {
         setLoading(false);
       }
     }
+
     load();
   }, [supabase]);
 
+  /* ------------------------------------------------------- */
+  /* ✅ REFRESH HELPERS */
+  /* ------------------------------------------------------- */
   const refreshFanWalls = async () => {
-    if (host?.id) {
-      const updated = await getFanWallsByHost(host.id);
-      setFanWalls(updated);
-    }
+    if (!host?.id) return;
+    const updated = await getFanWallsByHost(host.id);
+    setFanWalls(updated);
   };
 
+  const refreshPrizeWheels = async () => {
+    if (!host?.id) return;
+
+    const { data } = await supabase
+      .from('prize_wheels')
+      .select('*')
+      .eq('host_id', host.id)
+      .order('created_at', { ascending: false });
+
+    setPrizeWheels(data || []);
+  };
+
+  /* ------------------------------------------------------- */
+  /* ✅ RENDER */
+  /* ------------------------------------------------------- */
   if (loading)
     return (
       <div className={cn('flex items-center justify-center h-screen bg-black text-white')}>
@@ -88,6 +131,7 @@ export default function DashboardPage() {
 
   return (
     <div className={cn('min-h-screen bg-[#0b111d] text-white flex flex-col items-center p-8')}>
+      
       {/* ---------- HEADER ---------- */}
       <div className={cn('w-full flex items-center justify-between mb-6')}>
         <HostProfilePanel host={host} setHost={setHost} />
@@ -98,11 +142,11 @@ export default function DashboardPage() {
       <DashboardHeader
         onCreateFanWall={() => setFanWallModalOpen(true)}
         onCreatePoll={() => {}}
-        onCreatePrizeWheel={() => {}}
-        onOpenAds={() => setAdsModalOpen(true)} // ✅ Opens the Ads modal
+        onCreatePrizeWheel={() => setPrizeWheelModalOpen(true)}
+        onOpenAds={() => setAdsModalOpen(true)}
       />
 
-      {/* ---------- FAN ZONE WALLS ---------- */}
+      {/* ---------- FAN WALLS ---------- */}
       <FanWallGrid
         walls={fanWalls}
         host={host}
@@ -110,7 +154,15 @@ export default function DashboardPage() {
         onOpenOptions={setSelectedWall}
       />
 
-      {/* ---------- CREATE MODAL ---------- */}
+      {/* ---------- PRIZE WHEELS ---------- */}
+      <PrizeWheelGrid
+        wheels={prizeWheels}
+        host={host}
+        refreshPrizeWheels={refreshPrizeWheels}
+        onOpenOptions={setSelectedPrizeWheel}   // ✅ FIXED
+      />
+
+      {/* ---------- FAN WALL CREATE ---------- */}
       <CreateFanWallModal
         isOpen={isFanWallModalOpen}
         onClose={() => setFanWallModalOpen(false)}
@@ -118,7 +170,15 @@ export default function DashboardPage() {
         refreshFanWalls={refreshFanWalls}
       />
 
-      {/* ---------- OPTIONS MODAL ---------- */}
+      {/* ---------- PRIZE WHEEL CREATE ---------- */}
+      <CreatePrizeWheelModal
+        isOpen={isPrizeWheelModalOpen}
+        onClose={() => setPrizeWheelModalOpen(false)}
+        hostId={host?.id}
+        refreshPrizeWheels={refreshPrizeWheels}
+      />
+
+      {/* ---------- FAN WALL OPTIONS ---------- */}
       {selectedWall && (
         <OptionsModalFanWall
           wall={selectedWall}
@@ -128,11 +188,21 @@ export default function DashboardPage() {
         />
       )}
 
-      {/* ---------- ADS MANAGER MODAL ---------- */}
+      {/* ✅ PRIZE WHEEL OPTIONS */}
+      {selectedPrizeWheel && (
+        <OptionsModalPrizeWheel
+          event={selectedPrizeWheel}
+          hostId={host?.id}
+          onClose={() => setSelectedPrizeWheel(null)}
+          refreshPrizeWheels={refreshPrizeWheels}
+        />
+      )}
+
+      {/* ---------- ADS MANAGER ---------- */}
       {isAdsModalOpen && (
         <AdsManagerModal
           host={host}
-          onClose={() => setAdsModalOpen(false)} // ✅ close button + outside click
+          onClose={() => setAdsModalOpen(false)}
         />
       )}
     </div>
