@@ -4,28 +4,28 @@ import { QRCodeCanvas } from 'qrcode.react';
 import { useEffect, useMemo, useState, useRef } from 'react';
 import { useRealtimeChannel } from '@/providers/SupabaseRealtimeProvider';
 
-/* ---------- COUNTDOWN DISPLAY ---------- */
+/* ---------- COUNTDOWN COMPONENT ---------- */
 function CountdownDisplay({ countdown, countdownActive }) {
   const [timeLeft, setTimeLeft] = useState(0);
   const [active, setActive] = useState(countdownActive);
 
-  const totalSeconds = useMemo(() => {
-    if (!countdown) return 0;
+  useEffect(() => {
+    if (!countdown) return;
     const [numStr] = countdown.split(' ');
     const num = parseInt(numStr);
-    const isMinute = countdown.toLowerCase().includes('minute');
-    const isSecond = countdown.toLowerCase().includes('second');
-    return isMinute ? num * 60 : isSecond ? num : 0;
-  }, [countdown]);
+    const mins = countdown.toLowerCase().includes('minute');
+    const secs = countdown.toLowerCase().includes('second');
+    const total = mins ? num * 60 : secs ? num : 0;
 
-  useEffect(() => {
-    setTimeLeft(totalSeconds);
+    setTimeLeft(total);
     setActive(!!countdownActive);
-  }, [totalSeconds, countdownActive]);
+  }, [countdown, countdownActive]);
 
   useEffect(() => {
     if (!active || timeLeft <= 0) return;
-    const timer = setInterval(() => setTimeLeft((t) => (t > 1 ? t - 1 : 0)), 1000);
+    const timer = setInterval(() => {
+      setTimeLeft((t) => (t > 1 ? t - 1 : 0));
+    }, 1000);
     return () => clearInterval(timer);
   }, [active, timeLeft]);
 
@@ -37,12 +37,11 @@ function CountdownDisplay({ countdown, countdownActive }) {
   return (
     <div
       style={{
-        fontSize: 'clamp(6rem,8vw,9rem)',
+        fontSize: 'clamp(3rem,4vw,5rem)',
         fontWeight: 900,
         color: '#fff',
-        textShadow: '0 0 40px rgba(0,0,0,0.7)',
-        textAlign: 'center',
-        marginTop: '2vh',
+        marginTop: '1vh',
+        textShadow: '0 0 30px rgba(0,0,0,0.8)',
       }}
     >
       {m}:{s.toString().padStart(2, '0')}
@@ -51,11 +50,15 @@ function CountdownDisplay({ countdown, countdownActive }) {
 }
 
 /* -------------------------------------------------------------------------- */
-/* INACTIVE WALL                                                              */
+/* ✅ PERFECTLY MATCHED INACTIVE WALL                                         */
 /* -------------------------------------------------------------------------- */
 export default function InactiveWall({ wall }) {
-  const channelRef = useRealtimeChannel();
-  const [bg, setBg] = useState('linear-gradient(to bottom right,#1b2735,#090a0f)');
+  const rt = useRealtimeChannel();
+
+  const [bg, setBg] = useState(
+    'linear-gradient(to bottom right,#1b2735,#090a0f)'
+  );
+
   const [wallState, setWallState] = useState({
     countdown: '',
     countdownActive: false,
@@ -64,100 +67,95 @@ export default function InactiveWall({ wall }) {
 
   const updateTimeout = useRef(null);
 
+  /* ✅ Pulse effect for “Starting Soon” */
   const PulseStyle = (
     <style>{`
-      @keyframes pulseGlow {
-        0%, 100% { text-shadow: 0 0 18px rgba(255,255,255,0.3), 0 0 36px rgba(255,255,255,0.2); opacity: 0.95; }
-        50% { text-shadow: 0 0 28px rgba(255,255,255,0.8), 0 0 60px rgba(255,255,255,0.5); opacity: 1; }
+      @keyframes pulseSoonGlow {
+        0%,100% { opacity: .7; text-shadow: 0 0 14px rgba(255,255,255,0.3); }
+        50% { opacity: 1; text-shadow: 0 0 22px rgba(180,220,255,0.8); }
       }
-      .pulseSoon { animation: pulseGlow 2.5s ease-in-out infinite; }
+      .pulseSoon { animation: pulseSoonGlow 2.5s ease-in-out infinite; }
     `}</style>
   );
 
-  /* ✅ Load initial */
+  /* ✅ Load initial wall state */
   useEffect(() => {
     if (!wall) return;
+
     setWallState({
       countdown: wall.countdown || '',
       countdownActive: !!wall.countdown_active,
       title: wall.title || '',
     });
 
-    const value = wall.background_type === 'image'
-      ? `url(${wall.background_value}) center/cover no-repeat`
-      : wall.background_value || 'linear-gradient(to bottom right,#1b2735,#090a0f)';
+    const value =
+      wall.background_type === 'image'
+        ? `url(${wall.background_value}) center/cover no-repeat`
+        : wall.background_value ||
+          'linear-gradient(to bottom right,#1b2735,#090a0f)';
 
-    const t = setTimeout(() => setBg(value), 100);
-    return () => clearTimeout(t);
+    setBg(value);
   }, [wall]);
 
-  /* ✅ Realtime updates */
+  /* ✅ Realtime updates (broadcast only) */
   useEffect(() => {
-    const channel = channelRef?.current;
-    if (!channel || !wall?.id) return;
+    if (!rt?.current || !wall?.id) return;
+    const channel = rt.current;
 
-    const scheduleUpdate = (patch) => {
+    const scheduleUpdate = (data) => {
       if (updateTimeout.current) clearTimeout(updateTimeout.current);
       updateTimeout.current = setTimeout(() => {
-        setWallState((prev) => ({ ...prev, ...patch }));
+        setWallState((prev) => ({ ...prev, ...data }));
       }, 100);
     };
 
-    const handleBroadcast = ({ event, payload }) => {
+    channel.on('broadcast', {}, ({ event, payload }) => {
       if (!payload?.id || payload.id !== wall.id) return;
 
-      switch (event) {
-        case 'wall_updated':
-          if (payload.background_value) {
-            const newBg =
-              payload.background_type === 'image'
-                ? `url(${payload.background_value}) center/cover no-repeat`
-                : payload.background_value;
-            setBg(newBg);
-          }
-          if (payload.title) scheduleUpdate({ title: payload.title });
-          if (payload.countdown) scheduleUpdate({ countdown: payload.countdown });
-          break;
-
-        case 'wall_status_changed':
-          if (payload.countdown_active !== undefined)
-            scheduleUpdate({ countdownActive: payload.countdown_active });
-          break;
-
-        case 'countdown_finished':
-          scheduleUpdate({ countdownActive: false });
-          break;
+      if (event === 'wall_updated') {
+        if (payload.background_value) {
+          const newBg =
+            payload.background_type === 'image'
+              ? `url(${payload.background_value}) center/cover no-repeat`
+              : payload.background_value;
+          setBg(newBg);
+        }
+        if (payload.title) scheduleUpdate({ title: payload.title });
+        if (payload.countdown) scheduleUpdate({ countdown: payload.countdown });
       }
-    };
 
-    channel.on('broadcast', {}, handleBroadcast);
+      if (event === 'wall_status_changed') {
+        if (payload.countdown_active !== undefined)
+          scheduleUpdate({ countdownActive: payload.countdown_active });
+      }
+
+      if (event === 'countdown_finished') {
+        scheduleUpdate({ countdownActive: false });
+      }
+    });
+
     return () => channel.unsubscribe?.();
-  }, [channelRef, wall?.id]);
+  }, [rt, wall?.id]);
 
-  /* ✅ Dynamic origin + QR */
+  /* ✅ QR origin */
   const origin =
     typeof window !== 'undefined'
       ? window.location.origin
       : 'https://faninteract.vercel.app';
 
-  const qrValue = useMemo(
-    () => `${origin}/guest/signup?wall=${wall?.id}`,
-    [wall?.id, origin]
-  );
+  const qrValue = `${origin}/guest/signup?wall=${wall?.id}`;
 
-  /* ✅ Host logo */
+  /* ✅ Logo selection */
   const displayLogo =
     wall?.host?.branding_logo_url?.trim()
       ? wall.host.branding_logo_url
       : '/faninteractlogo.png';
 
   /* ✅ Fullscreen */
-  const handleFullscreen = () => {
-    const el = document.documentElement;
+  const toggleFullscreen = () =>
     !document.fullscreenElement
-      ? el.requestFullscreen().catch(() => {})
+      ? document.documentElement.requestFullscreen().catch(() => {})
       : document.exitFullscreen();
-  };
 
   if (!wall) return <div>Loading Wall…</div>;
 
@@ -167,33 +165,30 @@ export default function InactiveWall({ wall }) {
         background: bg,
         width: '100%',
         height: '100vh',
+        overflow: 'hidden',
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
-        justifyContent: 'flex-start',
-        overflow: 'hidden',
         position: 'relative',
-        transition: 'background 0.8s ease',
-        padding: '2vh 2vw',
+        paddingTop: '3vh',
       }}
     >
       {PulseStyle}
 
+      {/* Title (same spacing as SingleHighlightWall) */}
       <h1
         style={{
           color: '#fff',
-          textAlign: 'center',
-          fontWeight: 900,
-          marginTop: '3vh',
-          marginBottom: '1.5vh',
           fontSize: 'clamp(2.5rem,4vw,5rem)',
-          textShadow: '0 0 12px rgba(0,0,0,0.6)',
+          fontWeight: 900,
+          marginBottom: '1.5vh',
+          textShadow: '0 0 12px rgba(0,0,0,0.5)',
         }}
       >
         {wallState.title || 'Fan Zone Wall'}
       </h1>
 
-      {/* Panel */}
+      {/* ✅ MAIN PANEL — IDENTICAL TO SingleHighlightWall */}
       <div
         style={{
           width: '90vw',
@@ -201,122 +196,134 @@ export default function InactiveWall({ wall }) {
           backdropFilter: 'blur(20px)',
           background: 'rgba(255,255,255,0.08)',
           borderRadius: 24,
-          boxShadow: '0 0 40px rgba(0,0,0,0.5)',
           border: '1px solid rgba(255,255,255,0.15)',
-          position: 'relative',
           display: 'flex',
+          position: 'relative',
           overflow: 'hidden',
         }}
       >
-
-        {/* ✅ NEW QR PATH */}
-        <QRCodeCanvas
-          value={qrValue}
-          size={620}
-          bgColor="#fff"
-          fgColor="#000"
-          level="H"
-          includeMargin={false}
-          style={{
-            position: 'absolute',
-            top: '50%',
-            left: '40px',
-            transform: 'translateY(-50%)',
-            borderRadius: 16,
-            boxShadow: '0 0 18px rgba(0,0,0,0.6)',
-          }}
-        />
-
-        {/* Logo */}
-        <img
-          src={displayLogo}
-          alt="Logo"
-          style={{
-            position: 'absolute',
-            top: '25%',
-            left: 'calc(40px + 620px + 60px)',
-            transform: 'translateY(-50%)',
-            width: 'clamp(600px, 22vw, 400px)',
-            objectFit: 'contain',
-            filter: 'drop-shadow(2px 2px 10px rgba(0,0,0,10))',
-          }}
-        />
-
-        {/* Grey bar */}
+        {/* ✅ LEFT COLUMN — EXACT photo box → QR box */}
         <div
           style={{
             position: 'absolute',
-            top: 'calc(25% + 160px)',
-            left: 'calc(40px + 620px + 60px)',
-            width: 'clamp(600px, 22vw, 400px)',
-            height: 14,
-            borderRadius: 6,
-            background: 'linear-gradient(to right,#000,#444)',
-            boxShadow: '0 0 12px rgba(0,0,0,0.7)',
-            opacity: 0.85,
-          }}
-        />
-
-        {/* Text */}
-        <div
-          style={{
-            position: 'absolute',
-            top: 'calc(25% + 180px)',
-            left: 'calc(40px + 620px + 60px)',
-            width: 'clamp(600px, 22vw, 400px)',
-            textAlign: 'center',
-            color: '#fff',
-            fontWeight: 800,
+            top: 40,
+            left: 40,
+            width: '42%',
+            height: 'calc(100% - 80px)',
+            borderRadius: 18,
+            overflow: 'hidden',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            background: 'rgba(255,255,255,0.12)',
           }}
         >
-          <div style={{ fontSize: 'clamp(4rem, 2vw, 3.5rem)' }}>
-            Fan Zone Wall
-          </div>
-
-          <div className="pulseSoon" style={{ fontSize: 'clamp(3rem, 2vw, 2.6rem)', color: '#bcd9ff' }}>
-            Starting Soon!!
-          </div>
+          <QRCodeCanvas
+            value={qrValue}
+            size={600}
+            bgColor="#ffffff"
+            fgColor="#000000"
+            level="H"
+            style={{
+              width: '100%',
+              height: '100%',
+              objectFit: 'contain',
+              borderRadius: 18,
+            }}
+          />
         </div>
 
-        {wallState.countdown && wallState.countdown !== 'none' && (
+        {/* ✅ RIGHT COLUMN — identical layout */}
+        <div
+          style={{
+            flexGrow: 1,
+            marginLeft: '44%',
+            paddingTop: '3vh',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+          }}
+        >
+          {/* Logo — identical placement */}
+          <div style={{ width: 'clamp(280px,30vw,420px)' }}>
+            <img
+              src={displayLogo}
+              style={{
+                width: '100%',
+                height: 'auto',
+                filter: 'drop-shadow(0 0 14px rgba(0,0,0,0.85))',
+              }}
+            />
+          </div>
+
+          {/* Grey bar — identical size */}
           <div
             style={{
-              position: 'absolute',
-              top: '85%',
-              left: 'calc(40px + 620px + 60px)',
-              transform: 'translateY(-50%)',
-              width: 'clamp(600px, 22vw, 400px)',
+              width: '90%',
+              height: 16,
+              marginTop: '2vh',
+              marginBottom: '2vh',
+              borderRadius: 6,
+              background: 'linear-gradient(to right,#000,#444)',
+            }}
+          />
+
+          {/* Text */}
+          <p
+            style={{
+              color: '#fff',
+              fontSize: 'clamp(2.4rem,3vw,4rem)',
+              fontWeight: 900,
+              margin: 0,
               textAlign: 'center',
             }}
           >
-            <CountdownDisplay countdown={wallState.countdown} countdownActive={wallState.countdownActive} />
-          </div>
-        )}
+            Fan Zone Wall
+          </p>
+
+          <p
+            className="pulseSoon"
+            style={{
+              color: '#bcd9ff',
+              fontSize: 'clamp(1.8rem,2.4vw,3rem)',
+              marginTop: '1vh',
+              textAlign: 'center',
+              fontWeight: 700,
+            }}
+          >
+            Starting Soon!!
+          </p>
+
+          <CountdownDisplay
+            countdown={wallState.countdown}
+            countdownActive={wallState.countdownActive}
+          />
+        </div>
       </div>
 
-      {/* Fullscreen */}
-      <button
-        onClick={handleFullscreen}
+      {/* Fullscreen Button */}
+      <div
+        onClick={toggleFullscreen}
         style={{
-          position: 'absolute',
-          bottom: '2vh',
-          right: '2vw',
-          width: 45,
-          height: 45,
-          borderRadius: 8,
-          background: 'rgba(255,255,255,0.05)',
-          border: '1px solid rgba(255,255,255,0.2)',
-          color: '#fff',
-          fontSize: '1.2rem',
-          opacity: 0.15,
+          position: 'fixed',
+          bottom: 12,
+          right: 12,
+          width: 48,
+          height: 48,
+          borderRadius: 10,
+          background: 'rgba(255,255,255,0.08)',
+          border: '1px solid rgba(255,255,255,0.15)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
           cursor: 'pointer',
-          transition: 'all 0.3s ease',
+          opacity: 0.25,
         }}
         onMouseEnter={(e) => (e.currentTarget.style.opacity = '1')}
-        onMouseLeave={(e) => (e.currentTarget.style.opacity = '0.15')}
+        onMouseLeave={(e) => (e.currentTarget.style.opacity = '0.25')}
       >
         ⛶
-      </button>
+      </div>
     </div>
   );
 }
