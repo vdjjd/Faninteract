@@ -4,50 +4,42 @@ import { createContext, useContext, useEffect, useRef } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 
 const SupabaseRealtimeContext = createContext<any>(null);
-
-// ✅ Singleton channel
 let globalChannel: any = null;
 
 export function SupabaseRealtimeProvider({ children }: { children: React.ReactNode }) {
   const channelRef = useRef<any>(null);
 
   useEffect(() => {
-    if (channelRef.current) return; // already setup
+    if (channelRef.current) return;
+
+    const presenceKey =
+      typeof window !== 'undefined'
+        ? `client-${window.location.host}-${Math.random().toString(36).slice(2)}`
+        : 'server-client';
 
     if (!globalChannel) {
-      console.log('🛰 Creating global realtime channel...');
-
       globalChannel = supabase.channel('faninteract-realtime', {
-        config: { broadcast: { self: false } },
+        config: {
+          broadcast: { self: false },
+          presence: {
+            key: presenceKey,   // ✅ UNIQUE PER TAB / HOST
+          },
+        },
       });
 
-      // ✅ LISTEN TO ALL guest_posts CHANGES
-      globalChannel
-        .on(
-          'postgres_changes',
-          {
-            event: '*',
-            schema: 'public',
-            table: 'guest_posts',
-          },
-          (payload) => {
-            console.log('🔥 GLOBAL guest_posts event:', payload);
-          }
-        )
-        .subscribe((status: string) => {
-          console.log('🔔 Realtime status:', status);
-        });
+      globalChannel.subscribe((status: string) =>
+        console.log('🔔 Realtime:', status, 'key:', presenceKey)
+      );
     }
 
     channelRef.current = globalChannel;
 
-    // ❌ Never cleanup in dev (StrictMode double-mount)
-    if (process.env.NODE_ENV === 'production') {
-      return () => {
+    return () => {
+      if (process.env.NODE_ENV === 'production') {
         supabase.removeChannel(globalChannel);
         globalChannel = null;
-      };
-    }
+      }
+    };
   }, []);
 
   return (
@@ -60,5 +52,3 @@ export function SupabaseRealtimeProvider({ children }: { children: React.ReactNo
 export function useRealtimeChannel() {
   return useContext(SupabaseRealtimeContext);
 }
-
-
