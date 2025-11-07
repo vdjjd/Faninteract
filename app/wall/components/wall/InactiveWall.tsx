@@ -1,7 +1,7 @@
 'use client';
 
 import { QRCodeCanvas } from 'qrcode.react';
-import { useEffect, useMemo, useState, useRef } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useRealtimeChannel } from '@/providers/SupabaseRealtimeProvider';
 
 /* ---------- COUNTDOWN COMPONENT ---------- */
@@ -24,7 +24,7 @@ function CountdownDisplay({ countdown, countdownActive }) {
   useEffect(() => {
     if (!active || timeLeft <= 0) return;
     const timer = setInterval(() => {
-      setTimeLeft((t) => (t > 1 ? t - 1 : 0));
+      setTimeLeft(t => (t > 1 ? t - 1 : 0));
     }, 1000);
     return () => clearInterval(timer);
   }, [active, timeLeft]);
@@ -50,13 +50,18 @@ function CountdownDisplay({ countdown, countdownActive }) {
 }
 
 /* -------------------------------------------------------------------------- */
-/* ✅ PERFECTLY MATCHED INACTIVE WALL                                         */
+/* ✅ INACTIVE WALL (patched with brightness support)                          */
 /* -------------------------------------------------------------------------- */
 export default function InactiveWall({ wall }) {
   const rt = useRealtimeChannel();
 
   const [bg, setBg] = useState(
     'linear-gradient(to bottom right,#1b2735,#090a0f)'
+  );
+
+  /* ✅ NEW — brightness state */
+  const [brightness, setBrightness] = useState(
+    wall?.background_brightness || 100
   );
 
   const [wallState, setWallState] = useState({
@@ -67,7 +72,7 @@ export default function InactiveWall({ wall }) {
 
   const updateTimeout = useRef(null);
 
-  /* ✅ Pulse effect for “Starting Soon” */
+  /* ✅ Glow animation */
   const PulseStyle = (
     <style>{`
       @keyframes pulseSoonGlow {
@@ -78,7 +83,7 @@ export default function InactiveWall({ wall }) {
     `}</style>
   );
 
-  /* ✅ Load initial wall state */
+  /* ✅ Load initial values */
   useEffect(() => {
     if (!wall) return;
 
@@ -95,9 +100,14 @@ export default function InactiveWall({ wall }) {
           'linear-gradient(to bottom right,#1b2735,#090a0f)';
 
     setBg(value);
+
+    /* ✅ NEW — load brightness */
+    if (wall.background_brightness !== undefined) {
+      setBrightness(wall.background_brightness);
+    }
   }, [wall]);
 
-  /* ✅ Realtime updates (broadcast only) */
+  /* ✅ Listen for realtime updates */
   useEffect(() => {
     if (!rt?.current || !wall?.id) return;
     const channel = rt.current;
@@ -105,7 +115,7 @@ export default function InactiveWall({ wall }) {
     const scheduleUpdate = (data) => {
       if (updateTimeout.current) clearTimeout(updateTimeout.current);
       updateTimeout.current = setTimeout(() => {
-        setWallState((prev) => ({ ...prev, ...data }));
+        setWallState(prev => ({ ...prev, ...data }));
       }, 100);
     };
 
@@ -120,6 +130,12 @@ export default function InactiveWall({ wall }) {
               : payload.background_value;
           setBg(newBg);
         }
+
+        /* ✅ NEW — brightness from modal */
+        if (payload.background_brightness !== undefined) {
+          setBrightness(payload.background_brightness);
+        }
+
         if (payload.title) scheduleUpdate({ title: payload.title });
         if (payload.countdown) scheduleUpdate({ countdown: payload.countdown });
       }
@@ -137,7 +153,7 @@ export default function InactiveWall({ wall }) {
     return () => channel.unsubscribe?.();
   }, [rt, wall?.id]);
 
-  /* ✅ QR origin */
+  /* ✅ QR link origin */
   const origin =
     typeof window !== 'undefined'
       ? window.location.origin
@@ -145,13 +161,11 @@ export default function InactiveWall({ wall }) {
 
   const qrValue = `${origin}/guest/signup?wall=${wall?.id}`;
 
-  /* ✅ Logo selection */
   const displayLogo =
     wall?.host?.branding_logo_url?.trim()
       ? wall.host.branding_logo_url
       : '/faninteractlogo.png';
 
-  /* ✅ Fullscreen */
   const toggleFullscreen = () =>
     !document.fullscreenElement
       ? document.documentElement.requestFullscreen().catch(() => {})
@@ -163,6 +177,7 @@ export default function InactiveWall({ wall }) {
     <div
       style={{
         background: bg,
+        filter: `brightness(${brightness}%)`,   /* ✅ NEW brightness filter */
         width: '100%',
         height: '100vh',
         overflow: 'hidden',
@@ -175,7 +190,7 @@ export default function InactiveWall({ wall }) {
     >
       {PulseStyle}
 
-      {/* Title (same spacing as SingleHighlightWall) */}
+      {/* Title */}
       <h1
         style={{
           color: '#fff',
@@ -188,7 +203,7 @@ export default function InactiveWall({ wall }) {
         {wallState.title || 'Fan Zone Wall'}
       </h1>
 
-      {/* ✅ MAIN PANEL — IDENTICAL TO SingleHighlightWall */}
+      {/* Main panel */}
       <div
         style={{
           width: '90vw',
@@ -202,7 +217,7 @@ export default function InactiveWall({ wall }) {
           overflow: 'hidden',
         }}
       >
-        {/* ✅ LEFT COLUMN — EXACT photo box → QR box */}
+        {/* QR container */}
         <div
           style={{
             position: 'absolute',
@@ -233,7 +248,7 @@ export default function InactiveWall({ wall }) {
           />
         </div>
 
-        {/* ✅ RIGHT COLUMN — identical layout */}
+        {/* Right column */}
         <div
           style={{
             flexGrow: 1,
@@ -244,7 +259,6 @@ export default function InactiveWall({ wall }) {
             alignItems: 'center',
           }}
         >
-          {/* Logo — identical placement */}
           <div style={{ width: 'clamp(280px,30vw,420px)' }}>
             <img
               src={displayLogo}
@@ -256,7 +270,6 @@ export default function InactiveWall({ wall }) {
             />
           </div>
 
-          {/* Grey bar — identical size */}
           <div
             style={{
               width: '90%',
@@ -268,7 +281,6 @@ export default function InactiveWall({ wall }) {
             }}
           />
 
-          {/* Text */}
           <p
             style={{
               color: '#fff',
@@ -301,7 +313,7 @@ export default function InactiveWall({ wall }) {
         </div>
       </div>
 
-      {/* Fullscreen Button */}
+      {/* Fullscreen */}
       <div
         onClick={toggleFullscreen}
         style={{

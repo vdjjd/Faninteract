@@ -27,8 +27,14 @@ export default function Grid2x2Wall({ event, posts }: Grid2x2WallProps) {
   /* ---------- STATE ---------- */
   const [livePosts, setLivePosts] = useState(posts || []);
   const [gridPosts, setGridPosts] = useState<(any | null)[]>(Array(4).fill(null));
+
   const [displayDuration, setDisplayDuration] = useState(
     speedMap[event?.transition_speed || 'Medium']
+  );
+
+  /* ✅ BRIGHTNESS */
+  const [brightness, setBrightness] = useState(
+    event?.background_brightness || 100
   );
 
   const [bg, setBg] = useState(
@@ -37,6 +43,7 @@ export default function Grid2x2Wall({ event, posts }: Grid2x2WallProps) {
       : event?.background_value ||
         'linear-gradient(to bottom right,#1b2735,#090a0f)'
   );
+
   const [title, setTitle] = useState(event?.title || 'Fan Zone Wall');
   const [logo, setLogo] = useState(event?.logo_url || '/faninteractlogo.png');
 
@@ -86,7 +93,7 @@ export default function Grid2x2Wall({ event, posts }: Grid2x2WallProps) {
     cellPointer.current = 0;
   }, [posts]);
 
-  /* ---------- SAFE BACKGROUND POLLING (no realtime) ---------- */
+  /* ---------- POLLING POSTS (NO REALTIME) ---------- */
   useEffect(() => {
     if (!event?.id) return;
 
@@ -103,7 +110,7 @@ export default function Grid2x2Wall({ event, posts }: Grid2x2WallProps) {
       setLivePosts((prev) => {
         const changed =
           prev.length !== data.length ||
-          prev.some((p, i) => p.id !== data[i]?.id);
+          prev.some((p, i) => p?.id !== data[i]?.id);
 
         return changed ? data : prev;
       });
@@ -113,7 +120,7 @@ export default function Grid2x2Wall({ event, posts }: Grid2x2WallProps) {
     return () => clearInterval(id);
   }, [event?.id]);
 
-  /* ---------- REALTIME SETTINGS ONLY ---------- */
+  /* ---------- REALTIME FOR SETTINGS ONLY ---------- */
   useEffect(() => {
     if (!event?.id) return;
 
@@ -131,12 +138,18 @@ export default function Grid2x2Wall({ event, posts }: Grid2x2WallProps) {
           const w = payload.new;
           if (!w) return;
 
+          /* ✅ Background */
           if (w.background_value) {
             setBg(
               w.background_type === 'image'
                 ? `url(${w.background_value}) center/cover no-repeat`
                 : w.background_value
             );
+          }
+
+          /* ✅ NEW: Brightness */
+          if (w.background_brightness !== undefined) {
+            setBrightness(w.background_brightness);
           }
 
           if (w.title) setTitle(w.title);
@@ -157,9 +170,7 @@ export default function Grid2x2Wall({ event, posts }: Grid2x2WallProps) {
   useEffect(() => {
     if (!livePosts.length) return;
 
-    if (rotationTimer.current) {
-      clearInterval(rotationTimer.current);
-    }
+    if (rotationTimer.current) clearInterval(rotationTimer.current);
 
     const cycle = () => {
       const next = livePosts[postPointer.current % livePosts.length];
@@ -176,7 +187,6 @@ export default function Grid2x2Wall({ event, posts }: Grid2x2WallProps) {
 
       if (cellPointer.current === 0) {
         handlePostRotationTick?.();
-        handlePostRotationTick?.();
       }
     };
 
@@ -185,7 +195,7 @@ export default function Grid2x2Wall({ event, posts }: Grid2x2WallProps) {
     return () => clearInterval(rotationTimer.current as NodeJS.Timeout);
   }, [livePosts, displayDuration]);
 
-  /* ---------- TRANSITION VARIANTS ---------- */
+  /* ---------- TRANSITION ---------- */
   const fadeVariants = {
     enter: { opacity: 0, scale: 0.98 },
     center: {
@@ -313,6 +323,7 @@ export default function Grid2x2Wall({ event, posts }: Grid2x2WallProps) {
     <div
       style={{
         background: bg,
+        filter: `brightness(${brightness}%)`,   // ✅ NEW
         width: '100%',
         height: '100vh',
         display: 'flex',
@@ -334,7 +345,10 @@ export default function Grid2x2Wall({ event, posts }: Grid2x2WallProps) {
       >
         <img
           src={logo}
-          style={{ width: '100%', filter: 'drop-shadow(0 0 12px rgba(0,0,0,0.85))' }}
+          style={{
+            width: '100%',
+            filter: 'drop-shadow(0 0 12px rgba(0,0,0,0.85))',
+          }}
         />
       </div>
 
@@ -414,7 +428,7 @@ export default function Grid2x2Wall({ event, posts }: Grid2x2WallProps) {
         </div>
       </div>
 
-      {/* Fullscreen Button */}
+      {/* Fullscreen */}
       <div
         style={{
           position: 'fixed',
@@ -452,7 +466,7 @@ export default function Grid2x2Wall({ event, posts }: Grid2x2WallProps) {
         </svg>
       </div>
 
-      {/* AD OVERLAY */}
+      {/* ADS */}
       <AdOverlay
         showAd={showAd && injectorEnabled}
         ads={ads}

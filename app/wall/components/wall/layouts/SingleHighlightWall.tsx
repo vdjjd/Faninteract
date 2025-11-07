@@ -45,6 +45,9 @@ export default function SingleHighlightWall({ event, posts }) {
         'linear-gradient(135deg, #1b2735 0%, #1b2735 50%, #090a0f 100%)'
   );
 
+  /* ✅ NEW brightness state */
+  const [brightness, setBrightness] = useState(event?.background_brightness || 100);
+
   const [transitionType, setTransitionType] = useState(
     event?.post_transition || 'Fade In / Fade Out'
   );
@@ -66,7 +69,7 @@ export default function SingleHighlightWall({ event, posts }) {
     triggerInterval: event?.trigger_interval || 8,
   });
 
-  /* ✅ Initial load of approved posts */
+  /* Load posts */
   useEffect(() => {
     if (!event?.id) return;
 
@@ -84,7 +87,7 @@ export default function SingleHighlightWall({ event, posts }) {
     load();
   }, [event?.id]);
 
-  /* ✅ POLLING LOOP (replaces realtime) */
+  /* Poll posts */
   useEffect(() => {
     if (!event?.id) return;
 
@@ -97,7 +100,7 @@ export default function SingleHighlightWall({ event, posts }) {
         .order('created_at', { ascending: false });
 
       if (data) {
-        setLivePosts((prev) => {
+        setLivePosts(prev => {
           if (JSON.stringify(prev) === JSON.stringify(data)) return prev;
           return data;
         });
@@ -107,22 +110,7 @@ export default function SingleHighlightWall({ event, posts }) {
     return () => clearInterval(interval);
   }, [event?.id]);
 
-  /* ✅ Rotation logic (unchanged) */
-  useEffect(() => {
-    if (!livePosts.length) return;
-
-    const id = setInterval(() => {
-      setCurrentIndex((i) => {
-        const next = (i + 1) % livePosts.length;
-        handlePostRotationTick();
-        return next;
-      });
-    }, displayDuration);
-
-    return () => clearInterval(id);
-  }, [livePosts, displayDuration]);
-
-  /* ✅ Keep realtime ONLY for fan_walls settings */
+  /* ✅ Realtime for settings */
   useEffect(() => {
     if (!event?.id) return;
 
@@ -136,7 +124,7 @@ export default function SingleHighlightWall({ event, posts }) {
           table: 'fan_walls',
           filter: `id=eq.${event.id}`,
         },
-        (payload) => {
+        payload => {
           const w = payload.new;
           if (!w) return;
 
@@ -147,6 +135,11 @@ export default function SingleHighlightWall({ event, posts }) {
                 : w.background_value
             );
           }
+
+          if (w.background_brightness !== undefined) {
+            setBrightness(w.background_brightness);
+          }
+
           if (w.title) setTitle(w.title);
           if (w.logo_url) setLogo(w.logo_url);
           if (w.post_transition) setTransitionType(w.post_transition);
@@ -171,6 +164,7 @@ export default function SingleHighlightWall({ event, posts }) {
     <div
       style={{
         background: bg,
+        filter: `brightness(${brightness}%)`,    /* ✅ PATCHED */
         width: '100%',
         height: '100vh',
         display: 'flex',
@@ -406,4 +400,3 @@ export default function SingleHighlightWall({ event, posts }) {
     </div>
   );
 }
-

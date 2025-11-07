@@ -48,12 +48,18 @@ export default function FanWallGrid({
   }
 
   function updateLocalWall(id: string, updates: any) {
-    setLocalWalls((prev) => prev.map((w) => (w.id === id ? { ...w, ...updates } : w)));
+    setLocalWalls((prev) =>
+      prev.map((w) => (w.id === id ? { ...w, ...updates } : w))
+    );
   }
 
   function handleLaunch(id: string) {
     const url = `${window.location.origin}/wall/${id}`;
-    const popup = window.open(url, '_blank', 'width=1280,height=800,resizable=yes,scrollbars=yes');
+    const popup = window.open(
+      url,
+      '_blank',
+      'width=1280,height=800,resizable=yes,scrollbars=yes'
+    );
     popup?.focus();
   }
 
@@ -72,29 +78,48 @@ export default function FanWallGrid({
 
         await supabase
           .from('fan_walls')
-          .update({ countdown_active: true, updated_at: new Date().toISOString() })
+          .update({
+            countdown_active: true,
+            updated_at: new Date().toISOString(),
+          })
           .eq('id', id);
 
         await safeBroadcast('wall_updated', { id, countdown_active: true });
 
         const durationMs = parseCountdownDuration(current.countdown);
+
         setTimeout(async () => {
           await supabase
             .from('fan_walls')
-            .update({ status: 'live', countdown_active: false, updated_at: new Date().toISOString() })
+            .update({
+              status: 'live',
+              countdown_active: false,
+              updated_at: new Date().toISOString(),
+            })
             .eq('id', id);
 
-          await safeBroadcast('countdown_finished', { id, status: 'live' });
+          await safeBroadcast('countdown_finished', {
+            id,
+            status: 'live',
+          });
 
           delayedRefresh();
         }, durationMs);
       } else {
         await supabase
           .from('fan_walls')
-          .update({ status: 'live', countdown_active: false, updated_at: new Date().toISOString() })
+          .update({
+            status: 'live',
+            countdown_active: false,
+            updated_at: new Date().toISOString(),
+          })
           .eq('id', id);
 
-        await safeBroadcast('wall_status_changed', { id, status: 'live' });
+        await safeBroadcast('wall_status_changed', {
+          id,
+          status: 'live',
+        });
+
         delayedRefresh();
       }
     } catch (err) {
@@ -110,14 +135,25 @@ export default function FanWallGrid({
   }
 
   async function handleStop(id: string) {
-    updateLocalWall(id, { status: 'inactive', countdown_active: false });
+    updateLocalWall(id, {
+      status: 'inactive',
+      countdown_active: false,
+    });
 
     await supabase
       .from('fan_walls')
-      .update({ status: 'inactive', countdown_active: false, updated_at: new Date().toISOString() })
+      .update({
+        status: 'inactive',
+        countdown_active: false,
+        updated_at: new Date().toISOString(),
+      })
       .eq('id', id);
 
-    await safeBroadcast('wall_status_changed', { id, status: 'inactive' });
+    await safeBroadcast('wall_status_changed', {
+      id,
+      status: 'inactive',
+    });
+
     delayedRefresh();
   }
 
@@ -130,7 +166,11 @@ export default function FanWallGrid({
     setLocalWalls((prev) => prev.filter((w) => w.id !== id));
     deleteFanWall(id).catch(console.error);
 
-    await safeBroadcast('wall_status_changed', { id, status: 'deleted' });
+    await safeBroadcast('wall_status_changed', {
+      id,
+      status: 'deleted',
+    });
+
     delayedRefresh();
   }
 
@@ -141,6 +181,7 @@ export default function FanWallGrid({
 
   function delayedRefresh() {
     if (refreshTimeout.current) clearTimeout(refreshTimeout.current);
+
     refreshTimeout.current = setTimeout(() => {
       refreshFanWalls().catch(console.error);
     }, 500);
@@ -154,6 +195,7 @@ export default function FanWallGrid({
         .eq('status', 'pending');
 
       const counts: Record<string, number> = {};
+
       data?.forEach((p: any) => {
         counts[p.fan_wall_id] = (counts[p.fan_wall_id] || 0) + 1;
       });
@@ -165,7 +207,11 @@ export default function FanWallGrid({
 
     const channel = supabase
       .channel('guest_posts-pending')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'guest_posts' }, fetchPendingCounts)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'guest_posts' },
+        fetchPendingCounts
+      )
       .subscribe();
 
     return () => {
@@ -177,9 +223,15 @@ export default function FanWallGrid({
     <div className={cn('mt-10 w-full max-w-6xl')}>
       <h2 className={cn('text-xl font-semibold mb-3')}>🎤 Fan Zone Walls</h2>
 
-      <div className={cn('grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5')}>
+      <div
+        className={cn(
+          'grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5'
+        )}
+      >
         {(!localWalls || localWalls.length === 0) && (
-          <p className={cn('text-gray-400', 'italic')}>No Fan Zone Walls created yet.</p>
+          <p className={cn('text-gray-400 italic')}>
+            No Fan Zone Walls created yet.
+          </p>
         )}
 
         {localWalls.map((wall) => (
@@ -194,18 +246,21 @@ export default function FanWallGrid({
                 : 'ring-0'
             )}
             style={{
-              background:
+              backgroundImage:
                 wall.background_type === 'image'
-                  ? `url(${wall.background_value}) center/cover no-repeat`
-                  : wall.background_value || 'linear-gradient(135deg,#0d47a1,#1976d2)',
+                  ? `url(${wall.background_value})`
+                  : wall.background_value,
+              backgroundSize: 'cover',
+              backgroundPosition: 'center',
+              backgroundRepeat: 'no-repeat',
             }}
           >
             <div>
-              <h3 className={cn('font-bold', 'text-lg', 'mb-1')}>
+              <h3 className={cn('font-bold text-lg mb-1')}>
                 {wall.host_title || wall.title || 'Untitled Wall'}
               </h3>
 
-              <p className={cn('text-sm', 'mb-2')}>
+              <p className={cn('text-sm mb-2')}>
                 <strong>Status:</strong>{' '}
                 <span
                   className={
@@ -224,7 +279,7 @@ export default function FanWallGrid({
                 </span>
               </p>
 
-              <div className={cn('flex', 'justify-center', 'mb-3')}>
+              <div className={cn('flex justify-center mb-3')}>
                 <button
                   onClick={() => openModerationModal(wall.id)}
                   className={cn(
@@ -249,23 +304,57 @@ export default function FanWallGrid({
               </div>
             </div>
 
-            <div className={cn('flex', 'flex-wrap', 'justify-center', 'gap-2', 'mt-auto', 'pt-2', 'border-t', 'border-white/10')}>
-              <button onClick={() => handleLaunch(wall.id)} className={cn('bg-blue-600', 'hover:bg-blue-700', 'px-2', 'py-1', 'rounded', 'text-sm', 'font-semibold')}>
+            <div
+              className={cn(
+                'flex flex-wrap justify-center gap-2 mt-auto pt-2 border-t border-white/10'
+              )}
+            >
+              <button
+                onClick={() => handleLaunch(wall.id)}
+                className={cn(
+                  'bg-blue-600 hover:bg-blue-700 px-2 py-1 rounded text-sm font-semibold'
+                )}
+              >
                 🚀 Launch
               </button>
-              <button onClick={() => handleStart(wall.id)} className={cn('bg-green-600', 'hover:bg-green-700', 'px-2', 'py-1', 'rounded', 'text-sm', 'font-semibold')}>
+              <button
+                onClick={() => handleStart(wall.id)}
+                className={cn(
+                  'bg-green-600 hover:bg-green-700 px-2 py-1 rounded text-sm font-semibold'
+                )}
+              >
                 ▶️ Play
               </button>
-              <button onClick={() => handleStop(wall.id)} className={cn('bg-red-600', 'hover:bg-red-700', 'px-2', 'py-1', 'rounded', 'text-sm', 'font-semibold')}>
+              <button
+                onClick={() => handleStop(wall.id)}
+                className={cn(
+                  'bg-red-600 hover:bg-red-700 px-2 py-1 rounded text-sm font-semibold'
+                )}
+              >
                 ⏹ Stop
               </button>
-              <button onClick={() => handleClear(wall.id)} className={cn('bg-cyan-500', 'hover:bg-cyan-600', 'px-2', 'py-1', 'rounded', 'text-sm', 'font-semibold')}>
+              <button
+                onClick={() => handleClear(wall.id)}
+                className={cn(
+                  'bg-cyan-500 hover:bg-cyan-600 px-2 py-1 rounded text-sm font-semibold'
+                )}
+              >
                 🧹 Clear
               </button>
-              <button onClick={() => onOpenOptions(wall)} className={cn('bg-indigo-500', 'hover:bg-indigo-600', 'px-2', 'py-1', 'rounded', 'text-sm', 'font-semibold')}>
+              <button
+                onClick={() => onOpenOptions(wall)}
+                className={cn(
+                  'bg-indigo-500 hover:bg-indigo-600 px-2 py-1 rounded text-sm font-semibold'
+                )}
+              >
                 ⚙ Options
               </button>
-              <button onClick={() => handleDelete(wall.id)} className={cn('bg-red-700', 'hover:bg-red-800', 'px-2', 'py-1', 'rounded', 'text-sm', 'font-semibold')}>
+              <button
+                onClick={() => handleDelete(wall.id)}
+                className={cn(
+                  'bg-red-700 hover:bg-red-800 px-2 py-1 rounded text-sm font-semibold'
+                )}
+              >
                 ❌ Delete
               </button>
             </div>
@@ -274,7 +363,10 @@ export default function FanWallGrid({
       </div>
 
       {showModeration && selectedWallId && (
-        <ModerationModal wallId={selectedWallId} onClose={() => setShowModeration(false)} />
+        <ModerationModal
+          wallId={selectedWallId}
+          onClose={() => setShowModeration(false)}
+        />
       )}
     </div>
   );

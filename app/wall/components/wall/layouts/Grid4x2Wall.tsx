@@ -38,6 +38,10 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
         'linear-gradient(to bottom right,#1b2735,#090a0f)'
   );
 
+  const [brightness, setBrightness] = useState(
+    event?.background_brightness || 100
+  );
+
   const [title, setTitle] = useState(event?.title || 'Fan Zone Wall');
   const [logo, setLogo] = useState(event?.logo_url || '/faninteractlogo.png');
 
@@ -107,6 +111,10 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
             );
           }
 
+          if (w.background_brightness !== undefined) {
+            setBrightness(w.background_brightness);
+          }
+
           if (w.title) setTitle(w.title);
           if (w.logo_url) setLogo(w.logo_url);
 
@@ -121,9 +129,8 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
     return () => supabase.removeChannel(settingsChannel);
   }, [event?.id]);
 
-
   /* -------------------------------------------------- */
-  /* ✅ REMOVE REALTIME POST LISTENERS – USE POLLING     */
+  /* ✅ POLLING POSTS                                    */
   /* -------------------------------------------------- */
   useEffect(() => {
     if (!event?.id) return;
@@ -138,11 +145,7 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
 
       if (!data) return;
 
-      // fill the grid keeping the rotation intact
-      setGridPosts((prev) => {
-        // if unchanged -> skip
-        if (JSON.stringify(prev) === JSON.stringify(prev)) return prev;
-
+      setGridPosts(prev => {
         let updated = [...prev];
         for (let i = 0; i < 8; i++) {
           updated[i] = data[i] || null;
@@ -154,9 +157,8 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
     return () => clearInterval(interval);
   }, [event?.id]);
 
-
   /* -------------------------------------------------- */
-  /* INITIAL GRID FILL                                   */
+  /* INITIAL FILL                                        */
   /* -------------------------------------------------- */
   useEffect(() => {
     if (!posts?.length) return;
@@ -168,9 +170,8 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
     postPointer.current = 8 % posts.length;
   }, [posts]);
 
-
   /* -------------------------------------------------- */
-  /* GRID ROTATION – KEEP EXACT LOGIC                    */
+  /* GRID ROTATION                                       */
   /* -------------------------------------------------- */
   useEffect(() => {
     if (!posts?.length) return;
@@ -200,31 +201,29 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
         const next = posts[postPointer.current % posts.length];
 
         await fade(`cell-${bottom}`, 0);
-        await new Promise((r) => setTimeout(r, 250));
+        await new Promise(r => setTimeout(r, 250));
         await fade(`cell-${top}`, 0);
 
-        setGridPosts((prev) => {
-          const updated = [...prev];
-          updated[bottom] = prev[top];
-          return updated;
+        setGridPosts(prev => {
+          const u = [...prev];
+          u[bottom] = prev[top];
+          return u;
         });
         await fade(`cell-${bottom}`, 1);
 
-        setGridPosts((prev) => {
-          const updated = [...prev];
-          updated[top] = next;
-          return updated;
+        setGridPosts(prev => {
+          const u = [...prev];
+          u[top] = next;
+          return u;
         });
         await fade(`cell-${top}`, 1);
 
         postPointer.current = (postPointer.current + 1) % posts.length;
         pairIndex.current = (pairIndex.current + 1) % pairs.length;
 
-        if (pairIndex.current === 0) {
-          handlePostRotationTick?.();
-        }
+        if (pairIndex.current === 0) handlePostRotationTick?.();
 
-        await new Promise((r) => setTimeout(r, displayDelay));
+        await new Promise(r => setTimeout(r, displayDelay));
       }
     }
 
@@ -235,16 +234,13 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
     };
   }, [posts, displayDelay]);
 
-
   /* -------------------------------------------------- */
-  /* INDIVIDUAL CELL COMPONENT                           */
+  /* CELL COMPONENT                                      */
   /* -------------------------------------------------- */
   function PostCard({ post }: { post: any }) {
     if (!post) {
       return (
-        <div className={cn(
-          'flex items-center justify-center text-white text-lg opacity-60'
-        )}>
+        <div className={cn('flex items-center justify-center text-white text-lg opacity-60')}>
           Fan posts will appear here soon!
         </div>
       );
@@ -325,6 +321,7 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
     <div
       style={{
         background: bg,
+        filter: `brightness(${brightness}%)`,   /* ✅ NEW BRIGHTNESS */
         width: '100%',
         height: '100vh',
         display: 'flex',
@@ -386,11 +383,7 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
         }}
       >
         {gridPosts.map((p, i) => (
-          <div
-            id={`cell-${i}`}
-            key={i}
-            style={{ width: '100%', height: '100%' }}
-          >
+          <div id={`cell-${i}`} key={i} style={{ width: '100%', height: '100%' }}>
             <PostCard post={p} />
           </div>
         ))}
@@ -490,6 +483,3 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
     </div>
   );
 }
-
-
-
