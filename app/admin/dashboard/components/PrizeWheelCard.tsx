@@ -8,7 +8,6 @@ import { cn } from '@/lib/utils';
 ✅ Realtime Broadcast (ONLY for SPIN) — channel must match wall
 ------------------------------------------------------------ */
 async function broadcastSpin(id: string) {
-  // ⬇️ match ActiveWall listener: `prizewheel-${wheel.id}`
   await supabase
     .channel(`prizewheel-${id}`)
     .send({
@@ -18,9 +17,6 @@ async function broadcastSpin(id: string) {
     });
 }
 
-/* ------------------------------------------------------------
-✅ PrizeWheelCard Component
------------------------------------------------------------- */
 export default function PrizeWheelCard({
   wheel,
   onOpenOptions,
@@ -58,8 +54,6 @@ export default function PrizeWheelCard({
    ✅ Load Entry Counts
   ------------------------------------------------------------ */
   async function loadCounts() {
-    // NOTE: elsewhere you are querying `prize_wheel_entries` (404).
-    // The actual table is `wheel_entries`. Fix in that file next.
     const { data } = await supabase
       .from('wheel_entries')
       .select('status')
@@ -71,28 +65,36 @@ export default function PrizeWheelCard({
     setPendingCount(all.filter(x => x.status === 'pending').length);
   }
 
+  /* ------------------------------------------------------------
+   ✅ Subscribe to REALTIME DB Updates
+      FIXED: listen to correct channel
+  ------------------------------------------------------------ */
   useEffect(() => {
     if (!wheel?.id) return;
+
     loadCounts();
 
     const channel = supabase
-      .channel(`wheel_entries_${wheel.id}`)
+      .channel(`wheel_entries_live_${wheel.id}`)
       .on(
         'postgres_changes',
         {
+          event: '*',
           schema: 'public',
           table: 'wheel_entries',
           filter: `wheel_id=eq.${wheel.id}`,
         },
-        loadCounts
+        () => {
+          loadCounts();
+        }
       )
       .subscribe();
 
     return () => supabase.removeChannel(channel);
-  }, [wheel]);
+  }, [wheel?.id]);
 
   /* ------------------------------------------------------------
-   ✅ Realtime SPIN indicator only (for this card UI feedback)
+   ✅ Realtime SPIN indicator
   ------------------------------------------------------------ */
   useEffect(() => {
     if (!wheel?.id) return;
@@ -106,7 +108,7 @@ export default function PrizeWheelCard({
       .subscribe();
 
     return () => supabase.removeChannel(channel);
-  }, [wheel]);
+  }, [wheel?.id]);
 
   /* ------------------------------------------------------------
    ✅ OPEN WALL POPUP
@@ -120,14 +122,9 @@ export default function PrizeWheelCard({
     );
 
     popup?.focus();
-
-    // ✅ Save popup reference for Spin control
     (window as any)._activePrizeWheel = popup;
   }
 
-  /* ------------------------------------------------------------
-   ✅ Status Badge UI
-  ------------------------------------------------------------ */
   function StatusBadge() {
     let text = 'INACTIVE';
     let color = 'text-orange-400';
@@ -143,9 +140,6 @@ export default function PrizeWheelCard({
     return <span className={cn('font-bold tracking-wide', color)}>{text}</span>;
   }
 
-  /* ------------------------------------------------------------
-   ✅ PLAY BUTTON
-  ------------------------------------------------------------ */
   async function handlePlay() {
     await onPlay(wheel.id);
 
@@ -169,9 +163,6 @@ export default function PrizeWheelCard({
       .eq('id', wheel.id);
   }
 
-  /* ------------------------------------------------------------
-   ✅ STOP BUTTON (reset countdown OR fade back)
-  ------------------------------------------------------------ */
   async function handleStop() {
     await onStop(wheel.id);
 
@@ -201,15 +192,9 @@ export default function PrizeWheelCard({
     }
   }
 
-  /* ------------------------------------------------------------
-   ✅ SPIN BUTTON
-      1) Try to call the popup hook immediately
-      2) Also broadcast on the per-wheel channel (works even if popup hook missed)
-  ------------------------------------------------------------ */
   async function handleSpin() {
     await onSpin(wheel.id);
 
-    // 1) Direct popup call if the wall is open
     try {
       const popup: any = (window as any)._activePrizeWheel;
       if (
@@ -225,13 +210,9 @@ export default function PrizeWheelCard({
       console.warn('Spin failed in popup:', err);
     }
 
-    // 2) Broadcast to the wall listener
     await broadcastSpin(wheel.id);
   }
 
-  /* ------------------------------------------------------------
-   ✅ CARD UI
-  ------------------------------------------------------------ */
   return (
     <div
       className={cn(
@@ -250,7 +231,6 @@ export default function PrizeWheelCard({
               'linear-gradient(135deg,#0d47a1,#1976d2)',
       }}
     >
-      {/* -------- INFO -------- */}
       <div>
         <h3 className={cn('font-bold', 'text-lg', 'mb-1')}>
           {wheel.host_title || wheel.title || 'Untitled Wheel'}
@@ -265,7 +245,6 @@ export default function PrizeWheelCard({
             onClick={() => onOpenModeration(wheel)}
             className={cn(
               'px-3 py-1 rounded-md text-sm font-semibold flex items-center gap-1 shadow-md transition',
-              // If you want a live count, keep loadCounts wired as above
               pendingCount > 0
                 ? 'bg-yellow-500 hover:bg-yellow-600 text-black'
                 : 'bg-gray-600 hover:bg-gray-700 text-white/80'
@@ -290,7 +269,6 @@ export default function PrizeWheelCard({
         </p>
       </div>
 
-      {/* -------- BUTTONS -------- */}
       <div
         className={cn(
           'flex flex-wrap justify-center gap-2 mt-auto pt-2 border-t border-white/10'
