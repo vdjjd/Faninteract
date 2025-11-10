@@ -42,7 +42,7 @@ function CountdownDisplay({ countdown, countdownActive, wheelId }) {
         .update({
           countdown_active: false,
           countdown: 'none',
-          status: 'live'       // ✅ makes router fade to Active Wall
+          status: 'live'
         })
         .eq('id', wheelId);
     }
@@ -173,6 +173,7 @@ export default function InactivePrizeWall({ wheel }) {
       ? window.location.origin
       : 'https://faninteract.vercel.app';
 
+  /* ✅ FIXED: force correct signup redirect */
   const qrValue = `${origin}/guest/signup?redirect=/prizewheel/${wheel.id}/submit`;
 
   /* ✅ Logo */
@@ -352,7 +353,7 @@ export default function InactivePrizeWall({ wheel }) {
             <CountdownDisplay
               countdown={wallState.countdown}
               countdownActive={wallState.countdownActive}
-              wheelId={wheel.id}     // ✅ Added required prop
+              wheelId={wheel.id}
             />
           </div>
         </div>
