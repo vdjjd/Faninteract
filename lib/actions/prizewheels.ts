@@ -9,7 +9,6 @@ export async function createPrizeWheel(hostId: string, data: any) {
   try {
     const { title } = data;
 
-    // ✅ NO PRIZES — matches your actual table schema
     const newWheel = {
       host_id: hostId,
       title: title || 'Untitled Prize Wheel',
@@ -133,19 +132,19 @@ export async function deletePrizeWheel(wheelId: string) {
 }
 
 /* -------------------------------------------------------------------------- */
-/* 🧹 CLEAR PRIZE WHEEL ENTRIES                                               */
+/* 🧹 CLEAR PRIZE WHEEL ENTRIES ✅ FIXED TABLE NAME                           */
 /* -------------------------------------------------------------------------- */
 export async function clearPrizeWheel(wheelId: string) {
   try {
     const { error } = await supabase
-      .from('prize_entries')
+      .from('wheel_entries')     // ✅ FIXED — correct table
       .delete()
       .eq('wheel_id', wheelId);
 
     if (error) throw error;
 
-    console.log(`🧹 Cleared prize entries for wheel ${wheelId}`);
+    console.log(`🧹 Cleared wheel entries for wheel ${wheelId}`);
   } catch (err) {
-    console.error('❌ Error clearing prize wheel:', err);
+    console.error('❌ Error clearing prize wheel entries:', err);
   }
 }

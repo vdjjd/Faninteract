@@ -18,6 +18,7 @@ export default function PrizeWheelRouterPage() {
   const previousStatus = useRef<string | null>(null);
 
   async function loadEverything() {
+    /* ✅ Load the wheel */
     const { data: wheelData } = await supabase
       .from('prize_wheels')
       .select('*')
@@ -29,10 +30,27 @@ export default function PrizeWheelRouterPage() {
       return;
     }
 
+    /* ✅ Load APPROVED entries WITH guest_profiles join */
     const { data: entryData } = await supabase
-      .from('prize_wheel_entries')
-      .select('*')
+      .from('wheel_entries')
+      .select(`
+        id,
+        wheel_id,
+        guest_profile_id,
+        created_at,
+        status,
+        photo_url,
+        first_name,
+        last_name,
+        guest_profiles (
+          first_name,
+          last_name,
+          photo_url,
+          avatar_url
+        )
+      `)
       .eq('wheel_id', id)
+      .eq('status', 'approved')
       .order('created_at', { ascending: true });
 
     previousStatus.current = wheelData.status;
@@ -45,6 +63,7 @@ export default function PrizeWheelRouterPage() {
   useEffect(() => {
     loadEverything();
 
+    /* ✅ Poll for updates */
     const interval = setInterval(async () => {
       const { data: wheelData } = await supabase
         .from('prize_wheels')
@@ -54,20 +73,32 @@ export default function PrizeWheelRouterPage() {
 
       if (!wheelData) return;
 
-      const prev = previousStatus.current;
-      const next = wheelData.status;
-
-      // always refresh entries
       const { data: entryData } = await supabase
-        .from('prize_wheel_entries')
-        .select('*')
+        .from('wheel_entries')
+        .select(`
+          id,
+          wheel_id,
+          guest_profile_id,
+          created_at,
+          status,
+          photo_url,
+          first_name,
+          last_name,
+          guest_profiles (
+            first_name,
+            last_name,
+            photo_url,
+            avatar_url
+          )
+        `)
         .eq('wheel_id', id)
+        .eq('status', 'approved')
         .order('created_at', { ascending: true });
 
       setEntries(entryData || []);
 
-      if (prev !== next) {
-        previousStatus.current = next;
+      if (previousStatus.current !== wheelData.status) {
+        previousStatus.current = wheelData.status;
         setWheel(wheelData);
       } else {
         setWheel(wheelData);

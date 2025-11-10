@@ -41,26 +41,30 @@ export default function ActivePrizeWheel3D({ wheel, entries }) {
   const brightB = wheel?.tile_brightness_b ?? 100;
 
   /* ---------------------------------------------------------
-     ✅ NORMALIZE ENTRIES
+     ✅ FINAL normalizeEntries — use DB URL exactly as-is
      --------------------------------------------------------- */
   function normalizeEntries(list) {
     if (!Array.isArray(list)) return [];
 
-    return list.map(e => {
-      const photo = e.photo_url || null;
+    const approved = list.filter(e => e.status === "approved");
 
-      let first = null;
-      let last = null;
+    return approved.map(e => {
+      let photo = null;
 
-      if (e.first_name || e.last_name) {
-        first = e.first_name || null;
-        last = e.last_name || null;
+      // ✅ DB already stores full correct URL → use directly
+      if (e.photo_url && e.photo_url.trim() !== "") {
+        photo = e.photo_url;
       }
 
-      if (e.guest_profiles) {
-        first = e.guest_profiles.first_name || first;
-        last = e.guest_profiles.last_name || last;
-      }
+      const first =
+        e.first_name ||
+        e?.guest_profiles?.first_name ||
+        null;
+
+      const last =
+        e.last_name ||
+        e?.guest_profiles?.last_name ||
+        null;
 
       return {
         photo_url: photo,
@@ -71,7 +75,7 @@ export default function ActivePrizeWheel3D({ wheel, entries }) {
   }
 
   /* ---------------------------------------------------------
-     ✅ ASSIGN ENTRIES TO TILES (NO REBUILD)
+     ✅ ASSIGN ENTRIES TO TILES
      --------------------------------------------------------- */
   function assignEntriesToTiles(normalized) {
     if (!normalized || normalized.length === 0) return;
@@ -87,12 +91,19 @@ export default function ActivePrizeWheel3D({ wheel, entries }) {
 
       if (entry.photo_url) {
         imgHolder.style.background = `url(${entry.photo_url}) center/cover no-repeat`;
+        imgHolder.style.border = "4px solid rgba(255,255,255,0.5)";
         imgHolder.innerText = "";
+      } else {
+        imgHolder.style.background = "rgba(0,0,0,0.25)";
+        imgHolder.style.border = "4px solid rgba(255,255,255,0.5)";
+        imgHolder.innerText = "IMG";
       }
 
       if (entry.first_name) {
         const ln = entry.last_name?.charAt(0)?.toUpperCase() || "";
         nameHolder.innerText = `${entry.first_name} ${ln}.`;
+      } else {
+        nameHolder.innerText = "";
       }
     }
   }
@@ -133,10 +144,10 @@ export default function ActivePrizeWheel3D({ wheel, entries }) {
   }, [wheel?.id]);
 
   /* ---------------------- FULLSCREEN ---------------------- */
-  const toggleFullscreen = () => {
-    const el = document.documentElement;
-    !document.fullscreenElement ? el.requestFullscreen() : document.exitFullscreen();
-  };
+  const toggleFullscreen = () =>
+    !document.fullscreenElement
+      ? document.documentElement.requestFullscreen().catch(() => {})
+      : document.exitFullscreen();
 
   /* ---------------------- CONSTANTS ---------------------- */
   const TILE_SIZE = 820;
@@ -186,7 +197,7 @@ export default function ActivePrizeWheel3D({ wheel, entries }) {
     }
   }
 
-  /* ---------------------- SUPABASE SPIN LISTENER ---------------------- */
+  /* ---------------------- SPIN TRIGGER LISTENER ---------------------- */
   useEffect(() => {
     if (!wheel?.id) return;
 
@@ -201,7 +212,7 @@ export default function ActivePrizeWheel3D({ wheel, entries }) {
   }, [wheel?.id]);
 
   /* ===========================================================
-     ✅ THREE.JS INIT  (RUNS ONCE)
+     ✅ THREE.JS INIT
      =========================================================== */
   useEffect(() => {
     if (!mountRef.current) return;
@@ -248,7 +259,7 @@ export default function ActivePrizeWheel3D({ wheel, entries }) {
 
     scene.add(wheelGroup);
 
-    /* --- SPIN FUNCTION --- */
+    /* ---------------------- SPIN START FN ---------------------- */
     (window as any)._prizewheel = {
       _spin: {
         start: () => {
@@ -303,7 +314,7 @@ export default function ActivePrizeWheel3D({ wheel, entries }) {
       const PLACEHOLDER_TOP_OFFSET = -40;
 
       const NAME_FONT_SIZE = 54;
-     const NAME_TOP_OFFSET = 20;
+      const NAME_TOP_OFFSET = 20;
 
       const imgHolder = document.createElement("div");
       imgHolder.className = "imgHolder";
@@ -412,10 +423,10 @@ export default function ActivePrizeWheel3D({ wheel, entries }) {
       container.removeChild(cssRenderer.domElement);
       renderer.dispose();
     };
-  }, []); // ✅ only once
+  }, []);
 
   /* ===========================================================
-     ✅ UPDATE ENTRIES (NO SNAP)
+     ✅ UPDATE ENTRIES
      =========================================================== */
   useEffect(() => {
     if (!wrapperRefs.current.length) return;
@@ -424,11 +435,10 @@ export default function ActivePrizeWheel3D({ wheel, entries }) {
   }, [entries]);
 
   /* ===========================================================
-     ✅ RENDER DOM
+     ✅ RENDER
      =========================================================== */
   return (
     <div style={{ width: "100%", height: "100vh", position: "relative" }}>
-
       <style>
         {`
           @keyframes winnerPulse {
