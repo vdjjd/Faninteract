@@ -12,7 +12,11 @@ import { syncGuestProfile, getOrCreateGuestDeviceId } from "@/lib/syncGuest";
 export default function GuestSignupPage() {
   const router = useRouter();
   const params = useSearchParams();
-  const wallId = params.get("wall");
+
+  /* ✅ Universal redirect */
+  const redirect = params.get("redirect");      // can be /wall/... or /prizewheel/...
+  const wallId = params.get("wall");            // legacy fan wall flow
+  const wheelId = params.get("prizewheel");     // prize wheel flow
 
   const supabase = getSupabaseClient();
 
@@ -31,31 +35,31 @@ export default function GuestSignupPage() {
     getOrCreateGuestDeviceId();
   }, []);
 
-  /* ✅ Load wall for background */
+  /* ✅ Load wall background ONLY for wall signups */
   useEffect(() => {
     async function loadWall() {
       if (!wallId) return;
+
       const { data } = await supabase
         .from("fan_walls")
         .select("title, background_value")
         .eq("id", wallId)
         .single();
+
       setWall(data);
     }
     loadWall();
   }, [wallId, supabase]);
 
-  /* ✅ Smart redirect: only skip signup IF device + DB record exists */
+  /* ✅ Smart redirect: if device already has a profile */
   useEffect(() => {
     async function validateGuest() {
-      if (!wallId) return;
-
       const deviceId = localStorage.getItem("guest_device_id");
       const cached = localStorage.getItem("guest_profile");
 
-      if (!deviceId || !cached) return; // no profile stored -> show signup
+      if (!deviceId || !cached) return;
 
-      // Check DB to confirm profile still exists
+      // Make sure DB still has this profile
       const { data } = await supabase
         .from("guest_profiles")
         .select("id")
@@ -63,32 +67,65 @@ export default function GuestSignupPage() {
         .maybeSingle();
 
       if (!data) {
-        console.log("🔁 Ghost device detected — clearing and forcing signup");
         localStorage.removeItem("guest_profile");
-        return; // stay on signup page
+        return;
       }
 
-      // ✅ Profile exists in DB — skip to submit
-      router.push(`/wall/${wallId}/submit`);
+      // ✅ Redirect priority:
+      // 1. redirect=/whatever
+      if (redirect) {
+        router.push(redirect);
+        return;
+      }
+
+      // 2. Fan wall
+      if (wallId) {
+        router.push(`/wall/${wallId}/submit`);
+        return;
+      }
+
+      // 3. Prize wheel
+      if (wheelId) {
+        router.push(`/prizewheel/${wheelId}/submit`);
+        return;
+      }
     }
 
     validateGuest();
-  }, [wallId, router, supabase]);
+  }, [redirect, wallId, wheelId, router, supabase]);
 
   /* ✅ Submit handler */
   const handleSubmit = async (e: any) => {
     e.preventDefault();
+
     if (!agree) return alert("You must agree to continue.");
-    if (!wallId) return alert("Missing Wall ID.");
 
     try {
       setSubmitting(true);
 
-      const { profile } = await syncGuestProfile("", wallId, form);
+      // ✅ Use redirect OR wallId OR wheelId for profile sync
+      const targetId =
+        wallId || wheelId || redirect?.match(/([0-9a-fA-F-]{36})/)?.[0];
+
+      if (!targetId) {
+        alert("Missing Target ID.");
+        return;
+      }
+
+      const { profile } = await syncGuestProfile("", targetId, form);
 
       localStorage.setItem("guest_profile", JSON.stringify(profile));
 
-      router.push(`/wall/${wallId}/submit`);
+      // ✅ Redirect priority:
+      if (redirect) {
+        router.push(redirect);
+      } else if (wallId) {
+        router.push(`/wall/${wallId}/submit`);
+      } else if (wheelId) {
+        router.push(`/prizewheel/${wheelId}/submit`);
+      } else {
+        router.push("/");
+      }
     } catch (err) {
       console.error(err);
       alert("Error saving guest info");
@@ -103,7 +140,7 @@ export default function GuestSignupPage() {
         "relative flex items-center justify-center min-h-screen w-full overflow-hidden text-white"
       )}
     >
-      {/* ✅ Background */}
+      {/* ✅ Background (only for wall signups) */}
       <div
         className={cn("absolute inset-0 bg-cover bg-center")}
         style={{
@@ -115,7 +152,14 @@ export default function GuestSignupPage() {
       />
 
       {/* ✅ Dim & Blur */}
-      <div className={cn('absolute', 'inset-0', 'bg-black/60', 'backdrop-blur-md')} />
+      <div
+        className={cn(
+          "absolute",
+          "inset-0",
+          "bg-black/60",
+          "backdrop-blur-md"
+        )}
+      />
 
       {/* ✅ Glass Card */}
       <motion.div
@@ -127,13 +171,17 @@ export default function GuestSignupPage() {
         )}
       >
         {/* ✅ Logo */}
-        <div className={cn('flex', 'justify-center', 'mb-6')}>
+        <div className={cn("flex", "justify-center", "mb-6")}>
           <Image
             src="/faninteractlogo.png"
             alt="FanInteract"
             width={360}
             height={120}
-            className={cn('w-[240px]', 'md:w-[320px]', 'drop-shadow-[0_0_32px_rgba(56,189,248,0.4)]')}
+            className={cn(
+              "w-[240px]",
+              "md:w-[320px]",
+              "drop-shadow-[0_0_32px_rgba(56,189,248,0.4)]"
+            )}
           />
         </div>
 
@@ -147,7 +195,13 @@ export default function GuestSignupPage() {
             ],
           }}
           transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
-          className={cn('text-center', 'text-2xl', 'font-semibold', 'text-sky-300', 'mb-6')}
+          className={cn(
+            "text-center",
+            "text-2xl",
+            "font-semibold",
+            "text-sky-300",
+            "mb-6"
+          )}
         >
           Join the Fan Zone
         </motion.h2>
@@ -173,20 +227,42 @@ export default function GuestSignupPage() {
               onChange={(e) =>
                 setForm({ ...form, [e.target.name]: e.target.value })
               }
-              className={cn('w-full', 'p-3', 'rounded-xl', 'bg-black/40', 'border', 'border-white/20', 'focus:border-sky-400', 'outline-none')}
+              className={cn(
+                "w-full",
+                "p-3",
+                "rounded-xl",
+                "bg-black/40",
+                "border",
+                "border-white/20",
+                "focus:border-sky-400",
+                "outline-none"
+              )}
             />
           ))}
 
           {/* ✅ Terms */}
-          <label className={cn('flex', 'items-center', 'gap-2', 'text-sm', 'text-gray-300', 'mt-2')}>
+          <label
+            className={cn(
+              "flex",
+              "items-center",
+              "gap-2",
+              "text-sm",
+              "text-gray-300",
+              "mt-2"
+            )}
+          >
             <input
               type="checkbox"
-              className={cn('w-4', 'h-4', 'accent-sky-400')}
+              className={cn("w-4", "h-4", "accent-sky-400")}
               checked={agree}
               onChange={(e) => setAgree(e.target.checked)}
             />
             I agree to the{" "}
-            <a href="/terms" target="_blank" className={cn('text-sky-400', 'underline')}>
+            <a
+              href="/terms"
+              target="_blank"
+              className={cn("text-sky-400", "underline")}
+            >
               Terms
             </a>
           </label>
@@ -194,7 +270,19 @@ export default function GuestSignupPage() {
           {/* ✅ Submit Button */}
           <button
             disabled={submitting}
-            className={cn('w-full', 'py-3', 'rounded-xl', 'bg-gradient-to-r', 'from-sky-500', 'to-blue-600', 'font-semibold', 'shadow-lg', 'hover:scale-[1.03]', 'active:scale-[0.97]', 'transition-all')}
+            className={cn(
+              "w-full",
+              "py-3",
+              "rounded-xl",
+              "bg-gradient-to-r",
+              "from-sky-500",
+              "to-blue-600",
+              "font-semibold",
+              "shadow-lg",
+              "hover:scale-[1.03]",
+              "active:scale-[0.97]",
+              "transition-all"
+            )}
           >
             {submitting ? "Submitting..." : "Continue"}
           </button>
