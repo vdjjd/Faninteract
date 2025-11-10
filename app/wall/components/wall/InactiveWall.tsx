@@ -37,7 +37,6 @@ function CountdownDisplay({ countdown, countdownActive }) {
   return (
     <div
       style={{
-        /* ✅ MATCHES PRIZE WHEEL EXACTLY */
         fontSize: 'clamp(6rem,8vw,9rem)',
         fontWeight: 900,
         color: '#fff',
@@ -51,7 +50,7 @@ function CountdownDisplay({ countdown, countdownActive }) {
 }
 
 /* -------------------------------------------------------------------------- */
-/* ✅ INACTIVE WALL (patched with brightness support)                          */
+/* ✅ INACTIVE WALL WITH FIXED ORDER: logo → bar → title → soon → timer       */
 /* -------------------------------------------------------------------------- */
 export default function InactiveWall({ wall }) {
   const rt = useRealtimeChannel();
@@ -60,7 +59,6 @@ export default function InactiveWall({ wall }) {
     'linear-gradient(to bottom right,#1b2735,#090a0f)'
   );
 
-  /* ✅ NEW — brightness state */
   const [brightness, setBrightness] = useState(
     wall?.background_brightness || 100
   );
@@ -102,7 +100,6 @@ export default function InactiveWall({ wall }) {
 
     setBg(value);
 
-    /* ✅ NEW — load brightness */
     if (wall.background_brightness !== undefined) {
       setBrightness(wall.background_brightness);
     }
@@ -132,7 +129,6 @@ export default function InactiveWall({ wall }) {
           setBg(newBg);
         }
 
-        /* ✅ NEW — brightness from modal */
         if (payload.background_brightness !== undefined) {
           setBrightness(payload.background_brightness);
         }
@@ -154,7 +150,6 @@ export default function InactiveWall({ wall }) {
     return () => channel.unsubscribe?.();
   }, [rt, wall?.id]);
 
-  /* ✅ QR link origin */
   const origin =
     typeof window !== 'undefined'
       ? window.location.origin
@@ -249,18 +244,25 @@ export default function InactiveWall({ wall }) {
           />
         </div>
 
-        {/* Right column */}
+        {/* ---------- RIGHT COLUMN (ABSOLUTE ORDER LOCKED) ---------- */}
         <div
           style={{
+            position: 'relative',
             flexGrow: 1,
             marginLeft: '44%',
-            paddingTop: '3vh',
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
           }}
         >
-          <div style={{ width: 'clamp(280px,30vw,420px)' }}>
+
+          {/* ✅ 1. LOGO */}
+          <div
+            style={{
+              position: 'absolute',
+              top: '6%',
+              left: '50%',
+              transform: 'translateX(-50%)',
+              width: 'clamp(280px,28vw,420px)',
+            }}
+          >
             <img
               src={displayLogo}
               style={{
@@ -271,21 +273,29 @@ export default function InactiveWall({ wall }) {
             />
           </div>
 
+          {/* ✅ 2. GREY BAR */}
           <div
             style={{
-              width: '90%',
+              position: 'absolute',
+              top: '50%',
+              left: '50%',
+              transform: 'translateX(-50%)',
+              width: '78%',
               height: 16,
-              marginTop: '2vh',
-              marginBottom: '2vh',
               borderRadius: 6,
               background: 'linear-gradient(to right,#000,#444)',
             }}
           />
 
+          {/* ✅ 3. FAN ZONE WALL */}
           <p
             style={{
+              position: 'absolute',
+              top: '55%',
+              left: '50%',
+              transform: 'translateX(-50%)',
               color: '#fff',
-              fontSize: 'clamp(2.4rem,3vw,4rem)',
+              fontSize: 'clamp(2.5rem,3vw,10rem)',
               fontWeight: 900,
               margin: 0,
               textAlign: 'center',
@@ -294,24 +304,39 @@ export default function InactiveWall({ wall }) {
             Fan Zone Wall
           </p>
 
+          {/* ✅ 4. STARTING SOON */}
           <p
             className="pulseSoon"
             style={{
+              position: 'absolute',
+              top: '65%',
+              left: '50%',
+              transform: 'translateX(-50%)',
               color: '#bcd9ff',
-              fontSize: 'clamp(3rem, 2vw, 2.6rem)',   /* ✅ MATCHES PRIZE WHEEL */
-              marginTop: '1vh',
-              textAlign: 'center',
+              fontSize: 'clamp(2.6rem,2.4vw,3rem)',
               fontWeight: 700,
+              margin: 0,
+              textAlign: 'center',
             }}
           >
             Starting Soon!!
           </p>
 
-          {/* ✅ Countdown now matches wheel */}
-          <CountdownDisplay
-            countdown={wallState.countdown}
-            countdownActive={wallState.countdownActive}
-          />
+          {/* ✅ 5. COUNTDOWN TIMER */}
+          <div
+            style={{
+              position: 'absolute',
+              top: '67%',
+              left: '50%',
+              transform: 'translateX(-50%)',
+            }}
+          >
+            <CountdownDisplay
+              countdown={wallState.countdown}
+              countdownActive={wallState.countdownActive}
+            />
+          </div>
+
         </div>
       </div>
 
@@ -341,3 +366,4 @@ export default function InactiveWall({ wall }) {
     </div>
   );
 }
+

@@ -1,361 +1,340 @@
 'use client';
 
-import { useState, useRef } from 'react';
-import { supabase } from '@/lib/supabaseClient';
-import imageCompression from 'browser-image-compression';
-import { useRealtimeChannel } from '@/providers/SupabaseRealtimeProvider';
-import { cn } from '@/lib/utils';
+import { useEffect, useRef } from "react";
+import { supabase } from "@/lib/supabaseClient";
+import * as THREE from "three";
+import { CSS3DRenderer, CSS3DObject } from "three/examples/jsm/renderers/CSS3DRenderer";
 
-interface PrizeWheelOptionsModalProps {
-  wheel: any;
-  hostId: string;
-  onClose: () => void;
-  refreshPrizeWheels: () => Promise<void>;
+/* ----------------------------------------------------------- */
+/* ✅ Background brightness helper                              */
+/* ----------------------------------------------------------- */
+function applyBrightness(bg: string, brightness: number) {
+  return {
+    background: bg,
+    filter: `brightness(${brightness}%)`,
+    transition: "background 0.8s ease, filter 0.5s ease",
+  };
 }
 
-const DEFAULT_GRADIENT = 'linear-gradient(135deg,#0d47a1,#1976d2)';
+export default function ActivePrizeWheel3D({ wheel, entries }) {
+  const mountRef = useRef<HTMLDivElement | null>(null);
 
-export default function PrizeWheelOptionsModal({
-  wheel,
-  hostId,
-  onClose,
-  refreshPrizeWheels,
-}: PrizeWheelOptionsModalProps) {
-  const channelRef = useRealtimeChannel();
-  const fileRef = useRef<HTMLInputElement | null>(null);
+  /* ----------------------------------------------------------- */
+  /* ✅ BACKGROUND + BRIGHTNESS                                  */
+  /* ----------------------------------------------------------- */
+  const bgRef = useRef<string>(
+    wheel?.background_type === "image"
+      ? `url(${wheel.background_value}) center/cover no-repeat`
+      : wheel?.background_value || "linear-gradient(135deg, #1b2735, #090a0f)"
+  );
 
-  const [saving, setSaving] = useState(false);
-  const [uploading, setUploading] = useState(false);
+  const brightnessRef = useRef<number>(
+    wheel?.background_brightness ?? 100
+  );
 
-  /* ----------------------- LOCAL STATE ----------------------- */
-  const [localWheel, setLocalWheel] = useState<any>(() => ({
-    ...wheel,
-    spin_duration: wheel.spin_duration || 10,
-    spin_count: wheel.spin_count || 1,
-    phone_spin_enabled: wheel.phone_spin_enabled ?? false,
+  /* ----------------------------------------------------------- */
+  /* ✅ TILE COLORS (static — selected BEFORE launch)            */
+  /* ----------------------------------------------------------- */
+  const tileGlowColor = wheel?.tile_glow_color || "#ffffff";
+  const tileColorA = wheel?.tile_color_a || "#ffffff";
+  const tileColorB = wheel?.tile_color_b || "#ffffff";
 
-    // NEW
-    wedge_color_a: wheel.wedge_color_a || '#1976d2', // light blue
-    wedge_color_b: wheel.wedge_color_b || '#0d47a1', // dark blue
+  const tileBrightA = wheel?.tile_brightness_a ?? 100;
+  const tileBrightB = wheel?.tile_brightness_b ?? 100;
 
-    color_start: wheel.color_start || '#0d47a1',
-    color_end: wheel.color_end || '#1976d2',
-  }));
+  /* ----------------------------------------------------------- */
+  /* ✅ POLLING — ONLY BACKGROUND VALUES                         */
+  /* ----------------------------------------------------------- */
+  useEffect(() => {
+    if (!wheel?.id || !mountRef.current) return;
 
-  function broadcast(event: string, payload: any) {
-    const channel = channelRef?.current;
-    if (!channel) return;
+    const updateStyles = () => {
+      const container = mountRef.current?.parentElement?.parentElement;
+      if (!container) return;
 
-    channel.send({
-      type: 'broadcast',
-      event,
-      payload,
-    }).catch(() => {});
-  }
+      Object.assign(
+        container.style,
+        applyBrightness(bgRef.current, brightnessRef.current)
+      );
+    };
 
-  /* ----------------------- SAVE ----------------------- */
-  async function save() {
-    try {
-      setSaving(true);
+    updateStyles();
 
-      const updates = {
-        title: localWheel.title || null,
-        host_title: localWheel.host_title || null,
-        spin_duration: Number(localWheel.spin_duration),
-        spin_count: Number(localWheel.spin_count),
-        phone_spin_enabled: localWheel.phone_spin_enabled,
-        passphrase: localWheel.passphrase || null,
+    const interval = setInterval(async () => {
+      const { data } = await supabase
+        .from("prize_wheels")
+        .select("*")
+        .eq("id", wheel.id)
+        .single();
 
-        wedge_color_a: localWheel.wedge_color_a,
-        wedge_color_b: localWheel.wedge_color_b,
+      if (!data) return;
 
-        background_type: localWheel.background_type,
-        background_value: localWheel.background_value,
+      bgRef.current =
+        data.background_type === "image"
+          ? `url(${data.background_value}) center/cover no-repeat`
+          : data.background_value;
 
-        color_start: localWheel.color_start,
-        color_end: localWheel.color_end,
+      if (typeof data.background_brightness === "number") {
+        brightnessRef.current = data.background_brightness;
+      }
 
-        updated_at: new Date().toISOString(),
-      };
+      updateStyles();
+    }, 4000);
 
-      await supabase
-        .from('prize_wheels')
-        .update(updates)
-        .eq('id', wheel.id);
+    return () => clearInterval(interval);
+  }, [wheel?.id]);
 
-      broadcast('wheel_updated', { id: wheel.id, ...updates });
+  /* ----------------------------------------------------------- */
+  /* ✅ FULLSCREEN */
+  /* ----------------------------------------------------------- */
+  const toggleFullscreen = () => {
+    const el = document.documentElement;
+    !document.fullscreenElement
+      ? el.requestFullscreen()
+      : document.exitFullscreen();
+  };
 
-      await refreshPrizeWheels();
-      onClose();
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setSaving(false);
+  /* ----------------------------------------------------------- */
+  /* ✅ CONSTANTS */
+  /* ----------------------------------------------------------- */
+  const TILE_SIZE = 820;
+  const TILE_COUNT = 16;
+  const RADIUS = 2550;
+  const AMBIENT_SPEED = 0.0015;
+
+  const spinRef = useRef({
+    spinning: false,
+    startTime: 0,
+    duration: 8000,
+    startRot: 0,
+    endRot: 0,
+  });
+
+  /* ----------------------------------------------------------- */
+  /* ✅ 3D SCENE SETUP */
+  /* ----------------------------------------------------------- */
+  useEffect(() => {
+    if (!mountRef.current) return;
+
+    const container = mountRef.current;
+    const scene = new THREE.Scene();
+
+    let width = container.clientWidth;
+    let height = container.clientHeight;
+
+    const camera = new THREE.PerspectiveCamera(38, width / height, 1, 8000);
+    camera.position.set(0, 0, 3800);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    renderer.setSize(width, height);
+    renderer.setPixelRatio(window.devicePixelRatio);
+    container.appendChild(renderer.domElement);
+
+    const cssRenderer = new CSS3DRenderer();
+    cssRenderer.setSize(width, height);
+    cssRenderer.domElement.style.position = "absolute";
+    cssRenderer.domElement.style.top = "0";
+    cssRenderer.domElement.style.left = "0";
+    container.appendChild(cssRenderer.domElement);
+
+    /* Resize / Fullscreen */
+    function handleResize() {
+      if (!mountRef.current) return;
+      width = mountRef.current.clientWidth;
+      height = mountRef.current.clientHeight;
+
+      camera.aspect = width / height;
+      camera.updateProjectionMatrix();
+      renderer.setSize(width, height);
+      cssRenderer.setSize(width, height);
     }
-  }
 
-  /* ----------------------- BACKGROUND: SIMPLE GRADIENT ----------------------- */
-  function updateGradient(start: string, end: string) {
-    const gradient = `linear-gradient(135deg, ${start}, ${end})`;
+    window.addEventListener("resize", handleResize);
+    document.addEventListener("fullscreenchange", handleResize);
 
-    setLocalWheel({
-      ...localWheel,
-      color_start: start,
-      color_end: end,
-      background_type: 'gradient',
-      background_value: gradient,
+    /* ----------------------------------------------------------- */
+    /* ✅ Wheel group */
+    /* ----------------------------------------------------------- */
+    const wheelGroup = new THREE.Group();
+    scene.add(wheelGroup);
+
+    /* ----------------------------------------------------------- */
+    /* ✅ GLOW RING — now uses tileGlowColor */
+    /* ----------------------------------------------------------- */
+    const glowGeom = new THREE.RingGeometry(RADIUS * 0.93, RADIUS * 1.05, 128);
+    const glowMat = new THREE.MeshBasicMaterial({
+      color: new THREE.Color(tileGlowColor),
+      transparent: true,
+      opacity: 0.22,
+      side: THREE.DoubleSide,
     });
+    const glowRing = new THREE.Mesh(glowGeom, glowMat);
+    glowRing.rotation.x = -Math.PI / 2;
+    glowRing.position.y = -1;
+    scene.add(glowRing);
 
-    broadcast('wheel_updated', {
-      id: wheel.id,
-      background_type: 'gradient',
-      background_value: gradient,
-    });
-  }
+    /* ----------------------------------------------------------- */
+    /* ✅ TILES */
+    /* ----------------------------------------------------------- */
+    const safeEntries = Array.isArray(entries) ? entries : [];
+    const angleStep = (2 * Math.PI) / TILE_COUNT;
 
-  /* ----------------------- IMAGE UPLOAD ----------------------- */
-  async function handleUpload(e: any) {
-    try {
-      const file = e.target.files?.[0];
-      if (!file) return;
+    for (let i = 0; i < TILE_COUNT; i++) {
+      const entry = safeEntries[i] || null;
 
-      setUploading(true);
+      const wrapper = document.createElement("div");
+      wrapper.style.width = `${TILE_SIZE}px`;
+      wrapper.style.height = `${TILE_SIZE}px`;
 
-      const compressed = await imageCompression(file, {
-        maxWidthOrHeight: 1920,
-        useWebWorker: true,
-      });
+      /* ✅ Alternate card A/B colors */
+      const isA = i % 2 === 0;
+      const cardColor = isA ? tileColorA : tileColorB;
+      const cardBrightness = isA ? tileBrightA : tileBrightB;
 
-      const ext = file.name.split('.').pop();
-      const filePath = `host_${hostId}/wheel_${wheel.id}/background-${Date.now()}.${ext}`;
+      wrapper.style.background = cardColor;
+      wrapper.style.filter = `brightness(${cardBrightness}%)`;
 
-      const { error } = await supabase.storage
-        .from('wall-backgrounds')
-        .upload(filePath, compressed, { upsert: true });
+      wrapper.style.borderRadius = "32px";
+      wrapper.style.border = "4px solid rgba(255,255,255,0.2)";
+      wrapper.style.display = "flex";
+      wrapper.style.alignItems = "center";
+      wrapper.style.justifyContent = "center";
 
-      if (error) throw error;
+      /* ✅ Glow halo */
+      wrapper.style.boxShadow = `0 0 60px ${tileGlowColor}55`;
 
-      const { data: publicUrlData } = supabase.storage
-        .from('wall-backgrounds')
-        .getPublicUrl(filePath);
+      /* ✅ CONTENT */
+      if (entry?.photo_url) {
+        const img = document.createElement("img");
+        img.src = entry.photo_url;
+        img.style.width = "88%";
+        img.style.height = "88%";
+        img.style.objectFit = "cover";
+        img.style.borderRadius = "28px";
+        wrapper.appendChild(img);
+      } else {
+        const initials =
+          entry?.full_name
+            ?.split(" ")
+            .map((c) => c[0])
+            .join("")
+            .toUpperCase() || "--";
 
-      const url = publicUrlData.publicUrl;
+        const txt = document.createElement("div");
+        txt.innerText = initials;
+        txt.style.fontSize = "130px";
+        txt.style.fontWeight = "900";
+        txt.style.color = "#fff";
+        wrapper.appendChild(txt);
+      }
 
-      setLocalWheel({
-        ...localWheel,
-        background_type: 'image',
-        background_value: url,
-      });
+      /* Position */
+      const cssObj = new CSS3DObject(wrapper);
+      const angle = i * angleStep;
 
-      broadcast('wheel_updated', {
-        id: wheel.id,
-        background_type: 'image',
-        background_value: url,
-      });
-    } catch (err) {
-      console.error(err);
-      alert('Upload failed.');
-    } finally {
-      setUploading(false);
+      cssObj.position.x = Math.sin(angle) * RADIUS;
+      cssObj.position.z = Math.cos(angle) * RADIUS;
+      cssObj.rotation.y = angle + Math.PI;
+
+      wheelGroup.add(cssObj);
     }
-  }
 
-  /* ------------------------------------------------------ */
-  /*                        UI                              */
-  /* ------------------------------------------------------ */
+    /* ----------------------------------------------------------- */
+    /* ✅ Spin logic */
+    /* ----------------------------------------------------------- */
+    function startSpin() {
+      const s = spinRef.current;
+      s.spinning = true;
+      s.startTime = performance.now();
+      s.duration = (wheel?.spin_duration || 6) * 1000;
+      s.startRot = wheelGroup.rotation.y;
+
+      /* 6–10 rotations */
+      s.endRot = s.startRot + Math.PI * (6 + Math.random() * 4);
+    }
+
+    /* expose control */
+    (wheel as any)._spin = { start: startSpin };
+
+    /* ----------------------------------------------------------- */
+    /* ✅ Animation loop */
+    /* ----------------------------------------------------------- */
+    function animate(time) {
+      const s = spinRef.current;
+
+      if (s.spinning) {
+        const progress = Math.min((time - s.startTime) / s.duration, 1);
+        const eased = 1 - Math.pow(1 - progress, 3);
+        wheelGroup.rotation.y = s.startRot + (s.endRot - s.startRot) * eased;
+
+        if (progress >= 1) s.spinning = false;
+      } else {
+        wheelGroup.rotation.y += AMBIENT_SPEED;
+      }
+
+      renderer.render(scene, camera);
+      cssRenderer.render(scene, camera);
+      requestAnimationFrame(animate);
+    }
+
+    animate(0);
+
+    return () => {
+      window.removeEventListener("resize", handleResize);
+      document.removeEventListener("fullscreenchange", handleResize);
+
+      renderer.dispose();
+      container.innerHTML = "";
+    };
+  }, []);
+
+  /* ----------------------------------------------------------- */
+  /* ✅ UI Container */
+  /* ----------------------------------------------------------- */
   return (
-    <div
-      className={cn(
-        'fixed inset-0 bg-black/70 backdrop-blur-md z-[9999] flex items-center justify-center'
-      )}
-      onClick={onClose}
-    >
+    <div style={{ width: "100%", height: "100vh", position: "relative" }}>
       <div
-        onClick={(e) => e.stopPropagation()}
-        className={cn(
-          'bg-[#0f0f19] rounded-2xl p-6 w-[600px] max-h-[90vh] overflow-y-auto border border-white/10 shadow-2xl'
-        )}
+        style={{
+          position: "absolute",
+          top: "10vh",
+          left: "50%",
+          transform: "translateX(-50%)",
+          width: "90vw",
+          height: "78vh",
+          padding: 6,
+          borderRadius: 24,
+          backdropFilter: "blur(20px)",
+          background: "rgba(255,255,255,0.08)",
+          border: "1px solid rgba(255,255,255,0.15)",
+          boxShadow: "0 0 40px rgba(0,0,0,0.5)",
+          overflow: "hidden",
+        }}
       >
-        <h2 className={cn('text-2xl', 'font-bold', 'mb-4')}>🎡 Prize Wheel Settings</h2>
-
-        {/* Titles */}
-        <label className={cn('font-semibold', 'mt-3', 'mb-1', 'block')}>Public Title</label>
-        <input
-          className={cn('w-full', 'p-2', 'rounded', 'bg-black/40', 'border', 'border-white/20')}
-          value={localWheel.title || ''}
-          onChange={(e) => setLocalWheel({ ...localWheel, title: e.target.value })}
-        />
-
-        <label className={cn('font-semibold', 'mt-3', 'mb-1', 'block')}>Host Title</label>
-        <input
-          className={cn('w-full', 'p-2', 'rounded', 'bg-black/40', 'border', 'border-white/20')}
-          value={localWheel.host_title || ''}
-          onChange={(e) =>
-            setLocalWheel({ ...localWheel, host_title: e.target.value })
-          }
-        />
-
-        {/* Spin Duration */}
-        <label className={cn('font-semibold', 'mt-4', 'mb-1', 'block')}>Spin Duration</label>
-        <select
-          className={cn('w-full', 'p-2', 'rounded', 'bg-black/40', 'border', 'border-white/20')}
-          value={localWheel.spin_duration}
-          onChange={(e) =>
-            setLocalWheel({ ...localWheel, spin_duration: e.target.value })
-          }
-        >
-          <option value={5}>5 Seconds</option>
-          <option value={10}>10 Seconds</option>
-          <option value={15}>15 Seconds</option>
-        </select>
-
-        {/* Spin Count */}
-        <label className={cn('font-semibold', 'mt-4', 'mb-1', 'block')}>Number of Spins</label>
-        <select
-          className={cn('w-full', 'p-2', 'rounded', 'bg-black/40', 'border', 'border-white/20')}
-          value={localWheel.spin_count}
-          onChange={(e) =>
-            setLocalWheel({ ...localWheel, spin_count: Number(e.target.value) })
-          }
-        >
-          {[1, 2, 3, 5, 10, 15].map((n) => (
-            <option key={n} value={n}>
-              {n}
-            </option>
-          ))}
-        </select>
-
-        {/* Remote Spin */}
-        <label className={cn('font-semibold', 'mt-4', 'block')}>Remote Guest Spin</label>
-        <select
-          className={cn('w-full', 'p-2', 'rounded', 'bg-black/40', 'border', 'border-white/20', 'mt-1')}
-          value={localWheel.phone_spin_enabled ? 'on' : 'off'}
-          onChange={(e) =>
-            setLocalWheel({
-              ...localWheel,
-              phone_spin_enabled: e.target.value === 'on',
-            })
-          }
-        >
-          <option value="off">Disabled</option>
-          <option value="on">Enabled</option>
-        </select>
-
-        {/* Passphrase */}
-        <label className={cn('font-semibold', 'mt-4', 'mb-1', 'block')}>Passphrase</label>
-        <input
-          className={cn('w-full', 'p-2', 'rounded', 'bg-black/40', 'border', 'border-white/20')}
-          value={localWheel.passphrase || ''}
-          onChange={(e) =>
-            setLocalWheel({ ...localWheel, passphrase: e.target.value })
-          }
-        />
-
-        {/* Wedge Colors */}
-        <h3 className={cn('mt-6', 'mb-2', 'font-bold')}>🎨 Wedge Colors</h3>
-
-        <div className={cn('flex', 'justify-between')}>
-          <div>
-            <label className={cn('block', 'text-sm', 'mb-1')}>Wedge Color A</label>
-            <input
-              type="color"
-              value={localWheel.wedge_color_a}
-              onChange={(e) =>
-                setLocalWheel({
-                  ...localWheel,
-                  wedge_color_a: e.target.value,
-                })
-              }
-            />
-          </div>
-
-          <div>
-            <label className={cn('block', 'text-sm', 'mb-1')}>Wedge Color B</label>
-            <input
-              type="color"
-              value={localWheel.wedge_color_b}
-              onChange={(e) =>
-                setLocalWheel({
-                  ...localWheel,
-                  wedge_color_b: e.target.value,
-                })
-              }
-            />
-          </div>
-        </div>
-
-        {/* Background Section */}
-        <h3 className={cn('mt-6', 'mb-2', 'font-bold')}>🎨 Background</h3>
-
-        <div className={cn('flex', 'gap-3')}>
-          <button
-            className={cn('px-3', 'py-2', 'bg-blue-600', 'hover:bg-blue-700', 'rounded')}
-            onClick={() => updateGradient(localWheel.color_start, localWheel.color_end)}
-          >
-            Gradient
-          </button>
-
-          <button
-            className={cn('px-3', 'py-2', 'bg-green-600', 'hover:bg-green-700', 'rounded')}
-            onClick={() => fileRef.current?.click()}
-          >
-            Upload Image
-          </button>
-
-          <input
-            type="file"
-            ref={fileRef}
-            onChange={handleUpload}
-            accept="image/*"
-            className="hidden"
-          />
-        </div>
-
-        {/* Gradient Pickers */}
-        <div className={cn('mt-4', 'flex', 'justify-between')}>
-          <div>
-            <label className={cn('block', 'text-sm', 'mb-1')}>Color Start</label>
-            <input
-              type="color"
-              value={localWheel.color_start}
-              onChange={(e) => updateGradient(e.target.value, localWheel.color_end)}
-            />
-          </div>
-
-          <div>
-            <label className={cn('block', 'text-sm', 'mb-1')}>Color End</label>
-            <input
-              type="color"
-              value={localWheel.color_end}
-              onChange={(e) => updateGradient(localWheel.color_start, e.target.value)}
-            />
-          </div>
-        </div>
-
-        {/* Save / Close */}
-        <div className={cn('flex', 'justify-between', 'mt-8')}>
-          <button
-            onClick={save}
-            disabled={saving}
-            className={cn('px-5', 'py-2', 'bg-blue-600', 'hover:bg-blue-700', 'rounded', 'text-white')}
-          >
-            {saving ? 'Saving…' : 'Save'}
-          </button>
-
-          <button
-            onClick={onClose}
-            className={cn('px-5', 'py-2', 'bg-gray-500', 'hover:bg-gray-600', 'rounded', 'text-white')}
-          >
-            Close
-          </button>
-        </div>
-
-        {uploading && (
-          <p className={cn('text-center', 'text-yellow-400', 'text-xs', 'mt-3', 'animate-pulse')}>
-            Uploading…
-          </p>
-        )}
+        <div ref={mountRef} style={{ width: "100%", height: "100%" }} />
       </div>
+
+      <button
+        onClick={toggleFullscreen}
+        style={{
+          position: "absolute",
+          bottom: "2vh",
+          right: "2vw",
+          width: 48,
+          height: 48,
+          borderRadius: 10,
+          background: "rgba(255,255,255,0.1)",
+          backdropFilter: "blur(6px)",
+          border: "1px solid rgba(255,255,255,0.25)",
+          color: "#fff",
+          opacity: 0.25,
+          cursor: "pointer",
+          transition: "0.25s",
+          fontSize: "1.4rem",
+          zIndex: 99,
+        }}
+      >
+        ⛶
+      </button>
     </div>
   );
 }

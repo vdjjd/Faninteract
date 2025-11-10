@@ -1,105 +1,97 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
 
 import InactivePrizeWall from '@/app/prizewheel/components/wall/InactiveWall';
 import ActivePrizeWall from '@/app/prizewheel/components/wall/ActiveWall';
 
-import { cn } from '@/lib/utils';
-
 export default function PrizeWheelRouterPage() {
   const { wheelId } = useParams();
   const id = Array.isArray(wheelId) ? wheelId[0] : wheelId;
 
   const [wheel, setWheel] = useState<any>(null);
+  const [entries, setEntries] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  /* ------------------------------------------------------------
-     ✅ Load wheel once
-  ------------------------------------------------------------ */
-  async function loadWheel() {
-    const { data, error } = await supabase
+  const previousStatus = useRef<string | null>(null);
+
+  async function loadEverything() {
+    const { data: wheelData } = await supabase
       .from('prize_wheels')
       .select('*')
       .eq('id', id)
       .maybeSingle();
 
-    if (data) setWheel(data);
+    if (!wheelData) {
+      setLoading(false);
+      return;
+    }
+
+    const { data: entryData } = await supabase
+      .from('prize_wheel_entries')
+      .select('*')
+      .eq('wheel_id', id)
+      .order('created_at', { ascending: true });
+
+    previousStatus.current = wheelData.status;
+    setWheel(wheelData);
+    setEntries(entryData || []);
+
     setLoading(false);
   }
 
-  /* ------------------------------------------------------------
-     ✅ Subscribe to realtime updates
-        (broadcast + table changes)
-  ------------------------------------------------------------ */
   useEffect(() => {
-    loadWheel();
+    loadEverything();
 
-    const channel = supabase
-      .channel(`prizewheel-router-${id}`, {
-        config: { broadcast: { self: true } }
-      })
+    const interval = setInterval(async () => {
+      const { data: wheelData } = await supabase
+        .from('prize_wheels')
+        .select('*')
+        .eq('id', id)
+        .maybeSingle();
 
-      // ✅ 1. Listen for broadcast updates
-      .on('broadcast', { event: 'prizewheel_status_changed' }, (msg) => {
-        if (msg?.payload?.id === id) {
-          setWheel((prev) => ({ ...prev, ...msg.payload }));
-        }
-      })
+      if (!wheelData) return;
 
-      .on('broadcast', { event: 'prizewheel_updated' }, (msg) => {
-        if (msg?.payload?.id === id)
-          setWheel((prev) => ({ ...prev, ...msg.payload }));
-      })
+      const prev = previousStatus.current;
+      const next = wheelData.status;
 
-      .on('broadcast', { event: 'spin_trigger' }, (msg) => {
-        if (msg?.payload?.id === id) {
-          setWheel((prev) => ({ ...prev, remote_spin: true }));
-        }
-      })
+      // always refresh entries
+      const { data: entryData } = await supabase
+        .from('prize_wheel_entries')
+        .select('*')
+        .eq('wheel_id', id)
+        .order('created_at', { ascending: true });
 
-      // ✅ 2. Fallback if someone updates via SQL or API directly
-      .on(
-        'postgres_changes',
-        {
-          schema: 'public',
-          table: 'prize_wheels',
-          filter: `id=eq.${id}`,
-          event: '*',
-        },
-        (payload) => {
-          if (payload.new) setWheel(payload.new);
-        }
-      )
+      setEntries(entryData || []);
 
-      .subscribe();
+      if (prev !== next) {
+        previousStatus.current = next;
+        setWheel(wheelData);
+      } else {
+        setWheel(wheelData);
+      }
+    }, 1500);
 
-    return () => supabase.removeChannel(channel);
+    return () => clearInterval(interval);
   }, [id]);
 
-  /* ------------------------------------------------------------
-     ✅ Loading states
-  ------------------------------------------------------------ */
   if (loading)
-    return (
-      <div className={cn('text-center', 'text-white', 'p-10')}>
-        Loading prize wheel…
-      </div>
-    );
+    return <div style={{ color: 'white', padding: 40 }}>Loading…</div>;
 
   if (!wheel)
-    return (
-      <div className={cn('text-center', 'text-white', 'p-10')}>
-        Prize wheel not found.
-      </div>
-    );
+    return <div style={{ color: 'white', padding: 40 }}>Not found</div>;
 
-  /* ------------------------------------------------------------
-     ✅ Render correct wall
-  ------------------------------------------------------------ */
-  return wheel.status === 'live'
-    ? <ActivePrizeWall event={wheel} />
-    : <InactivePrizeWall event={wheel} />;
+  const isLive = wheel.status === 'live';
+
+  return (
+    <>
+      {isLive ? (
+        <ActivePrizeWall wheel={wheel} entries={entries} />
+      ) : (
+        <InactivePrizeWall wheel={wheel} entries={entries} />
+      )}
+    </>
+  );
 }

@@ -1,19 +1,15 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import imageCompression from 'browser-image-compression';
 import { cn } from "../lib/utils";
 
 const DEFAULT_GRADIENT = 'linear-gradient(135deg,#0d47a1,#1976d2)';
 
-/* -------------------------------------------------------- */
-/* ✅ BRIGHTNESS APPLIES ONLY TO GRADIENT */
-/* -------------------------------------------------------- */
 function applyBrightnessToGradient(gradient: string, brightness: number) {
   if (!gradient?.includes('linear-gradient')) return gradient;
   const mult = brightness / 100;
-
   return gradient.replace(/(#\w{6})(\w{2})/g, (match, hex, alpha) => {
     const base = alpha ? parseInt(alpha, 16) : 255;
     const newA = Math.min(255, Math.max(0, base * mult));
@@ -21,13 +17,9 @@ function applyBrightnessToGradient(gradient: string, brightness: number) {
   });
 }
 
-/* -------------------------------------------------------- */
-/* ✅ BUILD GRADIENT (identical to Fan Wall) */
-/* -------------------------------------------------------- */
 function buildPrizeWheelGradient(start: string, end: string, pos: number, brightness: number) {
   const mid1 = pos;
   const mid2 = Math.min(pos + 15, 100);
-
   const g = `
     linear-gradient(
       135deg,
@@ -37,13 +29,9 @@ function buildPrizeWheelGradient(start: string, end: string, pos: number, bright
       ${end} 100%
     )
   `.replace(/\s+/g, " ");
-
   return applyBrightnessToGradient(g, brightness);
 }
 
-/* -------------------------------------------------------- */
-/* ✅ COMPONENT */
-/* -------------------------------------------------------- */
 export default function OptionsModalPrizeWheel({
   event,
   hostId,
@@ -59,125 +47,85 @@ export default function OptionsModalPrizeWheel({
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
 
-  /* ✅ Default these fields for wheels too */
   const [localWheel, setLocalWheel] = useState<any>(() => {
     const start = event.color_start || '#0d47a1';
     const end = event.color_end || '#1976d2';
-    const pos = event.gradient_pos || 60;
-    const brightness = event.background_brightness ?? 100;
-
-    const gradient = buildPrizeWheelGradient(start, end, pos, brightness);
+    const pos = event.gradient_pos ?? 60;
+    const bright = event.background_brightness ?? 100;
+    const gradient = buildPrizeWheelGradient(start, end, pos, bright);
 
     return {
       ...event,
       color_start: start,
       color_end: end,
       gradient_pos: pos,
-      background_brightness: brightness,
+      background_brightness: bright,
       background_type: event.background_type || 'gradient',
       background_value: event.background_value || gradient,
+      tile_glow_color: event.tile_glow_color || '#ffffff',
+      tile_color_a: event.tile_color_a || '#ffffff',
+      tile_color_b: event.tile_color_b || '#ffffff',
+      tile_brightness_a: event.tile_brightness_a ?? 100,
+      tile_brightness_b: event.tile_brightness_b ?? 100,
+      remote_spin_enabled: event.remote_spin_enabled ?? false,
+      countdown: event.countdown || 'none',
     };
   });
 
-  /* -------------------------------------------------------- */
-  /* ✅ IMAGE UPLOAD (matching Fan Wall behavior) */
-  /* -------------------------------------------------------- */
-  async function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
+  async function handleImageUpload(e: any) {
     try {
       const file = e.target.files?.[0];
       if (!file) return;
-
-      if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
-        alert('Please upload a JPG, PNG, or WEBP file.');
+      if (!['image/jpeg','image/png','image/webp'].includes(file.type)) {
+        alert('Please upload a JPG, PNG, or WEBP.');
         return;
       }
 
       const previewUrl = URL.createObjectURL(file);
-      setLocalWheel({
-        ...localWheel,
-        background_type: 'image',
-        background_value: previewUrl,
-      });
-
+      setLocalWheel({ ...localWheel, background_type: 'image', background_value: previewUrl });
       setUploading(true);
 
       const compressed = await imageCompression(file, {
         maxWidthOrHeight: 1900,
-        useWebWorker: true,
+        useWebWorker: true
       });
 
       const ext = file.type.split('/')[1];
       const filePath = `host_${hostId}/prizewheel_${event.id}/background-${Date.now()}.${ext}`;
 
-      await supabase.storage
-        .from('wall-backgrounds')
+      await supabase.storage.from('wall-backgrounds')
         .upload(filePath, compressed, { upsert: true });
 
-      const { data: publicUrl } = supabase.storage
-        .from('wall-backgrounds')
-        .getPublicUrl(filePath);
+      const { data: publicUrl } =
+        supabase.storage.from('wall-backgrounds').getPublicUrl(filePath);
 
-      const finalUrl = publicUrl.publicUrl;
+      const imageUrl = publicUrl.publicUrl;
 
-      await supabase
-        .from('prize_wheels')
+      await supabase.from('prize_wheels')
         .update({
           background_type: 'image',
-          background_value: finalUrl,
-          updated_at: new Date().toISOString(),
+          background_value: imageUrl,
+          updated_at: new Date().toISOString()
         })
         .eq('id', event.id);
 
-      setLocalWheel({
-        ...localWheel,
-        background_type: 'image',
-        background_value: finalUrl,
-      });
-
+      setLocalWheel({ ...localWheel, background_type: 'image', background_value: imageUrl });
       await refreshPrizeWheels?.();
+
     } catch (err) {
-      console.error('❌ Upload failed:', err);
-      alert('Upload failed. Check console.');
+      console.error(err);
+      alert("Upload failed.");
     } finally {
       setUploading(false);
     }
   }
 
-  /* -------------------------------------------------------- */
-  /* ✅ DELETE BACKGROUND */
-  /* -------------------------------------------------------- */
-  async function handleDeleteImage() {
-    try {
-      await supabase
-        .from('prize_wheels')
-        .update({
-          background_type: 'gradient',
-          background_value: DEFAULT_GRADIENT,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', event.id);
-
-      setLocalWheel(prev => ({
-        ...prev,
-        background_type: 'gradient',
-        background_value: DEFAULT_GRADIENT,
-      }));
-
-      await refreshPrizeWheels?.();
-    } catch (err) {
-      console.error('❌ Delete Error:', err);
-    }
-  }
-
-  /* -------------------------------------------------------- */
-  /* ✅ SAVE */
-  /* -------------------------------------------------------- */
   async function handleSave() {
     try {
       setSaving(true);
 
       const finalBg =
-        localWheel.background_type === 'gradient'
+        localWheel.background_type === "gradient"
           ? applyBrightnessToGradient(localWheel.background_value, localWheel.background_brightness)
           : localWheel.background_value;
 
@@ -186,15 +134,17 @@ export default function OptionsModalPrizeWheel({
         host_title: localWheel.host_title?.trim() || null,
         visibility: localWheel.visibility,
         passphrase:
-          localWheel.visibility === 'private'
-            ? localWheel.passphrase || null
-            : null,
-        spin_speed: localWheel.spin_speed || 'Medium',
+          localWheel.visibility === "private" ? localWheel.passphrase || null : null,
+
+        // ✅ REMOVED spin_speed, spin_duration, spin_count
+
+        remote_spin_enabled: !!localWheel.remote_spin_enabled,
+
         countdown:
-          localWheel.countdown === 'none' ? null : String(localWheel.countdown),
+          localWheel.countdown === "none" ? null : String(localWheel.countdown),
+
         countdown_active: false,
 
-        /* ✅ NEW from Fan Wall */
         background_type: localWheel.background_type,
         background_value: finalBg,
         color_start: localWheel.color_start,
@@ -202,26 +152,30 @@ export default function OptionsModalPrizeWheel({
         gradient_pos: localWheel.gradient_pos,
         background_brightness: localWheel.background_brightness,
 
+        tile_glow_color: localWheel.tile_glow_color,
+        tile_color_a: localWheel.tile_color_a,
+        tile_color_b: localWheel.tile_color_b,
+        tile_brightness_a: localWheel.tile_brightness_a,
+        tile_brightness_b: localWheel.tile_brightness_b,
+
         updated_at: new Date().toISOString(),
       };
 
-      await supabase
-        .from('prize_wheels')
+      await supabase.from('prize_wheels')
         .update(updates)
         .eq('id', localWheel.id);
 
       await refreshPrizeWheels?.();
       onClose();
+
     } catch (err) {
-      console.error('❌ Error saving wheel:', err);
+      console.error(err);
+      alert("Saving failed.");
     } finally {
       setSaving(false);
     }
   }
 
-  /* -------------------------------------------------------- */
-  /* ✅ UI */
-  /* -------------------------------------------------------- */
   return (
     <div
       className={cn(
@@ -232,13 +186,11 @@ export default function OptionsModalPrizeWheel({
       <div
         onClick={(e) => e.stopPropagation()}
         className={cn(
-          'relative w-full max-w-[960px] max-h-[90vh] overflow-hidden rounded-2xl',
+          'relative w-full max-w-[960px] max-h-[90vh] overflow-hidden rounded-2xl animate-zoomIn',
           'border border-blue-500/30 shadow-[0_0_40px_rgba(0,140,255,0.45)]',
-          'bg-gradient-to-br from-[#0b0f1a]/95 to-[#111827]/95 animate-zoomIn p-6'
+          'bg-gradient-to-br from-[#0b0f1a]/95 to-[#111827]/95 p-6'
         )}
       >
-
-        {/* Close */}
         <button
           onClick={onClose}
           className={cn('absolute top-3 right-3 text-white/80 hover:text-white text-xl')}
@@ -251,9 +203,9 @@ export default function OptionsModalPrizeWheel({
             Edit Prize Wheel
           </h3>
 
-          {/* ---------------- Titles ---------------- */}
+          {/* TITLES */}
           <div className={cn('w-full max-w-[520px] mx-auto')}>
-            <label className={cn('block', 'mt-3', 'text-sm')}>Title (Private)</label>
+            <label className={cn('block', 'mt-3', 'text-sm')}>Private Title</label>
             <input
               type="text"
               value={localWheel.host_title || ''}
@@ -276,7 +228,7 @@ export default function OptionsModalPrizeWheel({
             />
           </div>
 
-          {/* ---------------- Visibility ---------------- */}
+          {/* VISIBILITY */}
           <div className={cn('w-full max-w-[520px] mx-auto')}>
             <label className={cn('block', 'mt-3', 'text-sm')}>Visibility</label>
             <select
@@ -305,25 +257,30 @@ export default function OptionsModalPrizeWheel({
             </div>
           )}
 
-          {/* ---------------- Spin Speed ---------------- */}
-          <div className={cn('w-full max-w-[520px] mx-auto')}>
-            <label className={cn('block', 'mt-3', 'text-sm')}>Spin Speed</label>
+          {/* ✅ REMOVED: SPIN SPEED / DURATION / COUNT */}
+
+          {/* Remote Spin */}
+          <div className={cn('w-full max-w-[520px] mx-auto mt-4')}>
+            <label className={cn('block', 'text-sm')}>Phone Spin Activation</label>
             <select
-              value={localWheel.spin_speed || 'Medium'}
+              value={localWheel.remote_spin_enabled ? 'yes' : 'no'}
               onChange={(e) =>
-                setLocalWheel({ ...localWheel, spin_speed: e.target.value })
+                setLocalWheel({
+                  ...localWheel,
+                  remote_spin_enabled: e.target.value === 'yes',
+                })
               }
-              className={cn('w-full', 'p-2', 'rounded', 'rounded-md', 'text-black', 'mt-1')}
+              className={cn('w-full', 'p-2', 'rounded-md', 'text-black', 'mt-1')}
             >
-              <option value="Quick">Quick</option>
-              <option value="Medium">Medium</option>
-              <option value="Long">Long</option>
+              <option value="no">Disabled</option>
+              <option value="yes">Enabled</option>
             </select>
           </div>
 
-          {/* ---------------- Countdown ---------------- */}
-          <div className={cn('w-full max-w-[520px] mx-auto')}>
-            <label className={cn('block', 'mt-3', 'text-sm')}>Countdown</label>
+          {/* COUNTDOWN */}
+          <div className={cn('w-full max-w-[520px] mx-auto mt-4')}>
+            <label className={cn('block', 'text-sm')}>Countdown</label>
+
             <select
               value={localWheel.countdown || 'none'}
               onChange={(e) =>
@@ -331,22 +288,20 @@ export default function OptionsModalPrizeWheel({
               }
               className={cn('w-full', 'p-2', 'rounded-md', 'text-black', 'mt-1')}
             >
-              <option value="none">No Countdown / Start Immediately</option>
-              <option>30 Seconds</option>
-              <option>1 Minute</option>
-              <option>2 Minutes</option>
-              <option>3 Minutes</option>
-              <option>4 Minutes</option>
-              <option>5 Minutes</option>
+              <option value="none">No Countdown</option>
+              <option value="30 Seconds">30 Seconds</option>
+              <option value="1 Minute">1 Minute</option>
+              <option value="2 Minutes">2 Minutes</option>
+              <option value="3 Minutes">3 Minutes</option>
+              <option value="4 Minutes">4 Minutes</option>
+              <option value="5 Minutes">5 Minutes</option>
             </select>
           </div>
 
-          {/* ---------------- Background Preview ---------------- */}
-          <div className={cn('w-full max-w-[520px] mx-auto mt-6 text-center')}>
+          {/* BACKGROUND PREVIEW */}
+          <div className={cn('w-full', 'max-w-[520px]', 'mx-auto', 'mt-6', 'text-center')}>
             <div
-              className={cn(
-                'mx-auto w-[140px] h-[80px] rounded-md border border-white/20 shadow-inner'
-              )}
+              className={cn('mx-auto', 'w-[140px]', 'rounded-md', 'border', 'border-white/10', 'shadow-inner', 'overflow-hidden', 'aspect-[16/9]')}
               style={{
                 background:
                   localWheel.background_type === 'image'
@@ -354,23 +309,11 @@ export default function OptionsModalPrizeWheel({
                     : localWheel.background_value,
               }}
             />
-            <p className={cn('text-xs', 'text-gray-300', 'mt-2')}>
-              {localWheel.background_type === 'image'
-                ? 'Current Background Image'
-                : 'Current Gradient Background'}
-            </p>
-
-            {localWheel.background_type === 'image' && (
-              <div className={cn('text-xs text-white/80 mt-2 break-all')}>
-                {String(localWheel.background_value || '').split('/').pop()}
-              </div>
-            )}
           </div>
 
-          {/* ---------------- Gradient Sliders & Color Pickers ---------------- */}
-          <div className={cn('w-full max-w-[520px] mx-auto mt-6')}>
+          {/* GRADIENT CONTROLS */}
+          <div className={cn('w-full', 'max-w-[520px]', 'mx-auto', 'mt-6')}>
             <div className={cn('flex', 'justify-center', 'gap-6')}>
-              {/* Left Color */}
               <div>
                 <label className={cn('block', 'text-xs', 'mb-1')}>Left Color</label>
                 <input
@@ -384,18 +327,16 @@ export default function OptionsModalPrizeWheel({
                       localWheel.gradient_pos,
                       localWheel.background_brightness
                     );
-
-                    setLocalWheel(prev => ({
-                      ...prev,
+                    setLocalWheel({
+                      ...localWheel,
                       color_start: newStart,
                       background_type: 'gradient',
                       background_value: g,
-                    }));
+                    });
                   }}
                 />
               </div>
 
-              {/* Right Color */}
               <div>
                 <label className={cn('block', 'text-xs', 'mb-1')}>Right Color</label>
                 <input
@@ -409,23 +350,20 @@ export default function OptionsModalPrizeWheel({
                       localWheel.gradient_pos,
                       localWheel.background_brightness
                     );
-
-                    setLocalWheel(prev => ({
-                      ...prev,
+                    setLocalWheel({
+                      ...localWheel,
                       color_end: newEnd,
                       background_type: 'gradient',
                       background_value: g,
-                    }));
+                    });
                   }}
                 />
               </div>
             </div>
 
-            {/* Gradient Position */}
             <div className={cn('mt-5', 'flex', 'flex-col', 'items-center')}>
               <label className={cn('text-xs', 'mb-1')}>Gradient Position</label>
-
-              <div className={cn('w-[140px]', 'p-2', 'rounded-md', 'shadow-[0_0_15px_rgba(0,140,255,0.35)]', 'bg-[#0f172a]/40', 'backdrop-blur-sm')}>
+              <div className={cn('w-[160px]', 'p-2', 'rounded-md', 'bg-[#0f172a]/40', 'shadow-inner')}>
                 <input
                   type="range"
                   min="0"
@@ -439,26 +377,22 @@ export default function OptionsModalPrizeWheel({
                       pos,
                       localWheel.background_brightness
                     );
-
-                    setLocalWheel(prev => ({
-                      ...prev,
+                    setLocalWheel({
+                      ...localWheel,
                       gradient_pos: pos,
                       background_type: 'gradient',
                       background_value: g,
-                    }));
+                    });
                   }}
                   className={cn('w-full', 'accent-blue-400')}
                 />
               </div>
-
               <p className={cn('text-xs', 'mt-1')}>{localWheel.gradient_pos}%</p>
             </div>
 
-            {/* Brightness */}
             <div className={cn('mt-5', 'flex', 'flex-col', 'items-center')}>
               <label className={cn('text-xs', 'mb-1')}>Background Brightness</label>
-
-              <div className={cn('w-[140px]', 'p-2', 'rounded-md', 'shadow-[0_0_15px_rgba(0,140,255,0.35)]', 'bg-[#0f172a]/40', 'backdrop-blur-sm')}>
+              <div className={cn('w-[160px]', 'p-2', 'rounded-md', 'bg-[#0f172a]/40', 'shadow-inner')}>
                 <input
                   type="range"
                   min="20"
@@ -472,68 +406,166 @@ export default function OptionsModalPrizeWheel({
                       localWheel.gradient_pos,
                       val
                     );
-
-                    setLocalWheel(prev => ({
-                      ...prev,
+                    setLocalWheel({
+                      ...localWheel,
                       background_brightness: val,
                       background_type: 'gradient',
                       background_value: g,
-                    }));
+                    });
                   }}
                   className={cn('w-full', 'accent-blue-400')}
                 />
               </div>
-
-              <p className={cn('text-xs', 'mt-1')}>{localWheel.background_brightness}%</p>
+              <p className={cn('text-xs', 'mt-1')}>
+                {localWheel.background_brightness}%
+              </p>
             </div>
           </div>
 
-          {/* ---------------- Upload Button (Fan Wall Style) ---------------- */}
-          <div className={cn('mt-6 flex flex-col items-center w-full')}>
+          {/* TILE COLORS */}
+          <p className={cn('text-red-400', 'text-xs', 'text-center', 'mt-8', 'mb-2')}>
+            These must be selected before the wheel window is launched.
+          </p>
+
+          <div className={cn('w-full', 'max-w-[520px]', 'mx-auto', 'mt-4', 'flex', 'justify-center')}>
+            <div className={cn(
+              'flex',
+              'flex-row',
+              'gap-12',
+              'p-4',
+              'rounded-xl',
+              'border',
+              'border-white/10',
+              'bg-black/20',
+              'shadow-inner'
+            )}>
+
+              <div className={cn('flex', 'flex-col', 'items-center')}>
+                <label className={cn('text-sm', 'font-semibold', 'mb-2')}>Glow</label>
+                <input
+                  type="color"
+                  value={localWheel.tile_glow_color}
+                  onChange={(e) =>
+                    setLocalWheel({
+                      ...localWheel,
+                      tile_glow_color: e.target.value,
+                    })
+                  }
+                  className={cn('w-10', 'h-10', 'rounded-md', 'border', 'border-white/20')}
+                />
+                <div
+                  className={cn('h-10', 'w-16', 'mt-2', 'rounded-md', 'border', 'border-white/20')}
+                  style={{
+                    background: '#111',
+                    boxShadow: `0 0 20px ${localWheel.tile_glow_color}`,
+                  }}
+                />
+              </div>
+
+              <div className={cn('flex', 'flex-col', 'items-center')}>
+                <label className={cn('text-sm', 'font-semibold', 'mb-2')}>Tile A</label>
+                <input
+                  type="color"
+                  value={localWheel.tile_color_a}
+                  onChange={(e) =>
+                    setLocalWheel({
+                      ...localWheel,
+                      tile_color_a: e.target.value,
+                    })
+                  }
+                  className={cn('w-10', 'h-10', 'rounded-md', 'border', 'border-white/20')}
+                />
+                <div
+                  className={cn('h-10', 'w-16', 'mt-2', 'rounded-md', 'border', 'border-white/20')}
+                  style={{
+                    background: localWheel.tile_color_a,
+                    opacity: localWheel.tile_brightness_a / 100,
+                  }}
+                />
+              </div>
+
+              <div className={cn('flex', 'flex-col', 'items-center')}>
+                <label className={cn('text-sm', 'font-semibold', 'mb-2')}>Tile B</label>
+                <input
+                  type="color"
+                  value={localWheel.tile_color_b}
+                  onChange={(e) =>
+                    setLocalWheel({
+                      ...localWheel,
+                      tile_color_b: e.target.value,
+                    })
+                  }
+                  className={cn('w-10', 'h-10', 'rounded-md', 'border', 'border-white/20')}
+                />
+                <div
+                  className={cn('h-10', 'w-16', 'mt-2', 'rounded-md', 'border', 'border-white/20')}
+                  style={{
+                    background: localWheel.tile_color_b,
+                    opacity: localWheel.tile_brightness_b / 100,
+                  }}
+                />
+              </div>
+
+            </div>
+          </div>
+
+          {/* TILE BRIGHTNESS */}
+          <div className={cn('w-full', 'max-w-[520px]', 'mx-auto', 'mt-6')}>
+            <div className="mb-4">
+              <label className={cn('block', 'text-xs', 'mb-1')}>Tile A Brightness</label>
+              <input
+                type="range"
+                min="20"
+                max="150"
+                value={localWheel.tile_brightness_a}
+                onChange={(e) =>
+                  setLocalWheel({
+                    ...localWheel,
+                    tile_brightness_a: Number(e.target.value),
+                  })
+                }
+                className={cn('w-full', 'accent-blue-400')}
+              />
+            </div>
+
+            <div className="mb-4">
+              <label className={cn('block', 'text-xs', 'mb-1')}>Tile B Brightness</label>
+              <input
+                type="range"
+                min="20"
+                max="150"
+                value={localWheel.tile_brightness_b}
+                onChange={(e) =>
+                  setLocalWheel({
+                    ...localWheel,
+                    tile_brightness_b: Number(e.target.value),
+                  })
+                }
+                className={cn('w-full', 'accent-blue-400')}
+              />
+            </div>
+          </div>
+
+          {/* BACKGROUND UPLOAD */}
+          <div className={cn('mt-6', 'text-center', 'w-full', 'max-w-[520px]', 'mx-auto')}>
             <p className={cn('text-sm', 'font-semibold', 'mb-2')}>Upload Background</p>
 
-            <label
-              htmlFor="fileUpload"
-              className={cn(
-                "px-4 py-2 rounded-md",
-                "bg-blue-600 hover:bg-blue-700",
-                "text-white font-semibold cursor-pointer text-center"
-              )}
-            >
-              Choose File
-            </label>
-
             <input
-              id="fileUpload"
               type="file"
-              accept="image/png,image/jpeg,image/webp"
+              accept="image/jpeg,image/png,image/webp"
               onChange={handleImageUpload}
-              className="hidden"
+              className="w-full"
             />
 
-            <p className={cn('text-xs', 'text-gray-300', 'mt-2', 'text-center')}>
-              {uploading
-                ? "Uploading..."
-                : localWheel.background_type === "image"
-                ? localWheel.background_value?.split('/').pop()
-                : "No file chosen"}
-            </p>
-
-            {localWheel.background_type === "image" && (
-              <button
-                onClick={handleDeleteImage}
-                className={cn(
-                  "mt-3 bg-red-600 hover:bg-red-700",
-                  "px-3 py-1 rounded text-xs font-semibold"
-                )}
-              >
-                🗑 Delete Background Image
-              </button>
+            {uploading && (
+              <p className={cn('text-yellow-400', 'text-xs', 'mt-2', 'animate-pulse')}>
+                Uploading…
+              </p>
             )}
           </div>
 
-          {/* ---------------- Buttons ---------------- */}
-          <div className={cn('text-center mt-6 flex justify-center gap-4')}>
+          {/* SAVE + CLOSE */}
+          <div className={cn('text-center', 'mt-6', 'flex', 'justify-center', 'gap-4')}>
             <button
               disabled={saving}
               onClick={handleSave}

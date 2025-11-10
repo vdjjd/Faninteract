@@ -1,42 +1,52 @@
 'use client';
 
 import { QRCodeCanvas } from 'qrcode.react';
-import { useEffect, useMemo, useState, useRef } from 'react';
+import { useEffect, useState, useRef } from 'react';
+import { supabase } from '@/lib/supabaseClient';
 import { useRealtimeChannel } from '@/providers/SupabaseRealtimeProvider';
 
-/* ---------- COUNTDOWN DISPLAY ---------- */
-function CountdownDisplay({ countdown, countdownActive }) {
+/* ---------- COUNTDOWN COMPONENT ---------- */
+function CountdownDisplay({ countdown, countdownActive, wheelId }) {
   const [timeLeft, setTimeLeft] = useState(0);
-  const [originalTime, setOriginalTime] = useState(0);
+  const [active, setActive] = useState(countdownActive);
 
+  /* ✅ Parse countdown */
   useEffect(() => {
     if (!countdown) return;
-
     const [numStr] = countdown.split(' ');
     const num = parseInt(numStr);
-
-    const mins = countdown.toLowerCase().includes('min');
-    const secs = countdown.toLowerCase().includes('sec');
-
+    const mins = countdown.toLowerCase().includes('minute');
+    const secs = countdown.toLowerCase().includes('second');
     const total = mins ? num * 60 : secs ? num : 0;
 
     setTimeLeft(total);
-    setOriginalTime(total);
-  }, [countdown]);
+    setActive(!!countdownActive);
+  }, [countdown, countdownActive]);
 
+  /* ✅ Run timer */
   useEffect(() => {
-    if (!countdownActive || timeLeft <= 0) return;
-
+    if (!active || timeLeft <= 0) return;
     const timer = setInterval(() => {
       setTimeLeft(t => (t > 1 ? t - 1 : 0));
     }, 1000);
-
     return () => clearInterval(timer);
-  }, [countdownActive, timeLeft]);
+  }, [active, timeLeft]);
 
+  /* ✅ When timer hits zero → Update DB + fade to Active Wall */
   useEffect(() => {
-    if (!countdownActive) setTimeLeft(originalTime);
-  }, [countdownActive, originalTime]);
+    if (timeLeft === 0 && active) {
+      setActive(false);
+
+      supabase
+        .from('prize_wheels')
+        .update({
+          countdown_active: false,
+          countdown: 'none',
+          status: 'live'       // ✅ makes router fade to Active Wall
+        })
+        .eq('id', wheelId);
+    }
+  }, [timeLeft, active, wheelId]);
 
   if (!countdown || countdown === 'none') return null;
 
@@ -49,9 +59,8 @@ function CountdownDisplay({ countdown, countdownActive }) {
         fontSize: 'clamp(6rem,8vw,9rem)',
         fontWeight: 900,
         color: '#fff',
-        textShadow: '0 0 40px rgba(0,0,0,0.7)',
-        textAlign: 'center',
         marginTop: '2vh',
+        textShadow: '0 0 40px rgba(0,0,0,0.7)',
       }}
     >
       {m}:{s.toString().padStart(2, '0')}
@@ -60,70 +69,76 @@ function CountdownDisplay({ countdown, countdownActive }) {
 }
 
 /* -------------------------------------------------------------------------- */
-/* ✅ INACTIVE PRIZE WHEEL WALL WITH REALTIME                                */
+/* ✅ PRIZE WHEEL INACTIVE WALL                                               */
 /* -------------------------------------------------------------------------- */
-export default function InactivePrizeWall({ event }) {
-  const realtime = useRealtimeChannel();
+export default function InactivePrizeWall({ wheel }) {
+  const rt = useRealtimeChannel();
 
   const [bg, setBg] = useState(
     'linear-gradient(to bottom right,#1b2735,#090a0f)'
   );
 
-  const [wheelState, setWheelState] = useState({
+  const [brightness, setBrightness] = useState(
+    wheel?.background_brightness || 100
+  );
+
+  const [wallState, setWallState] = useState({
     countdown: '',
     countdownActive: false,
-    title: '',
   });
 
   const updateTimeout = useRef(null);
 
+  /* ✅ Glow animation */
   const PulseStyle = (
     <style>{`
-      @keyframes pulseGlow {
-        0%, 100% { text-shadow: 0 0 18px rgba(255,255,255,0.3), 0 0 36px rgba(255,255,255,0.2); opacity: 0.95; }
-        50% { text-shadow: 0 0 28px rgba(255,255,255,0.8), 0 0 60px rgba(255,255,255,0.5); opacity: 1; }
+      @keyframes pulseSoonGlow {
+        0%,100% { opacity: .7; text-shadow: 0 0 14px rgba(255,255,255,0.3); }
+        50% { opacity: 1; text-shadow: 0 0 22px rgba(180,220,255,0.8); }
       }
-      .pulseSoon { animation: pulseGlow 2.5s ease-in-out infinite; }
+      .pulseSoon { animation: pulseSoonGlow 2.5s ease-in-out infinite; }
     `}</style>
   );
 
-  /* ✅ Load initial event values */
+  /* ✅ Initial load */
   useEffect(() => {
-    if (!event) return;
+    if (!wheel) return;
 
-    setWheelState({
-      countdown: event.countdown || '',
-      countdownActive: !!event.countdown_active,
-      title: event.title || '',
+    setWallState({
+      countdown: wheel.countdown || '',
+      countdownActive: !!wheel.countdown_active,
     });
 
     const value =
-      event.background_type === 'image'
-        ? `url(${event.background_value}) center/cover no-repeat`
-        : event.background_value ||
+      wheel.background_type === 'image'
+        ? `url(${wheel.background_value}) center/cover no-repeat`
+        : wheel.background_value ||
           'linear-gradient(to bottom right,#1b2735,#090a0f)';
 
-    const t = setTimeout(() => setBg(value), 100);
-    return () => clearTimeout(t);
-  }, [event]);
+    setBg(value);
 
-  /* ✅ Realtime Updates */
+    if (wheel.background_brightness !== undefined) {
+      setBrightness(wheel.background_brightness);
+    }
+  }, [wheel]);
+
+  /* ✅ Realtime updates */
   useEffect(() => {
-    if (!realtime?.current || !event?.id) return;
+    if (!rt?.current || !wheel?.id) return;
+    const channel = rt.current;
 
-    const channel = realtime.current;
-
-    const schedule = patch => {
+    const scheduleUpdate = (data) => {
       if (updateTimeout.current) clearTimeout(updateTimeout.current);
-      updateTimeout.current = setTimeout(() => {
-        setWheelState(prev => ({ ...prev, ...patch }));
-      }, 80);
+      updateTimeout.current = setTimeout(
+        () => setWallState(prev => ({ ...prev, ...data })),
+        100
+      );
     };
 
-    const handler = ({ event: evtName, payload }) => {
-      if (!payload?.id || payload.id !== event.id) return;
+    channel.on('broadcast', {}, ({ event, payload }) => {
+      if (!payload?.id || payload.id !== wheel.id) return;
 
-      if (evtName === 'prizewheel_updated') {
+      if (event === 'prizewheel_update') {
         if (payload.background_value) {
           const newBg =
             payload.background_type === 'image'
@@ -132,103 +147,78 @@ export default function InactivePrizeWall({ event }) {
           setBg(newBg);
         }
 
-        if (payload.title) schedule({ title: payload.title });
-        if (payload.countdown) schedule({ countdown: payload.countdown });
+        if (payload.background_brightness !== undefined)
+          setBrightness(payload.background_brightness);
+
+        if (payload.countdown)
+          scheduleUpdate({ countdown: payload.countdown });
       }
 
-      if (evtName === 'prizewheel_status_changed') {
-        schedule({ countdownActive: payload.countdown_active });
+      if (event === 'prizewheel_status') {
+        if (payload.countdown_active !== undefined)
+          scheduleUpdate({ countdownActive: payload.countdown_active });
       }
 
-      if (evtName === 'countdown_finished') {
-        schedule({ countdownActive: false });
+      if (event === 'prizewheel_countdown_finished') {
+        scheduleUpdate({ countdownActive: false });
       }
-    };
-
-    channel.on('broadcast', { event: '*' }, handler);
+    });
 
     return () => channel.unsubscribe?.();
-  }, [realtime, event?.id]);
+  }, [rt, wheel?.id]);
 
-  /* ✅ QR origin */
+  /* ✅ QR logic */
   const origin =
     typeof window !== 'undefined'
       ? window.location.origin
       : 'https://faninteract.vercel.app';
 
-  const qrValue = useMemo(
-    () => `${origin}/prizewheel/submit/${event?.id}`,
-    [event?.id, origin]
-  );
+  const qrValue = wheel?.qr_url || `${origin}/guest/signup?prizewheel=${wheel?.id}`;
 
-  /* ✅ Logo selection */
+  /* ✅ Logo */
   const displayLogo =
-    event?.host?.branding_logo_url?.trim()
-      ? event.host.branding_logo_url
-      : event?.logo_url?.trim()
-      ? event.logo_url
+    wheel?.host?.branding_logo_url?.trim()
+      ? wheel.host.branding_logo_url
       : '/faninteractlogo.png';
 
-  /* ✅ Fullscreen */
-  const handleFullscreen = () => {
-    const el = document.documentElement;
-
+  const toggleFullscreen = () =>
     !document.fullscreenElement
-      ? el.requestFullscreen().catch(() => {})
+      ? document.documentElement.requestFullscreen().catch(() => {})
       : document.exitFullscreen();
-  };
 
-  if (!event)
-    return (
-      <div
-        style={{
-          background: 'black',
-          height: '100vh',
-          color: 'white',
-          fontSize: '3rem',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}
-      >
-        Loading…
-      </div>
-    );
+  if (!wheel) return <div>Loading Prize Wheel…</div>;
 
-  /* ✅ Render wall (unchanged visually) */
   return (
     <div
       style={{
         background: bg,
+        filter: `brightness(${brightness}%)`,
         width: '100%',
         height: '100vh',
+        overflow: 'hidden',
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
-        justifyContent: 'flex-start',
-        padding: '2vh 2vw',
-        overflow: 'hidden',
         position: 'relative',
-        transition: 'background 0.8s ease',
+        paddingTop: '3vh',
       }}
     >
       {PulseStyle}
 
+      {/* Title */}
       <h1
         style={{
           color: '#fff',
-          textShadow: '0 0 12px rgba(0,0,0,0.6)',
-          textAlign: 'center',
-          fontWeight: 900,
-          marginTop: '3vh',
-          marginBottom: '1.5vh',
           fontSize: 'clamp(2.5rem,4vw,5rem)',
+          fontWeight: 900,
+          marginBottom: '1.5vh',
+          textShadow: '0 0 12px rgba(0,0,0,0.5)',
         }}
       >
-        {wheelState.title || 'Prize Wheel'}
+        Prize Wheel
       </h1>
 
-      {/* ✅ PANEL (unchanged) */}
+      {/* Main Panel */}
       <div
         style={{
           width: '90vw',
@@ -237,125 +227,160 @@ export default function InactivePrizeWall({ event }) {
           background: 'rgba(255,255,255,0.08)',
           borderRadius: 24,
           border: '1px solid rgba(255,255,255,0.15)',
-          boxShadow: '0 0 40px rgba(0,0,0,0.5)',
-          position: 'relative',
           display: 'flex',
+          position: 'relative',
           overflow: 'hidden',
         }}
       >
-        <QRCodeCanvas
-          value={qrValue}
-          size={620}
-          bgColor="#fff"
-          fgColor="#000"
-          level="H"
-          includeMargin={false}
+        {/* QR Box */}
+        <div
           style={{
             position: 'absolute',
-            top: '50%',
+            top: 40,
             left: 40,
-            transform: 'translateY(-50%)',
-            borderRadius: 16,
-            boxShadow: '0 0 18px rgba(0,0,0,0.6)',
-          }}
-        />
-
-        <img
-          src={displayLogo}
-          alt="Logo"
-          style={{
-            position: 'absolute',
-            top: '25%',
-            left: 'calc(40px + 620px + 60px)',
-            transform: 'translateY(-50%)',
-            width: 'clamp(600px, 22vw, 400px)',
-            objectFit: 'contain',
-            filter: 'drop-shadow(2px 2px 10px rgba(0,0,0,1))',
-          }}
-        />
-
-        <div
-          style={{
-            position: 'absolute',
-            top: 'calc(25% + 160px)',
-            left: 'calc(40px + 620px + 60px)',
-            width: 'clamp(600px, 22vw, 400px)',
-            height: 14,
-            borderRadius: 6,
-            background: 'linear-gradient(to right,#000,#444)',
-            opacity: 0.85,
-            boxShadow: '0 0 12px rgba(0,0,0,0.7)',
-          }}
-        />
-
-        <div
-          style={{
-            position: 'absolute',
-            top: 'calc(25% + 190px)',
-            left: 'calc(40px + 620px + 60px)',
-            width: 'clamp(600px, 22vw, 400px)',
-            textAlign: 'center',
-            color: '#fff',
-            fontWeight: 800,
+            width: '42%',
+            height: 'calc(100% - 80px)',
+            borderRadius: 18,
+            overflow: 'hidden',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            background: 'rgba(255,255,255,0.12)',
           }}
         >
-          <div style={{ fontSize: 'clamp(4rem, 2vw, 3.5rem)' }}>
-            Prize Wheel
+          <QRCodeCanvas
+            value={qrValue}
+            size={600}
+            level="H"
+            bgColor="#ffffff"
+            fgColor="#000000"
+            style={{
+              width: '100%',
+              height: '100%',
+              objectFit: 'contain',
+              borderRadius: 18,
+            }}
+          />
+        </div>
+
+        {/* ---------- RIGHT COLUMN ---------- */}
+        <div
+          style={{
+            position: 'relative',
+            flexGrow: 1,
+            marginLeft: '44%',
+          }}
+        >
+          {/* LOGO */}
+          <div
+            style={{
+              position: 'absolute',
+              top: '6%',
+              left: '50%',
+              transform: 'translateX(-50%)',
+              width: 'clamp(280px,28vw,420px)',
+            }}
+          >
+            <img
+              src={displayLogo}
+              style={{
+                width: '100%',
+                height: 'auto',
+                filter: 'drop-shadow(0 0 14px rgba(0,0,0,0.85))',
+              }}
+            />
           </div>
 
+          {/* GREY BAR */}
           <div
+            style={{
+              position: 'absolute',
+              top: '50%',
+              left: '50%',
+              transform: 'translateX(-50%)',
+              width: '78%',
+              height: 16,
+              borderRadius: 6,
+              background: 'linear-gradient(to right,#000,#444)',
+            }}
+          />
+
+          {/* PRIZE WHEEL TEXT */}
+          <p
+            style={{
+              position: 'absolute',
+              top: '55%',
+              left: '50%',
+              transform: 'translateX(-50%)',
+              color: '#fff',
+              fontSize: 'clamp(2.5rem,3vw,10rem)',
+              fontWeight: 900,
+              margin: 0,
+              textAlign: 'center',
+            }}
+          >
+            Prize Wheel
+          </p>
+
+          {/* STARTING SOON */}
+          <p
             className="pulseSoon"
             style={{
-              fontSize: 'clamp(3rem, 2vw, 2.6rem)',
+              position: 'absolute',
+              top: '65%',
+              left: '50%',
+              transform: 'translateX(-50%)',
               color: '#bcd9ff',
+              fontSize: 'clamp(2.6rem,2.4vw,3rem)',
+              fontWeight: 700,
+              margin: 0,
+              textAlign: 'center',
             }}
           >
             Starting Soon!!
+          </p>
+
+          {/* COUNTDOWN */}
+          <div
+            style={{
+              position: 'absolute',
+              top: '67%',
+              left: '50%',
+              transform: 'translateX(-50%)',
+            }}
+          >
+            <CountdownDisplay
+              countdown={wallState.countdown}
+              countdownActive={wallState.countdownActive}
+              wheelId={wheel.id}     // ✅ Added required prop
+            />
           </div>
         </div>
-
-        {wheelState.countdown &&
-          wheelState.countdown !== 'none' &&
-          wheelState.countdown.trim() !== '' && (
-            <div
-              style={{
-                position: 'absolute',
-                top: '85%',
-                left: 'calc(40px + 620px + 60px)',
-                width: 'clamp(600px, 22vw, 400px)',
-                transform: 'translateY(-50%)',
-                textAlign: 'center',
-              }}
-            >
-              <CountdownDisplay
-                countdown={wheelState.countdown}
-                countdownActive={wheelState.countdownActive}
-              />
-            </div>
-          )}
       </div>
 
-      <button
-        onClick={handleFullscreen}
+      {/* Fullscreen button */}
+      <div
+        onClick={toggleFullscreen}
         style={{
-          position: 'absolute',
-          bottom: '2vh',
-          right: '2vw',
-          width: 45,
-          height: 45,
-          borderRadius: 8,
-          background: 'rgba(255,255,255,0.05)',
-          border: '1px solid rgba(255,255,255,0.2)',
-          color: '#fff',
-          opacity: 0.15,
+          position: 'fixed',
+          bottom: 12,
+          right: 12,
+          width: 48,
+          height: 48,
+          borderRadius: 10,
+          background: 'rgba(255,255,255,0.08)',
+          border: '1px solid rgba(255,255,255,0.15)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
           cursor: 'pointer',
-          transition: '0.3s',
+          opacity: 0.25,
         }}
-        onMouseEnter={e => (e.currentTarget.style.opacity = '1')}
-        onMouseLeave={e => (e.currentTarget.style.opacity = '0.15')}
+        onMouseEnter={(e) => (e.currentTarget.style.opacity = '1')}
+        onMouseLeave={(e) => (e.currentTarget.style.opacity = '0.25')}
       >
         ⛶
-      </button>
+      </div>
     </div>
   );
 }

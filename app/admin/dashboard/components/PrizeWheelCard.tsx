@@ -5,14 +5,17 @@ import { supabase } from '@/lib/supabaseClient';
 import { cn } from '@/lib/utils';
 
 /* ------------------------------------------------------------
-✅ Realtime Broadcast Helper
+✅ Realtime Broadcast (ONLY for SPIN) — channel must match wall
 ------------------------------------------------------------ */
-async function broadcast(event: string, payload: any) {
-  await supabase.channel('prizewheel-realtime').send({
-    type: 'broadcast',
-    event,
-    payload,
-  });
+async function broadcastSpin(id: string) {
+  // ⬇️ match ActiveWall listener: `prizewheel-${wheel.id}`
+  await supabase
+    .channel(`prizewheel-${id}`)
+    .send({
+      type: 'broadcast',
+      event: 'spin_trigger',
+      payload: { id },
+    });
 }
 
 /* ------------------------------------------------------------
@@ -37,9 +40,11 @@ export default function PrizeWheelCard({
 }) {
   if (!wheel || !wheel.id) {
     return (
-      <div className={cn(
-        'rounded-xl p-4 text-center bg-gray-700/20 text-gray-300 border border-white/10'
-      )}>
+      <div
+        className={cn(
+          'rounded-xl p-4 text-center bg-gray-700/20 text-gray-300 border border-white/10'
+        )}
+      >
         Loading wheel…
       </div>
     );
@@ -53,19 +58,19 @@ export default function PrizeWheelCard({
    ✅ Load Entry Counts
   ------------------------------------------------------------ */
   async function loadCounts() {
+    // NOTE: elsewhere you are querying `prize_wheel_entries` (404).
+    // The actual table is `wheel_entries`. Fix in that file next.
     const { data } = await supabase
       .from('wheel_entries')
       .select('status')
       .eq('wheel_id', wheel.id);
 
     const all = data || [];
+
     setEntryCount(all.filter(x => x.status === 'approved').length);
     setPendingCount(all.filter(x => x.status === 'pending').length);
   }
 
-  /* ------------------------------------------------------------
-   ✅ Realtime: Entry Counts
-  ------------------------------------------------------------ */
   useEffect(() => {
     if (!wheel?.id) return;
     loadCounts();
@@ -87,7 +92,7 @@ export default function PrizeWheelCard({
   }, [wheel]);
 
   /* ------------------------------------------------------------
-   ✅ Realtime: Remote Spin Listener
+   ✅ Realtime SPIN indicator only (for this card UI feedback)
   ------------------------------------------------------------ */
   useEffect(() => {
     if (!wheel?.id) return;
@@ -104,7 +109,7 @@ export default function PrizeWheelCard({
   }, [wheel]);
 
   /* ------------------------------------------------------------
-   ✅ Launch Active Wall Window
+   ✅ OPEN WALL POPUP
   ------------------------------------------------------------ */
   function handleLaunch() {
     const url = `${window.location.origin}/prizewheel/${wheel.id}`;
@@ -113,11 +118,15 @@ export default function PrizeWheelCard({
       '_blank',
       'width=1280,height=800,resizable=yes,scrollbars=yes'
     );
+
     popup?.focus();
+
+    // ✅ Save popup reference for Spin control
+    (window as any)._activePrizeWheel = popup;
   }
 
   /* ------------------------------------------------------------
-   ✅ Status Badge
+   ✅ Status Badge UI
   ------------------------------------------------------------ */
   function StatusBadge() {
     let text = 'INACTIVE';
@@ -127,7 +136,7 @@ export default function PrizeWheelCard({
       text = 'LIVE';
       color = 'text-lime-400';
     } else if (wheel.countdown_active) {
-      text = 'COUNTDOWN ACTIVE';
+      text = 'COUNTDOWN';
       color = 'text-yellow-400';
     }
 
@@ -135,32 +144,93 @@ export default function PrizeWheelCard({
   }
 
   /* ------------------------------------------------------------
-   ✅ Button Actions + Realtime Broadcasts
+   ✅ PLAY BUTTON
   ------------------------------------------------------------ */
-
   async function handlePlay() {
-    await onPlay(wheel.id); // existing DB logic
-    await broadcast('prizewheel_status_changed', {
-      id: wheel.id,
-      status: 'live',
-    });
-  }
+    await onPlay(wheel.id);
 
-  async function handleStop() {
-    await onStop(wheel.id); // existing DB logic
-    await broadcast('prizewheel_status_changed', {
-      id: wheel.id,
-      status: 'inactive',
-    });
-  }
+    if (wheel.countdown && wheel.countdown !== 'none') {
+      await supabase
+        .from('prize_wheels')
+        .update({
+          countdown_active: true,
+        })
+        .eq('id', wheel.id);
 
-  async function handleSpin() {
-    await onSpin(wheel.id);
-    await broadcast('spin_trigger', { id: wheel.id });
+      return;
+    }
+
+    await supabase
+      .from('prize_wheels')
+      .update({
+        status: 'live',
+        countdown_active: false,
+      })
+      .eq('id', wheel.id);
   }
 
   /* ------------------------------------------------------------
-   ✅ Card UI
+   ✅ STOP BUTTON (reset countdown OR fade back)
+  ------------------------------------------------------------ */
+  async function handleStop() {
+    await onStop(wheel.id);
+
+    if (wheel.countdown_active && wheel.status !== 'live') {
+      await supabase
+        .from('prize_wheels')
+        .update({
+          countdown: wheel.countdown,
+          countdown_active: true,
+        })
+        .eq('id', wheel.id);
+
+      return;
+    }
+
+    if (wheel.status === 'live') {
+      await supabase
+        .from('prize_wheels')
+        .update({
+          status: 'inactive',
+          countdown_active: false,
+          countdown: 'none',
+        })
+        .eq('id', wheel.id);
+
+      return;
+    }
+  }
+
+  /* ------------------------------------------------------------
+   ✅ SPIN BUTTON
+      1) Try to call the popup hook immediately
+      2) Also broadcast on the per-wheel channel (works even if popup hook missed)
+  ------------------------------------------------------------ */
+  async function handleSpin() {
+    await onSpin(wheel.id);
+
+    // 1) Direct popup call if the wall is open
+    try {
+      const popup: any = (window as any)._activePrizeWheel;
+      if (
+        popup &&
+        popup.window &&
+        popup.window._prizewheel &&
+        popup.window._prizewheel._spin &&
+        typeof popup.window._prizewheel._spin.start === 'function'
+      ) {
+        popup.window._prizewheel._spin.start();
+      }
+    } catch (err) {
+      console.warn('Spin failed in popup:', err);
+    }
+
+    // 2) Broadcast to the wall listener
+    await broadcastSpin(wheel.id);
+  }
+
+  /* ------------------------------------------------------------
+   ✅ CARD UI
   ------------------------------------------------------------ */
   return (
     <div
@@ -180,6 +250,7 @@ export default function PrizeWheelCard({
               'linear-gradient(135deg,#0d47a1,#1976d2)',
       }}
     >
+      {/* -------- INFO -------- */}
       <div>
         <h3 className={cn('font-bold', 'text-lg', 'mb-1')}>
           {wheel.host_title || wheel.title || 'Untitled Wheel'}
@@ -189,12 +260,12 @@ export default function PrizeWheelCard({
           <strong>Status:</strong> <StatusBadge />
         </p>
 
-        {/* Pending button */}
         <div className={cn('flex', 'justify-center', 'mb-3')}>
           <button
             onClick={() => onOpenModeration(wheel)}
             className={cn(
               'px-3 py-1 rounded-md text-sm font-semibold flex items-center gap-1 shadow-md transition',
+              // If you want a live count, keep loadCounts wired as above
               pendingCount > 0
                 ? 'bg-yellow-500 hover:bg-yellow-600 text-black'
                 : 'bg-gray-600 hover:bg-gray-700 text-white/80'
@@ -219,17 +290,39 @@ export default function PrizeWheelCard({
         </p>
       </div>
 
-      {/* Button bar */}
-      <div className={cn('flex', 'flex-wrap', 'justify-center', 'gap-2', 'mt-auto', 'pt-2', 'border-t', 'border-white/10')}>
-        <button onClick={handlePlay} className={cn('px-3', 'py-1', 'rounded', 'text-sm', 'font-semibold', 'bg-yellow-600', 'hover:bg-yellow-700', 'text-black')}>
+      {/* -------- BUTTONS -------- */}
+      <div
+        className={cn(
+          'flex flex-wrap justify-center gap-2 mt-auto pt-2 border-t border-white/10'
+        )}
+      >
+        <button
+          onClick={handlePlay}
+          className={cn(
+            'px-3', 'py-1', 'rounded', 'text-sm', 'font-semibold',
+            'bg-yellow-600', 'hover:bg-yellow-700', 'text-black'
+          )}
+        >
           ▶ Play
         </button>
 
-        <button onClick={handleStop} className={cn('px-3', 'py-1', 'rounded', 'text-sm', 'font-semibold', 'bg-red-600', 'hover:bg-red-700')}>
+        <button
+          onClick={handleStop}
+          className={cn(
+            'px-3', 'py-1', 'rounded', 'text-sm', 'font-semibold',
+            'bg-red-600', 'hover:bg-red-700'
+          )}
+        >
           ⏹ Stop
         </button>
 
-        <button onClick={handleLaunch} className={cn('bg-blue-600', 'hover:bg-blue-700', 'px-3', 'py-1', 'rounded', 'text-sm', 'font-semibold')}>
+        <button
+          onClick={handleLaunch}
+          className={cn(
+            'bg-blue-600', 'hover:bg-blue-700',
+            'px-3', 'py-1', 'rounded', 'text-sm', 'font-semibold'
+          )}
+        >
           🚀 Launch
         </button>
 
@@ -247,14 +340,20 @@ export default function PrizeWheelCard({
 
         <button
           onClick={() => onOpenOptions(wheel)}
-          className={cn('bg-indigo-500', 'hover:bg-indigo-600', 'px-3', 'py-1', 'rounded', 'text-sm', 'font-semibold')}
+          className={cn(
+            'bg-indigo-500', 'hover:bg-indigo-600',
+            'px-3', 'py-1', 'rounded', 'text-sm', 'font-semibold'
+          )}
         >
           ⚙ Options
         </button>
 
         <button
           onClick={() => onDelete(wheel.id)}
-          className={cn('bg-red-700', 'hover:bg-red-800', 'px-3', 'py-1', 'rounded', 'text-sm', 'font-semibold')}
+          className={cn(
+            'bg-red-700', 'hover:bg-red-800',
+            'px-3', 'py-1', 'rounded', 'text-sm', 'font-semibold'
+          )}
         >
           ❌ Delete
         </button>
