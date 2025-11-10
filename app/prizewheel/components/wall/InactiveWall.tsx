@@ -173,9 +173,7 @@ export default function InactivePrizeWall({ wheel }) {
       ? window.location.origin
       : 'https://faninteract.vercel.app';
 
-  const qrValue =
-  wheel?.qr_url ||
-  `${origin}/guest/signup?redirect=/prizewheel/${wheel.id}/submit`;
+  const qrValue = `${origin}/guest/signup?redirect=/prizewheel/${wheel.id}/submit`;
 
   /* ✅ Logo */
   const displayLogo =
