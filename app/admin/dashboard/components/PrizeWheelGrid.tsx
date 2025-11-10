@@ -31,11 +31,47 @@ export default function PrizeWheelGrid({
   useEffect(() => {
     if (Array.isArray(wheels)) {
       const safe = wheels.filter((w) => w && w.id);
-      setLocalWheels(safe);
+      // ✅ ensure NEW array reference (React must see a change)
+      setLocalWheels([...safe]);
     } else {
       setLocalWheels([]);
     }
   }, [wheels]);
+
+  /* ------------------------------------------------------------
+     ✅ REALTIME LISTENER FOR wheel_entries (FIX)
+     This keeps pending count LIVE without page reload
+  ------------------------------------------------------------ */
+  useEffect(() => {
+    if (!host?.id) return;
+
+    const channel = supabase
+      .channel('prizewheel-grid-sync')
+      .on(
+        'postgres_changes',
+        {
+          schema: 'public',
+          table: 'wheel_entries',
+          event: '*',
+        },
+        async () => {
+          // ✅ Always pull fresh wheels from DB
+          const { data } = await supabase
+            .from('prize_wheels')
+            .select('*')
+            .eq('host_id', host.id)
+            .order('created_at', { ascending: false });
+
+          // ✅ Force local wheels to refresh
+          setLocalWheels(data || []);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [host?.id]);
 
   /* ------------------------------------------------------------
      ✅ Unified realtime broadcast helper (same as Card)
@@ -60,7 +96,7 @@ export default function PrizeWheelGrid({
   }
 
   /* ------------------------------------------------------------
-     ✅ PLAY (mirrors fan wall logic)
+     ✅ PLAY
   ------------------------------------------------------------ */
   async function handlePlay(wheelId: string) {
     const { data: wheel } = await supabase
@@ -69,11 +105,9 @@ export default function PrizeWheelGrid({
       .eq('id', wheelId)
       .single();
 
-    const hasCountdown =
-      wheel?.countdown && wheel.countdown.trim() !== '';
+    const hasCountdown = wheel?.countdown && wheel.countdown.trim() !== '';
 
     if (!hasCountdown) {
-      // Go LIVE instantly
       await supabase
         .from('prize_wheels')
         .update({
@@ -89,7 +123,6 @@ export default function PrizeWheelGrid({
         countdown_active: false,
       });
     } else {
-      // Trigger countdown
       await supabase
         .from('prize_wheels')
         .update({
@@ -138,14 +171,13 @@ export default function PrizeWheelGrid({
     setLocalWheels((prev) => prev.filter((w) => w.id !== id));
 
     await supabase.from('prize_wheels').delete().eq('id', id);
-
     await broadcast('prizewheel_deleted', { id });
 
     delayedRefresh();
   }
 
   /* ------------------------------------------------------------
-     ✅ Moderation
+     ✅ Moderation Modal
   ------------------------------------------------------------ */
   function handleOpenModeration(wheel: any) {
     if (!wheel || !wheel.id) return;
@@ -179,7 +211,7 @@ export default function PrizeWheelGrid({
         )}
       >
         {localWheels.length === 0 && (
-          <p className={cn('text-gray-400', 'italic')}>No Prize Wheels created yet.</p>
+          <p className={cn('text-gray-400 italic')}>No Prize Wheels created yet.</p>
         )}
 
         {localWheels.map((wheel) => (
