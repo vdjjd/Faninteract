@@ -6,7 +6,7 @@ import Cropper from "react-easy-crop";
 import imageCompression from "browser-image-compression";
 import { getSupabaseClient } from "@/lib/supabaseClient";
 
-/* ✅ Load profile from localStorage */
+/* ✅ Get stored profile */
 function getStoredGuestProfile() {
   try {
     const raw =
@@ -18,7 +18,7 @@ function getStoredGuestProfile() {
   }
 }
 
-export default function PrizeWheelSubmitPage() {
+export default function PrizeWheelSubmissionPage() {
   const router = useRouter();
   const params = useParams();
   const wheelId = Array.isArray(params.wheelId)
@@ -27,42 +27,42 @@ export default function PrizeWheelSubmitPage() {
 
   const supabase = getSupabaseClient();
 
-  const [profile, setProfile] = useState<any>(null);
   const [wheel, setWheel] = useState<any>(null);
+  const [profile, setProfile] = useState<any>(null);
 
   const [imageSrc, setImageSrc] = useState<string | null>(null);
-  const [croppedAreaPixels, setCroppedAreaPixels] = useState(null);
   const [crop, setCrop] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
+  const [croppedAreaPixels, setCroppedAreaPixels] = useState(null);
+
   const [submitting, setSubmitting] = useState(false);
 
   const fileRef = useRef<HTMLInputElement>(null);
 
-  /* ✅ Require signup */
+  /* ✅ enforce signup */
   useEffect(() => {
     const p = getStoredGuestProfile();
     if (!p) {
-      router.replace(`/guest/signup?redirect=/prizewheel/${wheelId}/submit`);
+      router.replace(`/prizewheel/${wheelId}/signup`);
     } else {
       setProfile(p);
     }
   }, [router, wheelId]);
 
-  /* ✅ Load wheel background */
+  /* ✅ load wheel background + branding */
   useEffect(() => {
     async function loadWheel() {
       const { data } = await supabase
         .from("prize_wheels")
-        .select("title, background_value")
+        .select("id,title,background_type,background_value,host:host_id (branding_logo_url)")
         .eq("id", wheelId)
         .single();
-
       setWheel(data);
     }
     loadWheel();
-  }, [wheelId, supabase]);
+  }, [wheelId]);
 
-  /* ✅ Open camera */
+  /* ✅ Camera click */
   const openCamera = () => {
     if (fileRef.current) {
       fileRef.current.setAttribute("capture", "user");
@@ -70,7 +70,7 @@ export default function PrizeWheelSubmitPage() {
     }
   };
 
-  /* ✅ Handle file upload (with compression) */
+  /* ✅ Handle file upload */
   const handleFile = async (e: any) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -86,37 +86,38 @@ export default function PrizeWheelSubmitPage() {
     reader.readAsDataURL(compressed);
   };
 
-  /* ✅ Upload to guest_uploads */
+  /* ✅ Upload to storage */
   const uploadImage = async () => {
     if (!imageSrc) return null;
 
     const blob = await (await fetch(imageSrc)).blob();
     const file = new File([blob], "upload.jpg", { type: "image/jpeg" });
-    const filename = `${profile.id}-${Date.now()}.jpg`;
+    const fileName = `${profile.id}-${Date.now()}-wheel.jpg`;
 
     const { error } = await supabase.storage
       .from("guest_uploads")
-      .upload(filename, file);
+      .upload(fileName, file);
 
     if (error) return null;
 
     const { data } = supabase.storage
       .from("guest_uploads")
-      .getPublicUrl(filename);
+      .getPublicUrl(fileName);
 
     return data.publicUrl;
   };
 
-  /* ✅ Submit entry */
+  /* ✅ Submit */
   const submitEntry = async (e: any) => {
     e.preventDefault();
 
     if (!imageSrc) {
-      alert("You must upload a selfie to enter.");
+      alert("You must upload a selfie to continue.");
       return;
     }
 
     setSubmitting(true);
+
     const photoUrl = await uploadImage();
 
     await supabase.from("wheel_entries").insert([
@@ -129,16 +130,22 @@ export default function PrizeWheelSubmitPage() {
     ]);
 
     setTimeout(() => {
-      router.push(`/prizewheel/${wheelId}/thanks`);
+      router.push(`/thanks/${wheelId}`);
     }, 300);
   };
 
-  if (!profile || !wheel) return null;
+  if (!wheel || !profile) return null;
 
   const bg =
-    wheel.background_value?.includes("http")
+    wheel.background_type === "image" &&
+    wheel.background_value?.startsWith("http")
       ? `url(${wheel.background_value})`
       : wheel.background_value;
+
+  const logo =
+    wheel.host?.branding_logo_url?.trim()
+      ? wheel.host.branding_logo_url
+      : "/faninteractlogo.png";
 
   return (
     <div
@@ -174,18 +181,24 @@ export default function PrizeWheelSubmitPage() {
           border: "1px solid rgba(255,255,255,0.15)",
         }}
       >
-        <h2
+        {/* ✅ Logo */}
+        <img
+          src={logo}
           style={{
-            marginBottom: 12,
-            fontWeight: 800,
-            fontSize: 26,
-            color: "#fff",
+            width: "70%",
+            display: "block",
+            margin: "0 auto 12px",
+            animation: "pulse 2.2s infinite",
+            filter: "drop-shadow(0 0 25px rgba(56,189,248,0.6))",
           }}
-        >
-          {wheel.title}
+        />
+
+        {/* ✅ Wheel Title */}
+        <h2 style={{ marginBottom: 16, fontWeight: 800 }}>
+          {wheel.title || "Prize Wheel Entry"}
         </h2>
 
-        {/* ✅ Crop box */}
+        {/* ✅ Crop Box */}
         <div
           style={{
             width: "100%",
@@ -223,18 +236,19 @@ export default function PrizeWheelSubmitPage() {
           )}
         </div>
 
-        <div
+        {/* ✅ Required notice */}
+        <p
           style={{
-            fontSize: 14,
-            color: "#f8f8f8",
-            marginBottom: 12,
-            opacity: 0.9,
+            color: "#fff",
+            fontSize: 13,
+            opacity: 0.7,
+            marginBottom: 10,
           }}
         >
-          <strong>You must upload a selfie to enter.</strong>
-        </div>
+          You must upload a selfie to enter the Prize Wheel.
+        </p>
 
-        {/* ✅ Camera + File Buttons */}
+        {/* ✅ Buttons */}
         <button
           type="button"
           onClick={openCamera}
@@ -291,9 +305,9 @@ export default function PrizeWheelSubmitPage() {
           </button>
         )}
 
-        {/* ✅ Name (readonly) */}
+        {/* ✅ Name preview (read-only) */}
         <input
-          value={profile.first_name}
+          value={profile.first_name + " " + profile.last_name}
           readOnly
           style={{
             width: "100%",
@@ -324,6 +338,14 @@ export default function PrizeWheelSubmitPage() {
           {submitting ? "Submitting…" : "Enter Prize Wheel"}
         </button>
       </form>
+
+      <style>{`
+        @keyframes pulse {
+          0% { filter: drop-shadow(0 0 12px rgba(56,189,248,0.6)); }
+          50% { filter: drop-shadow(0 0 35px rgba(56,189,248,0.9)); }
+          100% { filter: drop-shadow(0 0 12px rgba(56,189,248,0.6)); }
+        }
+      `}</style>
     </div>
   );
 }
