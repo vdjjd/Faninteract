@@ -30,7 +30,7 @@ export default function PrizeWheelRouterPage() {
       return;
     }
 
-    /* ✅ Load APPROVED entries WITH guest_profiles join */
+    /* ✅ Load APPROVED entries with CORRECT guest_profiles join */
     const { data: entryData } = await supabase
       .from('wheel_entries')
       .select(`
@@ -44,9 +44,7 @@ export default function PrizeWheelRouterPage() {
         last_name,
         guest_profiles (
           first_name,
-          last_name,
-          photo_url,
-          avatar_url
+          last_name
         )
       `)
       .eq('wheel_id', id)
@@ -86,9 +84,7 @@ export default function PrizeWheelRouterPage() {
           last_name,
           guest_profiles (
             first_name,
-            last_name,
-            photo_url,
-            avatar_url
+            last_name
           )
         `)
         .eq('wheel_id', id)
