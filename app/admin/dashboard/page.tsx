@@ -11,7 +11,7 @@ import PrizeWheelGrid from './components/PrizeWheelGrid';
 import CreateFanWallModal from '@/components/CreateFanWallModal';
 import CreatePrizeWheelModal from '@/components/CreatePrizeWheelModal';
 import OptionsModalFanWall from '@/components/OptionsModalFanWall';
-import OptionsModalPrizeWheel from '@/components/OptionsModalPrizeWheel';   // ✅ NEW
+import OptionsModalPrizeWheel from '@/components/OptionsModalPrizeWheel';   
 import AdsManagerModal from '@/components/AdsManagerModal';
 import HostProfilePanel from '@/components/HostProfilePanel';
 
@@ -32,7 +32,7 @@ export default function DashboardPage() {
   const [isAdsModalOpen, setAdsModalOpen] = useState(false);
 
   const [selectedWall, setSelectedWall] = useState<any | null>(null);
-  const [selectedPrizeWheel, setSelectedPrizeWheel] = useState<any | null>(null);  // ✅ NEW
+  const [selectedPrizeWheel, setSelectedPrizeWheel] = useState<any | null>(null);
 
   /* ------------------------------------------------------- */
   /* ✅ INITIAL LOAD */
@@ -99,6 +99,39 @@ export default function DashboardPage() {
   }, [supabase]);
 
   /* ------------------------------------------------------- */
+  /* ✅ REALTIME AUTO-REFRESH FOR PRIZE WHEEL ENTRIES */
+  /* ------------------------------------------------------- */
+  useEffect(() => {
+    if (!host?.id) return;
+
+    const channel = supabase
+      .channel('prizewheel-dashboard-sync')
+      .on(
+        'postgres_changes',
+        {
+          schema: 'public',
+          table: 'wheel_entries',
+          event: '*',
+        },
+        async (payload) => {
+          console.log('🔄 PrizeWheel Dashboard Realtime Refresh:', payload);
+          const { data } = await supabase
+            .from('prize_wheels')
+            .select('*')
+            .eq('host_id', host.id)
+            .order('created_at', { ascending: false });
+
+          setPrizeWheels(data || []);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [host?.id, supabase]);
+
+  /* ------------------------------------------------------- */
   /* ✅ REFRESH HELPERS */
   /* ------------------------------------------------------- */
   const refreshFanWalls = async () => {
@@ -159,7 +192,7 @@ export default function DashboardPage() {
         wheels={prizeWheels}
         host={host}
         refreshPrizeWheels={refreshPrizeWheels}
-        onOpenOptions={setSelectedPrizeWheel}   // ✅ FIXED
+        onOpenOptions={setSelectedPrizeWheel}
       />
 
       {/* ---------- FAN WALL CREATE ---------- */}
