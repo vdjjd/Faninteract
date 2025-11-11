@@ -68,16 +68,42 @@ export default function AdsManagerModal({ host, onClose }: AdsManagerModalProps)
       .single();
 
     if (data) {
-      setInjectorEnabled(data.injector_enabled ?? true);
-      setTriggerInterval(data.trigger_interval ?? 8);
+      // coerce to proper types in case DB returns text
+      const enabled = !!data.injector_enabled;
+      const intervalNum = Number(data.trigger_interval ?? 8) || 8;
+
+      setInjectorEnabled(enabled);
+      setTriggerInterval(intervalNum);
     }
   }
 
   async function saveHostSettings(enabled: boolean, interval: number) {
+    // persist
     await supabase
       .from("hosts")
       .update({ injector_enabled: enabled, trigger_interval: interval })
       .eq("id", host.id);
+
+    // reflect latest in local state immediately
+    setInjectorEnabled(!!enabled);
+    setTriggerInterval(Number(interval) || 8);
+
+    // broadcast so any live hooks can react without a refresh
+    try {
+      await supabase
+        .channel("fan_wall_broadcast")
+        .send({
+          type: "broadcast",
+          event: "injector_settings_changed",
+          payload: {
+            host_id: host.id,
+            enabled: !!enabled,
+            trigger_interval: Number(interval) || 8,
+          },
+        });
+    } catch {
+      // silent — UI unchanged per request
+    }
   }
 
   async function loadAds() {
@@ -128,7 +154,7 @@ export default function AdsManagerModal({ host, onClose }: AdsManagerModalProps)
   };
 
   /* ------------------------------------------- */
-  /* DND FIX — THIS IS THE ONLY THING CHANGED    */
+  /* DND (UNCHANGED)                              */
   /* ------------------------------------------- */
 
   function handleDragStart(e: React.DragEvent, index: number) {
@@ -183,7 +209,7 @@ export default function AdsManagerModal({ host, onClose }: AdsManagerModalProps)
   }
 
   /* ------------------------------------------- */
-  /* UI — UNTOUCHED EXACTLY LIKE YOU REQUIRED    */
+  /* UI — UNTOUCHED LOOK; JUST WIRED CORRECTLY   */
   /* ------------------------------------------- */
 
   return (
@@ -217,9 +243,9 @@ export default function AdsManagerModal({ host, onClose }: AdsManagerModalProps)
 
             <div
               onClick={async () => {
-                const enabled = !injectorEnabled;
-                setInjectorEnabled(enabled);
-                await saveHostSettings(enabled, triggerInterval);
+                const nextEnabled = !injectorEnabled;
+                // update immediately and persist+broadcast
+                await saveHostSettings(nextEnabled, triggerInterval);
               }}
               className={cn(
                 "relative w-14 h-7 rounded-full cursor-pointer transition-all",
@@ -245,10 +271,10 @@ export default function AdsManagerModal({ host, onClose }: AdsManagerModalProps)
             <select
               className={cn('bg-black/60', 'border', 'border-blue-500/30', 'text-white', 'text-xs', 'rounded', 'px-2', 'py-1')}
               value={triggerInterval}
-              onChange={(e) => {
-                const v = Number(e.target.value);
-                setTriggerInterval(v);
-                saveHostSettings(injectorEnabled, v);
+              onChange={async (e) => {
+                const v = Number(e.target.value) || 8;
+                // update immediately and persist+broadcast
+                await saveHostSettings(injectorEnabled, v);
               }}
             >
               <option value={8}>8</option>
