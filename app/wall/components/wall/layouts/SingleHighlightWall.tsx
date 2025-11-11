@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { QRCodeCanvas } from 'qrcode.react';
 import { supabase } from '@/lib/supabaseClient';
@@ -33,6 +33,9 @@ const speedMap: Record<string, number> = {
 export default function SingleHighlightWall({ event, posts }) {
   const rt = useRealtimeChannel();
 
+  /* ✅ NEW unified fullscreen ref (Supabase + UI button both use this) */
+  const fullscreenButtonRef = useRef<HTMLButtonElement>(null);
+
   const [livePosts, setLivePosts] = useState(posts || []);
   const [currentIndex, setCurrentIndex] = useState(0);
 
@@ -58,42 +61,48 @@ export default function SingleHighlightWall({ event, posts }) {
     speedMap[event?.transition_speed || 'Medium']
   );
 
-  /* ✅ PATCHED HOOK */
-  const {
-    ads,
-    showAd,
-    currentAd,
-    tick,
-    injectorEnabled,
-  } = useAdInjector({
+  const { ads, showAd, currentAd, tick, injectorEnabled } = useAdInjector({
     hostId: event?.host_profile_id || event?.host_id || event?.id,
   });
 
-  /* ✅ REALTIME RELOAD + FULLSCREEN PATCH (NO OFF, NO CRASH) */
+  /* ✅ LISTEN TO wall_commands TABLE */
   useEffect(() => {
-    if (!rt?.current) return;
     if (!event?.id) return;
 
-    const channel = rt.current;
+    const channel = supabase
+      .channel(`wall_commands_${event.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'wall_commands',
+          filter: `wall_id=eq.${event.id}`,
+        },
+        async (payload) => {
+          const cmd = payload.new;
+          if (!cmd) return;
 
-    const handler = (payload: any) => {
-      if (payload?.id !== event.id) return;
+          // ✅ LOG EXACT COMMAND
+          console.log("WALL COMMAND RECEIVED:", cmd);
 
-      if (payload.action === 'reload_wall') {
-        window.location.reload();
-      }
+          // ✅ RELOAD WALL
+          if (cmd.action?.toLowerCase().includes('reload')) {
+            window.location.reload();
+          }
 
-      if (payload.action === 'fullscreen_wall') {
-        const el = document.documentElement;
-        if (el.requestFullscreen) el.requestFullscreen().catch(() => {});
-      }
-    };
+          // ✅ FULLSCREEN WALL (now works no matter the casing / hyphens)
+          if (cmd.action?.toLowerCase().includes('fullscreen')) {
+            fullscreenButtonRef.current?.click();
+          }
 
-    channel.on('broadcast', { event: 'reload_wall' }, handler);
-    channel.on('broadcast', { event: 'fullscreen_wall' }, handler);
+          await supabase.from('wall_commands').delete().eq('id', cmd.id);
+        }
+      )
+      .subscribe();
 
-    // ❌ NO CLEANUP — prevents crash
-  }, [rt, event?.id]);
+    return () => supabase.removeChannel(channel);
+  }, [event?.id]);
 
   /* Load posts */
   useEffect(() => {
@@ -126,10 +135,9 @@ export default function SingleHighlightWall({ event, posts }) {
         .order('created_at', { ascending: false });
 
       if (data) {
-        setLivePosts(prev => {
-          if (JSON.stringify(prev) === JSON.stringify(data)) return prev;
-          return data;
-        });
+        setLivePosts((prev) =>
+          JSON.stringify(prev) === JSON.stringify(data) ? prev : data
+        );
       }
     }, 3000);
 
@@ -150,7 +158,7 @@ export default function SingleHighlightWall({ event, posts }) {
           table: 'fan_walls',
           filter: `id=eq.${event.id}`,
         },
-        payload => {
+        (payload) => {
           const w = payload.new;
           if (!w) return;
 
@@ -185,32 +193,23 @@ export default function SingleHighlightWall({ event, posts }) {
     return () => supabase.removeChannel(wallChannel);
   }, [event?.id, displayDuration]);
 
-  /* ✅ Rotation engine */
+  /* Rotation engine */
   useEffect(() => {
     if (!livePosts.length || showAd) return;
 
     const rotation = setInterval(() => {
-      setCurrentIndex(prev => (prev + 1) % livePosts.length);
+      setCurrentIndex((prev) => (prev + 1) % livePosts.length);
 
       if (transitionType === 'Random') {
         const next = transitionKeys[Math.floor(Math.random() * transitionKeys.length)];
         setRandomTransition(next);
       }
 
-      if (injectorEnabled) {
-        tick();
-      }
+      if (injectorEnabled) tick();
     }, displayDuration);
 
     return () => clearInterval(rotation);
-  }, [
-    livePosts.length,
-    displayDuration,
-    showAd,
-    transitionType,
-    injectorEnabled,
-    tick,
-  ]);
+  }, [livePosts.length, displayDuration, showAd, transitionType, injectorEnabled, tick]);
 
   const effectiveTransition =
     transitionType === 'Random'
@@ -233,6 +232,19 @@ export default function SingleHighlightWall({ event, posts }) {
         position: 'relative',
       }}
     >
+      {/* ✅ Hidden fullscreen button */}
+      <button
+        ref={fullscreenButtonRef}
+        style={{ display: 'none' }}
+        onClick={() => {
+          if (!document.fullscreenElement) {
+            document.documentElement.requestFullscreen().catch(() => {});
+          } else {
+            document.exitFullscreen().catch(() => {});
+          }
+        }}
+      />
+
       {/* Title */}
       <h1
         style={{
@@ -262,7 +274,7 @@ export default function SingleHighlightWall({ event, posts }) {
           marginTop: '0.5vh',
         }}
       >
-        {/* Left photo */}
+        {/* Left Photo */}
         <div
           style={{
             position: 'absolute',
@@ -280,12 +292,7 @@ export default function SingleHighlightWall({ event, posts }) {
                 key={current.id}
                 src={current.photo_url}
                 {...effectiveTransition}
-                style={{
-                  width: '100%',
-                  height: '100%',
-                  objectFit: 'cover',
-                  borderRadius: 18,
-                }}
+                style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 18 }}
               />
             ) : (
               <motion.div
@@ -293,10 +300,7 @@ export default function SingleHighlightWall({ event, posts }) {
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                style={{
-                  fontSize: '2rem',
-                  color: 'rgba(255,255,255,0.6)',
-                }}
+                style={{ fontSize: '2rem', color: 'rgba(255,255,255,0.6)' }}
               >
                 No Photo
               </motion.div>
@@ -315,7 +319,6 @@ export default function SingleHighlightWall({ event, posts }) {
             alignItems: 'center',
           }}
         >
-          {/* Logo */}
           <div style={{ width: 'clamp(260px,28vw,380px)' }}>
             <img
               src={logo}
@@ -407,14 +410,10 @@ export default function SingleHighlightWall({ event, posts }) {
         </div>
       </div>
 
-      {/* AD OVERLAY */}
-      <AdOverlay
-        showAd={showAd && injectorEnabled}
-        currentAd={currentAd}
-        onAdEnd={() => {}}
-      />
+      {/* Ad Overlay */}
+      <AdOverlay showAd={showAd && injectorEnabled} currentAd={currentAd} onAdEnd={() => {}} />
 
-      {/* Fullscreen */}
+      {/* ✅ Corner Fullscreen Button (links to unified engine) */}
       <div
         style={{
           position: 'fixed',
@@ -433,11 +432,7 @@ export default function SingleHighlightWall({ event, posts }) {
         }}
         onMouseEnter={(e) => (e.currentTarget.style.opacity = '1')}
         onMouseLeave={(e) => (e.currentTarget.style.opacity = '0.25')}
-        onClick={() =>
-          !document.fullscreenElement
-            ? document.documentElement.requestFullscreen().catch(() => {})
-            : document.exitFullscreen()
-        }
+        onClick={() => fullscreenButtonRef.current?.click()}
       >
         <svg
           xmlns="http://www.w3.org/2000/svg"
@@ -447,11 +442,7 @@ export default function SingleHighlightWall({ event, posts }) {
           strokeWidth={1.5}
           style={{ width: 26, height: 26 }}
         >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            d="M3 9V4h5M21 9V4h-5M3 15v5h5M21 15v5h-5"
-          />
+          <path strokeLinecap="round" strokeLinejoin="round" d="M3 9V4h5M21 9V4h-5M3 15v5h5M21 15v5h-5" />
         </svg>
       </div>
     </div>

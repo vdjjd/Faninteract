@@ -32,6 +32,15 @@ export default function FanWallGrid({
     setLocalWalls(walls || []);
   }, [walls]);
 
+  /* ✅ Sends commands to wall_commands */
+  async function sendWallCommand(wall_id: string, action: string) {
+    try {
+      await supabase.from("wall_commands").insert([{ wall_id, action }]);
+    } catch (err) {
+      console.error("❌ sendWallCommand error:", err);
+    }
+  }
+
   async function safeBroadcast(event: string, data: any) {
     try {
       const channel = channelRef?.current || supabase.channel('fan_walls-realtime');
@@ -219,14 +228,12 @@ export default function FanWallGrid({
     };
   }, [host?.id]);
 
-  /* ✅ NEW BUTTON HANDLERS */
+  /* ✅ WALL COMMAND BUTTONS */
   async function reloadWall(id: string) {
-    await safeBroadcast("reload_wall", { wall_id: id });
+    await sendWallCommand(id, "reload_wall");
   }
 
-  async function fullscreenWall(id: string) {
-    await safeBroadcast("fullscreen_wall", { wall_id: id });
-  }
+  // ✅ fullscreen REMOVED
 
   return (
     <div className={cn('mt-10 w-full max-w-6xl')}>
@@ -367,7 +374,7 @@ export default function FanWallGrid({
                 ❌ Delete
               </button>
 
-              {/* ✅ NEW BUTTONS */}
+              {/* ✅ Reload only (fullscreen removed) */}
               <button
                 onClick={() => reloadWall(wall.id)}
                 className={cn(
@@ -376,16 +383,8 @@ export default function FanWallGrid({
               >
                 🔄 Reload
               </button>
-              <button
-                onClick={() => fullscreenWall(wall.id)}
-                className={cn(
-                  'bg-purple-600 hover:bg-purple-700 px-2 py-1 rounded text-sm font-semibold'
-                )}
-              >
-                ⛶ Fullscreen
-              </button>
-              {/* ✅ END NEW BUTTONS */}
 
+              {/* ❌ Fullscreen button removed */}
             </div>
           </div>
         ))}

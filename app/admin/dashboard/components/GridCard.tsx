@@ -39,28 +39,31 @@ export default function GridCard({
     type === 'poll' ? '📊' :
     '🧠';
 
-  /* ✅ Send reload command */
+  /* ✅ Reload command */
   async function sendReload() {
-    await supabase.channel("fan_wall_control").send({
-      type: "broadcast",
-      event: "reload_wall",
-      payload: { wall_id: id }
+    await supabase.from("wall_commands").insert({
+      wall_id: id,
+      action: "reload_wall"
     });
   }
 
-  /* ✅ Send fullscreen command */
-  async function sendFullscreen() {
-    await supabase.channel("fan_wall_control").send({
-      type: "broadcast",
-      event: "fullscreen_wall",
-      payload: { wall_id: id }
-    });
-  }
+  /* ❌ fullscreen removed */
 
   return (
     <div
       key={id}
-      className={cn('rounded-xl', 'p-4', 'text-center', 'shadow-lg', 'bg-cover', 'bg-center', 'border', 'border-white/10', 'hover:scale-[1.02]', 'transition-transform')}
+      className={cn(
+        'rounded-xl',
+        'p-4',
+        'text-center',
+        'shadow-lg',
+        'bg-cover',
+        'bg-center',
+        'border',
+        'border-white/10',
+        'hover:scale-[1.02]',
+        'transition-transform'
+      )}
       style={{
         background:
           backgroundType === 'image'
@@ -129,7 +132,7 @@ export default function GridCard({
           </button>
         )}
 
-        {/* ✅ NEW: Reload Wall Button */}
+        {/* ✅ Reload Wall Button (kept) */}
         <button
           onClick={sendReload}
           className={cn('bg-yellow-500', 'hover:bg-yellow-600', 'px-2', 'py-1', 'rounded', 'text-sm', 'font-semibold')}
@@ -137,13 +140,7 @@ export default function GridCard({
           🔄 Reload
         </button>
 
-        {/* ✅ NEW: Fullscreen Button */}
-        <button
-          onClick={sendFullscreen}
-          className={cn('bg-purple-600', 'hover:bg-purple-700', 'px-2', 'py-1', 'rounded', 'text-sm', 'font-semibold')}
-        >
-          ⛶ Fullscreen
-        </button>
+        {/* ❌ Fullscreen button removed */}
       </div>
     </div>
   );
