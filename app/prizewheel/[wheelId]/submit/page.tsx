@@ -30,6 +30,11 @@ export default function PrizeWheelSubmissionPage() {
   const [wheel, setWheel] = useState<any>(null);
   const [profile, setProfile] = useState<any>(null);
 
+  /* ✅ Passphrase UI state */
+  const [requirePasscode, setRequirePasscode] = useState(false);
+  const [passInput, setPassInput] = useState("");
+  const [passError, setPassError] = useState("");
+
   const [imageSrc, setImageSrc] = useState<string | null>(null);
   const [crop, setCrop] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
@@ -54,10 +59,18 @@ export default function PrizeWheelSubmissionPage() {
     async function loadWheel() {
       const { data } = await supabase
         .from("prize_wheels")
-        .select("id,title,background_type,background_value,host:host_id (branding_logo_url)")
+        .select(
+          "id,title,visibility,passphrase,background_type,background_value,host:host_id (branding_logo_url)"
+        )
         .eq("id", wheelId)
         .single();
+
       setWheel(data);
+
+      /* ✅ PASSPHRASE CHECK ADDED */
+      if (data.visibility === "private" && data.passphrase) {
+        setRequirePasscode(true);
+      }
     }
     loadWheel();
   }, [wheelId]);
@@ -110,6 +123,21 @@ export default function PrizeWheelSubmissionPage() {
   /* ✅ Submit */
   const submitEntry = async (e: any) => {
     e.preventDefault();
+
+    /* ✅ PASSPHRASE VALIDATION BEFORE SUBMIT */
+    if (requirePasscode) {
+      if (!passInput.trim()) {
+        setPassError("Please enter the passphrase.");
+        return;
+      }
+      if (passInput.trim().toLowerCase() !== wheel.passphrase.toLowerCase()) {
+        setPassError("Incorrect passphrase. Try again.");
+        return;
+      }
+
+      // ✅ passphrase correct, unlock UI
+      setRequirePasscode(false);
+    }
 
     if (!imageSrc) {
       alert("You must upload a selfie to continue.");
@@ -166,6 +194,97 @@ export default function PrizeWheelSubmissionPage() {
           backgroundColor: "rgba(0,0,0,0.45)",
         }}
       />
+
+      {/* ✅ PASSPHRASE MODAL */}
+      {requirePasscode && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.75)",
+            backdropFilter: "blur(4px)",
+            zIndex: 999999,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 20,
+          }}
+        >
+          <div
+            style={{
+              width: "100%",
+              maxWidth: 380,
+              background: "rgba(0,0,0,0.8)",
+              padding: 25,
+              borderRadius: 14,
+              textAlign: "center",
+              border: "1px solid rgba(255,255,255,0.18)",
+              boxShadow: "0 0 25px rgba(0,0,0,0.6)",
+            }}
+          >
+            <h2 style={{ marginBottom: 12, fontWeight: 700 }}>Private Entry</h2>
+            <p style={{ fontSize: 14, opacity: 0.75, marginBottom: 12 }}>
+              This prize wheel requires a passphrase.
+            </p>
+
+            <input
+              type="text"
+              placeholder="Enter passphrase"
+              value={passInput}
+              onChange={(e) => {
+                setPassInput(e.target.value);
+                setPassError("");
+              }}
+              style={{
+                width: "100%",
+                padding: 12,
+                borderRadius: 10,
+                marginBottom: 10,
+                background: "rgba(255,255,255,0.08)",
+                color: "#fff",
+                border: "1px solid #334155",
+                textAlign: "center",
+              }}
+            />
+
+            {passError && (
+              <p style={{ color: "#f87171", fontSize: 13, marginBottom: 10 }}>
+                {passError}
+              </p>
+            )}
+
+            <button
+              onClick={() => {
+                if (!passInput.trim()) {
+                  setPassError("Please enter the passphrase.");
+                  return;
+                }
+
+                if (
+                  passInput.trim().toLowerCase() !==
+                  wheel.passphrase.toLowerCase()
+                ) {
+                  setPassError("Incorrect passphrase. Try again.");
+                  return;
+                }
+
+                setRequirePasscode(false);
+              }}
+              style={{
+                width: "100%",
+                padding: "12px 0",
+                borderRadius: 10,
+                background: "linear-gradient(90deg,#0284c7,#2563eb)",
+                color: "#fff",
+                fontWeight: 700,
+                marginTop: 5,
+              }}
+            >
+              Continue
+            </button>
+          </div>
+        </div>
+      )}
 
       <form
         onSubmit={submitEntry}
@@ -305,7 +424,7 @@ export default function PrizeWheelSubmissionPage() {
           </button>
         )}
 
-        {/* ✅ Name preview (read-only) */}
+        {/* ✅ Name preview */}
         <input
           value={profile.first_name + " " + profile.last_name}
           readOnly
