@@ -132,6 +132,25 @@ export default function DashboardPage() {
   }, [host?.id, supabase]);
 
   /* ------------------------------------------------------- */
+  /* ✅ POLLING (EVERY 3 SECONDS) — ALWAYS KEEP WHEELS FRESH */
+  /* ------------------------------------------------------- */
+  useEffect(() => {
+    if (!host?.id) return;
+
+    const interval = setInterval(async () => {
+      const { data } = await supabase
+        .from('prize_wheels')
+        .select('*')
+        .eq('host_id', host.id)
+        .order('created_at', { ascending: false });
+
+      setPrizeWheels(data || []);
+    }, 3000);
+
+    return () => clearInterval(interval);
+  }, [host?.id]);
+
+  /* ------------------------------------------------------- */
   /* ✅ REFRESH HELPERS */
   /* ------------------------------------------------------- */
   const refreshFanWalls = async () => {

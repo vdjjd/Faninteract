@@ -67,10 +67,10 @@ export default function PrizeWheelCard({
 
   /* ------------------------------------------------------------
    ✅ Subscribe to REALTIME DB Updates
-      FIXED: listen to correct channel
+      ✅ **PATCHED: effect now depends on entire wheel object**
   ------------------------------------------------------------ */
   useEffect(() => {
-    if (!wheel?.id) return;
+    if (!wheel) return;
 
     loadCounts();
 
@@ -91,7 +91,7 @@ export default function PrizeWheelCard({
       .subscribe();
 
     return () => supabase.removeChannel(channel);
-  }, [wheel?.id]);
+  }, [wheel]); // ✅ PATCHED (was wheel?.id)
 
   /* ------------------------------------------------------------
    ✅ Realtime SPIN indicator
