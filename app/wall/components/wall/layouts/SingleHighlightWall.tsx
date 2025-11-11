@@ -58,7 +58,7 @@ export default function SingleHighlightWall({ event, posts }) {
     speedMap[event?.transition_speed || 'Medium']
   );
 
-  /* ✅ PATCHED HOOK: uses tick() and currentAd */
+  /* ✅ PATCHED HOOK */
   const {
     ads,
     showAd,
@@ -69,7 +69,7 @@ export default function SingleHighlightWall({ event, posts }) {
     hostId: event?.host_profile_id || event?.host_id || event?.id,
   });
 
-  /* ✅ REALTIME RELOAD + FULLSCREEN PATCH */
+  /* ✅ REALTIME RELOAD + FULLSCREEN PATCH (NO OFF, NO CRASH) */
   useEffect(() => {
     if (!rt?.current) return;
     if (!event?.id) return;
@@ -82,18 +82,17 @@ export default function SingleHighlightWall({ event, posts }) {
       if (payload.action === 'reload_wall') {
         window.location.reload();
       }
+
       if (payload.action === 'fullscreen_wall') {
-        const elem = document.documentElement;
-        if (elem.requestFullscreen) elem.requestFullscreen().catch(() => {});
+        const el = document.documentElement;
+        if (el.requestFullscreen) el.requestFullscreen().catch(() => {});
       }
     };
 
     channel.on('broadcast', { event: 'reload_wall' }, handler);
     channel.on('broadcast', { event: 'fullscreen_wall' }, handler);
 
-    return () => {
-      channel.off('broadcast', handler);
-    };
+    // ❌ NO CLEANUP — prevents crash
   }, [rt, event?.id]);
 
   /* Load posts */
@@ -137,7 +136,7 @@ export default function SingleHighlightWall({ event, posts }) {
     return () => clearInterval(interval);
   }, [event?.id]);
 
-  /* Realtime for settings */
+  /* Realtime settings updates */
   useEffect(() => {
     if (!event?.id) return;
 
@@ -186,7 +185,7 @@ export default function SingleHighlightWall({ event, posts }) {
     return () => supabase.removeChannel(wallChannel);
   }, [event?.id, displayDuration]);
 
-  /* ✅ PATCHED ROTATION ENGINE */
+  /* ✅ Rotation engine */
   useEffect(() => {
     if (!livePosts.length || showAd) return;
 
@@ -198,7 +197,6 @@ export default function SingleHighlightWall({ event, posts }) {
         setRandomTransition(next);
       }
 
-      /* ✅ AdInjector tick */
       if (injectorEnabled) {
         tick();
       }
@@ -235,7 +233,7 @@ export default function SingleHighlightWall({ event, posts }) {
         position: 'relative',
       }}
     >
-      {/* ✅ Smaller Title Area */}
+      {/* Title */}
       <h1
         style={{
           color: '#fff',
@@ -249,7 +247,7 @@ export default function SingleHighlightWall({ event, posts }) {
         {title}
       </h1>
 
-      {/* ✅ Bigger Container */}
+      {/* Container */}
       <div
         style={{
           width: '90vw',
@@ -306,6 +304,7 @@ export default function SingleHighlightWall({ event, posts }) {
           </AnimatePresence>
         </div>
 
+        {/* Right side */}
         <div
           style={{
             flexGrow: 1,
@@ -366,7 +365,7 @@ export default function SingleHighlightWall({ event, posts }) {
         </div>
       </div>
 
-      {/* ✅ BIGGER QR */}
+      {/* QR Code */}
       <div
         style={{
           position: 'absolute',
@@ -408,14 +407,14 @@ export default function SingleHighlightWall({ event, posts }) {
         </div>
       </div>
 
-      {/* ✅ PATCHED AD OVERLAY CALL */}
+      {/* AD OVERLAY */}
       <AdOverlay
         showAd={showAd && injectorEnabled}
         currentAd={currentAd}
         onAdEnd={() => {}}
       />
 
-      {/* Fullscreen Button */}
+      {/* Fullscreen */}
       <div
         style={{
           position: 'fixed',
