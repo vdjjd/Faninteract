@@ -13,7 +13,7 @@ export function useAdInjector({ hostId }: UseAdInjectorOptions) {
   const [current, setCurrent] = useState(0);
 
   const [enabled, setEnabled] = useState(false);
-  const [interval, setInterval] = useState(8); // rotation count trigger
+  const [interval, setInterval] = useState(8);
 
   const rotationCount = useRef(0);
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -23,7 +23,8 @@ export function useAdInjector({ hostId }: UseAdInjectorOptions) {
     if (!hostId) return;
 
     async function loadAll() {
-      // Load injector settings
+
+      /* ✅ Load injector settings */
       const { data: hostSettings } = await supabase
         .from('hosts')
         .select('injector_enabled, trigger_interval')
@@ -35,17 +36,30 @@ export function useAdInjector({ hostId }: UseAdInjectorOptions) {
         setInterval(Number(hostSettings.trigger_interval) || 8);
       }
 
-      // Load merged ads in playback order
-      const { data: adList } = await supabase
+      /* ✅ Load ads (sorted by global_order_index ASC) */
+      let { data: adList, error } = await supabase
         .from('slide_ads')
         .select('*')
         .order('global_order_index', { ascending: true });
 
-      setAds(adList || []);
+      if (!error && adList) {
+        // Remove any ads missing ordering
+        adList = adList.filter((a: any) => a.global_order_index !== null);
+
+        // Fallback sort (important)
+        adList.sort((a: any, b: any) => {
+          if (a.global_order_index == null) return 1;
+          if (b.global_order_index == null) return -1;
+          return a.global_order_index - b.global_order_index;
+        });
+
+        setAds(adList);
+      }
     }
 
     loadAll();
 
+    /* ✅ Listen for realtime changes */
     const channel = supabase
       .channel(`slide_ads_${hostId}`)
       .on(
@@ -55,32 +69,33 @@ export function useAdInjector({ hostId }: UseAdInjectorOptions) {
       )
       .subscribe();
 
-    return () => {
-      supabase.removeChannel(channel);
-    };
+    return () => supabase.removeChannel(channel);
   }, [hostId]);
 
-  /* ------------------ INTERNAL — RUN AD OVERLAY ------------------ */
+  /* ------------------ RUN AD INJECTION ------------------ */
   const runInjection = () => {
     if (!enabled || ads.length === 0) return;
 
     setShowAd(true);
 
-    const next = (current + 1) % ads.length;
-    setCurrent(next);
+    const nextIndex = (current + 1) % ads.length;
+    setCurrent(nextIndex);
 
     if (timeoutRef.current) clearTimeout(timeoutRef.current);
-    timeoutRef.current = setTimeout(() => setShowAd(false), 8000);
+
+    timeoutRef.current = setTimeout(() => {
+      setShowAd(false);
+    }, 8000);
   };
 
-  /* ------------------ PUBLIC: CALLED BY WALL ------------------ */
+  /* ------------------ TICK (CALLED BY WALL EACH ROTATION) ------------------ */
   const tick = () => {
     if (!enabled || ads.length === 0) return;
 
     rotationCount.current++;
 
     console.log(
-      `Tick: ${rotationCount.current}/${interval} (enabled: ${enabled}, ads: ${ads.length})`
+      `Tick → ${rotationCount.current}/${interval} (ads: ${ads.length})`
     );
 
     if (rotationCount.current >= interval) {
@@ -96,11 +111,14 @@ export function useAdInjector({ hostId }: UseAdInjectorOptions) {
     };
   }, []);
 
+  /* ------------------ RETURN API ------------------ */
   return {
     ads,
     showAd,
-    currentAd: ads[current],
-    tick,                // ✅ wall must call this every rotation
+    currentAd: ads[current] || null,
+    currentAdIndex: current,
+    tick,
+    setShowAd,
     injectorEnabled: enabled,
   };
 }

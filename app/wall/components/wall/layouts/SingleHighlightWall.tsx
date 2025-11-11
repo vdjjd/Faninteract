@@ -58,16 +58,15 @@ export default function SingleHighlightWall({ event, posts }) {
     speedMap[event?.transition_speed || 'Medium']
   );
 
+  /* ✅ PATCHED HOOK: uses tick() and currentAd */
   const {
     ads,
     showAd,
-    currentAdIndex,
-    setShowAd,
-    handlePostRotationTick,
+    currentAd,
+    tick,
     injectorEnabled,
   } = useAdInjector({
     hostId: event?.host_profile_id || event?.host_id || event?.id,
-    triggerInterval: event?.trigger_interval || 8,
   });
 
   /* Load posts */
@@ -160,20 +159,21 @@ export default function SingleHighlightWall({ event, posts }) {
     return () => supabase.removeChannel(wallChannel);
   }, [event?.id, displayDuration]);
 
-  /* Rotation engine */
+  /* ✅ PATCHED ROTATION ENGINE */
   useEffect(() => {
     if (!livePosts.length || showAd) return;
 
     const rotation = setInterval(() => {
       setCurrentIndex(prev => (prev + 1) % livePosts.length);
 
-      if (transitionType === "Random") {
+      if (transitionType === 'Random') {
         const next = transitionKeys[Math.floor(Math.random() * transitionKeys.length)];
         setRandomTransition(next);
       }
 
-      if (injectorEnabled && handlePostRotationTick) {
-        handlePostRotationTick();
+      /* ✅ AdInjector tick */
+      if (injectorEnabled) {
+        tick();
       }
     }, displayDuration);
 
@@ -184,12 +184,12 @@ export default function SingleHighlightWall({ event, posts }) {
     showAd,
     transitionType,
     injectorEnabled,
-    handlePostRotationTick,
+    tick,
   ]);
 
   const effectiveTransition =
-    transitionType === "Random"
-      ? transitions[randomTransition || "Fade In / Fade Out"]
+    transitionType === 'Random'
+      ? transitions[randomTransition || 'Fade In / Fade Out']
       : transitions[transitionType] || transitions['Fade In / Fade Out'];
 
   const current = livePosts[currentIndex % (livePosts.length || 1)];
@@ -212,10 +212,10 @@ export default function SingleHighlightWall({ event, posts }) {
       <h1
         style={{
           color: '#fff',
-          fontSize: 'clamp(2rem,3vw,3.6rem)', // smaller
+          fontSize: 'clamp(2rem,3vw,3.6rem)',
           fontWeight: 900,
-          marginTop: '1.4vh',               // less height used
-          marginBottom: '0.6vh',            // tighter spacing
+          marginTop: '1.4vh',
+          marginBottom: '0.6vh',
           textAlign: 'center',
         }}
       >
@@ -226,7 +226,7 @@ export default function SingleHighlightWall({ event, posts }) {
       <div
         style={{
           width: '90vw',
-          height: '83vh',   // increased from 78vh
+          height: '83vh',
           backdropFilter: 'blur(20px)',
           background: 'rgba(255,255,255,0.08)',
           borderRadius: 24,
@@ -372,7 +372,7 @@ export default function SingleHighlightWall({ event, posts }) {
         >
           <QRCodeCanvas
             value={`https://faninteract.vercel.app/guest/signup?wall=${event?.id}`}
-            size={200}        // ✅ was 140 — now much bigger
+            size={200}
             bgColor="#ffffff"
             fgColor="#000000"
             level="H"
@@ -381,12 +381,11 @@ export default function SingleHighlightWall({ event, posts }) {
         </div>
       </div>
 
-      {/* Ads */}
+      {/* ✅ PATCHED AD OVERLAY CALL */}
       <AdOverlay
         showAd={showAd && injectorEnabled}
-        ads={ads}
-        currentAdIndex={currentAdIndex}
-        onAdEnd={() => setShowAd(false)}
+        currentAd={currentAd}
+        onAdEnd={() => {}}
       />
 
       {/* Fullscreen */}
@@ -432,4 +431,3 @@ export default function SingleHighlightWall({ event, posts }) {
     </div>
   );
 }
-
