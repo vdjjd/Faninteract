@@ -69,6 +69,33 @@ export default function SingleHighlightWall({ event, posts }) {
     hostId: event?.host_profile_id || event?.host_id || event?.id,
   });
 
+  /* ✅ REALTIME RELOAD + FULLSCREEN PATCH */
+  useEffect(() => {
+    if (!rt?.current) return;
+    if (!event?.id) return;
+
+    const channel = rt.current;
+
+    const handler = (payload: any) => {
+      if (payload?.id !== event.id) return;
+
+      if (payload.action === 'reload_wall') {
+        window.location.reload();
+      }
+      if (payload.action === 'fullscreen_wall') {
+        const elem = document.documentElement;
+        if (elem.requestFullscreen) elem.requestFullscreen().catch(() => {});
+      }
+    };
+
+    channel.on('broadcast', { event: 'reload_wall' }, handler);
+    channel.on('broadcast', { event: 'fullscreen_wall' }, handler);
+
+    return () => {
+      channel.off('broadcast', handler);
+    };
+  }, [rt, event?.id]);
+
   /* Load posts */
   useEffect(() => {
     if (!event?.id) return;
@@ -388,7 +415,7 @@ export default function SingleHighlightWall({ event, posts }) {
         onAdEnd={() => {}}
       />
 
-      {/* Fullscreen */}
+      {/* Fullscreen Button */}
       <div
         style={{
           position: 'fixed',
