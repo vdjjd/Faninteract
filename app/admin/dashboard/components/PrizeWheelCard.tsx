@@ -5,7 +5,7 @@ import { supabase } from '@/lib/supabaseClient';
 import { cn } from '@/lib/utils';
 
 /* ------------------------------------------------------------
-✅ Realtime Broadcasts
+✅ Broadcast: Host triggers the wheel spin
 ------------------------------------------------------------ */
 async function broadcastSpin(id: string) {
   await supabase.channel(`prizewheel-${id}`).send({
@@ -15,11 +15,14 @@ async function broadcastSpin(id: string) {
   });
 }
 
+/* ------------------------------------------------------------
+✅ Broadcast: Host picks a guest (correct event + payload)
+------------------------------------------------------------ */
 async function broadcastRemoteSelection(wheelId: string, guestId: string) {
   await supabase.channel(`prizewheel-${wheelId}`).send({
     type: 'broadcast',
-    event: 'remote_spin_selected',
-    payload: { guestId },
+    event: 'remote_spinner_selected',
+    payload: { selected_guest_id: guestId },
   });
 }
 
@@ -70,7 +73,7 @@ export default function PrizeWheelCard({
   }
 
   /* ------------------------------------------------------------
-   ✅ Listen for DB updates
+   ✅ Listen for entry refresh
   ------------------------------------------------------------ */
   useEffect(() => {
     if (!wheel) return;
@@ -94,7 +97,7 @@ export default function PrizeWheelCard({
   }, [wheel]);
 
   /* ------------------------------------------------------------
-   ✅ Listen for SPIN broadcast (host pressed Spin)
+   ✅ Listen for HOST spin (flashes button)
   ------------------------------------------------------------ */
   useEffect(() => {
     if (!wheel?.id) return;
@@ -111,7 +114,26 @@ export default function PrizeWheelCard({
   }, [wheel?.id]);
 
   /* ------------------------------------------------------------
-   ✅ HANDLE REMOTE SPIN MODE TOGGLE
+   ✅ *** NEW *** Remote phone press triggers host SPIN NOW instantly
+  ------------------------------------------------------------ */
+  useEffect(() => {
+    if (!wheel?.id) return;
+
+    const phonePress = supabase
+      .channel(`prizewheel-${wheel.id}`)
+      .on('broadcast', { event: 'remote_spin_pressed' }, async (msg) => {
+        console.log('📱 Remote guest pressed spin:', msg);
+
+        // ✅ Auto-run the spin logic as if the host clicked "Spin Now"
+        await handleSpin();
+      })
+      .subscribe();
+
+    return () => supabase.removeChannel(phonePress);
+  }, [wheel?.id]);
+
+  /* ------------------------------------------------------------
+   ✅ Toggle Remote Mode
   ------------------------------------------------------------ */
   async function handleRemoteToggle() {
     const newState = !toggleRemote;
@@ -129,7 +151,7 @@ export default function PrizeWheelCard({
   }
 
   /* ------------------------------------------------------------
-   ✅ PICK RANDOM APPROVED GUEST
+   ✅ Pick Random Guest for Remote Spin
   ------------------------------------------------------------ */
   async function pickRandomSpinner() {
     const { data } = await supabase
@@ -148,18 +170,16 @@ export default function PrizeWheelCard({
 
     setSelectedSpinner(guestId);
 
-    // ✅ Update database
     await supabase
       .from('prize_wheels')
       .update({ selected_remote_spinner: guestId })
       .eq('id', wheel.id);
 
-    // ✅ Broadcast to chosen guest
     await broadcastRemoteSelection(wheel.id, guestId);
   }
 
   /* ------------------------------------------------------------
-   ✅ Basic Wheel Controls
+   ✅ Launch Prize Wheel Popup
   ------------------------------------------------------------ */
   function handleLaunch() {
     const url = `${window.location.origin}/prizewheel/${wheel.id}`;
@@ -170,7 +190,7 @@ export default function PrizeWheelCard({
     );
 
     popup?.focus();
-    (window)._activePrizeWheel = popup;
+    window._activePrizeWheel = popup;
   }
 
   function StatusBadge() {
@@ -188,6 +208,9 @@ export default function PrizeWheelCard({
     return <span className={cn('font-bold tracking-wide', color)}>{text}</span>;
   }
 
+  /* ------------------------------------------------------------
+   ✅ PLAY / STOP
+  ------------------------------------------------------------ */
   async function handlePlay() {
     await onPlay(wheel.id);
 
@@ -196,7 +219,6 @@ export default function PrizeWheelCard({
         .from('prize_wheels')
         .update({ countdown_active: true })
         .eq('id', wheel.id);
-
       return;
     }
 
@@ -226,16 +248,15 @@ export default function PrizeWheelCard({
     }
   }
 
+  /* ------------------------------------------------------------
+   ✅ SPIN NOW (Host Initiated or Remote Triggered)
+  ------------------------------------------------------------ */
   async function handleSpin() {
     await onSpin(wheel.id);
 
     try {
-      const popup = (window)._activePrizeWheel;
-      if (
-        popup &&
-        popup.window &&
-        popup.window._prizewheel?._spin?.start
-      ) {
+      const popup = window._activePrizeWheel;
+      if (popup?.window?._prizewheel?._spin?.start) {
         popup.window._prizewheel._spin.start();
       }
     } catch {}
@@ -244,7 +265,7 @@ export default function PrizeWheelCard({
   }
 
   /* ------------------------------------------------------------
-   ✅ RENDER CARD
+   ✅ RENDER
   ------------------------------------------------------------ */
   return (
     <div
@@ -264,7 +285,7 @@ export default function PrizeWheelCard({
               'linear-gradient(135deg,#0d47a1,#1976d2)',
       }}
     >
-      {/* TITLE AND STATUS */}
+      {/* TITLE + STATUS */}
       <div>
         <h3 className={cn('font-bold', 'text-lg', 'mb-1')}>
           {wheel.host_title || wheel.title || 'Untitled Wheel'}
@@ -299,16 +320,18 @@ export default function PrizeWheelCard({
           </button>
         </div>
 
-        {/* APPROVED COUNT */}
+        {/* ENTRY COUNT */}
         <p className={cn('text-sm', 'mb-3')}>
           🎟 <strong>{entryCount}</strong> Approved Entrants
         </p>
       </div>
 
       {/* CONTROLS */}
-      <div className={cn('flex', 'flex-wrap', 'justify-center', 'gap-2', 'mt-auto', 'pt-2', 'border-t', 'border-white/10')}>
-        
-        {/* ✅ REMOTE SPIN TOGGLE */}
+      <div className={cn(
+        'flex flex-wrap justify-center gap-2 mt-auto pt-2 border-t border-white/10'
+      )}>
+
+        {/* ✅ REMOTE TOGGLE */}
         <div
           onClick={handleRemoteToggle}
           className={cn(
@@ -326,7 +349,7 @@ export default function PrizeWheelCard({
           />
         </div>
 
-        {/* ✅ RANDOM SPINNER BUTTON */}
+        {/* ✅ PICK RANDOM */}
         <button
           disabled={!toggleRemote}
           onClick={pickRandomSpinner}
@@ -343,21 +366,27 @@ export default function PrizeWheelCard({
         {/* PLAY / STOP / LAUNCH / SPIN */}
         <button
           onClick={handlePlay}
-          className={cn('px-3', 'py-1', 'rounded', 'text-sm', 'font-semibold', 'bg-yellow-600', 'hover:bg-yellow-700', 'text-black')}
+          className={cn(
+            'px-3 py-1 rounded text-sm font-semibold bg-yellow-600 hover:bg-yellow-700 text-black'
+          )}
         >
           ▶ Play
         </button>
 
         <button
           onClick={handleStop}
-          className={cn('px-3', 'py-1', 'rounded', 'text-sm', 'font-semibold', 'bg-red-600', 'hover:bg-red-700')}
+          className={cn(
+            'px-3 py-1 rounded text-sm font-semibold bg-red-600 hover:bg-red-700'
+          )}
         >
           ⏹ Stop
         </button>
 
         <button
           onClick={handleLaunch}
-          className={cn('bg-blue-600', 'hover:bg-blue-700', 'px-3', 'py-1', 'rounded', 'text-sm', 'font-semibold')}
+          className={cn(
+            'px-3 py-1 rounded text-sm font-semibold bg-blue-600 hover:bg-blue-700'
+          )}
         >
           🚀 Launch
         </button>
@@ -376,14 +405,18 @@ export default function PrizeWheelCard({
 
         <button
           onClick={() => onOpenOptions(wheel)}
-          className={cn('bg-indigo-500', 'hover:bg-indigo-600', 'px-3', 'py-1', 'rounded', 'text-sm', 'font-semibold')}
+          className={cn(
+            'px-3 py-1 rounded text-sm font-semibold bg-indigo-500 hover:bg-indigo-600'
+          )}
         >
           ⚙ Options
         </button>
 
         <button
           onClick={() => onDelete(wheel.id)}
-          className={cn('bg-red-700', 'hover:bg-red-800', 'px-3', 'py-1', 'rounded', 'text-sm', 'font-semibold')}
+          className={cn(
+            'px-3 py-1 rounded text-sm font-semibold bg-red-700 hover:bg-red-800'
+          )}
         >
           ❌ Delete
         </button>
