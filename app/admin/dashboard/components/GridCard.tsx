@@ -1,6 +1,8 @@
 'use client';
 
 import React from 'react';
+import { supabase } from "@/lib/supabaseClient";
+import { cn } from "../../../../lib/utils";
 
 interface GridCardProps {
   id: string;
@@ -31,15 +33,34 @@ export default function GridCard({
   onClear,
   onDelete,
 }: GridCardProps) {
+
   const icon =
     type === 'fanwall' ? '🎤' :
     type === 'poll' ? '📊' :
     '🧠';
 
+  /* ✅ Send reload command */
+  async function sendReload() {
+    await supabase.channel("fan_wall_control").send({
+      type: "broadcast",
+      event: "reload_wall",
+      payload: { wall_id: id }
+    });
+  }
+
+  /* ✅ Send fullscreen command */
+  async function sendFullscreen() {
+    await supabase.channel("fan_wall_control").send({
+      type: "broadcast",
+      event: "fullscreen_wall",
+      payload: { wall_id: id }
+    });
+  }
+
   return (
     <div
       key={id}
-      className="rounded-xl p-4 text-center shadow-lg bg-cover bg-center border border-white/10 hover:scale-[1.02] transition-transform"
+      className={cn('rounded-xl', 'p-4', 'text-center', 'shadow-lg', 'bg-cover', 'bg-center', 'border', 'border-white/10', 'hover:scale-[1.02]', 'transition-transform')}
       style={{
         background:
           backgroundType === 'image'
@@ -47,11 +68,11 @@ export default function GridCard({
             : backgroundValue || 'linear-gradient(135deg,#0d47a1,#1976d2)',
       }}
     >
-      <h3 className="font-bold text-lg drop-shadow-md">
+      <h3 className={cn('font-bold', 'text-lg', 'drop-shadow-md')}>
         {icon} {hostTitle || title || 'Untitled'}
       </h3>
 
-      <p className="text-sm mt-1">
+      <p className={cn('text-sm', 'mt-1')}>
         <strong>Status:</strong>{' '}
         <span
           className={
@@ -66,11 +87,11 @@ export default function GridCard({
         </span>
       </p>
 
-      <div className="flex flex-wrap justify-center gap-2 mt-3">
+      <div className={cn('flex', 'flex-wrap', 'justify-center', 'gap-2', 'mt-3')}>
         {onLaunch && (
           <button
             onClick={() => onLaunch(id)}
-            className="bg-blue-600 hover:bg-blue-700 px-2 py-1 rounded text-sm font-semibold"
+            className={cn('bg-blue-600', 'hover:bg-blue-700', 'px-2', 'py-1', 'rounded', 'text-sm', 'font-semibold')}
           >
             🚀 Launch
           </button>
@@ -78,7 +99,7 @@ export default function GridCard({
         {onStart && (
           <button
             onClick={() => onStart(id)}
-            className="bg-green-600 hover:bg-green-700 px-2 py-1 rounded text-sm font-semibold"
+            className={cn('bg-green-600', 'hover:bg-green-700', 'px-2', 'py-1', 'rounded', 'text-sm', 'font-semibold')}
           >
             ▶️ Start
           </button>
@@ -86,7 +107,7 @@ export default function GridCard({
         {onStop && (
           <button
             onClick={() => onStop(id)}
-            className="bg-red-600 hover:bg-red-700 px-2 py-1 rounded text-sm font-semibold"
+            className={cn('bg-red-600', 'hover:bg-red-700', 'px-2', 'py-1', 'rounded', 'text-sm', 'font-semibold')}
           >
             ⏹ Stop
           </button>
@@ -94,7 +115,7 @@ export default function GridCard({
         {onClear && (
           <button
             onClick={() => onClear(id)}
-            className="bg-cyan-500 hover:bg-cyan-600 px-2 py-1 rounded text-sm font-semibold"
+            className={cn('bg-cyan-500', 'hover:bg-cyan-600', 'px-2', 'py-1', 'rounded', 'text-sm', 'font-semibold')}
           >
             🧹 Clear
           </button>
@@ -102,11 +123,27 @@ export default function GridCard({
         {onDelete && (
           <button
             onClick={() => onDelete(id)}
-            className="bg-red-700 hover:bg-red-800 px-2 py-1 rounded text-sm font-semibold"
+            className={cn('bg-red-700', 'hover:bg-red-800', 'px-2', 'py-1', 'rounded', 'text-sm', 'font-semibold')}
           >
             ❌ Delete
           </button>
         )}
+
+        {/* ✅ NEW: Reload Wall Button */}
+        <button
+          onClick={sendReload}
+          className={cn('bg-yellow-500', 'hover:bg-yellow-600', 'px-2', 'py-1', 'rounded', 'text-sm', 'font-semibold')}
+        >
+          🔄 Reload
+        </button>
+
+        {/* ✅ NEW: Fullscreen Button */}
+        <button
+          onClick={sendFullscreen}
+          className={cn('bg-purple-600', 'hover:bg-purple-700', 'px-2', 'py-1', 'rounded', 'text-sm', 'font-semibold')}
+        >
+          ⛶ Fullscreen
+        </button>
       </div>
     </div>
   );
