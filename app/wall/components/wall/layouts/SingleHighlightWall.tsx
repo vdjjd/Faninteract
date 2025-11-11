@@ -22,10 +22,8 @@ const transitions: Record<string, any> = {
   'Pop In / Pop Out': { initial: { opacity: 0, scale: 0.5 }, animate: { opacity: 1, scale: 1 }, exit: { opacity: 0, scale: 0.5 }, transition: { duration: 0.7, ease: 'easeOut' } },
 };
 
-/* ✅ Create a clean array of transition names */
 const transitionKeys = Object.keys(transitions);
 
-/* ✅ Speed map */
 const speedMap: Record<string, number> = {
   Slow: 12000,
   Medium: 8000,
@@ -54,14 +52,12 @@ export default function SingleHighlightWall({ event, posts }) {
     event?.post_transition || 'Fade In / Fade Out'
   );
 
-  /* ✅ STORE the random transition picked each cycle */
   const [randomTransition, setRandomTransition] = useState<string | null>(null);
 
   const [displayDuration, setDisplayDuration] = useState(
     speedMap[event?.transition_speed || 'Medium']
   );
 
-  /* ✅ Ad Injector */
   const {
     ads,
     showAd,
@@ -115,7 +111,7 @@ export default function SingleHighlightWall({ event, posts }) {
     return () => clearInterval(interval);
   }, [event?.id]);
 
-  /* ✅ Realtime for settings */
+  /* Realtime for settings */
   useEffect(() => {
     if (!event?.id) return;
 
@@ -150,7 +146,7 @@ export default function SingleHighlightWall({ event, posts }) {
 
           if (w.post_transition) {
             setTransitionType(w.post_transition);
-            setRandomTransition(null); // ✅ reset random on setting change
+            setRandomTransition(null);
           }
 
           if (w.transition_speed) {
@@ -164,14 +160,13 @@ export default function SingleHighlightWall({ event, posts }) {
     return () => supabase.removeChannel(wallChannel);
   }, [event?.id, displayDuration]);
 
-  /* ✅ ✅ ✅ ROTATION ENGINE — CHANGED ONLY TO SUPPORT RANDOM */
+  /* Rotation engine */
   useEffect(() => {
     if (!livePosts.length || showAd) return;
 
     const rotation = setInterval(() => {
       setCurrentIndex(prev => (prev + 1) % livePosts.length);
 
-      /* ✅ If Random mode, pick a new transition each rotation */
       if (transitionType === "Random") {
         const next = transitionKeys[Math.floor(Math.random() * transitionKeys.length)];
         setRandomTransition(next);
@@ -191,9 +186,7 @@ export default function SingleHighlightWall({ event, posts }) {
     injectorEnabled,
     handlePostRotationTick,
   ]);
-  /* ✅ END ROTATION ENGINE */
 
-  /* ✅ PICK transition for this render */
   const effectiveTransition =
     transitionType === "Random"
       ? transitions[randomTransition || "Fade In / Fade Out"]
@@ -215,25 +208,25 @@ export default function SingleHighlightWall({ event, posts }) {
         position: 'relative',
       }}
     >
-      {/* Title */}
+      {/* ✅ Smaller Title Area */}
       <h1
         style={{
           color: '#fff',
-          fontSize: 'clamp(2.5rem,4vw,5rem)',
+          fontSize: 'clamp(2rem,3vw,3.6rem)', // smaller
           fontWeight: 900,
-          marginTop: '3vh',
-          marginBottom: '1.5vh',
+          marginTop: '1.4vh',               // less height used
+          marginBottom: '0.6vh',            // tighter spacing
           textAlign: 'center',
         }}
       >
         {title}
       </h1>
 
-      {/* Main container */}
+      {/* ✅ Bigger Container */}
       <div
         style={{
           width: '90vw',
-          height: '78vh',
+          height: '83vh',   // increased from 78vh
           backdropFilter: 'blur(20px)',
           background: 'rgba(255,255,255,0.08)',
           borderRadius: 24,
@@ -241,6 +234,7 @@ export default function SingleHighlightWall({ event, posts }) {
           display: 'flex',
           position: 'relative',
           overflow: 'hidden',
+          marginTop: '0.5vh',
         }}
       >
         {/* Left photo */}
@@ -249,7 +243,7 @@ export default function SingleHighlightWall({ event, posts }) {
             position: 'absolute',
             top: '40px',
             left: '40px',
-            width: '42%',
+            width: '44%',
             height: 'calc(100% - 80px)',
             borderRadius: 18,
             overflow: 'hidden',
@@ -285,11 +279,10 @@ export default function SingleHighlightWall({ event, posts }) {
           </AnimatePresence>
         </div>
 
-        {/* Right content */}
         <div
           style={{
             flexGrow: 1,
-            marginLeft: '44%',
+            marginLeft: '46%',
             paddingTop: '3vh',
             display: 'flex',
             flexDirection: 'column',
@@ -297,7 +290,7 @@ export default function SingleHighlightWall({ event, posts }) {
           }}
         >
           {/* Logo */}
-          <div style={{ width: 'clamp(280px,30vw,420px)' }}>
+          <div style={{ width: 'clamp(260px,28vw,380px)' }}>
             <img
               src={logo}
               style={{
@@ -321,12 +314,11 @@ export default function SingleHighlightWall({ event, posts }) {
 
           <p
             style={{
-              fontSize: 'clamp(2.4rem,3vw,4rem)',
+              fontSize: 'clamp(2rem,2.4vw,3.4rem)',
               fontWeight: 900,
               color: '#fff',
               textTransform: 'uppercase',
               margin: 0,
-              textAlign: 'center',
             }}
           >
             {current?.nickname || 'Guest'}
@@ -334,12 +326,12 @@ export default function SingleHighlightWall({ event, posts }) {
 
           <p
             style={{
-              fontSize: 'clamp(1.4rem,2vw,2.6rem)',
+              fontSize: 'clamp(4rem,2vw,2.4rem)',
               fontWeight: 600,
               color: '#fff',
               textAlign: 'center',
               maxWidth: '90%',
-              marginTop: '1vh',
+              marginTop: '1.2vh',
             }}
           >
             {current?.message || 'Be the first to post!'}
@@ -347,12 +339,12 @@ export default function SingleHighlightWall({ event, posts }) {
         </div>
       </div>
 
-      {/* QR */}
+      {/* ✅ BIGGER QR */}
       <div
         style={{
           position: 'absolute',
-          bottom: 5,
-          left: 5,
+          bottom: 25,
+          left: 20,
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
@@ -362,7 +354,7 @@ export default function SingleHighlightWall({ event, posts }) {
           style={{
             color: '#fff',
             fontWeight: 700,
-            marginBottom: 6,
+            marginBottom: -1,
             fontSize: 'clamp(1rem,1.4vw,1.4rem)',
           }}
         >
@@ -371,25 +363,25 @@ export default function SingleHighlightWall({ event, posts }) {
 
         <div
           style={{
-            padding: 6,
-            borderRadius: 14,
-            background: 'rgba(255,255,255,0.05)',
+            padding: 8,
+            borderRadius: 16,
+            background: 'rgba(255,255,255,0.08)',
             boxShadow:
               '0 0 25px rgba(255,255,255,0.6),0 0 40px rgba(255,255,255,0.3)',
           }}
         >
           <QRCodeCanvas
             value={`https://faninteract.vercel.app/guest/signup?wall=${event?.id}`}
-            size={140}
+            size={200}        // ✅ was 140 — now much bigger
             bgColor="#ffffff"
             fgColor="#000000"
             level="H"
-            style={{ borderRadius: 10 }}
+            style={{ borderRadius: 12 }}
           />
         </div>
       </div>
 
-      {/* AD OVERLAY */}
+      {/* Ads */}
       <AdOverlay
         showAd={showAd && injectorEnabled}
         ads={ads}
@@ -397,7 +389,7 @@ export default function SingleHighlightWall({ event, posts }) {
         onAdEnd={() => setShowAd(false)}
       />
 
-      {/* Fullscreen button */}
+      {/* Fullscreen */}
       <div
         style={{
           position: 'fixed',
@@ -413,7 +405,6 @@ export default function SingleHighlightWall({ event, posts }) {
           justifyContent: 'center',
           cursor: 'pointer',
           opacity: 0.25,
-          zIndex: 9999,
         }}
         onMouseEnter={(e) => (e.currentTarget.style.opacity = '1')}
         onMouseLeave={(e) => (e.currentTarget.style.opacity = '0.25')}
@@ -441,3 +432,4 @@ export default function SingleHighlightWall({ event, posts }) {
     </div>
   );
 }
+
