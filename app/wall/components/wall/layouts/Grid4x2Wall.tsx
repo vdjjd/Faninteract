@@ -52,7 +52,7 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
   const fadeDuration = 1200;
 
   /* -------------------------------------------------- */
-  /* AD INJECTOR                                         */
+  /* ✅ AD INJECTOR                                       */
   /* -------------------------------------------------- */
   const {
     ads,
@@ -82,6 +82,35 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
     document.addEventListener('fullscreenchange', handler);
     return () => document.removeEventListener('fullscreenchange', handler);
   }, []);
+
+  /* -------------------------------------------------- */
+  /* ✅ WALL COMMAND LISTENER (reload only)              */
+  /* -------------------------------------------------- */
+  useEffect(() => {
+    if (!event?.id) return;
+
+    const cmdChannel = supabase
+      .channel(`wall_commands_${event.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'wall_commands',
+          filter: `wall_id=eq.${event.id}`,
+        },
+        (payload) => {
+          const action = payload.new.action;
+
+          if (action === 'reload_wall') {
+            window.location.reload();
+          }
+        }
+      )
+      .subscribe();
+
+    return () => supabase.removeChannel(cmdChannel);
+  }, [event?.id]);
 
   /* -------------------------------------------------- */
   /* ✅ REALTIME WALL SETTINGS ONLY                      */
@@ -171,7 +200,7 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
   }, [posts]);
 
   /* -------------------------------------------------- */
-  /* GRID ROTATION                                       */
+  /* ✅ GRID ROTATION WITH FIXED INJECTOR TICK           */
   /* -------------------------------------------------- */
   useEffect(() => {
     if (!posts?.length) return;
@@ -221,7 +250,8 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
         postPointer.current = (postPointer.current + 1) % posts.length;
         pairIndex.current = (pairIndex.current + 1) % pairs.length;
 
-        if (pairIndex.current === 0) handlePostRotationTick?.();
+        /* ✅ Injector tick EVERY rotation */
+        handlePostRotationTick?.();
 
         await new Promise(r => setTimeout(r, displayDelay));
       }
@@ -321,7 +351,7 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
     <div
       style={{
         background: bg,
-        filter: `brightness(${brightness}%)`,   /* ✅ NEW BRIGHTNESS */
+        filter: `brightness(${brightness}%)`,
         width: '100%',
         height: '100vh',
         display: 'flex',

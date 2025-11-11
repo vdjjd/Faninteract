@@ -24,6 +24,9 @@ const speedMap: Record<string, number> = {
 export default function Grid2x2Wall({ event, posts }: Grid2x2WallProps) {
   const rt = useRealtimeChannel();
 
+  /* ---------- FULLSCREEN REF (same as SingleHighlight) ---------- */
+  const fullscreenButtonRef = useRef<HTMLButtonElement>(null);
+
   /* ---------- STATE ---------- */
   const [livePosts, setLivePosts] = useState(posts || []);
   const [gridPosts, setGridPosts] = useState<(any | null)[]>(Array(4).fill(null));
@@ -63,6 +66,55 @@ export default function Grid2x2Wall({ event, posts }: Grid2x2WallProps) {
     hostId: event?.host_profile_id || event?.host_id || event?.id,
     triggerInterval: event?.trigger_interval || 8,
   });
+
+  /* ---------- ✅ WALL COMMAND LISTENER (reload + fullscreen) ---------- */
+  useEffect(() => {
+    if (!event?.id) return;
+
+    const channel = supabase
+      .channel(`wall_commands_${event.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'wall_commands',
+          filter: `wall_id=eq.${event.id}`,
+        },
+        async (payload) => {
+          const cmd = payload.new;
+          if (!cmd) return;
+
+          if (cmd.action === "reload_wall") {
+            window.location.reload();
+          }
+
+          if (cmd.action === "fullscreen_wall") {
+            fullscreenButtonRef.current?.click();
+          }
+
+          await supabase.from("wall_commands").delete().eq("id", cmd.id);
+        }
+      )
+      .subscribe();
+
+    return () => supabase.removeChannel(channel);
+  }, [event?.id]);
+
+  /* ---------- REAL FULLSCREEN BUTTON (hidden) ---------- */
+  const HiddenFullscreenButton = (
+    <button
+      ref={fullscreenButtonRef}
+      style={{ display: "none" }}
+      onClick={() => {
+        if (!document.fullscreenElement) {
+          document.documentElement.requestFullscreen().catch(() => {});
+        } else {
+          document.exitFullscreen().catch(() => {});
+        }
+      }}
+    />
+  );
 
   /* ---------- FULLSCREEN FIX ---------- */
   const wasFS = useRef(false);
@@ -138,7 +190,6 @@ export default function Grid2x2Wall({ event, posts }: Grid2x2WallProps) {
           const w = payload.new;
           if (!w) return;
 
-          /* ✅ Background */
           if (w.background_value) {
             setBg(
               w.background_type === 'image'
@@ -147,7 +198,6 @@ export default function Grid2x2Wall({ event, posts }: Grid2x2WallProps) {
             );
           }
 
-          /* ✅ NEW: Brightness */
           if (w.background_brightness !== undefined) {
             setBrightness(w.background_brightness);
           }
@@ -323,7 +373,7 @@ export default function Grid2x2Wall({ event, posts }: Grid2x2WallProps) {
     <div
       style={{
         background: bg,
-        filter: `brightness(${brightness}%)`,   // ✅ NEW
+        filter: `brightness(${brightness}%)`,
         width: '100%',
         height: '100vh',
         display: 'flex',
@@ -333,6 +383,8 @@ export default function Grid2x2Wall({ event, posts }: Grid2x2WallProps) {
         position: 'relative',
       }}
     >
+      {HiddenFullscreenButton}
+
       {/* Logo */}
       <div
         style={{
@@ -428,7 +480,7 @@ export default function Grid2x2Wall({ event, posts }: Grid2x2WallProps) {
         </div>
       </div>
 
-      {/* Fullscreen */}
+      {/* Fullscreen button */}
       <div
         style={{
           position: 'fixed',
@@ -448,11 +500,7 @@ export default function Grid2x2Wall({ event, posts }: Grid2x2WallProps) {
         }}
         onMouseEnter={(e) => (e.currentTarget.style.opacity = '1')}
         onMouseLeave={(e) => (e.currentTarget.style.opacity = '0.25')}
-        onClick={() =>
-          !document.fullscreenElement
-            ? document.documentElement.requestFullscreen().catch(() => {})
-            : document.exitFullscreen()
-        }
+        onClick={() => fullscreenButtonRef.current?.click()}
       >
         <svg
           xmlns="http://www.w3.org/2000/svg"
