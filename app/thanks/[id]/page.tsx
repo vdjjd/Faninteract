@@ -83,7 +83,6 @@ export default function ThankYouPage() {
     }
 
     fetchData();
-    // re-evaluate once profile loads
   }, [id, type, supabase, profile?.id]);
 
   /* ----------------------------- realtime: prize_wheels row + broadcast ----------------------------- */
@@ -114,7 +113,7 @@ export default function ThankYouPage() {
       )
       .subscribe();
 
-    // 2) Listen to broadcast in case host side uses a broadcast for selection (optional)
+    // 2) Listen to broadcast in case host side uses a broadcast for selection
     const bc = supabase
       .channel(`prizewheel-${id}`)
       .on("broadcast", { event: "remote_spinner_selected" }, (msg: any) => {
@@ -191,20 +190,23 @@ export default function ThankYouPage() {
     }
   }
 
-  /* ----------------------------- Fire Pulse styles ----------------------------- */
+  /* ----------------------------- Fire Pulse styles (Bigger + Round) ----------------------------- */
   const firePulseButton: React.CSSProperties = {
-    padding: "14px 18px",
     width: "100%",
+    padding: "26px 0",            // ✅ Taller
     border: "none",
-    borderRadius: 14,
+    borderRadius: 9999,           // ✅ Fully round pill
+    fontSize: "1.5rem",           // ✅ Bigger text
+    textTransform: "uppercase",
     color: "#fff",
-    fontWeight: 800,
-    letterSpacing: "0.5px",
+    fontWeight: 900,
+    letterSpacing: "1px",
     background:
-      "radial-gradient(circle at 50% 50%, #ff7a00 0%, #ff3b0a 60%, #b81d08 100%)",
+      "radial-gradient(circle at 50% 50%, #ff7a00 0%, #ff3b0a 55%, #b81d08 100%)",
     boxShadow:
-      "0 0 24px rgba(255,90,0,0.45), inset 0 0 18px rgba(255,170,0,0.35)",
+      "0 0 34px rgba(255,90,0,0.55), inset 0 0 22px rgba(255,170,0,0.40)",
     animation: "firePulse 1.6s ease-in-out infinite",
+    transform: "translateZ(0)",
   };
 
   return (
@@ -259,7 +261,7 @@ export default function ThankYouPage() {
           alt="logo"
         />
 
-        {/* Titles at the top */}
+        {/* Titles */}
         <h1
           style={{
             fontSize: "2.2rem",
@@ -274,11 +276,12 @@ export default function ThankYouPage() {
         >
           🎉 Thank You!
         </h1>
+
         <p style={{ color: "#f3e8e0", marginBottom: 18, opacity: 0.9 }}>
           {message}
         </p>
 
-        {/* Stay right here notice (only for wheel) */}
+        {/* Stay here notice */}
         {type === "wheel" && (
           <div
             style={{
@@ -298,11 +301,11 @@ export default function ThankYouPage() {
             <br />
             At any moment, you could be chosen to <strong>SPIN THE WHEEL</strong> from your phone.
             <br />
-            If you’re picked, your spin button will light up automatically.
+            If you're picked, your button will light up automatically.
           </div>
         )}
 
-        {/* Remote Spin Button (only shows for this guest when armed) */}
+        {/* Remote Spin Button */}
         {type === "wheel" && remoteEnabled && armed && (
           <button
             onClick={handleRemotePress}
@@ -311,14 +314,14 @@ export default function ThankYouPage() {
               ...firePulseButton,
               opacity: pressing ? 0.7 : 1,
               cursor: pressing ? "not-allowed" : "pointer",
-              marginBottom: 12,
+              marginBottom: 14,
             }}
           >
-            1. 🔥 SPIN THE WHEEL!
+            🔥 SPIN THE WHEEL!
           </button>
         )}
 
-        {/* Close / hint */}
+        {/* Close */}
         {!showCloseHint ? (
           <button
             onClick={handleClose}
@@ -347,9 +350,9 @@ export default function ThankYouPage() {
           50% { filter: drop-shadow(0 0 35px rgba(255,160,80,0.9)); }
         }
         @keyframes firePulse {
-          0%   { box-shadow: 0 0 18px rgba(255,90,0,0.32), inset 0 0 10px rgba(255,170,0,0.28); transform: translateZ(0) scale(1); }
-          50%  { box-shadow: 0 0 38px rgba(255,60,0,0.55), inset 0 0 22px rgba(255,185,0,0.42); transform: translateZ(0) scale(1.02); }
-          100% { box-shadow: 0 0 18px rgba(255,90,0,0.32), inset 0 0 10px rgba(255,170,0,0.28); transform: translateZ(0) scale(1); }
+          0%   { box-shadow: 0 0 18px rgba(255,90,0,0.32), inset 0 0 10px rgba(255,170,0,0.28); transform: scale(1); }
+          50%  { box-shadow: 0 0 38px rgba(255,60,0,0.55), inset 0 0 22px rgba(255,185,0,0.42); transform: scale(1.03); }
+          100% { box-shadow: 0 0 18px rgba(255,90,0,0.32), inset 0 0 10px rgba(255,170,0,0.28); transform: scale(1); }
         }
       `}</style>
     </div>
