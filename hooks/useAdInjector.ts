@@ -1,179 +1,82 @@
 'use client';
+
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 
-interface AdInjectorOptions {
+interface UseAdInjectorOptions {
   hostId: string;
-  triggerInterval: number; // how many post rotations before ad trigger
 }
 
-export function useAdInjector({ hostId, triggerInterval: defaultTrigger }: AdInjectorOptions) {
+export function useAdInjector({ hostId }: UseAdInjectorOptions) {
   const [ads, setAds] = useState<any[]>([]);
   const [showAd, setShowAd] = useState(false);
-  const [currentAdIndex, setCurrentAdIndex] = useState(0);
-  const [injectorEnabled, setInjectorEnabled] = useState(false);
-  const [activeTriggerInterval, setActiveTriggerInterval] = useState(defaultTrigger || 8);
+  const [current, setCurrent] = useState(0);
+  const [enabled, setEnabled] = useState(false);
+  const [interval, setInterval] = useState(8);
 
-  const rotationCount = useRef(0);
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  /* ------------------ LOAD HOST SETTINGS + ADS ------------------ */
+  /* ------------------ LOAD SETTINGS + ADS ------------------ */
   useEffect(() => {
     if (!hostId) return;
 
-    async function loadSettings() {
-      const { data, error } = await supabase
+    async function loadAll() {
+      // Load injector settings
+      const { data: hostSettings } = await supabase
         .from('hosts')
         .select('injector_enabled, trigger_interval')
         .eq('id', hostId)
         .single();
 
-      if (error) console.error('Error loading injector settings:', error);
-
-      if (data) {
-        setInjectorEnabled(data.injector_enabled ?? false);
-
-        // ✅ Only override interval if explicitly set and > 0
-        if (data.trigger_interval && Number(data.trigger_interval) > 0) {
-          setActiveTriggerInterval(Number(data.trigger_interval));
-        } else {
-          setActiveTriggerInterval(defaultTrigger || 8);
-        }
+      if (hostSettings) {
+        setEnabled(hostSettings.injector_enabled);
+        setInterval(hostSettings.trigger_interval);
       }
-    }
 
-    async function loadAds() {
-      const { data, error } = await supabase
-        .from('ads')
+      // Load merged ads in playback order
+      const { data: adList } = await supabase
+        .from('slide_ads')
         .select('*')
-        .eq('host_profile_id', hostId)
-        .eq('active', true)
-        .order('order_index', { ascending: true });
-      if (error) console.error('Error loading ads:', error);
-      setAds(data || []);
+        .order('global_order_index', { ascending: true });
+
+      setAds(adList || []);
     }
 
-    loadSettings();
-    loadAds();
+    loadAll();
 
-    // ✅ Realtime host + ads updates
-    const hostCh = supabase
-      .channel(`hosts_${hostId}`)
+    // Live update when ads or settings change
+    const channel = supabase
+      .channel(`slide_ads_${hostId}`)
       .on(
         'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'hosts', filter: `id=eq.${hostId}` },
-        (payload) => {
-          const enabled = payload.new?.injector_enabled ?? false;
-          setInjectorEnabled(enabled);
-
-          if (!enabled) {
-            // ✅ Reset instantly when turned off
-            setShowAd(false);
-            rotationCount.current = 0;
-            if (timeoutRef.current) clearTimeout(timeoutRef.current);
-          }
-
-          // ✅ Update interval dynamically if host changes it
-          const newInterval = Number(payload.new?.trigger_interval);
-          if (newInterval && newInterval > 0) {
-            setActiveTriggerInterval(newInterval);
-          }
-        }
+        { event: '*', schema: 'public', table: 'slide_ads' },
+        loadAll
       )
       .subscribe();
 
-    const adsCh = supabase
-      .channel(`ads_${hostId}`)
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'ads', filter: `host_profile_id=eq.${hostId}` },
-        loadAds
-      )
-      .subscribe();
-
-    // ✅ Listen for dashboard broadcast events
-    const broadcastCh = supabase
-      .channel('fan_wall_broadcast')
-      .on('broadcast', { event: 'injector_toggled' }, (msg) => {
-        const { host_id, enabled } = msg.payload || {};
-        if (host_id !== hostId) return;
-
-        setInjectorEnabled(enabled);
-
-        if (!enabled) {
-          setShowAd(false);
-          rotationCount.current = 0;
-          if (timeoutRef.current) clearTimeout(timeoutRef.current);
-        }
-      })
-      .subscribe();
-
     return () => {
-      supabase.removeChannel(hostCh);
-      supabase.removeChannel(adsCh);
-      supabase.removeChannel(broadcastCh);
+      supabase.removeChannel(channel);
     };
-  }, [hostId, defaultTrigger]);
+  }, [hostId]);
 
-  /* ------------------ HANDLE POST ROTATION TICK ------------------ */
-  const handlePostRotationTick = () => {
-  if (!injectorEnabled || !ads.length) return;
+  /* ------------------ TRIGGER AD DISPLAY ------------------ */
+  const trigger = () => {
+    if (!enabled || !ads.length) return;
 
-  rotationCount.current++;
+    setShowAd(true);
 
-  console.log('🧮 Tick:', {
-    rotation: rotationCount.current,
-    activeTriggerInterval,
-    defaultTrigger,
-    injectorEnabled,
-    adsCount: ads.length,
-  });
+    const nextIndex = (current + 1) % ads.length;
+    setCurrent(nextIndex);
 
-  if (rotationCount.current >= activeTriggerInterval) {
-    console.log('🚀 Triggering ad overlay!');
-    rotationCount.current = 0;
-    triggerAdOverlay();
-  }
-};
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    timeoutRef.current = setTimeout(() => setShowAd(false), 8000);
+  };
 
-  /* ------------------ SHOW AD OVERLAY ------------------ */
-const triggerAdOverlay = () => {
-  if (showAd || !ads.length) return;
-
-  const ad = ads[currentAdIndex];
-  if (!ad) return;
-
-  setShowAd(true);
-  const nextIndex = (currentAdIndex + 1) % ads.length;
-  setCurrentAdIndex(nextIndex);
-
-  // ✅ Timing setup
-  const FADE_DURATION = 2000; // 2s fade in/out
-  const DISPLAY_DURATION =
-    ad.type === 'video'
-      ? Math.min(Number(ad.duration_seconds || 15) * 1000, 15000) // respect video length
-      : 8000; // image fully visible for 8s
-
-  const totalDuration = DISPLAY_DURATION + FADE_DURATION * 2;
-
-  if (timeoutRef.current) clearTimeout(timeoutRef.current);
-  timeoutRef.current = setTimeout(() => setShowAd(false), totalDuration);
-};
-
-  /* ------------------ CLEANUP ------------------ */
-  useEffect(() => {
-    return () => {
-      if (timeoutRef.current) clearTimeout(timeoutRef.current);
-    };
-  }, []);
-
-  /* ------------------ RETURN ------------------ */
   return {
     ads,
     showAd,
-    currentAdIndex,
-    injectorEnabled,
-    setShowAd,
-    handlePostRotationTick,
+    currentAd: ads[current],
+    trigger,
+    injectorEnabled: enabled,
   };
 }
