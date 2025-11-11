@@ -38,6 +38,7 @@ export default function AdsManagerModal({ host, onClose }: AdsManagerModalProps)
 
   const [reorderMode, setReorderMode] = useState(false);
 
+  /* ✅ FIXED drag state */
   const dragIndex = useRef<number | null>(null);
 
   /* -------------------------------------------------------- */
@@ -135,7 +136,7 @@ export default function AdsManagerModal({ host, onClose }: AdsManagerModalProps)
   };
 
   /* -------------------------------------------------------- */
-  /* ✅ REORDER HANDLERS */
+  /* ✅ REORDER HANDLERS — FIXED */
   /* -------------------------------------------------------- */
 
   function onDragStart(i: number) {
@@ -351,7 +352,5 @@ export default function AdsManagerModal({ host, onClose }: AdsManagerModalProps)
 }
 
 /* -------------------------------------------------------- */
-/* ✅ ANIMATIONS (Tailwind plugins not required) */
+/* ✅ ANIMATIONS */
 /* -------------------------------------------------------- */
-
-
