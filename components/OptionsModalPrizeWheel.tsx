@@ -136,8 +136,6 @@ export default function OptionsModalPrizeWheel({
         passphrase:
           localWheel.visibility === "private" ? localWheel.passphrase || null : null,
 
-        // ✅ REMOVED spin_speed, spin_duration, spin_count
-
         remote_spin_enabled: !!localWheel.remote_spin_enabled,
 
         countdown:
@@ -256,8 +254,6 @@ export default function OptionsModalPrizeWheel({
               />
             </div>
           )}
-
-          {/* ✅ REMOVED: SPIN SPEED / DURATION / COUNT */}
 
           {/* Remote Spin */}
           <div className={cn('w-full max-w-[520px] mx-auto mt-4')}>
@@ -509,41 +505,49 @@ export default function OptionsModalPrizeWheel({
             </div>
           </div>
 
-          {/* TILE BRIGHTNESS */}
+          {/* ✅ TILE BRIGHTNESS (PATCHED) */}
           <div className={cn('w-full', 'max-w-[520px]', 'mx-auto', 'mt-6')}>
-            <div className="mb-4">
+            
+            {/* A */}
+            <div className={cn('mb-4', 'flex', 'flex-col', 'items-center')}>
               <label className={cn('block', 'text-xs', 'mb-1')}>Tile A Brightness</label>
-              <input
-                type="range"
-                min="20"
-                max="150"
-                value={localWheel.tile_brightness_a}
-                onChange={(e) =>
-                  setLocalWheel({
-                    ...localWheel,
-                    tile_brightness_a: Number(e.target.value),
-                  })
-                }
-                className={cn('w-full', 'accent-blue-400')}
-              />
+              <div className={cn('w-[160px]', 'p-2', 'rounded-md', 'bg-[#0f172a]/40', 'shadow-inner')}>
+                <input
+                  type="range"
+                  min="20"
+                  max="150"
+                  value={localWheel.tile_brightness_a}
+                  onChange={(e) =>
+                    setLocalWheel({
+                      ...localWheel,
+                      tile_brightness_a: Number(e.target.value),
+                    })
+                  }
+                  className={cn('w-full', 'accent-blue-400')}
+                />
+              </div>
             </div>
 
-            <div className="mb-4">
+            {/* B */}
+            <div className={cn('mb-4', 'flex', 'flex-col', 'items-center')}>
               <label className={cn('block', 'text-xs', 'mb-1')}>Tile B Brightness</label>
-              <input
-                type="range"
-                min="20"
-                max="150"
-                value={localWheel.tile_brightness_b}
-                onChange={(e) =>
-                  setLocalWheel({
-                    ...localWheel,
-                    tile_brightness_b: Number(e.target.value),
-                  })
-                }
-                className={cn('w-full', 'accent-blue-400')}
-              />
+              <div className={cn('w-[160px]', 'p-2', 'rounded-md', 'bg-[#0f172a]/40', 'shadow-inner')}>
+                <input
+                  type="range"
+                  min="20"
+                  max="150"
+                  value={localWheel.tile_brightness_b}
+                  onChange={(e) =>
+                    setLocalWheel({
+                      ...localWheel,
+                      tile_brightness_b: Number(e.target.value),
+                    })
+                  }
+                  className={cn('w-full', 'accent-blue-400')}
+                />
+              </div>
             </div>
+
           </div>
 
           {/* BACKGROUND UPLOAD */}

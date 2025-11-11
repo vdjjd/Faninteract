@@ -1,3 +1,4 @@
+// ✅ PrizeWheelSubmissionPage.tsx
 "use client";
 
 import { useState, useEffect, useRef } from "react";
@@ -35,6 +36,9 @@ export default function PrizeWheelSubmissionPage() {
   const [passInput, setPassInput] = useState("");
   const [passError, setPassError] = useState("");
 
+  /* ✅ Option B: Remote Spin UI */
+  const [selectedForSpin, setSelectedForSpin] = useState(false);
+
   const [imageSrc, setImageSrc] = useState<string | null>(null);
   const [crop, setCrop] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
@@ -67,13 +71,45 @@ export default function PrizeWheelSubmissionPage() {
 
       setWheel(data);
 
-      /* ✅ PASSPHRASE CHECK ADDED */
       if (data.visibility === "private" && data.passphrase) {
         setRequirePasscode(true);
       }
     }
     loadWheel();
   }, [wheelId]);
+
+  /* ✅ Realtime listener: watch for "guest_chosen_for_remote_spin" */
+  useEffect(() => {
+    if (!profile?.id || !wheelId) return;
+
+    const channel = supabase
+      .channel(`prizewheel-${wheelId}`)
+      .on(
+        "broadcast",
+        { event: "guest_chosen_for_remote_spin" },
+        (payload) => {
+          if (payload?.payload?.guestId === profile.id) {
+            setSelectedForSpin(true);
+          }
+        }
+      )
+      .subscribe();
+
+    return () => supabase.removeChannel(channel);
+  }, [profile?.id, wheelId]);
+
+  /* ✅ Trigger remote spin */
+  const triggerRemoteSpin = async () => {
+    if (!profile?.id) return;
+
+    await supabase.channel(`prizewheel-${wheelId}`).send({
+      type: "broadcast",
+      event: "remote_spin",
+      payload: { guestId: profile.id },
+    });
+
+    setSelectedForSpin(false);
+  };
 
   /* ✅ Camera click */
   const openCamera = () => {
@@ -124,7 +160,6 @@ export default function PrizeWheelSubmissionPage() {
   const submitEntry = async (e: any) => {
     e.preventDefault();
 
-    /* ✅ PASSPHRASE VALIDATION BEFORE SUBMIT */
     if (requirePasscode) {
       if (!passInput.trim()) {
         setPassError("Please enter the passphrase.");
@@ -134,8 +169,6 @@ export default function PrizeWheelSubmissionPage() {
         setPassError("Incorrect passphrase. Try again.");
         return;
       }
-
-      // ✅ passphrase correct, unlock UI
       setRequirePasscode(false);
     }
 
@@ -195,97 +228,63 @@ export default function PrizeWheelSubmissionPage() {
         }}
       />
 
-      {/* ✅ PASSPHRASE MODAL */}
-      {requirePasscode && (
-        <div
+      {/* ✅ Option B Notification */}
+      <div
+        style={{
+          position: "relative",
+          zIndex: 50,
+          maxWidth: 480,
+          margin: "0 auto 20px",
+          padding: "12px 16px",
+          borderRadius: 12,
+          background: "rgba(0,0,0,0.55)",
+          border: "1px solid rgba(255,255,255,0.15)",
+          color: "#fff",
+          textAlign: "center",
+          fontSize: 15,
+          lineHeight: 1.4,
+        }}
+      >
+        <strong>Stay right here…</strong>
+        <br />
+        At any moment, you could be chosen to <strong>SPIN THE WHEEL</strong> from your phone.
+        <br />
+        If you're picked, your spin button will light up automatically.
+      </div>
+
+      {/* ✅ Remote Spin Button */}
+      {selectedForSpin && (
+        <button
+          onClick={triggerRemoteSpin}
           style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(0,0,0,0.75)",
-            backdropFilter: "blur(4px)",
-            zIndex: 999999,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: 20,
+            position: "relative",
+            zIndex: 60,
+            maxWidth: 480,
+            width: "100%",
+            margin: "0 auto 20px",
+            padding: "16px 0",
+            borderRadius: 14,
+            background: "linear-gradient(90deg,#22c55e,#16a34a)",
+            fontWeight: 800,
+            color: "#fff",
+            fontSize: 20,
+            boxShadow: "0 0 25px rgba(34,197,94,0.9)",
+            animation: "glowRemote 1.5s infinite",
           }}
         >
-          <div
-            style={{
-              width: "100%",
-              maxWidth: 380,
-              background: "rgba(0,0,0,0.8)",
-              padding: 25,
-              borderRadius: 14,
-              textAlign: "center",
-              border: "1px solid rgba(255,255,255,0.18)",
-              boxShadow: "0 0 25px rgba(0,0,0,0.6)",
-            }}
-          >
-            <h2 style={{ marginBottom: 12, fontWeight: 700 }}>Private Entry</h2>
-            <p style={{ fontSize: 14, opacity: 0.75, marginBottom: 12 }}>
-              This prize wheel requires a passphrase.
-            </p>
-
-            <input
-              type="text"
-              placeholder="Enter passphrase"
-              value={passInput}
-              onChange={(e) => {
-                setPassInput(e.target.value);
-                setPassError("");
-              }}
-              style={{
-                width: "100%",
-                padding: 12,
-                borderRadius: 10,
-                marginBottom: 10,
-                background: "rgba(255,255,255,0.08)",
-                color: "#fff",
-                border: "1px solid #334155",
-                textAlign: "center",
-              }}
-            />
-
-            {passError && (
-              <p style={{ color: "#f87171", fontSize: 13, marginBottom: 10 }}>
-                {passError}
-              </p>
-            )}
-
-            <button
-              onClick={() => {
-                if (!passInput.trim()) {
-                  setPassError("Please enter the passphrase.");
-                  return;
-                }
-
-                if (
-                  passInput.trim().toLowerCase() !==
-                  wheel.passphrase.toLowerCase()
-                ) {
-                  setPassError("Incorrect passphrase. Try again.");
-                  return;
-                }
-
-                setRequirePasscode(false);
-              }}
-              style={{
-                width: "100%",
-                padding: "12px 0",
-                borderRadius: 10,
-                background: "linear-gradient(90deg,#0284c7,#2563eb)",
-                color: "#fff",
-                fontWeight: 700,
-                marginTop: 5,
-              }}
-            >
-              Continue
-            </button>
-          </div>
-        </div>
+          🎰 Spin From Your Phone
+        </button>
       )}
 
+      <style>{`
+        @keyframes glowRemote {
+          0% { box-shadow: 0 0 20px rgba(34,197,94,0.52); }
+          50% { box-shadow: 0 0 40px rgba(34,197,94,0.95); }
+          100% { box-shadow: 0 0 20px rgba(34,197,94,0.52); }
+        }
+      `}</style>
+
+      {/* ✅ MAIN FORM */}
       <form
         onSubmit={submitEntry}
         style={{
@@ -300,7 +299,6 @@ export default function PrizeWheelSubmissionPage() {
           border: "1px solid rgba(255,255,255,0.15)",
         }}
       >
-        {/* ✅ Logo */}
         <img
           src={logo}
           style={{
@@ -312,12 +310,10 @@ export default function PrizeWheelSubmissionPage() {
           }}
         />
 
-        {/* ✅ Wheel Title */}
         <h2 style={{ marginBottom: 16, fontWeight: 800 }}>
           {wheel.title || "Prize Wheel Entry"}
         </h2>
 
-        {/* ✅ Crop Box */}
         <div
           style={{
             width: "100%",
@@ -355,7 +351,6 @@ export default function PrizeWheelSubmissionPage() {
           )}
         </div>
 
-        {/* ✅ Required notice */}
         <p
           style={{
             color: "#fff",
@@ -367,7 +362,6 @@ export default function PrizeWheelSubmissionPage() {
           You must upload a selfie to enter the Prize Wheel.
         </p>
 
-        {/* ✅ Buttons */}
         <button
           type="button"
           onClick={openCamera}
@@ -408,7 +402,6 @@ export default function PrizeWheelSubmissionPage() {
           onChange={handleFile}
         />
 
-        {/* ✅ Retake */}
         {imageSrc && (
           <button
             type="button"
@@ -424,7 +417,6 @@ export default function PrizeWheelSubmissionPage() {
           </button>
         )}
 
-        {/* ✅ Name preview */}
         <input
           value={profile.first_name + " " + profile.last_name}
           readOnly
@@ -440,7 +432,6 @@ export default function PrizeWheelSubmissionPage() {
           }}
         />
 
-        {/* ✅ Submit */}
         <button
           disabled={submitting}
           style={{
