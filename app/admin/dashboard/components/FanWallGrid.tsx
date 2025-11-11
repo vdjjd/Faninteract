@@ -219,6 +219,15 @@ export default function FanWallGrid({
     };
   }, [host?.id]);
 
+  /* ✅ NEW BUTTON HANDLERS */
+  async function reloadWall(id: string) {
+    await safeBroadcast("reload_wall", { wall_id: id });
+  }
+
+  async function fullscreenWall(id: string) {
+    await safeBroadcast("fullscreen_wall", { wall_id: id });
+  }
+
   return (
     <div className={cn('mt-10 w-full max-w-6xl')}>
       <h2 className={cn('text-xl font-semibold mb-3')}>🎤 Fan Zone Walls</h2>
@@ -357,6 +366,26 @@ export default function FanWallGrid({
               >
                 ❌ Delete
               </button>
+
+              {/* ✅ NEW BUTTONS */}
+              <button
+                onClick={() => reloadWall(wall.id)}
+                className={cn(
+                  'bg-yellow-500 hover:bg-yellow-600 px-2 py-1 rounded text-sm font-semibold'
+                )}
+              >
+                🔄 Reload
+              </button>
+              <button
+                onClick={() => fullscreenWall(wall.id)}
+                className={cn(
+                  'bg-purple-600 hover:bg-purple-700 px-2 py-1 rounded text-sm font-semibold'
+                )}
+              >
+                ⛶ Fullscreen
+              </button>
+              {/* ✅ END NEW BUTTONS */}
+
             </div>
           </div>
         ))}
