@@ -21,16 +21,11 @@ export default function ThankYouPage() {
   const searchParams = useSearchParams();
   const supabase = getSupabaseClient();
 
-  // if ?type not provided, default to wheel here (since this page is where the spin lives)
   const type = (searchParams.get("type") || "wheel").toLowerCase();
 
   const [data, setData] = useState<any>(null);
   const [showCloseHint, setShowCloseHint] = useState(false);
-
-  // guest profile (for matching selection)
   const [profile, setProfile] = useState<any>(null);
-
-  // remote spin state (armed shows button)
   const [remoteEnabled, setRemoteEnabled] = useState(false);
   const [armed, setArmed] = useState(false);
   const [pressing, setPressing] = useState(false);
@@ -39,11 +34,10 @@ export default function ThankYouPage() {
 
   /* ----------------------------- load profile ----------------------------- */
   useEffect(() => {
-    const p = getStoredGuestProfile();
-    setProfile(p);
+    setProfile(getStoredGuestProfile());
   }, []);
 
-  /* ----------------------------- fetch wheel/fanwall/poll shell ----------------------------- */
+  /* ----------------------------- fetch data ----------------------------- */
   useEffect(() => {
     if (!id) return;
 
@@ -58,11 +52,8 @@ export default function ThankYouPage() {
       const { data, error } = await supabase
         .from(table)
         .select(
-          `id,
-           title,
-           background_value,
-           remote_spin_enabled,
-           selected_remote_spinner,
+          `id, title, background_value,
+           remote_spin_enabled, selected_remote_spinner,
            host:host_id ( branding_logo_url )`
         )
         .eq("id", id as string)
@@ -85,11 +76,10 @@ export default function ThankYouPage() {
     fetchData();
   }, [id, type, supabase, profile?.id]);
 
-  /* ----------------------------- realtime: prize_wheels row + broadcast ----------------------------- */
+  /* ----------------------------- realtime ----------------------------- */
   useEffect(() => {
     if (type !== "wheel" || !id) return;
 
-    // 1) Watch the prize_wheels row so the armed state flips instantly
     const rowChannel = supabase
       .channel(`pw-row-${id}`)
       .on(
@@ -113,7 +103,6 @@ export default function ThankYouPage() {
       )
       .subscribe();
 
-    // 2) Listen to broadcast in case host side uses a broadcast for selection
     const bc = supabase
       .channel(`prizewheel-${id}`)
       .on("broadcast", { event: "remote_spinner_selected" }, (msg: any) => {
@@ -133,7 +122,7 @@ export default function ThankYouPage() {
     };
   }, [id, type, supabase, profile?.id, remoteEnabled]);
 
-  /* ----------------------------- UI data ----------------------------- */
+  /* ----------------------------- ui helpers ----------------------------- */
   const bg =
     data?.background_value ||
     "linear-gradient(135deg,#0a2540,#1b2b44,#000000)";
@@ -166,7 +155,6 @@ export default function ThankYouPage() {
     if (!id || !profile?.id) return;
     setPressing(true);
     try {
-      // Let host/wall know this guest pressed the button
       await supabase
         .channel(`prizewheel-${id}`)
         .send({
@@ -175,13 +163,11 @@ export default function ThankYouPage() {
           payload: { wheel_id: id, guest_id: profile.id },
         });
 
-      // Clear the selection so host can arm the next guest
       await supabase
         .from("prize_wheels")
         .update({ selected_remote_spinner: null })
         .eq("id", id as string);
 
-      // Disable button immediately
       setArmed(false);
     } catch (e) {
       console.error("remote press error", e);
@@ -190,13 +176,13 @@ export default function ThankYouPage() {
     }
   }
 
-  /* ----------------------------- Fire Pulse styles (Bigger + Round) ----------------------------- */
+  /* ----------------------------- styles ----------------------------- */
   const firePulseButton: React.CSSProperties = {
     width: "100%",
-    padding: "26px 0",            // ✅ Taller
+    padding: "26px 0",
     border: "none",
-    borderRadius: 9999,           // ✅ Fully round pill
-    fontSize: "1.5rem",           // ✅ Bigger text
+    borderRadius: 9999,
+    fontSize: "1.5rem",
     textTransform: "uppercase",
     color: "#fff",
     fontWeight: 900,
@@ -209,6 +195,9 @@ export default function ThankYouPage() {
     transform: "translateZ(0)",
   };
 
+  const isFanWall = typeof window !== "undefined" && window.location.href.includes("fanwall");
+
+  /* ----------------------------- render ----------------------------- */
   return (
     <div
       style={{
@@ -224,7 +213,6 @@ export default function ThankYouPage() {
         textAlign: "center",
       }}
     >
-      {/* dimmer */}
       <div
         style={{
           position: "absolute",
@@ -234,7 +222,6 @@ export default function ThankYouPage() {
         }}
       />
 
-      {/* card */}
       <div
         style={{
           position: "relative",
@@ -248,7 +235,6 @@ export default function ThankYouPage() {
           boxShadow: "0 0 35px rgba(0,0,0,0.6)",
         }}
       >
-        {/* Logo */}
         <img
           src={displayLogo}
           style={{
@@ -261,7 +247,6 @@ export default function ThankYouPage() {
           alt="logo"
         />
 
-        {/* Titles */}
         <h1
           style={{
             fontSize: "2.2rem",
@@ -281,7 +266,6 @@ export default function ThankYouPage() {
           {message}
         </p>
 
-        {/* Stay here notice */}
         {type === "wheel" && (
           <div
             style={{
@@ -305,8 +289,8 @@ export default function ThankYouPage() {
           </div>
         )}
 
-        {/* Remote Spin Button */}
-        {type === "wheel" && remoteEnabled && armed && (
+        {/* 🔥 Spin Button — wheel only, not fanwall */}
+        {type === "wheel" && !isFanWall && remoteEnabled && armed && (
           <button
             onClick={handleRemotePress}
             disabled={pressing}
@@ -321,7 +305,6 @@ export default function ThankYouPage() {
           </button>
         )}
 
-        {/* Close */}
         {!showCloseHint ? (
           <button
             onClick={handleClose}

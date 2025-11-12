@@ -23,14 +23,11 @@ function CountdownDisplay({ countdown, countdownActive }) {
 
   useEffect(() => {
     if (!active || timeLeft <= 0) return;
-    const timer = setInterval(() => {
-      setTimeLeft(t => (t > 1 ? t - 1 : 0));
-    }, 1000);
+    const timer = setInterval(() => setTimeLeft(t => (t > 1 ? t - 1 : 0)), 1000);
     return () => clearInterval(timer);
   }, [active, timeLeft]);
 
   if (!countdown || countdown === 'none') return null;
-
   const m = Math.floor(timeLeft / 60);
   const s = timeLeft % 60;
 
@@ -40,7 +37,6 @@ function CountdownDisplay({ countdown, countdownActive }) {
         fontSize: 'clamp(6rem,8vw,9rem)',
         fontWeight: 900,
         color: '#fff',
-        marginTop: '2vh',
         textShadow: '0 0 40px rgba(0,0,0,0.7)',
       }}
     >
@@ -50,39 +46,33 @@ function CountdownDisplay({ countdown, countdownActive }) {
 }
 
 /* -------------------------------------------------------------------------- */
-/* ✅ INACTIVE WALL WITH FIXED ORDER: logo → bar → title → soon → timer       */
+/* ✅ INACTIVE WALL — FULLY RESPONSIVE                                         */
 /* -------------------------------------------------------------------------- */
 export default function InactiveWall({ wall }) {
   const rt = useRealtimeChannel();
+  const fullscreenButtonRef = useRef(null); // ✅ FIX: define the ref
 
-  const [bg, setBg] = useState(
-    'linear-gradient(to bottom right,#1b2735,#090a0f)'
-  );
-
-  const [brightness, setBrightness] = useState(
-    wall?.background_brightness || 100
-  );
-
+  const [bg, setBg] = useState('linear-gradient(to bottom right,#1b2735,#090a0f)');
+  const [brightness, setBrightness] = useState(wall?.background_brightness || 100);
   const [wallState, setWallState] = useState({
     countdown: '',
     countdownActive: false,
     title: '',
   });
-
   const updateTimeout = useRef(null);
 
-  /* ✅ Glow animation */
+  /* ✅ Pulse Animation */
   const PulseStyle = (
     <style>{`
       @keyframes pulseSoonGlow {
-        0%,100% { opacity: .7; text-shadow: 0 0 14px rgba(255,255,255,0.3); }
-        50% { opacity: 1; text-shadow: 0 0 22px rgba(180,220,255,0.8); }
+        0%,100% { opacity:.7; text-shadow:0 0 14px rgba(255,255,255,0.3); }
+        50% { opacity:1; text-shadow:0 0 22px rgba(180,220,255,0.8); }
       }
-      .pulseSoon { animation: pulseSoonGlow 2.5s ease-in-out infinite; }
+      .pulseSoon { animation:pulseSoonGlow 2.5s ease-in-out infinite; }
     `}</style>
   );
 
-  /* ✅ Load initial values */
+  /* Load initial data */
   useEffect(() => {
     if (!wall) return;
 
@@ -97,54 +87,39 @@ export default function InactiveWall({ wall }) {
         ? `url(${wall.background_value}) center/cover no-repeat`
         : wall.background_value ||
           'linear-gradient(to bottom right,#1b2735,#090a0f)';
-
     setBg(value);
-
-    if (wall.background_brightness !== undefined) {
-      setBrightness(wall.background_brightness);
-    }
+    if (wall.background_brightness !== undefined) setBrightness(wall.background_brightness);
   }, [wall]);
 
-  /* ✅ Listen for realtime updates */
+  /* Realtime listener */
   useEffect(() => {
     if (!rt?.current || !wall?.id) return;
     const channel = rt.current;
-
     const scheduleUpdate = (data) => {
       if (updateTimeout.current) clearTimeout(updateTimeout.current);
-      updateTimeout.current = setTimeout(() => {
-        setWallState(prev => ({ ...prev, ...data }));
-      }, 100);
+      updateTimeout.current = setTimeout(() => setWallState(prev => ({ ...prev, ...data })), 100);
     };
 
     channel.on('broadcast', {}, ({ event, payload }) => {
       if (!payload?.id || payload.id !== wall.id) return;
-
       if (event === 'wall_updated') {
         if (payload.background_value) {
-          const newBg =
+          setBg(
             payload.background_type === 'image'
               ? `url(${payload.background_value}) center/cover no-repeat`
-              : payload.background_value;
-          setBg(newBg);
+              : payload.background_value
+          );
         }
-
-        if (payload.background_brightness !== undefined) {
+        if (payload.background_brightness !== undefined)
           setBrightness(payload.background_brightness);
-        }
-
         if (payload.title) scheduleUpdate({ title: payload.title });
         if (payload.countdown) scheduleUpdate({ countdown: payload.countdown });
       }
-
       if (event === 'wall_status_changed') {
         if (payload.countdown_active !== undefined)
           scheduleUpdate({ countdownActive: payload.countdown_active });
       }
-
-      if (event === 'countdown_finished') {
-        scheduleUpdate({ countdownActive: false });
-      }
+      if (event === 'countdown_finished') scheduleUpdate({ countdownActive: false });
     });
 
     return () => channel.unsubscribe?.();
@@ -154,9 +129,7 @@ export default function InactiveWall({ wall }) {
     typeof window !== 'undefined'
       ? window.location.origin
       : 'https://faninteract.vercel.app';
-
   const qrValue = `${origin}/guest/signup?wall=${wall?.id}`;
-
   const displayLogo =
     wall?.host?.branding_logo_url?.trim()
       ? wall.host.branding_logo_url
@@ -176,10 +149,10 @@ export default function InactiveWall({ wall }) {
         filter: `brightness(${brightness}%)`,
         width: '100%',
         height: '100vh',
-        overflow: 'hidden',
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
+        overflow: 'hidden',
         position: 'relative',
         paddingTop: '3vh',
       }}
@@ -192,46 +165,52 @@ export default function InactiveWall({ wall }) {
           color: '#fff',
           fontSize: 'clamp(2.5rem,4vw,5rem)',
           fontWeight: 900,
-          marginBottom: '1.5vh',
-          textShadow: '0 0 12px rgba(0,0,0,0.5)',
+          marginBottom: '1vh',
+          textShadow: `
+      2px 2px 2px #000,
+      -2px 2px 2px #000,
+      2px -2px 2px #000,
+      -2px -2px 2px #000
+    `,
         }}
       >
         {wallState.title || 'Fan Zone Wall'}
       </h1>
 
-      {/* Main panel */}
+      {/* Main Panel */}
       <div
         style={{
           width: '90vw',
           height: '78vh',
-          backdropFilter: 'blur(20px)',
+          maxWidth: '1800px',
+          aspectRatio: '16 / 9',
           background: 'rgba(255,255,255,0.08)',
-          borderRadius: 24,
+          backdropFilter: 'blur(20px)',
           border: '1px solid rgba(255,255,255,0.15)',
-          display: 'flex',
+          borderRadius: 24,
           position: 'relative',
           overflow: 'hidden',
+          display: 'flex',
         }}
       >
-        {/* QR container */}
+        {/* QR Side */}
         <div
           style={{
             position: 'absolute',
-            top: 40,
-            left: 40,
-            width: '42%',
-            height: 'calc(100% - 80px)',
-            borderRadius: 18,
-            overflow: 'hidden',
+            top: '5%',
+            left: '3%',
+            width: '47%',
+            height: '90%',
+            borderRadius: 0,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            background: 'rgba(255,255,255,0.12)',
+            background: 'rgba(255,255,255,0.00)',
           }}
         >
           <QRCodeCanvas
             value={qrValue}
-            size={600}
+            size={1000}
             bgColor="#ffffff"
             fgColor="#000000"
             level="H"
@@ -244,7 +223,7 @@ export default function InactiveWall({ wall }) {
           />
         </div>
 
-        {/* ---------- RIGHT COLUMN (ABSOLUTE ORDER LOCKED) ---------- */}
+        {/* Info Side */}
         <div
           style={{
             position: 'relative',
@@ -252,13 +231,12 @@ export default function InactiveWall({ wall }) {
             marginLeft: '44%',
           }}
         >
-
-          {/* ✅ 1. LOGO */}
+          {/* Logo */}
           <div
             style={{
               position: 'absolute',
               top: '6%',
-              left: '50%',
+              left: '53%',
               transform: 'translateX(-50%)',
               width: 'clamp(280px,28vw,420px)',
             }}
@@ -273,60 +251,59 @@ export default function InactiveWall({ wall }) {
             />
           </div>
 
-          {/* ✅ 2. GREY BAR */}
+          {/* Divider Bar */}
           <div
             style={{
               position: 'absolute',
               top: '50%',
-              left: '50%',
+              left: '53%',
               transform: 'translateX(-50%)',
-              width: '78%',
-              height: 16,
+              width: '75%',
+              height: '1.4vh',
               borderRadius: 6,
               background: 'linear-gradient(to right,#000,#444)',
             }}
           />
 
-          {/* ✅ 3. FAN ZONE WALL */}
+          {/* Text */}
           <p
             style={{
               position: 'absolute',
-              top: '55%',
-              left: '50%',
+              top: '56%',
+              left: '53%',
               transform: 'translateX(-50%)',
               color: '#fff',
-              fontSize: 'clamp(2.5rem,3vw,10rem)',
+              fontSize: 'clamp(2em,3.5vw,6rem)',
               fontWeight: 900,
               margin: 0,
               textAlign: 'center',
+              textShadow: '0 0 14px rgba(0,0,0,0.6)',
             }}
           >
             Fan Zone Wall
           </p>
 
-          {/* ✅ 4. STARTING SOON */}
           <p
             className="pulseSoon"
             style={{
               position: 'absolute',
-              top: '65%',
-              left: '50%',
+              top: '67%',
+              left: '53%',
               transform: 'translateX(-50%)',
               color: '#bcd9ff',
-              fontSize: 'clamp(2.6rem,2.4vw,3rem)',
+              fontSize: 'clamp(2.8rem,2.4vw,3.2rem)',
               fontWeight: 700,
-              margin: 0,
               textAlign: 'center',
+              margin: 0,
             }}
           >
             Starting Soon!!
           </p>
 
-          {/* ✅ 5. COUNTDOWN TIMER */}
           <div
             style={{
               position: 'absolute',
-              top: '67%',
+              top: '73%',
               left: '50%',
               transform: 'translateX(-50%)',
             }}
@@ -336,34 +313,48 @@ export default function InactiveWall({ wall }) {
               countdownActive={wallState.countdownActive}
             />
           </div>
-
         </div>
       </div>
 
-      {/* Fullscreen */}
+      {/* ✅ Fullscreen Button */}
       <div
-        onClick={toggleFullscreen}
+        ref={fullscreenButtonRef}
         style={{
-          position: 'fixed',
-          bottom: 12,
-          right: 12,
-          width: 48,
-          height: 48,
-          borderRadius: 10,
+          position: 'absolute',
+          bottom: 'calc(1.5vh + 1.5%)',
+          right: 'calc(1.5vw + 1.5%)',
+          width: 40,
+          height: 40,
+          borderRadius: 12,
           background: 'rgba(255,255,255,0.08)',
-          border: '1px solid rgba(255,255,255,0.15)',
+          border: '1px solid rgba(255,255,255,0.2)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
           cursor: 'pointer',
-          opacity: 0.25,
+          opacity: 0.15,
+          transition: 'opacity 0.2s ease',
+          zIndex: 50,
         }}
         onMouseEnter={(e) => (e.currentTarget.style.opacity = '1')}
-        onMouseLeave={(e) => (e.currentTarget.style.opacity = '0.25')}
+        onMouseLeave={(e) => (e.currentTarget.style.opacity = '0.3')}
+        onClick={toggleFullscreen}
       >
-        ⛶
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          stroke="white"
+          fill="none"
+          viewBox="0 0 24 24"
+          strokeWidth={1.5}
+          style={{ width: 28, height: 28 }}
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M3 9V4h5M21 9V4h-5M3 15v5h5M21 15v5h-5"
+          />
+        </svg>
       </div>
     </div>
   );
 }
-

@@ -10,7 +10,6 @@ function CountdownDisplay({ countdown, countdownActive, wheelId }) {
   const [timeLeft, setTimeLeft] = useState(0);
   const [active, setActive] = useState(countdownActive);
 
-  /* ✅ Parse countdown */
   useEffect(() => {
     if (!countdown) return;
     const [numStr] = countdown.split(' ');
@@ -18,31 +17,25 @@ function CountdownDisplay({ countdown, countdownActive, wheelId }) {
     const mins = countdown.toLowerCase().includes('minute');
     const secs = countdown.toLowerCase().includes('second');
     const total = mins ? num * 60 : secs ? num : 0;
-
     setTimeLeft(total);
     setActive(!!countdownActive);
   }, [countdown, countdownActive]);
 
-  /* ✅ Run timer */
   useEffect(() => {
     if (!active || timeLeft <= 0) return;
-    const timer = setInterval(() => {
-      setTimeLeft(t => (t > 1 ? t - 1 : 0));
-    }, 1000);
+    const timer = setInterval(() => setTimeLeft((t) => (t > 1 ? t - 1 : 0)), 1000);
     return () => clearInterval(timer);
   }, [active, timeLeft]);
 
-  /* ✅ When timer hits zero → Update DB + fade to Active Wall */
   useEffect(() => {
     if (timeLeft === 0 && active) {
       setActive(false);
-
       supabase
         .from('prize_wheels')
         .update({
           countdown_active: false,
           countdown: 'none',
-          status: 'live'
+          status: 'live',
         })
         .eq('id', wheelId);
     }
@@ -69,27 +62,20 @@ function CountdownDisplay({ countdown, countdownActive, wheelId }) {
 }
 
 /* -------------------------------------------------------------------------- */
-/* ✅ PRIZE WHEEL INACTIVE WALL                                               */
+/* ✅ PRIZE WHEEL INACTIVE WALL — FIXED + RESPONSIVE                          */
 /* -------------------------------------------------------------------------- */
 export default function InactivePrizeWall({ wheel }) {
   const rt = useRealtimeChannel();
+  const fullscreenButtonRef = useRef(null); // ✅ FIX 1
 
-  const [bg, setBg] = useState(
-    'linear-gradient(to bottom right,#1b2735,#090a0f)'
-  );
-
-  const [brightness, setBrightness] = useState(
-    wheel?.background_brightness || 100
-  );
-
+  const [bg, setBg] = useState('linear-gradient(to bottom right,#1b2735,#090a0f)');
+  const [brightness, setBrightness] = useState(wheel?.background_brightness || 100);
   const [wallState, setWallState] = useState({
     countdown: '',
     countdownActive: false,
   });
-
   const updateTimeout = useRef(null);
 
-  /* ✅ Glow animation */
   const PulseStyle = (
     <style>{`
       @keyframes pulseSoonGlow {
@@ -100,10 +86,8 @@ export default function InactivePrizeWall({ wheel }) {
     `}</style>
   );
 
-  /* ✅ Initial load */
   useEffect(() => {
     if (!wheel) return;
-
     setWallState({
       countdown: wheel.countdown || '',
       countdownActive: !!wheel.countdown_active,
@@ -112,32 +96,22 @@ export default function InactivePrizeWall({ wheel }) {
     const value =
       wheel.background_type === 'image'
         ? `url(${wheel.background_value}) center/cover no-repeat`
-        : wheel.background_value ||
-          'linear-gradient(to bottom right,#1b2735,#090a0f)';
+        : wheel.background_value || 'linear-gradient(to bottom right,#1b2735,#090a0f)';
 
     setBg(value);
-
-    if (wheel.background_brightness !== undefined) {
-      setBrightness(wheel.background_brightness);
-    }
+    if (wheel.background_brightness !== undefined) setBrightness(wheel.background_brightness);
   }, [wheel]);
 
-  /* ✅ Realtime updates */
   useEffect(() => {
     if (!rt?.current || !wheel?.id) return;
     const channel = rt.current;
-
     const scheduleUpdate = (data) => {
       if (updateTimeout.current) clearTimeout(updateTimeout.current);
-      updateTimeout.current = setTimeout(
-        () => setWallState(prev => ({ ...prev, ...data })),
-        100
-      );
+      updateTimeout.current = setTimeout(() => setWallState((prev) => ({ ...prev, ...data })), 100);
     };
 
     channel.on('broadcast', {}, ({ event, payload }) => {
       if (!payload?.id || payload.id !== wheel.id) return;
-
       if (event === 'prizewheel_update') {
         if (payload.background_value) {
           const newBg =
@@ -146,37 +120,24 @@ export default function InactivePrizeWall({ wheel }) {
               : payload.background_value;
           setBg(newBg);
         }
-
         if (payload.background_brightness !== undefined)
           setBrightness(payload.background_brightness);
-
-        if (payload.countdown)
-          scheduleUpdate({ countdown: payload.countdown });
+        if (payload.countdown) scheduleUpdate({ countdown: payload.countdown });
       }
-
       if (event === 'prizewheel_status') {
         if (payload.countdown_active !== undefined)
           scheduleUpdate({ countdownActive: payload.countdown_active });
       }
-
-      if (event === 'prizewheel_countdown_finished') {
-        scheduleUpdate({ countdownActive: false });
-      }
+      if (event === 'prizewheel_countdown_finished') scheduleUpdate({ countdownActive: false });
     });
 
     return () => channel.unsubscribe?.();
   }, [rt, wheel?.id]);
 
-  /* ✅ QR logic */
   const origin =
-    typeof window !== 'undefined'
-      ? window.location.origin
-      : 'https://faninteract.vercel.app';
-
-  /* ✅ FIXED: force correct signup redirect */
+    typeof window !== 'undefined' ? window.location.origin : 'https://faninteract.vercel.app';
   const qrValue = `${origin}/guest/signup?redirect=/prizewheel/${wheel.id}/submit`;
 
-  /* ✅ Logo */
   const displayLogo =
     wheel?.host?.branding_logo_url?.trim()
       ? wheel.host.branding_logo_url
@@ -196,10 +157,10 @@ export default function InactivePrizeWall({ wheel }) {
         filter: `brightness(${brightness}%)`,
         width: '100%',
         height: '100vh',
-        overflow: 'hidden',
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
+        overflow: 'hidden',
         position: 'relative',
         paddingTop: '3vh',
       }}
@@ -212,8 +173,13 @@ export default function InactivePrizeWall({ wheel }) {
           color: '#fff',
           fontSize: 'clamp(2.5rem,4vw,5rem)',
           fontWeight: 900,
-          marginBottom: '1.5vh',
-          textShadow: '0 0 12px rgba(0,0,0,0.5)',
+          marginBottom: '1vh',
+          textShadow: `
+            2px 2px 2px #000,
+            -2px 2px 2px #000,
+            2px -2px 2px #000,
+            -2px -2px 2px #000
+          `,
         }}
       >
         Prize Wheel
@@ -224,37 +190,38 @@ export default function InactivePrizeWall({ wheel }) {
         style={{
           width: '90vw',
           height: '78vh',
-          backdropFilter: 'blur(20px)',
+          maxWidth: '1800px',
+          aspectRatio: '16 / 9',
           background: 'rgba(255,255,255,0.08)',
-          borderRadius: 24,
+          backdropFilter: 'blur(20px)',
           border: '1px solid rgba(255,255,255,0.15)',
-          display: 'flex',
+          borderRadius: 24,
           position: 'relative',
           overflow: 'hidden',
+          display: 'flex',
         }}
       >
-        {/* QR Box */}
+        {/* QR Side */}
         <div
           style={{
             position: 'absolute',
-            top: 40,
-            left: 40,
-            width: '42%',
-            height: 'calc(100% - 80px)',
-            borderRadius: 18,
-            overflow: 'hidden',
+            top: '5%',
+            left: '3%',
+            width: '47%',
+            height: '90%',
+            borderRadius: 0,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            background: 'rgba(255,255,255,0.12)',
+            background: 'rgba(255,255,255,0.00)',
           }}
         >
           <QRCodeCanvas
             value={qrValue}
-            size={600}
-            level="H"
+            size={1000}
             bgColor="#ffffff"
             fgColor="#000000"
+            level="H"
             style={{
               width: '100%',
               height: '100%',
@@ -264,7 +231,7 @@ export default function InactivePrizeWall({ wheel }) {
           />
         </div>
 
-        {/* ---------- RIGHT COLUMN ---------- */}
+        {/* Info Side */}
         <div
           style={{
             position: 'relative',
@@ -272,12 +239,12 @@ export default function InactivePrizeWall({ wheel }) {
             marginLeft: '44%',
           }}
         >
-          {/* LOGO */}
+          {/* Logo */}
           <div
             style={{
               position: 'absolute',
               top: '6%',
-              left: '50%',
+              left: '53%',
               transform: 'translateX(-50%)',
               width: 'clamp(280px,28vw,420px)',
             }}
@@ -292,60 +259,59 @@ export default function InactivePrizeWall({ wheel }) {
             />
           </div>
 
-          {/* GREY BAR */}
+          {/* Divider Bar */}
           <div
             style={{
               position: 'absolute',
               top: '50%',
-              left: '50%',
+              left: '53%',
               transform: 'translateX(-50%)',
-              width: '78%',
-              height: 16,
+              width: '75%',
+              height: '1.4vh',
               borderRadius: 6,
               background: 'linear-gradient(to right,#000,#444)',
             }}
           />
 
-          {/* PRIZE WHEEL TEXT */}
+          {/* Text */}
           <p
             style={{
               position: 'absolute',
-              top: '55%',
-              left: '50%',
+              top: '56%',
+              left: '53%',
               transform: 'translateX(-50%)',
               color: '#fff',
-              fontSize: 'clamp(2.5rem,3vw,10rem)',
+              fontSize: 'clamp(2em,3.5vw,6rem)',
               fontWeight: 900,
               margin: 0,
               textAlign: 'center',
+              textShadow: '0 0 14px rgba(0,0,0,0.6)',
             }}
           >
             Prize Wheel
           </p>
 
-          {/* STARTING SOON */}
           <p
             className="pulseSoon"
             style={{
               position: 'absolute',
-              top: '65%',
-              left: '50%',
+              top: '67%',
+              left: '53%',
               transform: 'translateX(-50%)',
               color: '#bcd9ff',
-              fontSize: 'clamp(2.6rem,2.4vw,3rem)',
+              fontSize: 'clamp(2.8rem,2.4vw,3.2rem)',
               fontWeight: 700,
-              margin: 0,
               textAlign: 'center',
+              margin: 0,
             }}
           >
             Starting Soon!!
           </p>
 
-          {/* COUNTDOWN */}
           <div
             style={{
               position: 'absolute',
-              top: '67%',
+              top: '73%',
               left: '50%',
               transform: 'translateX(-50%)',
             }}
@@ -359,28 +325,44 @@ export default function InactivePrizeWall({ wheel }) {
         </div>
       </div>
 
-      {/* Fullscreen button */}
+      {/* ✅ Fullscreen Button */}
       <div
-        onClick={toggleFullscreen}
+        ref={fullscreenButtonRef}
         style={{
-          position: 'fixed',
-          bottom: 12,
-          right: 12,
-          width: 48,
-          height: 48,
-          borderRadius: 10,
+          position: 'absolute',
+          bottom: 'calc(1.5vh + 1.5%)',
+          right: 'calc(1.5vw + 1.5%)',
+          width: 40,
+          height: 40,
+          borderRadius: 12,
           background: 'rgba(255,255,255,0.08)',
-          border: '1px solid rgba(255,255,255,0.15)',
+          border: '1px solid rgba(255,255,255,0.2)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
           cursor: 'pointer',
-          opacity: 0.25,
+          opacity: 0.15,
+          transition: 'opacity 0.2s ease',
+          zIndex: 50,
         }}
         onMouseEnter={(e) => (e.currentTarget.style.opacity = '1')}
-        onMouseLeave={(e) => (e.currentTarget.style.opacity = '0.25')}
+        onMouseLeave={(e) => (e.currentTarget.style.opacity = '0.3')}
+        onClick={toggleFullscreen}
       >
-        ⛶
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          stroke="white"
+          fill="none"
+          viewBox="0 0 24 24"
+          strokeWidth={1.5}
+          style={{ width: 28, height: 28 }}
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M3 9V4h5M21 9V4h-5M3 15v5h5M21 15v5h-5"
+          />
+        </svg>
       </div>
     </div>
   );

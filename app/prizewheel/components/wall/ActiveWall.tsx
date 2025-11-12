@@ -19,6 +19,7 @@ export default function ActivePrizeWheel3D({ wheel, entries }) {
 
   const tileRefs = useRef<any[]>([]);
   const wrapperRefs = useRef<HTMLElement[]>([]);
+  const selectedEntriesRef = useRef<any[] | null>(null); // ✅ cache random selection
 
   const winnerRef = useRef({
     winnerIndex: null,
@@ -41,7 +42,7 @@ export default function ActivePrizeWheel3D({ wheel, entries }) {
   const brightB = wheel?.tile_brightness_b ?? 100;
 
   /* ---------------------------------------------------------
-     ✅ FINAL normalizeEntries — use DB URL exactly as-is
+     ✅ normalizeEntries — only approved
      --------------------------------------------------------- */
   function normalizeEntries(list) {
     if (!Array.isArray(list)) return [];
@@ -49,44 +50,41 @@ export default function ActivePrizeWheel3D({ wheel, entries }) {
     const approved = list.filter(e => e.status === "approved");
 
     return approved.map(e => {
-      let photo = null;
-
-      // ✅ DB already stores full correct URL → use directly
-      if (e.photo_url && e.photo_url.trim() !== "") {
-        photo = e.photo_url;
-      }
-
-      const first =
-        e.first_name ||
-        e?.guest_profiles?.first_name ||
-        null;
-
-      const last =
-        e.last_name ||
-        e?.guest_profiles?.last_name ||
-        null;
-
-      return {
-        photo_url: photo,
-        first_name: first,
-        last_name: last
-      };
+      let photo = e.photo_url?.trim() ? e.photo_url : null;
+      const first = e.first_name || e?.guest_profiles?.first_name || null;
+      const last = e.last_name || e?.guest_profiles?.last_name || null;
+      return { photo_url: photo, first_name: first, last_name: last };
     });
   }
 
   /* ---------------------------------------------------------
-     ✅ ASSIGN ENTRIES TO TILES
+     ✅ Random selection — locked for session
      --------------------------------------------------------- */
+  function shuffleArray(arr) {
+    const copy = [...arr];
+    for (let i = copy.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [copy[i], copy[j]] = [copy[j], copy[i]];
+    }
+    return copy;
+  }
+
   function assignEntriesToTiles(normalized) {
     if (!normalized || normalized.length === 0) return;
 
-    for (let i = 0; i < wrapperRefs.current.length; i++) {
-      const entry = normalized[i % normalized.length];
-      const wrap = wrapperRefs.current[i];
+    // ✅ Only randomize once per component load
+    if (!selectedEntriesRef.current) {
+      const shuffled = shuffleArray(normalized);
+      selectedEntriesRef.current = shuffled.slice(0, 16);
+    }
 
+    const selected = selectedEntriesRef.current;
+
+    for (let i = 0; i < wrapperRefs.current.length; i++) {
+      const entry = selected[i % selected.length];
+      const wrap = wrapperRefs.current[i];
       const imgHolder = wrap.querySelector(".imgHolder");
       const nameHolder = wrap.querySelector(".nameHolder");
-
       if (!imgHolder || !nameHolder) continue;
 
       if (entry.photo_url) {
@@ -106,6 +104,8 @@ export default function ActivePrizeWheel3D({ wheel, entries }) {
         nameHolder.innerText = "";
       }
     }
+
+    console.log("🎯 Selected random entries (locked this session):", selected);
   }
 
   /* ---------------------- BACKGROUND WATCHER ---------------------- */
@@ -256,25 +256,20 @@ export default function ActivePrizeWheel3D({ wheel, entries }) {
     tileRefs.current = [];
     wrapperRefs.current = [];
     wheelGroup.rotation.y = 0;
-
     scene.add(wheelGroup);
 
-    /* ---------------------- SPIN START FN ---------------------- */
     (window as any)._prizewheel = {
       _spin: {
         start: () => {
           spinRef.current.spinning = false;
           driftRef.current.drifting = false;
-
           const w = winnerRef.current;
           w.isFrozen = false;
-
           wrapperRefs.current.forEach(w => {
             w.style.border = "none";
             w.style.animation = "none";
             w.style.boxShadow = "";
           });
-
           w.winnerIndex = null;
 
           const ctrl = spinRef.current;
@@ -285,14 +280,12 @@ export default function ActivePrizeWheel3D({ wheel, entries }) {
 
           const fullSpins = 6 + Math.random() * 4;
           let rawEnd = ctrl.startRot + Math.PI * 2 * fullSpins;
-
           rawEnd = Math.round(rawEnd / TILE_STEP) * TILE_STEP;
           ctrl.endRot = rawEnd;
         }
       }
     };
 
-    /* ---------------------- TILE CREATION ---------------------- */
     for (let i = 0; i < TILE_COUNT; i++) {
       const wrapper = document.createElement("div");
       wrapper.style.width = `${TILE_SIZE}px`;
@@ -309,19 +302,12 @@ export default function ActivePrizeWheel3D({ wheel, entries }) {
       wrapper.style.background = isA ? tileA : tileB;
       wrapper.style.filter = `brightness(${isA ? brightA : brightB}%)`;
 
-      const PLACEHOLDER_WIDTH = 0.70;
-      const PLACEHOLDER_HEIGHT = 0.60;
-      const PLACEHOLDER_TOP_OFFSET = -40;
-
-      const NAME_FONT_SIZE = 54;
-      const NAME_TOP_OFFSET = 20;
-
       const imgHolder = document.createElement("div");
       imgHolder.className = "imgHolder";
       imgHolder.style.position = "absolute";
-      imgHolder.style.width = `${PLACEHOLDER_WIDTH * 100}%`;
-      imgHolder.style.height = `${PLACEHOLDER_HEIGHT * 100}%`;
-      imgHolder.style.top = `calc(50% - ${(PLACEHOLDER_HEIGHT * TILE_SIZE) / 2}px + ${PLACEHOLDER_TOP_OFFSET}px)`;
+      imgHolder.style.width = "70%";
+      imgHolder.style.height = "60%";
+      imgHolder.style.top = "20%";
       imgHolder.style.left = "50%";
       imgHolder.style.transform = "translateX(-50%)";
       imgHolder.style.borderRadius = "22px";
@@ -339,10 +325,10 @@ export default function ActivePrizeWheel3D({ wheel, entries }) {
       const nameHolder = document.createElement("div");
       nameHolder.className = "nameHolder";
       nameHolder.style.position = "absolute";
-      nameHolder.style.top = `calc(50% + ${(PLACEHOLDER_HEIGHT * TILE_SIZE) / 2}px + ${NAME_TOP_OFFSET}px)`;
+      nameHolder.style.top = "82%";
       nameHolder.style.left = "50%";
       nameHolder.style.transform = "translateX(-50%)";
-      nameHolder.style.fontSize = `${NAME_FONT_SIZE}px`;
+      nameHolder.style.fontSize = "54px";
       nameHolder.style.fontWeight = "900";
       nameHolder.style.color = "#fff";
       nameHolder.style.textShadow = "0 0 18px rgba(0,0,0,0.8)";
@@ -360,19 +346,15 @@ export default function ActivePrizeWheel3D({ wheel, entries }) {
       wheelGroup.add(tile);
     }
 
-    /* ✅ FIRST ENTRY ASSIGN */
     assignEntriesToTiles(normalizeEntries(entries));
 
-    /* ---------------------- ANIMATION LOOP ---------------------- */
     function animate(time) {
       const spin = spinRef.current;
       const drift = driftRef.current;
       const winner = winnerRef.current;
 
-      if (winner.isFrozen) {
-        if (time - winner.freezeStart > 15000) {
-          winner.isFrozen = false;
-        }
+      if (winner.isFrozen && time - winner.freezeStart > 15000) {
+        winner.isFrozen = false;
       }
 
       if (!spin.spinning && !drift.drifting && !winner.isFrozen) {
@@ -382,19 +364,14 @@ export default function ActivePrizeWheel3D({ wheel, entries }) {
       if (spin.spinning) {
         const t = Math.min((time - spin.startTime) / spin.duration, 1);
         const eased = t * t * (3 - 2 * t);
-        wheelGroup.rotation.y =
-          spin.startRot + (spin.endRot - spin.startRot) * eased;
-
+        wheelGroup.rotation.y = spin.startRot + (spin.endRot - spin.startRot) * eased;
         if (t >= 1) {
           spin.spinning = false;
-
           drift.drifting = true;
           drift.start = performance.now();
           drift.from = wheelGroup.rotation.y;
-
           const nearest = Math.round(drift.from / TILE_STEP);
           drift.to = nearest * TILE_STEP;
-
           freezeOnWinner(nearest);
         }
       }
@@ -402,15 +379,12 @@ export default function ActivePrizeWheel3D({ wheel, entries }) {
       if (drift.drifting) {
         const t = Math.min((time - drift.start) / drift.duration, 1);
         const easeOut = 1 - Math.pow(1 - t, 3);
-        wheelGroup.rotation.y =
-          drift.from + (drift.to - drift.from) * easeOut;
-
+        wheelGroup.rotation.y = drift.from + (drift.to - drift.from) * easeOut;
         if (t >= 1) drift.drifting = false;
       }
 
       renderer.render(scene, camera);
       cssRenderer.render(scene, camera);
-
       requestAnimationFrame(animate);
     }
 
@@ -426,7 +400,7 @@ export default function ActivePrizeWheel3D({ wheel, entries }) {
   }, []);
 
   /* ===========================================================
-     ✅ UPDATE ENTRIES
+     ✅ UPDATE ENTRIES (won’t reshuffle mid-session)
      =========================================================== */
   useEffect(() => {
     if (!wrapperRefs.current.length) return;
@@ -458,7 +432,12 @@ export default function ActivePrizeWheel3D({ wheel, entries }) {
           color: "#ffffff",
           fontSize: "clamp(3rem,4vw,6rem)",
           fontWeight: 900,
-          textShadow: "0 0 18px rgba(0,0,0,0.9)",
+          textShadow: `
+            2px 2px 2px #000,
+            -2px 2px 2px #000,
+            2px -2px 2px #000,
+            -2px -2px 2px #000
+          `,
           zIndex: 20,
           margin: 0,
           pointerEvents: "none",

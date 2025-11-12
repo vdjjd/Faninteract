@@ -10,35 +10,59 @@ import { useAdInjector } from '@/hooks/useAdInjector';
 
 /* ✅ Transition styles */
 const transitions: Record<string, any> = {
-  'Fade In / Fade Out': { initial: { opacity: 0 }, animate: { opacity: 1 }, exit: { opacity: 0 }, transition: { duration: 0.8, ease: 'easeInOut' } },
-  'Slide Up / Slide Out': { initial: { opacity: 0, y: 100 }, animate: { opacity: 1, y: 0 }, exit: { opacity: 0, y: -100 }, transition: { duration: 0.9, ease: 'easeInOut' } },
-  'Slide Down / Slide Out': { initial: { opacity: 0, y: -100 }, animate: { opacity: 1, y: 0 }, exit: { opacity: 0, y: 100 }, transition: { duration: 0.9, ease: 'easeInOut' } },
-  'Slide Left / Slide Right': { initial: { opacity: 0, x: 120 }, animate: { opacity: 1, x: 0 }, exit: { opacity: 0, x: -120 }, transition: { duration: 0.9, ease: 'easeInOut' } },
-  'Slide Right / Slide Left': { initial: { opacity: 0, x: -120 }, animate: { opacity: 1, x: 0 }, exit: { opacity: 0, x: 120 }, transition: { duration: 0.9, ease: 'easeInOut' } },
-  'Zoom In / Zoom Out': { initial: { opacity: 0, scale: 0.8 }, animate: { opacity: 1, scale: 1 }, exit: { opacity: 0, scale: 1.15 }, transition: { duration: 0.9, ease: 'easeInOut' } },
-  'Zoom Out / Zoom In': { initial: { opacity: 0, scale: 1.15 }, animate: { opacity: 1, scale: 1 }, exit: { opacity: 0, scale: 0.85 }, transition: { duration: 0.9, ease: 'easeInOut' } },
-  Flip: { initial: { opacity: 0, rotateY: 180 }, animate: { opacity: 1, rotateY: 0 }, exit: { opacity: 0, rotateY: -180 }, transition: { duration: 1, ease: 'easeInOut' } },
-  'Rotate In / Rotate Out': { initial: { opacity: 0, rotate: -30, scale: 0.9 }, animate: { opacity: 1, rotate: 0, scale: 1 }, exit: { opacity: 0, rotate: 30, scale: 0.9 }, transition: { duration: 1, ease: 'easeInOut' } },
-  'Pop In / Pop Out': { initial: { opacity: 0, scale: 0.5 }, animate: { opacity: 1, scale: 1 }, exit: { opacity: 0, scale: 0.5 }, transition: { duration: 0.7, ease: 'easeOut' } },
+  'Fade In / Fade Out': {
+    initial: { opacity: 0 },
+    animate: { opacity: 1 },
+    exit: { opacity: 0 },
+    transition: { duration: 0.8, ease: 'easeInOut' },
+  },
+  'Slide Up / Slide Out': {
+    initial: { opacity: 0, y: 100 },
+    animate: { opacity: 1, y: 0 },
+    exit: { opacity: 0, y: -100 },
+    transition: { duration: 0.9, ease: 'easeInOut' },
+  },
+  'Slide Down / Slide Out': {
+    initial: { opacity: 0, y: -100 },
+    animate: { opacity: 1, y: 0 },
+    exit: { opacity: 0, y: 100 },
+    transition: { duration: 0.9, ease: 'easeInOut' },
+  },
+  'Slide Left / Slide Right': {
+    initial: { opacity: 0, x: 120 },
+    animate: { opacity: 1, x: 0 },
+    exit: { opacity: 0, x: -120 },
+    transition: { duration: 0.9, ease: 'easeInOut' },
+  },
+  'Slide Right / Slide Left': {
+    initial: { opacity: 0, x: -120 },
+    animate: { opacity: 1, x: 0 },
+    exit: { opacity: 0, x: 120 },
+    transition: { duration: 0.9, ease: 'easeInOut' },
+  },
+  'Zoom In / Zoom Out': {
+    initial: { opacity: 0, scale: 0.8 },
+    animate: { opacity: 1, scale: 1 },
+    exit: { opacity: 0, scale: 1.15 },
+    transition: { duration: 0.9, ease: 'easeInOut' },
+  },
+  Flip: {
+    initial: { opacity: 0, rotateY: 180 },
+    animate: { opacity: 1, rotateY: 0 },
+    exit: { opacity: 0, rotateY: -180 },
+    transition: { duration: 1, ease: 'easeInOut' },
+  },
 };
 
 const transitionKeys = Object.keys(transitions);
-
-const speedMap: Record<string, number> = {
-  Slow: 12000,
-  Medium: 8000,
-  Fast: 4000,
-};
+const speedMap: Record<string, number> = { Slow: 12000, Medium: 8000, Fast: 4000 };
 
 export default function SingleHighlightWall({ event, posts }) {
   const rt = useRealtimeChannel();
-
-  /* ✅ NEW unified fullscreen ref (Supabase + UI button both use this) */
   const fullscreenButtonRef = useRef<HTMLButtonElement>(null);
 
   const [livePosts, setLivePosts] = useState(posts || []);
   const [currentIndex, setCurrentIndex] = useState(0);
-
   const [title, setTitle] = useState(event?.title || 'Fan Zone Wall');
   const [logo, setLogo] = useState(event?.logo_url || '/faninteractlogo.png');
 
@@ -46,29 +70,20 @@ export default function SingleHighlightWall({ event, posts }) {
     event?.background_type === 'image'
       ? `url(${event.background_value}) center/cover no-repeat`
       : event?.background_value ||
-        'linear-gradient(135deg, #1b2735 0%, #1b2735 50%, #090a0f 100%)'
+        'linear-gradient(135deg,#1b2735,#090a0f)'
   );
-
   const [brightness, setBrightness] = useState(event?.background_brightness || 100);
-
-  const [transitionType, setTransitionType] = useState(
-    event?.post_transition || 'Fade In / Fade Out'
-  );
-
+  const [transitionType, setTransitionType] = useState(event?.post_transition || 'Fade In / Fade Out');
   const [randomTransition, setRandomTransition] = useState<string | null>(null);
-
-  const [displayDuration, setDisplayDuration] = useState(
-    speedMap[event?.transition_speed || 'Medium']
-  );
+  const [displayDuration, setDisplayDuration] = useState(speedMap[event?.transition_speed || 'Medium']);
 
   const { ads, showAd, currentAd, tick, injectorEnabled } = useAdInjector({
     hostId: event?.host_profile_id || event?.host_id || event?.id,
   });
 
-  /* ✅ LISTEN TO wall_commands TABLE */
+  /* ---------- LISTEN TO wall_commands ---------- */
   useEffect(() => {
     if (!event?.id) return;
-
     const channel = supabase
       .channel(`wall_commands_${event.id}`)
       .on(
@@ -82,72 +97,36 @@ export default function SingleHighlightWall({ event, posts }) {
         async (payload) => {
           const cmd = payload.new;
           if (!cmd) return;
-
-          // ✅ LOG EXACT COMMAND
-          console.log("WALL COMMAND RECEIVED:", cmd);
-
-          // ✅ RELOAD WALL
-          if (cmd.action?.toLowerCase().includes('reload')) {
-            window.location.reload();
-          }
-
-          // ✅ FULLSCREEN WALL (now works no matter the casing / hyphens)
-          if (cmd.action?.toLowerCase().includes('fullscreen')) {
+          if (cmd.action?.toLowerCase().includes('reload')) window.location.reload();
+          if (cmd.action?.toLowerCase().includes('fullscreen'))
             fullscreenButtonRef.current?.click();
-          }
-
           await supabase.from('wall_commands').delete().eq('id', cmd.id);
         }
       )
       .subscribe();
-
     return () => supabase.removeChannel(channel);
   }, [event?.id]);
 
-  /* Load posts */
+  /* ---------- Load + Poll Posts ---------- */
   useEffect(() => {
     if (!event?.id) return;
-
-    const load = async () => {
+    const fetchPosts = async () => {
       const { data } = await supabase
         .from('guest_posts')
         .select('*')
         .eq('fan_wall_id', event.id)
         .eq('status', 'approved')
         .order('created_at', { ascending: false });
-
       if (data) setLivePosts(data);
     };
-
-    load();
-  }, [event?.id]);
-
-  /* Poll posts */
-  useEffect(() => {
-    if (!event?.id) return;
-
-    const interval = setInterval(async () => {
-      const { data } = await supabase
-        .from('guest_posts')
-        .select('*')
-        .eq('fan_wall_id', event.id)
-        .eq('status', 'approved')
-        .order('created_at', { ascending: false });
-
-      if (data) {
-        setLivePosts((prev) =>
-          JSON.stringify(prev) === JSON.stringify(data) ? prev : data
-        );
-      }
-    }, 3000);
-
+    fetchPosts();
+    const interval = setInterval(fetchPosts, 3000);
     return () => clearInterval(interval);
   }, [event?.id]);
 
-  /* Realtime settings updates */
+  /* ---------- Realtime settings updates ---------- */
   useEffect(() => {
     if (!event?.id) return;
-
     const wallChannel = supabase
       .channel(`single_settings_${event.id}`)
       .on(
@@ -161,53 +140,38 @@ export default function SingleHighlightWall({ event, posts }) {
         (payload) => {
           const w = payload.new;
           if (!w) return;
-
-          if (w.background_value) {
+          if (w.background_value)
             setBg(
               w.background_type === 'image'
                 ? `url(${w.background_value}) center/cover no-repeat`
                 : w.background_value
             );
-          }
-
-          if (w.background_brightness !== undefined) {
-            setBrightness(w.background_brightness);
-          }
-
+          if (w.background_brightness !== undefined) setBrightness(w.background_brightness);
           if (w.title) setTitle(w.title);
           if (w.logo_url) setLogo(w.logo_url);
-
           if (w.post_transition) {
             setTransitionType(w.post_transition);
             setRandomTransition(null);
           }
-
-          if (w.transition_speed) {
-            const newDur = speedMap[w.transition_speed];
-            if (newDur !== displayDuration) setDisplayDuration(newDur);
-          }
+          if (w.transition_speed)
+            setDisplayDuration(speedMap[w.transition_speed]);
         }
       )
       .subscribe();
-
     return () => supabase.removeChannel(wallChannel);
-  }, [event?.id, displayDuration]);
+  }, [event?.id]);
 
-  /* Rotation engine */
+  /* ---------- Rotation Engine ---------- */
   useEffect(() => {
     if (!livePosts.length || showAd) return;
-
     const rotation = setInterval(() => {
       setCurrentIndex((prev) => (prev + 1) % livePosts.length);
-
       if (transitionType === 'Random') {
         const next = transitionKeys[Math.floor(Math.random() * transitionKeys.length)];
         setRandomTransition(next);
       }
-
       if (injectorEnabled) tick();
     }, displayDuration);
-
     return () => clearInterval(rotation);
   }, [livePosts.length, displayDuration, showAd, transitionType, injectorEnabled, tick]);
 
@@ -218,30 +182,30 @@ export default function SingleHighlightWall({ event, posts }) {
 
   const current = livePosts[currentIndex % (livePosts.length || 1)];
 
+  /* ---------- RENDER ---------- */
   return (
     <div
       style={{
-        background: bg,
-        filter: `brightness(${brightness}%)`,
-        width: '100%',
+        width: '100vw',
         height: '100vh',
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
+        justifyContent: 'center',
+        background: bg,
+        filter: `brightness(${brightness}%)`,
         overflow: 'hidden',
         position: 'relative',
       }}
     >
-      {/* ✅ Hidden fullscreen button */}
+      {/* Hidden Fullscreen Button */}
       <button
         ref={fullscreenButtonRef}
         style={{ display: 'none' }}
         onClick={() => {
-          if (!document.fullscreenElement) {
+          if (!document.fullscreenElement)
             document.documentElement.requestFullscreen().catch(() => {});
-          } else {
-            document.exitFullscreen().catch(() => {});
-          }
+          else document.exitFullscreen().catch(() => {});
         }}
       />
 
@@ -249,21 +213,27 @@ export default function SingleHighlightWall({ event, posts }) {
       <h1
         style={{
           color: '#fff',
-          fontSize: 'clamp(2rem,3vw,3.6rem)',
+          fontSize: 'clamp(2rem,3vw,4rem)',
           fontWeight: 900,
-          marginTop: '1.4vh',
-          marginBottom: '0.6vh',
+          marginTop: '-1h',
+          marginBottom: '0vh',
           textAlign: 'center',
-        }}
+           textShadow: `
+      2px 2px 2px #000,
+      -2px 2px 2px #000,
+      2px -2px 2px #000,
+      -2px -2px 2px #000
+    `,
+          }}
       >
         {title}
       </h1>
 
-      {/* Container */}
+      {/* Main Container */}
       <div
         style={{
-          width: '90vw',
-          height: '83vh',
+          width: 'min(92vw, 1800px)',
+          height: 'min(83vh, 950px)',
           backdropFilter: 'blur(20px)',
           background: 'rgba(255,255,255,0.08)',
           borderRadius: 24,
@@ -271,17 +241,16 @@ export default function SingleHighlightWall({ event, posts }) {
           display: 'flex',
           position: 'relative',
           overflow: 'hidden',
-          marginTop: '0.5vh',
         }}
       >
         {/* Left Photo */}
         <div
           style={{
             position: 'absolute',
-            top: '40px',
-            left: '40px',
-            width: '44%',
-            height: 'calc(100% - 80px)',
+            top: '4%',
+            left: '2%',
+            width: '46%',
+            height: '92%',
             borderRadius: 18,
             overflow: 'hidden',
           }}
@@ -292,7 +261,12 @@ export default function SingleHighlightWall({ event, posts }) {
                 key={current.id}
                 src={current.photo_url}
                 {...effectiveTransition}
-                style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 18 }}
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  objectFit: 'cover',
+                  borderRadius: 18,
+                }}
               />
             ) : (
               <motion.div
@@ -308,15 +282,16 @@ export default function SingleHighlightWall({ event, posts }) {
           </AnimatePresence>
         </div>
 
-        {/* Right side */}
+        {/* Right Side */}
         <div
           style={{
             flexGrow: 1,
             marginLeft: '46%',
-            paddingTop: '3vh',
+            paddingTop: '4vh',
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
+            justifyContent: 'flex-start',
           }}
         >
           <div style={{ width: 'clamp(260px,28vw,380px)' }}>
@@ -333,9 +308,10 @@ export default function SingleHighlightWall({ event, posts }) {
           <div
             style={{
               width: '90%',
-              height: 16,
+              height: 14,
               marginTop: '2vh',
               marginBottom: '2vh',
+              marginLeft: '3.5%', 
               borderRadius: 6,
               background: 'linear-gradient(to right,#000,#444)',
             }}
@@ -355,7 +331,7 @@ export default function SingleHighlightWall({ event, posts }) {
 
           <p
             style={{
-              fontSize: 'clamp(4rem,2vw,2.4rem)',
+              fontSize: 'clamp(4rem,2vw,2rem)',
               fontWeight: 600,
               color: '#fff',
               textAlign: 'center',
@@ -372,8 +348,8 @@ export default function SingleHighlightWall({ event, posts }) {
       <div
         style={{
           position: 'absolute',
-          bottom: 25,
-          left: 20,
+          bottom: '4.9vh',
+          left: '4vw',
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
@@ -383,17 +359,17 @@ export default function SingleHighlightWall({ event, posts }) {
           style={{
             color: '#fff',
             fontWeight: 700,
-            marginBottom: -1,
+            marginBottom: '0.3vh',
             fontSize: 'clamp(1rem,1.4vw,1.4rem)',
           }}
         >
-          Scan Me To Join
+          Scan To Join
         </p>
 
         <div
           style={{
-            padding: 8,
-            borderRadius: 16,
+            padding: 2,
+            borderRadius: 30,
             background: 'rgba(255,255,255,0.08)',
             boxShadow:
               '0 0 25px rgba(255,255,255,0.6),0 0 40px rgba(255,255,255,0.3)',
@@ -401,7 +377,7 @@ export default function SingleHighlightWall({ event, posts }) {
         >
           <QRCodeCanvas
             value={`https://faninteract.vercel.app/guest/signup?wall=${event?.id}`}
-            size={200}
+            size={160}
             bgColor="#ffffff"
             fgColor="#000000"
             level="H"
@@ -413,25 +389,27 @@ export default function SingleHighlightWall({ event, posts }) {
       {/* Ad Overlay */}
       <AdOverlay showAd={showAd && injectorEnabled} currentAd={currentAd} onAdEnd={() => {}} />
 
-      {/* ✅ Corner Fullscreen Button (links to unified engine) */}
+      {/* ✅ Fullscreen Button — centered near frosted box corner */}
       <div
         style={{
-          position: 'fixed',
-          bottom: 10,
-          right: 10,
-          width: 48,
-          height: 48,
-          borderRadius: 10,
+          position: 'absolute',
+          bottom: 'calc(1.5vh + 1.5%)',
+          right: 'calc(1.5vw + 1.5%)',
+          width: 40,
+          height: 40,
+          borderRadius: 12,
           background: 'rgba(255,255,255,0.08)',
           border: '1px solid rgba(255,255,255,0.2)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
           cursor: 'pointer',
-          opacity: 0.25,
+          opacity: 0.15,
+          transition: 'opacity 0.1s ease',
+          zIndex: 50,
         }}
         onMouseEnter={(e) => (e.currentTarget.style.opacity = '1')}
-        onMouseLeave={(e) => (e.currentTarget.style.opacity = '0.25')}
+        onMouseLeave={(e) => (e.currentTarget.style.opacity = '0.3')}
         onClick={() => fullscreenButtonRef.current?.click()}
       >
         <svg
@@ -440,9 +418,13 @@ export default function SingleHighlightWall({ event, posts }) {
           fill="none"
           viewBox="0 0 24 24"
           strokeWidth={1.5}
-          style={{ width: 26, height: 26 }}
+          style={{ width: 28, height: 28 }}
         >
-          <path strokeLinecap="round" strokeLinejoin="round" d="M3 9V4h5M21 9V4h-5M3 15v5h5M21 15v5h-5" />
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M3 9V4h5M21 9V4h-5M3 15v5h5M21 15v5h-5"
+          />
         </svg>
       </div>
     </div>
