@@ -52,7 +52,9 @@ export default function GuestSubmissionPage() {
     async function loadWall() {
       const { data } = await supabase
         .from("fan_walls")
-        .select("id,title,background_type,background_value,host:host_id (branding_logo_url)")
+        .select(
+          "id,title,background_type,background_value,host:host_id (branding_logo_url)"
+        )
         .eq("id", wallUUID)
         .single();
       setWall(data);
@@ -102,30 +104,40 @@ export default function GuestSubmissionPage() {
     return data.publicUrl;
   };
 
-/* ✅ submit */
-const submitPost = async (e: any) => {
-  e.preventDefault();
+  /* ✅ submit */
+  const submitPost = async (e: any) => {
+    e.preventDefault();
 
-  if (!message.trim()) {
-    alert("Please enter a message to post.");
-    return;
-  }
+    if (!imageSrc) {
+      alert("Please take or upload a photo before submitting.");
+      return;
+    }
 
-  setSubmitting(true);
-  const photoUrl = await uploadImage();
+    if (!message.trim()) {
+      alert("Please enter a message to post.");
+      return;
+    }
 
-  await supabase.from("guest_posts").insert([
-    {
-      fan_wall_id: wallUUID,
-      guest_profile_id: profile.id,
-      nickname: profile.first_name,
-      message,
-      photo_url: photoUrl,
-      status: "pending",
-    },
-  ]);
+    setSubmitting(true);
+    const photoUrl = await uploadImage();
 
-    // ✅ FIXED thank you redirect
+    if (!photoUrl) {
+      alert("Photo upload failed. Please try again.");
+      setSubmitting(false);
+      return;
+    }
+
+    await supabase.from("guest_posts").insert([
+      {
+        fan_wall_id: wallUUID,
+        guest_profile_id: profile.id,
+        nickname: profile.first_name,
+        message,
+        photo_url: photoUrl,
+        status: "pending",
+      },
+    ]);
+
     setTimeout(() => {
       router.push(`/thanks/${wallUUID}`);
     }, 200);
