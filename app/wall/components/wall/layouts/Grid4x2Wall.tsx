@@ -38,12 +38,13 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
         'linear-gradient(to bottom right,#1b2735,#090a0f)'
   );
 
-  const [brightness, setBrightness] = useState(
-    event?.background_brightness || 100
-  );
-
+  const [brightness, setBrightness] = useState(event?.background_brightness || 100);
   const [title, setTitle] = useState(event?.title || 'Fan Zone Wall');
   const [logo, setLogo] = useState(event?.logo_url || '/faninteractlogo.png');
+
+  /* ✅ Manual QR Position Controls */
+  const [qrPosition, setQrPosition] = useState({ bottom: 0, left: 0 });
+  const [labelOffset, setLabelOffset] = useState({ x: 0, y: 0 });
 
   const resetKey = useRef(0);
   const postPointer = useRef(0);
@@ -101,7 +102,6 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
         },
         (payload) => {
           const action = payload.new.action;
-
           if (action === 'reload_wall') {
             window.location.reload();
           }
@@ -140,10 +140,7 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
             );
           }
 
-          if (w.background_brightness !== undefined) {
-            setBrightness(w.background_brightness);
-          }
-
+          if (w.background_brightness !== undefined) setBrightness(w.background_brightness);
           if (w.title) setTitle(w.title);
           if (w.logo_url) setLogo(w.logo_url);
 
@@ -419,12 +416,12 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
         ))}
       </div>
 
-      {/* QR */}
+      {/* ✅ Adjustable QR + Label */}
       <div
         style={{
           position: 'absolute',
-          bottom: '0vh',
-          left: '0vw',
+          bottom: `${qrPosition.bottom}vh`,
+          left: `${qrPosition.left}vw`,
           textAlign: 'center',
         }}
       >
@@ -432,8 +429,9 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
           style={{
             color: '#fff',
             fontWeight: 700,
-            marginBottom: '0.4vh',
+            marginBottom: `${0.4 + labelOffset.y}vh`,
             fontSize: 'clamp(0.9rem,1.3vw,1.4rem)',
+            transform: `translateX(${labelOffset.x}vw)`
           }}
         >
           Scan Me To Join
@@ -453,12 +451,20 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
         >
           <QRCodeCanvas
             value={`https://faninteract.vercel.app/guest/signup?wall=${event?.id}`}
-            size={110}
+            size={200}
             bgColor="#ffffff"
             fgColor="#000000"
             level="H"
             style={{ borderRadius: 10 }}
           />
+        </div>
+
+        {/* 🔧 Temporary adjustment buttons */}
+        <div style={{ marginTop: 8, display: 'flex', gap: 4, justifyContent: 'center' }}>
+          <button onClick={() => setQrPosition(p => ({ ...p, left: p.left - 1 }))}>←</button>
+          <button onClick={() => setQrPosition(p => ({ ...p, left: p.left + 1 }))}>→</button>
+          <button onClick={() => setQrPosition(p => ({ ...p, bottom: p.bottom + 1 }))}>↑</button>
+          <button onClick={() => setQrPosition(p => ({ ...p, bottom: p.bottom - 1 }))}>↓</button>
         </div>
       </div>
 
@@ -466,8 +472,8 @@ export default function Grid4x2Wall({ event, posts }: Grid4x2WallProps) {
       <div
         style={{
           position: 'fixed',
-          bottom: 10,
-          right: 10,
+          bottom: 2,
+          right: 40,
           width: 48,
           height: 48,
           borderRadius: 10,
