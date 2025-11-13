@@ -61,7 +61,34 @@ export default function VotePage() {
   }, [pollId]);
 
   /* -------------------------------------------------- */
-  /* 3. Submit vote                                     */
+  /* 3. 🔥 REALTIME LISTENER (Patch Added)              */
+  /* -------------------------------------------------- */
+  useEffect(() => {
+    if (!pollId) return;
+
+    const channel = supabase
+      .channel(`poll-${pollId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "polls",
+          filter: `id=eq.${pollId}`,
+        },
+        (payload: any) => {
+          setPoll(payload.new); // instantly update state
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [pollId]);
+
+  /* -------------------------------------------------- */
+  /* 4. Submit vote                                     */
   /* -------------------------------------------------- */
   async function submitVote(optionId: string) {
     if (submitting) return;
@@ -99,7 +126,7 @@ export default function VotePage() {
           textShadow: "3px 3px 8px #000",
           textAlign: "center",
 
-          /* 🔥 Responsive Title Scaling — PATCHED */
+          /* 🔥 Responsive Title Scaling */
           fontSize: "clamp(1.4rem, 6vw, 3rem)",
           lineHeight: 1.15,
           wordBreak: "break-word",
