@@ -19,20 +19,21 @@ export default function PollRouterPage() {
   const [loading, setLoading] = useState(true);
   const updateTimeout = useRef<NodeJS.Timeout | null>(null);
 
+  /* 🔥 NEW: fade controller */
+  const [isFading, setIsFading] = useState(false);
+
   /* ------------------------------------------------------------ */
-  /* ✅ Load Poll + Host                                          */
+  /* Load Poll + Host                                             */
   /* ------------------------------------------------------------ */
   async function loadEverything() {
     try {
-      const { data: pollData, error: pollError } = await supabase
+      const { data: pollData } = await supabase
         .from('polls')
         .select('*, hosts(*)')
         .eq('id', id)
         .maybeSingle();
 
-      if (pollError) throw pollError;
       if (!pollData) {
-        console.warn('Poll not found:', id);
         setLoading(false);
         return;
       }
@@ -51,7 +52,7 @@ export default function PollRouterPage() {
   }, [id]);
 
   /* ------------------------------------------------------------ */
-  /* ✅ Listen for live status / updates                          */
+  /* Listen for live broadcast updates                            */
   /* ------------------------------------------------------------ */
   useEffect(() => {
     if (!rt?.current || !id) return;
@@ -68,8 +69,8 @@ export default function PollRouterPage() {
       if (!payload?.id || payload.id !== id) return;
 
       if (event === 'poll_update') scheduleUpdate(payload);
-      if (event === 'poll_status') {
-        if (payload.status) scheduleUpdate({ status: payload.status });
+      if (event === 'poll_status' && payload.status) {
+        scheduleUpdate({ status: payload.status });
       }
     });
 
@@ -77,7 +78,28 @@ export default function PollRouterPage() {
   }, [rt, id]);
 
   /* ------------------------------------------------------------ */
-  /* ✅ Render                                                    */
+  /* 🔥 Fade Logic: both directions now                           */
+  /* ------------------------------------------------------------ */
+  useEffect(() => {
+    if (!poll) return;
+
+    // When the poll goes ACTIVE → fade from inactive → active
+    if (poll.status === 'active') {
+      setIsFading(true);
+      const timer = setTimeout(() => setIsFading(false), 1500);
+      return () => clearTimeout(timer);
+    }
+
+    // When the poll goes INACTIVE or CLOSED → fade from active → inactive
+    if (poll.status === 'inactive' || poll.status === 'closed') {
+      setIsFading(true);
+      const timer = setTimeout(() => setIsFading(false), 1500);
+      return () => clearTimeout(timer);
+    }
+  }, [poll?.status]);
+
+  /* ------------------------------------------------------------ */
+  /* Render                                                       */
   /* ------------------------------------------------------------ */
   if (loading)
     return (
@@ -114,11 +136,48 @@ export default function PollRouterPage() {
     );
 
   /* ------------------------------------------------------------ */
-  /* ✅ Switch between walls live                                 */
+  /* Layer display logic                                          */
   /* ------------------------------------------------------------ */
-  return poll.status === 'active' ? (
-    <ActivePollWall poll={poll} host={host} />
-  ) : (
-    <InactivePollWall poll={poll} host={host} />
+  const showInactive =
+    poll.status !== 'active' || (poll.status === 'active' && isFading);
+
+  const showActive =
+    poll.status === 'active' && !isFading;
+
+  return (
+    <div
+      style={{
+        width: '100%',
+        height: '100vh',
+        position: 'relative',
+        overflow: 'hidden',
+      }}
+    >
+      {/* Inactive Wall Layer */}
+      <div
+        style={{
+          position: 'absolute',
+          inset: 0,
+          transition: 'opacity 1.5s ease',
+          opacity: showInactive ? 1 : 0,
+          pointerEvents: showInactive ? 'auto' : 'none',
+        }}
+      >
+        <InactivePollWall poll={poll} host={host} />
+      </div>
+
+      {/* Active Wall Layer */}
+      <div
+        style={{
+          position: 'absolute',
+          inset: 0,
+          transition: 'opacity 1.5s ease',
+          opacity: showActive ? 1 : 0,
+          pointerEvents: showActive ? 'auto' : 'none',
+        }}
+      >
+        <ActivePollWall poll={poll} host={host} />
+      </div>
+    </div>
   );
 }
