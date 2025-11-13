@@ -51,13 +51,13 @@ export default function PollRouterPage() {
   }, [id]);
 
   /* ------------------------------------------------------------ */
-  /* Listen for live broadcast updates                            */
+  /* 🔥 REALTIME LISTENERS (PATCHED)                              */
   /* ------------------------------------------------------------ */
   useEffect(() => {
     if (!id) return;
 
-    /* 1️⃣ Listen on shared realtime channel */
-    const channel = rt?.current;
+    /* 1️⃣ Shared realtime channel */
+    const shared = rt?.current;
 
     const scheduleUpdate = (data: any) => {
       if (updateTimeout.current) clearTimeout(updateTimeout.current);
@@ -66,16 +66,17 @@ export default function PollRouterPage() {
       }, 150);
     };
 
-    channel?.on('broadcast', {}, ({ event, payload }) => {
+    shared?.on('broadcast', {}, ({ event, payload }) => {
       if (!payload?.id || payload.id !== id) return;
 
       if (event === 'poll_update') scheduleUpdate(payload);
+
       if (event === 'poll_status' && payload.status) {
         scheduleUpdate({ status: payload.status });
       }
     });
 
-    /* 2️⃣ DIRECT subscription to the poll’s specific channel */
+    /* 2️⃣ Dedicated poll-specific realtime channel */
     const pollChannel = supabase
       .channel(`poll-${id}`)
       .on(
@@ -90,8 +91,8 @@ export default function PollRouterPage() {
       .subscribe();
 
     return () => {
-      channel?.unsubscribe?.();
       supabase.removeChannel(pollChannel);
+      // ❌ DO NOT unsubscribe shared channel (rt.current)
     };
   }, [rt, id]);
 
@@ -101,12 +102,14 @@ export default function PollRouterPage() {
   useEffect(() => {
     if (!poll) return;
 
+    // Active → fade to active wall
     if (poll.status === 'active') {
       setIsFading(true);
       const timer = setTimeout(() => setIsFading(false), 1500);
       return () => clearTimeout(timer);
     }
 
+    // Inactive / Closed → fade back to inactive wall
     if (poll.status === 'inactive' || poll.status === 'closed') {
       setIsFading(true);
       const timer = setTimeout(() => setIsFading(false), 1500);
@@ -169,6 +172,7 @@ export default function PollRouterPage() {
         overflow: 'hidden',
       }}
     >
+      {/* Inactive Wall Layer */}
       <div
         style={{
           position: 'absolute',
@@ -181,6 +185,7 @@ export default function PollRouterPage() {
         <InactivePollWall poll={poll} host={host} />
       </div>
 
+      {/* Active Wall Layer */}
       <div
         style={{
           position: 'absolute',
