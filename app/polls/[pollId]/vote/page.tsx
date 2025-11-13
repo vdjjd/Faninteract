@@ -94,10 +94,20 @@ export default function VotePage() {
       <h1
         style={{
           color: "white",
-          fontSize: "clamp(2rem,3vw,4rem)",
           fontWeight: 900,
           marginBottom: "2vh",
           textShadow: "3px 3px 8px #000",
+          textAlign: "center",
+
+          /* 🔥 Responsive Title Scaling — PATCHED */
+          fontSize: "clamp(1.4rem, 6vw, 3rem)",
+          lineHeight: 1.15,
+          wordBreak: "break-word",
+          overflowWrap: "break-word",
+          hyphens: "auto",
+          maxWidth: "95%",
+          marginLeft: "auto",
+          marginRight: "auto",
         }}
       >
         {poll.question}
@@ -123,6 +133,7 @@ export default function VotePage() {
               border: "none",
               boxShadow: "0 0 25px rgba(0,0,0,0.6)",
               cursor: isActive ? "pointer" : "default",
+              wordBreak: "break-word",
             }}
           >
             {opt.option_text}
@@ -152,6 +163,8 @@ export default function VotePage() {
               fontWeight: 900,
               textShadow: "0 0 30px #000",
               textAlign: "center",
+              padding: "0 20px",
+              lineHeight: 1.1,
             }}
           >
             Voting Not Active Yet
