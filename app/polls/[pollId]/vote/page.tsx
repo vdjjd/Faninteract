@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 
+/* Retrieve saved guest profile */
 function getStoredGuestProfile() {
   try {
     const raw =
@@ -61,7 +62,7 @@ export default function VotePage() {
   }, [pollId]);
 
   /* -------------------------------------------------- */
-  /* 3. 🔥 REALTIME LISTENER (Patch Added)              */
+  /* 3. Realtime status updates                         */
   /* -------------------------------------------------- */
   useEffect(() => {
     if (!pollId) return;
@@ -77,7 +78,7 @@ export default function VotePage() {
           filter: `id=eq.${pollId}`,
         },
         (payload: any) => {
-          setPoll(payload.new); // instantly update state
+          setPoll(payload.new);
         }
       )
       .subscribe();
@@ -88,17 +89,37 @@ export default function VotePage() {
   }, [pollId]);
 
   /* -------------------------------------------------- */
-  /* 4. Submit vote                                     */
+  /* 4. Submit vote  (PATCHED → writes to poll_votes)   */
   /* -------------------------------------------------- */
   async function submitVote(optionId: string) {
     if (submitting) return;
     setSubmitting(true);
 
-    await supabase.rpc("increment_poll_vote", { option_id: optionId });
+    const profile = getStoredGuestProfile();
+    if (!profile) {
+      router.push(`/guest/signup?redirect=/polls/${pollId}/vote`);
+      return;
+    }
+
+    const { error } = await supabase.from("poll_votes").insert({
+      poll_id: pollId,
+      option_id: optionId,
+      guest_profile_id: profile.id,
+    });
+
+    if (error) {
+      console.error("❌ Vote insert error:", error);
+      setSubmitting(false);
+      return;
+    }
 
     setSubmitting(false);
     router.push(`/polls/${pollId}/thanks`);
   }
+
+  /* -------------------------------------------------- */
+  /* Render states                                      */
+  /* -------------------------------------------------- */
 
   if (loading) return <div style={{ color: "#fff" }}>Loading…</div>;
   if (!poll) return <div style={{ color: "#fff" }}>Poll not found.</div>;
@@ -125,8 +146,6 @@ export default function VotePage() {
           marginBottom: "2vh",
           textShadow: "3px 3px 8px #000",
           textAlign: "center",
-
-          /* 🔥 Responsive Title Scaling */
           fontSize: "clamp(1.4rem, 6vw, 3rem)",
           lineHeight: 1.15,
           wordBreak: "break-word",
