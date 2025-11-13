@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 
-/* Retrieve saved guest profile */
+/* Guest profile loader */
 function getStoredGuestProfile() {
   try {
     const raw =
@@ -16,6 +16,15 @@ function getStoredGuestProfile() {
   }
 }
 
+/* Local device vote lock */
+function hasVoted(pollId: string) {
+  return localStorage.getItem(`voted_${pollId}`) === "true";
+}
+
+function setVoted(pollId: string) {
+  localStorage.setItem(`voted_${pollId}`, "true");
+}
+
 export default function VotePage() {
   const router = useRouter();
   const params = useParams();
@@ -25,11 +34,8 @@ export default function VotePage() {
   const [options, setOptions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
-  const [alreadyVoted, setAlreadyVoted] = useState(false);
 
-  /* -------------------------------------------------- */
-  /* 1. Require guest profile                           */
-  /* -------------------------------------------------- */
+  /* Require guest */
   useEffect(() => {
     const profile = getStoredGuestProfile();
     if (!profile) {
@@ -38,12 +44,8 @@ export default function VotePage() {
     }
   }, []);
 
-  /* -------------------------------------------------- */
-  /* 2. Load poll + options                             */
-  /* -------------------------------------------------- */
+  /* Load poll + options */
   async function loadEverything() {
-    const profile = getStoredGuestProfile();
-
     const { data: pollData } = await supabase
       .from("polls")
       .select("*")
@@ -57,19 +59,6 @@ export default function VotePage() {
 
     setPoll(pollData);
     setOptions(opts || []);
-
-    // check if guest already voted
-    const { data: votes } = await supabase
-      .from("poll_votes")
-      .select("*")
-      .eq("poll_id", pollId)
-      .eq("guest_profile_id", profile.id)
-      .limit(1);
-
-    if (votes && votes.length > 0) {
-      setAlreadyVoted(true);
-    }
-
     setLoading(false);
   }
 
@@ -77,9 +66,7 @@ export default function VotePage() {
     loadEverything();
   }, [pollId]);
 
-  /* -------------------------------------------------- */
-  /* 3. Realtime status updates                         */
-  /* -------------------------------------------------- */
+  /* Realtime poll status only */
   useEffect(() => {
     if (!pollId) return;
 
@@ -104,54 +91,36 @@ export default function VotePage() {
     };
   }, [pollId]);
 
-  /* -------------------------------------------------- */
-  /* 4. Submit vote                                     */
-  /* -------------------------------------------------- */
+  /* Submit Vote — ONLY updates poll_options table */
   async function submitVote(optionId: string) {
     if (submitting) return;
-    if (alreadyVoted) return;
+    if (hasVoted(pollId)) {
+      alert("You already voted in this poll.");
+      return;
+    }
 
     setSubmitting(true);
 
-    const profile = getStoredGuestProfile();
-    if (!profile) {
-      router.push(`/guest/signup?redirect=/polls/${pollId}/vote`);
-      return;
-    }
+    const { data, error } = await supabase
+      .from("poll_options")
+      .update({ vote_count: supabase.sql`vote_count + 1` })
+      .eq("id", optionId)
+      .select();
 
-    // 1. Insert vote record — unique constraint prevents duplicates
-    const { error: voteError } = await supabase.from("poll_votes").insert({
-      poll_id: pollId,
-      option_id: optionId,
-      guest_profile_id: profile.id,
-    });
+    console.log("vote update:", data, error);
 
-    if (voteError) {
-      if (voteError.code === "23505") {
-        setAlreadyVoted(true);
-      }
+    if (error) {
+      alert("Vote failed.");
       setSubmitting(false);
       return;
     }
 
-    // 2. Increment vote count in poll_options
-    const { error: countError } = await supabase.rpc("increment_vote_count", {
-      option_uuid: optionId,
-    });
-
-    if (countError) {
-      console.error("❌ Vote increment error:", countError);
-      setSubmitting(false);
-      return;
-    }
+    setVoted(pollId);
 
     setSubmitting(false);
     router.push(`/polls/${pollId}/thanks`);
   }
 
-  /* -------------------------------------------------- */
-  /* Render states                                      */
-  /* -------------------------------------------------- */
   if (loading) return <div style={{ color: "#fff" }}>Loading…</div>;
   if (!poll) return <div style={{ color: "#fff" }}>Poll not found.</div>;
 
@@ -167,38 +136,28 @@ export default function VotePage() {
         padding: "4vh 4vw",
       }}
     >
-      {/* Title */}
       <h1
         style={{
           color: "white",
           fontWeight: 900,
           marginBottom: "2vh",
-          textShadow: "3px 3px 8px #000",
           textAlign: "center",
           fontSize: "clamp(1.4rem, 6vw, 3rem)",
-          lineHeight: 1.15,
+          textShadow: "3px 3px 8px #000",
         }}
       >
         {poll.question}
       </h1>
 
-      {/* Already voted message */}
-      {alreadyVoted && (
-        <p style={{ color: "#ff4d4d", textAlign: "center", fontSize: "1.4rem" }}>
-          You’ve already voted in this poll.
-        </p>
-      )}
-
-      {/* Voting Options */}
       <div style={{ maxWidth: 900, margin: "0 auto" }}>
         {options.map((opt: any) => (
           <button
             key={opt.id}
-            disabled={!isActive || alreadyVoted}
+            disabled={!isActive || hasVoted(pollId)}
             onClick={() => submitVote(opt.id)}
             style={{
               background: opt.bar_color,
-              opacity: isActive && !alreadyVoted ? 1 : 0.35,
+              opacity: isActive && !hasVoted(pollId) ? 1 : 0.35,
               padding: "18px",
               width: "100%",
               marginBottom: "1rem",
@@ -208,7 +167,7 @@ export default function VotePage() {
               color: "#fff",
               border: "none",
               cursor:
-                isActive && !alreadyVoted ? "pointer" : "not-allowed",
+                isActive && !hasVoted(pollId) ? "pointer" : "not-allowed",
               boxShadow: "0 0 25px rgba(0,0,0,0.6)",
               transition: "0.2s",
             }}
