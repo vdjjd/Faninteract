@@ -134,7 +134,7 @@ export default function VotePage() {
     setVoted(pollId);
 
     setSubmitting(false);
-    router.push(`/polls/${pollId}/thanks`);
+    router.push(`/thanks/${pollId}`);
   }
 
   if (loading) return <div style={{ color: "#fff" }}>Loading…</div>;
