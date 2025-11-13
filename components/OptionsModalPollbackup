@@ -8,14 +8,14 @@ import Modal from './Modal';
 
 const DEFAULT_GRADIENT = 'linear-gradient(135deg,#0d47a1,#1976d2)';
 const PRESET_COLORS = [
-  '#FF0000',
-  '#FFA500',
-  '#FFFF00',
-  '#008000',
-  '#0000FF',
-  '#4B0082',
-  '#EE82EE',
-  '#A0522D',
+  '#FF0000', // red
+  '#FFA500', // orange
+  '#FFFF00', // yellow
+  '#008000', // green
+  '#0000FF', // blue
+  '#4B0082', // indigo
+  '#EE82EE', // violet
+  '#A0522D', // brown
 ];
 
 /* ---------- GRADIENT HELPERS ---------- */
@@ -109,25 +109,28 @@ export default function OptionsModalPoll({
   useEffect(() => {
     if (!poll?.id) return;
     loadPoll();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [poll?.id]);
 
   async function loadPoll() {
     try {
-      const { data: opts } = await supabase
+      const { data: opts, error: optsErr } = await supabase
         .from('poll_options')
         .select('*')
         .eq('poll_id', poll.id);
+      if (optsErr) console.error('poll_options load error:', optsErr);
 
       setQuestion(poll.question || '');
       setPrivateTitle(poll.host_title || '');
       setOptions(opts?.map((o: any) => o.option_text) || []);
       setOptionColors(opts?.map((o: any) => o.bar_color || PRESET_COLORS[0]) || []);
 
-      const { data: pollData } = await supabase
+      const { data: pollData, error: pollErr } = await supabase
         .from('polls')
         .select('*')
         .eq('id', poll.id)
         .maybeSingle();
+      if (pollErr) console.error('poll load error:', pollErr);
 
       if (pollData) {
         setBgType(pollData.background_type || 'gradient');
@@ -167,9 +170,6 @@ export default function OptionsModalPoll({
     setOptionColors((prev) => prev.filter((_, idx) => idx !== i));
   }
 
-  /* --------------------------------------------------------------------- */
-  /* ✅ FIXED: Uploads now go to `wall-backgrounds` bucket only            */
-  /* --------------------------------------------------------------------- */
   async function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
     try {
       const file = e.target.files?.[0];
@@ -183,14 +183,12 @@ export default function OptionsModalPoll({
 
       const ext = file.type.split('/')[1];
       const path = `host_${hostId}/poll_${poll.id}/background-${Date.now()}.${ext}`;
-
       const { error: uploadErr } = await supabase.storage
-        .from('wall-backgrounds')
+        .from('poll-backgrounds')
         .upload(path, compressed, { upsert: true });
-
       if (uploadErr) throw uploadErr;
 
-      const { data } = supabase.storage.from('wall-backgrounds').getPublicUrl(path);
+      const { data } = supabase.storage.from('poll-backgrounds').getPublicUrl(path);
       const finalUrl = data.publicUrl;
 
       await supabase
@@ -210,19 +208,15 @@ export default function OptionsModalPoll({
     }
   }
 
-  /* --------------------------------------------------------------------- */
-  /* ✅ FIXED: Deletion now uses `wall-backgrounds` bucket                  */
-  /* --------------------------------------------------------------------- */
   async function handleDeleteBackground() {
     try {
       if (bgType === 'image' && bgValue.includes('supabase.co')) {
-        const parts = bgValue.split('/wall-backgrounds/')[1];
+        const parts = bgValue.split('/poll-backgrounds/')[1];
         if (parts) {
           const path = decodeURIComponent(parts);
-          await supabase.storage.from('wall-backgrounds').remove([path]);
+          await supabase.storage.from('poll-backgrounds').remove([path]);
         }
       }
-
       await supabase
         .from('polls')
         .update({
@@ -230,7 +224,6 @@ export default function OptionsModalPoll({
           background_value: DEFAULT_GRADIENT,
         })
         .eq('id', poll.id);
-
       setBgType('gradient');
       setBgValue(DEFAULT_GRADIENT);
     } catch (err) {
@@ -238,9 +231,6 @@ export default function OptionsModalPoll({
     }
   }
 
-  /* --------------------------------------------------------------------- */
-  /* ✅ FIXED: Corrected background_value field in save payload            */
-  /* --------------------------------------------------------------------- */
   async function handleSave() {
     if (!question.trim()) return alert('Public Question required');
     const filled = options.map((o) => o.trim()).filter(Boolean);
@@ -261,7 +251,7 @@ export default function OptionsModalPoll({
           question,
           host_title: privateTitle,
           background_type: bgType,
-          background_value: finalBg, // ✅ FIXED
+          background_value: finalBg,
           color_start: colorStart,
           color_end: colorEnd,
           gradient_pos: gradientPosition,
@@ -279,7 +269,6 @@ export default function OptionsModalPoll({
         bar_color: optionColors[i] || PRESET_COLORS[i % PRESET_COLORS.length],
         vote_count: 0,
       }));
-
       const { error: insertErr } = await supabase.from('poll_options').insert(rows);
       if (insertErr) throw insertErr;
 
@@ -402,7 +391,6 @@ export default function OptionsModalPoll({
               </div>
             </div>
           ))}
-
           <button
             onClick={addOption}
             disabled={options.length >= 8}
@@ -469,7 +457,6 @@ export default function OptionsModalPoll({
               }}
             />
           </div>
-
           <div>
             <label className={cn('block text-xs mb-1')}>Right Color</label>
             <input
@@ -537,7 +524,14 @@ export default function OptionsModalPoll({
           <label
             htmlFor="fileUpload"
             className={cn(
-              'px-4 py-2 rounded-md bg-blue-600 hover:bg-blue-700 text-white font-semibold cursor-pointer'
+              'px-4',
+              'py-2',
+              'rounded-md',
+              'bg-blue-600',
+              'hover:bg-blue-700',
+              'text-white',
+              'font-semibold',
+              'cursor-pointer'
             )}
           >
             Choose File
@@ -549,8 +543,7 @@ export default function OptionsModalPoll({
             onChange={handleImageUpload}
             className="hidden"
           />
-
-          <p className={cn('text-xs text-gray-300 mt-2')}>
+          <p className={cn('text-xs text-gray-300 mt-2 text-center')}>
             {uploading
               ? 'Uploading...'
               : bgType === 'image'
@@ -559,7 +552,7 @@ export default function OptionsModalPoll({
           </p>
         </div>
 
-        {/* FOOTER */}
+        {/* STICKY FOOTER */}
         <div
           className={cn(
             'flex justify-between items-center pt-2 border-t border-white/10',
@@ -569,7 +562,13 @@ export default function OptionsModalPoll({
           <button
             onClick={handleDeleteBackground}
             className={cn(
-              'px-3 py-1.5 rounded-md bg-red-600/80 hover:bg-red-700 text-sm font-semibold'
+              'px-3',
+              'py-1.5',
+              'rounded-md',
+              'bg-red-600/80',
+              'hover:bg-red-700',
+              'text-sm',
+              'font-semibold'
             )}
           >
             Delete Background
@@ -584,7 +583,6 @@ export default function OptionsModalPoll({
             >
               Cancel
             </button>
-
             <button
               disabled={saving}
               onClick={handleSave}

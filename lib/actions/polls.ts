@@ -8,21 +8,20 @@ const supabase = supabaseAdmin!;
 /* -------------------------------------------------------------------------- */
 export async function createPoll(hostId: string, data: any) {
   try {
-    const { title } = data;
+    const { question, options = [] } = data;
 
     const newPoll = {
       host_id: hostId,
-      title: title || 'Untitled Poll',
-      host_title: title || 'Untitled Poll',
+      question: question || 'Untitled Poll',
       status: 'inactive',
       background_type: 'gradient',
       background_value: 'linear-gradient(135deg,#0d47a1,#1976d2)',
       layout: 'horizontal',
-      options: data.options || [],
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
 
+    // ✅ Create base poll
     const { data: created, error } = await supabase
       .from('polls')
       .insert([newPoll])
@@ -34,7 +33,8 @@ export async function createPoll(hostId: string, data: any) {
       return null;
     }
 
-    const qrUrl = `https://faninteract.vercel.app/poll/${created.id}`;
+    // ✅ Add QR link using correct plural path
+    const qrUrl = `https://faninteract.vercel.app/polls/${created.id}`;
 
     const { data: updated, error: updateError } = await supabase
       .from('polls')
@@ -45,11 +45,29 @@ export async function createPoll(hostId: string, data: any) {
 
     if (updateError) {
       console.warn('⚠️ Poll created but failed to save QR URL:', updateError.message);
-      return created;
     }
 
-    console.log('✅ Poll created successfully:', updated?.id);
-    return updated;
+    // ✅ Insert options if provided
+    if (options.length > 0) {
+      const cleanOptions = options
+        .map((opt: string) => opt.trim())
+        .filter(Boolean)
+        .map((opt: string) => ({
+          poll_id: created.id,
+          option_text: opt,
+          vote_count: 0,
+        }));
+
+      if (cleanOptions.length >= 2) {
+        const { error: optionError } = await supabase
+          .from('poll_options')
+          .insert(cleanOptions);
+        if (optionError) console.error('⚠️ Error inserting poll options:', optionError.message);
+      }
+    }
+
+    console.log('✅ Poll created successfully:', updated?.id || created.id);
+    return updated || created;
   } catch (err) {
     console.error('❌ Error creating poll:', err);
     return null;
@@ -84,8 +102,12 @@ export async function getPollsByHost(hostId: string) {
 /* -------------------------------------------------------------------------- */
 export async function deletePoll(pollId: string) {
   try {
+    // Delete associated options first (avoid FK issues)
+    await supabase.from('poll_options').delete().eq('poll_id', pollId);
+
     const { error } = await supabase.from('polls').delete().eq('id', pollId);
     if (error) throw error;
+
     console.log(`🗑️ Poll ${pollId} deleted`);
   } catch (err) {
     console.error('❌ Error deleting poll:', err);
@@ -97,30 +119,25 @@ export async function deletePoll(pollId: string) {
 /* -------------------------------------------------------------------------- */
 export async function clearPoll(pollId: string) {
   try {
+    // Delete all votes tied to this poll
     const { error: voteError } = await supabase
       .from('poll_votes')
       .delete()
       .eq('poll_id', pollId);
     if (voteError) throw voteError;
 
-    const { data: pollData, error: fetchError } = await supabase
-      .from('polls')
-      .select('options')
-      .eq('id', pollId)
-      .maybeSingle();
-    if (fetchError) throw fetchError;
+    // Reset all option counts to 0
+    const { error: resetError } = await supabase
+      .from('poll_options')
+      .update({ vote_count: 0 })
+      .eq('poll_id', pollId);
+    if (resetError) throw resetError;
 
-    const resetOptions = (pollData?.options || []).map((o: any) => ({
-      ...o,
-      votes: 0,
-    }));
-
+    // Set poll back to inactive
     const { error: updateError } = await supabase
       .from('polls')
       .update({
-        options: resetOptions,
         status: 'inactive',
-        countdown_active: false,
         updated_at: new Date().toISOString(),
       })
       .eq('id', pollId);

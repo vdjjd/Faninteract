@@ -21,7 +21,18 @@ export default function ThankYouPage() {
   const searchParams = useSearchParams();
   const supabase = getSupabaseClient();
 
-  const type = (searchParams.get("type") || "wheel").toLowerCase();
+  /* --------------------------------------------------------------------
+     🟢 PATCHED TYPE LOGIC — AUTO-DETECT POLLS
+     -------------------------------------------------------------------- */
+  const rawType = searchParams.get("type");
+  const path =
+    typeof window !== "undefined" ? window.location.pathname : "";
+
+  const type =
+    rawType?.toLowerCase() ||
+    (path.includes("/polls/") ? "poll" : "wheel");
+
+  /* -------------------------------------------------------------------- */
 
   const [data, setData] = useState<any>(null);
   const [showCloseHint, setShowCloseHint] = useState(false);
@@ -60,6 +71,7 @@ export default function ThankYouPage() {
         .maybeSingle();
 
       if (error) console.error("❌ ThankYou fetch error:", error);
+
       setData(data);
 
       if (type === "wheel" && data) {
@@ -76,7 +88,7 @@ export default function ThankYouPage() {
     fetchData();
   }, [id, type, supabase, profile?.id]);
 
-  /* ----------------------------- realtime ----------------------------- */
+  /* ----------------------------- realtime (wheel only) ----------------------------- */
   useEffect(() => {
     if (type !== "wheel" || !id) return;
 
@@ -128,7 +140,8 @@ export default function ThankYouPage() {
     "linear-gradient(135deg,#0a2540,#1b2b44,#000000)";
 
   const displayLogo =
-    data?.host?.branding_logo_url && data.host.branding_logo_url.trim() !== ""
+    data?.host?.branding_logo_url &&
+    data.host.branding_logo_url.trim() !== ""
       ? data.host.branding_logo_url
       : "/faninteractlogo.png";
 
@@ -195,7 +208,9 @@ export default function ThankYouPage() {
     transform: "translateZ(0)",
   };
 
-  const isFanWall = typeof window !== "undefined" && window.location.href.includes("fanwall");
+  const isFanWall =
+    typeof window !== "undefined" &&
+    window.location.href.includes("fanwall");
 
   /* ----------------------------- render ----------------------------- */
   return (
@@ -266,6 +281,7 @@ export default function ThankYouPage() {
           {message}
         </p>
 
+        {/* WHEEL MESSAGE (HIDDEN FOR POLLS AUTOMATICALLY) */}
         {type === "wheel" && (
           <div
             style={{
@@ -283,13 +299,14 @@ export default function ThankYouPage() {
           >
             <strong>Stay right here…</strong>
             <br />
-            At any moment, you could be chosen to <strong>SPIN THE WHEEL</strong> from your phone.
+            At any moment, you could be chosen to{" "}
+            <strong>SPIN THE WHEEL</strong> from your phone.
             <br />
             If you're picked, your button will light up automatically.
           </div>
         )}
 
-        {/* 🔥 Spin Button — wheel only, not fanwall */}
+        {/* WHEEL SPIN BUTTON (HIDDEN FOR POLLS AUTOMATICALLY) */}
         {type === "wheel" && !isFanWall && remoteEnabled && armed && (
           <button
             onClick={handleRemotePress}
@@ -311,7 +328,8 @@ export default function ThankYouPage() {
             style={{
               padding: "10px 16px",
               borderRadius: 10,
-              background: "linear-gradient(90deg,#475569,#0f172a)",
+              background:
+                "linear-gradient(90deg,#475569,#0f172a)",
               color: "#fff",
               fontWeight: 600,
               border: "none",

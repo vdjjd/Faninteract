@@ -14,9 +14,12 @@ export default function GuestSignupPage() {
   const params = useSearchParams();
 
   /* ✅ Universal redirect */
-  const redirect = params.get("redirect");      // can be /wall/... or /prizewheel/...
-  const wallId = params.get("wall");            // legacy fan wall flow
-  const wheelId = params.get("prizewheel");     // prize wheel flow
+  const redirect = params.get("redirect");      
+  const wallId = params.get("wall");            
+  const wheelId = params.get("prizewheel");     
+
+  /* ✅ NEW: poll parameter */
+  const pollId = params.get("poll");
 
   const supabase = getSupabaseClient();
 
@@ -51,7 +54,9 @@ export default function GuestSignupPage() {
     loadWall();
   }, [wallId, supabase]);
 
-  /* ✅ Smart redirect: if device already has a profile */
+  /* ---------------------------------------------------------- */
+  /* ✅ Smart redirect for returning guest (PATCHED FOR POLLS)   */
+  /* ---------------------------------------------------------- */
   useEffect(() => {
     async function validateGuest() {
       const deviceId = localStorage.getItem("guest_device_id");
@@ -59,7 +64,6 @@ export default function GuestSignupPage() {
 
       if (!deviceId || !cached) return;
 
-      // Make sure DB still has this profile
       const { data } = await supabase
         .from("guest_profiles")
         .select("id")
@@ -71,8 +75,7 @@ export default function GuestSignupPage() {
         return;
       }
 
-      // ✅ Redirect priority:
-      // 1. redirect=/whatever
+      // 1. redirect takes priority
       if (redirect) {
         router.push(redirect);
         return;
@@ -89,12 +92,20 @@ export default function GuestSignupPage() {
         router.push(`/prizewheel/${wheelId}/submit`);
         return;
       }
+
+      // 4. Poll
+      if (pollId) {
+        router.push(`/polls/${pollId}/vote`);
+        return;
+      }
     }
 
     validateGuest();
-  }, [redirect, wallId, wheelId, router, supabase]);
+  }, [redirect, wallId, wheelId, pollId, router, supabase]);
 
-  /* ✅ Submit handler */
+  /* ---------------------------------------------------------- */
+  /*  PATCH 1 + 2: Safe targetId extraction for polls           */
+  /* ---------------------------------------------------------- */
   const handleSubmit = async (e: any) => {
     e.preventDefault();
 
@@ -103,26 +114,52 @@ export default function GuestSignupPage() {
     try {
       setSubmitting(true);
 
-      // ✅ Use redirect OR wallId OR wheelId for profile sync
-      const targetId =
-        wallId || wheelId || redirect?.match(/([0-9a-fA-F-]{36})/)?.[0];
+      let targetId =
+        wallId ||
+        wheelId ||
+        redirect?.match(/([0-9a-fA-F-]{36})/)?.[0];
+
+      // NEW — If redirect is a poll path: /polls/<uuid>/vote
+      if (!targetId && redirect?.startsWith("/polls/")) {
+        const parts = redirect.split("/");
+        targetId = parts[2]; // poll UUID
+      }
+
+      // Fallback — pollId param if provided
+      if (!targetId && pollId) {
+        targetId = pollId;
+      }
 
       if (!targetId) {
         alert("Missing Target ID.");
         return;
       }
 
-      const { profile } = await syncGuestProfile("", targetId, form);
+      /* ------------------------------------------------------ */
+      /*  PATCH 3: Proper type for syncGuestProfile             */
+      /* ------------------------------------------------------ */
+      const type =
+        wallId ? "wall" :
+        wheelId ? "prizewheel" :
+        redirect?.startsWith("/polls/") ? "poll" :
+        pollId ? "poll" :
+        "";
+
+      const { profile } = await syncGuestProfile(type, targetId, form);
 
       localStorage.setItem("guest_profile", JSON.stringify(profile));
 
-      // ✅ Redirect priority:
+      /* ------------------------------------------------------ */
+      /*  PATCH 4: Redirect cases (poll added cleanly)          */
+      /* ------------------------------------------------------ */
       if (redirect) {
         router.push(redirect);
       } else if (wallId) {
         router.push(`/wall/${wallId}/submit`);
       } else if (wheelId) {
         router.push(`/prizewheel/${wheelId}/submit`);
+      } else if (pollId) {
+        router.push(`/polls/${pollId}/vote`);
       } else {
         router.push("/");
       }
@@ -140,7 +177,7 @@ export default function GuestSignupPage() {
         "relative flex items-center justify-center min-h-screen w-full overflow-hidden text-white"
       )}
     >
-      {/* ✅ Background (only for wall signups) */}
+      {/* Background (wall only) */}
       <div
         className={cn("absolute inset-0 bg-cover bg-center")}
         style={{
@@ -151,7 +188,7 @@ export default function GuestSignupPage() {
         }}
       />
 
-      {/* ✅ Dim & Blur */}
+      {/* Dim & Blur */}
       <div
         className={cn(
           "absolute",
@@ -161,7 +198,7 @@ export default function GuestSignupPage() {
         )}
       />
 
-      {/* ✅ Glass Card */}
+      {/* Glass Card */}
       <motion.div
         initial={{ opacity: 0, y: 30, scale: 0.97 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -170,7 +207,7 @@ export default function GuestSignupPage() {
           "relative z-10 w-[95%] max-w-md rounded-2xl p-8 shadow-[0_0_40px_rgba(0,150,255,0.25)] border border-white/10 bg-white/10 backdrop-blur-lg"
         )}
       >
-        {/* ✅ Logo */}
+        {/* Logo */}
         <div className={cn("flex", "justify-center", "mb-6")}>
           <Image
             src="/faninteractlogo.png"
@@ -185,7 +222,7 @@ export default function GuestSignupPage() {
           />
         </div>
 
-        {/* ✅ Title */}
+        {/* Title */}
         <motion.h2
           animate={{
             textShadow: [
@@ -206,7 +243,7 @@ export default function GuestSignupPage() {
           Join the Fan Zone
         </motion.h2>
 
-        {/* ✅ Signup Form */}
+        {/* Form */}
         <form onSubmit={handleSubmit} className="space-y-3">
           {["first_name", "last_name", "email", "phone"].map((field) => (
             <input
@@ -240,7 +277,7 @@ export default function GuestSignupPage() {
             />
           ))}
 
-          {/* ✅ Terms */}
+          {/* Terms */}
           <label
             className={cn(
               "flex",
@@ -267,7 +304,7 @@ export default function GuestSignupPage() {
             </a>
           </label>
 
-          {/* ✅ Submit Button */}
+          {/* Submit */}
           <button
             disabled={submitting}
             className={cn(

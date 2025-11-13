@@ -1,12 +1,14 @@
 'use client';
 
-import { useState } from 'react';
-import { supabase } from '@/lib/supabaseClient';
+import { useEffect, useState } from 'react';
 import imageCompression from 'browser-image-compression';
-import { cn } from "../lib/utils";
+import { supabase } from '@/lib/supabaseClient';
+import { cn } from '@/lib/utils';
+import Modal from './Modal';
 
 const DEFAULT_GRADIENT = 'linear-gradient(135deg,#0d47a1,#1976d2)';
 
+/* ---------- BRIGHTNESS ---------- */
 function applyBrightnessToGradient(gradient: string, brightness: number) {
   if (!gradient?.includes('linear-gradient')) return gradient;
   const mult = brightness / 100;
@@ -17,7 +19,8 @@ function applyBrightnessToGradient(gradient: string, brightness: number) {
   });
 }
 
-function buildPrizeWheelGradient(start: string, end: string, pos: number, brightness: number) {
+/* ---------- BUILD GRADIENT ---------- */
+function buildGradient(start: string, end: string, pos: number, brightness: number) {
   const mid1 = pos;
   const mid2 = Math.min(pos + 15, 100);
   const g = `
@@ -28,10 +31,13 @@ function buildPrizeWheelGradient(start: string, end: string, pos: number, bright
       ${end}99 ${mid2}%,
       ${end} 100%
     )
-  `.replace(/\s+/g, " ");
+  `.replace(/\s+/g, ' ');
   return applyBrightnessToGradient(g, brightness);
 }
 
+/* -------------------------------------------------------------------------- */
+/* ✅ OPTIONS MODAL - PRIZE WHEEL (Poll-modal styling + scrollable)           */
+/* -------------------------------------------------------------------------- */
 export default function OptionsModalPrizeWheel({
   event,
   hostId,
@@ -43,18 +49,20 @@ export default function OptionsModalPrizeWheel({
   onClose: () => void;
   refreshPrizeWheels: () => Promise<void>;
 }) {
-
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
 
-  const [localWheel, setLocalWheel] = useState<any>(() => {
+  const [localWheel, setLocalWheel] = useState<any | null>(null);
+
+  useEffect(() => {
+    if (!event) return;
     const start = event.color_start || '#0d47a1';
     const end = event.color_end || '#1976d2';
     const pos = event.gradient_pos ?? 60;
     const bright = event.background_brightness ?? 100;
-    const gradient = buildPrizeWheelGradient(start, end, pos, bright);
+    const gradient = buildGradient(start, end, pos, bright);
 
-    return {
+    setLocalWheel({
       ...event,
       color_start: start,
       color_end: end,
@@ -69,63 +77,94 @@ export default function OptionsModalPrizeWheel({
       tile_brightness_b: event.tile_brightness_b ?? 100,
       remote_spin_enabled: event.remote_spin_enabled ?? false,
       countdown: event.countdown || 'none',
-    };
-  });
+    });
+  }, [event]);
 
-  async function handleImageUpload(e: any) {
+  if (!localWheel) return null;
+
+  /* ------------------------------------------------------------
+     ✅ Upload background image
+  ------------------------------------------------------------ */
+  async function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
     try {
       const file = e.target.files?.[0];
       if (!file) return;
-      if (!['image/jpeg','image/png','image/webp'].includes(file.type)) {
+      if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
         alert('Please upload a JPG, PNG, or WEBP.');
         return;
       }
-
-      const previewUrl = URL.createObjectURL(file);
-      setLocalWheel({ ...localWheel, background_type: 'image', background_value: previewUrl });
       setUploading(true);
 
+      // Local preview while uploading
+      const preview = URL.createObjectURL(file);
+      setLocalWheel({ ...localWheel, background_type: 'image', background_value: preview });
+
+      // Compress & upload
       const compressed = await imageCompression(file, {
         maxWidthOrHeight: 1900,
-        useWebWorker: true
+        useWebWorker: true,
       });
 
       const ext = file.type.split('/')[1];
-      const filePath = `host_${hostId}/prizewheel_${event.id}/background-${Date.now()}.${ext}`;
+      const path = `host_${hostId}/prizewheel_${event.id}/background-${Date.now()}.${ext}`;
 
-      await supabase.storage.from('wall-backgrounds')
-        .upload(filePath, compressed, { upsert: true });
+      await supabase.storage.from('wall-backgrounds').upload(path, compressed, { upsert: true });
+      const { data } = supabase.storage.from('wall-backgrounds').getPublicUrl(path);
+      const finalUrl = data.publicUrl;
 
-      const { data: publicUrl } =
-        supabase.storage.from('wall-backgrounds').getPublicUrl(filePath);
-
-      const imageUrl = publicUrl.publicUrl;
-
-      await supabase.from('prize_wheels')
+      // Save to DB
+      await supabase
+        .from('prize_wheels')
         .update({
           background_type: 'image',
-          background_value: imageUrl,
-          updated_at: new Date().toISOString()
+          background_value: finalUrl,
+          updated_at: new Date().toISOString(),
         })
         .eq('id', event.id);
 
-      setLocalWheel({ ...localWheel, background_type: 'image', background_value: imageUrl });
+      setLocalWheel({ ...localWheel, background_type: 'image', background_value: finalUrl });
       await refreshPrizeWheels?.();
-
     } catch (err) {
-      console.error(err);
-      alert("Upload failed.");
+      console.error('❌ Upload Error:', err);
+      alert('Upload failed.');
     } finally {
       setUploading(false);
     }
   }
 
+  /* ------------------------------------------------------------
+     ✅ Delete background image (revert to gradient)
+  ------------------------------------------------------------ */
+  async function handleDeleteImage() {
+    try {
+      await supabase
+        .from('prize_wheels')
+        .update({
+          background_type: 'gradient',
+          background_value: DEFAULT_GRADIENT,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', event.id);
+
+      setLocalWheel({
+        ...localWheel,
+        background_type: 'gradient',
+        background_value: DEFAULT_GRADIENT,
+      });
+    } catch (err) {
+      console.error('❌ Delete Error:', err);
+    }
+  }
+
+  /* ------------------------------------------------------------
+     ✅ Save changes
+  ------------------------------------------------------------ */
   async function handleSave() {
     try {
       setSaving(true);
 
       const finalBg =
-        localWheel.background_type === "gradient"
+        localWheel.background_type === 'gradient'
           ? applyBrightnessToGradient(localWheel.background_value, localWheel.background_brightness)
           : localWheel.background_value;
 
@@ -133,14 +172,11 @@ export default function OptionsModalPrizeWheel({
         title: localWheel.title?.trim() || null,
         host_title: localWheel.host_title?.trim() || null,
         visibility: localWheel.visibility,
-        passphrase:
-          localWheel.visibility === "private" ? localWheel.passphrase || null : null,
+        passphrase: localWheel.visibility === 'private' ? localWheel.passphrase || null : null,
 
         remote_spin_enabled: !!localWheel.remote_spin_enabled,
 
-        countdown:
-          localWheel.countdown === "none" ? null : String(localWheel.countdown),
-
+        countdown: localWheel.countdown === 'none' ? null : String(localWheel.countdown),
         countdown_active: false,
 
         background_type: localWheel.background_type,
@@ -159,438 +195,385 @@ export default function OptionsModalPrizeWheel({
         updated_at: new Date().toISOString(),
       };
 
-      await supabase.from('prize_wheels')
-        .update(updates)
-        .eq('id', localWheel.id);
+      await supabase.from('prize_wheels').update(updates).eq('id', localWheel.id);
 
       await refreshPrizeWheels?.();
       onClose();
-
     } catch (err) {
-      console.error(err);
-      alert("Saving failed.");
+      console.error('❌ Error saving wheel:', err);
+      alert('Error saving changes');
     } finally {
       setSaving(false);
     }
   }
 
+  /* ------------------------------------------------------------
+     ✅ UI — Poll-modal look + internal scroll + sticky footer
+  ------------------------------------------------------------ */
   return (
-    <div
-      className={cn(
-        'fixed inset-0 bg-black/70 backdrop-blur-md z-[9999] flex items-center justify-center animate-fadeIn'
-      )}
-      onClick={onClose}
-    >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        className={cn(
-          'relative w-full max-w-[960px] max-h-[90vh] overflow-hidden rounded-2xl animate-zoomIn',
-          'border border-blue-500/30 shadow-[0_0_40px_rgba(0,140,255,0.45)]',
-          'bg-gradient-to-br from-[#0b0f1a]/95 to-[#111827]/95 p-6'
+    <Modal isOpen={!!event} onClose={onClose}>
+      <div className={cn('space-y-4 text-white max-h-[80vh] overflow-y-auto pr-2')}>
+        <h2 className={cn('text-xl font-semibold text-center mb-2')}>
+          ⚙ Edit Prize Wheel
+        </h2>
+
+        {/* PRIVATE TITLE */}
+        <div>
+          <label className={cn('block text-sm font-semibold mb-1')}>Private Title</label>
+          <input
+            type="text"
+            value={localWheel.host_title || ''}
+            onChange={(e) => setLocalWheel({ ...localWheel, host_title: e.target.value })}
+            className={cn('w-full px-3 py-2 rounded-lg bg-black/40 border border-white/10')}
+          />
+        </div>
+
+        {/* PUBLIC TITLE */}
+        <div>
+          <label className={cn('block text-sm font-semibold mb-1')}>Public Title</label>
+          <input
+            type="text"
+            value={localWheel.title || ''}
+            onChange={(e) => setLocalWheel({ ...localWheel, title: e.target.value })}
+            className={cn('w-full px-3 py-2 rounded-lg bg-black/40 border border-white/10')}
+          />
+        </div>
+
+        {/* VISIBILITY */}
+        <div>
+          <label className={cn('block text-sm font-semibold mb-1')}>Visibility</label>
+          <select
+            value={localWheel.visibility}
+            onChange={(e) => setLocalWheel({ ...localWheel, visibility: e.target.value })}
+            className={cn('w-full px-3 py-2 rounded-lg bg-black/40 border border-white/10 text-white')}
+          >
+            <option value="public">Public</option>
+            <option value="private">Private (passphrase)</option>
+          </select>
+        </div>
+
+        {localWheel.visibility === 'private' && (
+          <div>
+            <label className={cn('block text-sm font-semibold mb-1')}>Passphrase</label>
+            <input
+              type="text"
+              value={localWheel.passphrase || ''}
+              onChange={(e) => setLocalWheel({ ...localWheel, passphrase: e.target.value })}
+              className={cn('w-full px-3 py-2 rounded-lg bg-black/40 border border-white/10')}
+            />
+          </div>
         )}
-      >
-        <button
-          onClick={onClose}
-          className={cn('absolute top-3 right-3 text-white/80 hover:text-white text-xl')}
-        >
-          ✕
-        </button>
 
-        <div className={cn('overflow-y-auto max-h-[75vh] pr-1')}>
-          <h3 className={cn('text-center text-xl font-bold mb-3')}>
-            Edit Prize Wheel
-          </h3>
+        {/* REMOTE SPIN */}
+        <div>
+          <label className={cn('block text-sm font-semibold mb-1')}>Phone Spin Activation</label>
+          <select
+            value={localWheel.remote_spin_enabled ? 'yes' : 'no'}
+            onChange={(e) =>
+              setLocalWheel({ ...localWheel, remote_spin_enabled: e.target.value === 'yes' })
+            }
+            className={cn('w-full px-3 py-2 rounded-lg bg-black/40 border border-white/10 text-white')}
+          >
+            <option value="no">Disabled</option>
+            <option value="yes">Enabled</option>
+          </select>
+        </div>
 
-          {/* TITLES */}
-          <div className={cn('w-full max-w-[520px] mx-auto')}>
-            <label className={cn('block', 'mt-3', 'text-sm')}>Private Title</label>
+        {/* COUNTDOWN */}
+        <div>
+          <label className={cn('block text-sm font-semibold mb-1')}>Countdown</label>
+          <select
+            value={localWheel.countdown || 'none'}
+            onChange={(e) => setLocalWheel({ ...localWheel, countdown: e.target.value })}
+            className={cn('w-full px-3 py-2 rounded-lg bg-black/40 border border-white/10 text-white')}
+          >
+            <option value="none">No Countdown</option>
+            <option value="30 Seconds">30 Seconds</option>
+            <option value="1 Minute">1 Minute</option>
+            <option value="2 Minutes">2 Minutes</option>
+            <option value="3 Minutes">3 Minutes</option>
+            <option value="4 Minutes">4 Minutes</option>
+            <option value="5 Minutes">5 Minutes</option>
+          </select>
+        </div>
+
+        {/* BACKGROUND PREVIEW */}
+        <div className={cn('mt-2 text-center')}>
+          <div
+            className={cn(
+              'w-[140px] h-[80px] rounded-md border border-white/20 shadow-inner mx-auto'
+            )}
+            style={{
+              background:
+                localWheel.background_type === 'image'
+                  ? `url(${localWheel.background_value}) center/cover no-repeat`
+                  : localWheel.background_value,
+            }}
+          />
+          <p className={cn('text-xs text-gray-300 mt-2')}>
+            {localWheel.background_type === 'image'
+              ? 'Current Background Image'
+              : 'Current Gradient Background'}
+          </p>
+        </div>
+
+        {/* COLOR PICKERS */}
+        <div className={cn('flex justify-center gap-6 mt-4')}>
+          <div>
+            <label className={cn('block text-xs mb-1')}>Left Color</label>
             <input
-              type="text"
-              value={localWheel.host_title || ''}
-              onChange={(e) =>
-                setLocalWheel({ ...localWheel, host_title: e.target.value })
-              }
-              className={cn('w-full', 'p-2', 'rounded-md', 'text-black', 'mt-1')}
-            />
-          </div>
-
-          <div className={cn('w-full max-w-[520px] mx-auto')}>
-            <label className={cn('block', 'mt-3', 'text-sm')}>Public Title</label>
-            <input
-              type="text"
-              value={localWheel.title || ''}
-              onChange={(e) =>
-                setLocalWheel({ ...localWheel, title: e.target.value })
-              }
-              className={cn('w-full', 'p-2', 'rounded-md', 'text-black', 'mt-1')}
-            />
-          </div>
-
-          {/* VISIBILITY */}
-          <div className={cn('w-full max-w-[520px] mx-auto')}>
-            <label className={cn('block', 'mt-3', 'text-sm')}>Visibility</label>
-            <select
-              value={localWheel.visibility}
-              onChange={(e) =>
-                setLocalWheel({ ...localWheel, visibility: e.target.value })
-              }
-              className={cn('w-full', 'p-2', 'rounded-md', 'text-black', 'mt-1')}
-            >
-              <option value="public">Public</option>
-              <option value="private">Private (passphrase)</option>
-            </select>
-          </div>
-
-          {localWheel.visibility === 'private' && (
-            <div className={cn('w-full max-w-[520px] mx-auto')}>
-              <label className={cn('block', 'mt-3', 'text-sm')}>Passphrase</label>
-              <input
-                type="text"
-                value={localWheel.passphrase || ''}
-                onChange={(e) =>
-                  setLocalWheel({ ...localWheel, passphrase: e.target.value })
-                }
-                className={cn('w-full', 'p-2', 'rounded-md', 'text-black', 'mt-1')}
-              />
-            </div>
-          )}
-
-          {/* Remote Spin */}
-          <div className={cn('w-full max-w-[520px] mx-auto mt-4')}>
-            <label className={cn('block', 'text-sm')}>Phone Spin Activation</label>
-            <select
-              value={localWheel.remote_spin_enabled ? 'yes' : 'no'}
-              onChange={(e) =>
+              type="color"
+              value={localWheel.color_start}
+              onChange={(e) => {
+                const newStart = e.target.value;
+                const g = buildGradient(newStart, localWheel.color_end, localWheel.gradient_pos, localWheel.background_brightness);
                 setLocalWheel({
                   ...localWheel,
-                  remote_spin_enabled: e.target.value === 'yes',
-                })
-              }
-              className={cn('w-full', 'p-2', 'rounded-md', 'text-black', 'mt-1')}
-            >
-              <option value="no">Disabled</option>
-              <option value="yes">Enabled</option>
-            </select>
-          </div>
-
-          {/* COUNTDOWN */}
-          <div className={cn('w-full max-w-[520px] mx-auto mt-4')}>
-            <label className={cn('block', 'text-sm')}>Countdown</label>
-
-            <select
-              value={localWheel.countdown || 'none'}
-              onChange={(e) =>
-                setLocalWheel({ ...localWheel, countdown: e.target.value })
-              }
-              className={cn('w-full', 'p-2', 'rounded-md', 'text-black', 'mt-1')}
-            >
-              <option value="none">No Countdown</option>
-              <option value="30 Seconds">30 Seconds</option>
-              <option value="1 Minute">1 Minute</option>
-              <option value="2 Minutes">2 Minutes</option>
-              <option value="3 Minutes">3 Minutes</option>
-              <option value="4 Minutes">4 Minutes</option>
-              <option value="5 Minutes">5 Minutes</option>
-            </select>
-          </div>
-
-          {/* BACKGROUND PREVIEW */}
-          <div className={cn('w-full', 'max-w-[520px]', 'mx-auto', 'mt-6', 'text-center')}>
-            <div
-              className={cn('mx-auto', 'w-[140px]', 'rounded-md', 'border', 'border-white/10', 'shadow-inner', 'overflow-hidden', 'aspect-[16/9]')}
-              style={{
-                background:
-                  localWheel.background_type === 'image'
-                    ? `url(${localWheel.background_value}) center/cover no-repeat`
-                    : localWheel.background_value,
+                  color_start: newStart,
+                  background_type: 'gradient',
+                  background_value: g,
+                });
               }}
             />
           </div>
+          <div>
+            <label className={cn('block text-xs mb-1')}>Right Color</label>
+            <input
+              type="color"
+              value={localWheel.color_end}
+              onChange={(e) => {
+                const newEnd = e.target.value;
+                const g = buildGradient(localWheel.color_start, newEnd, localWheel.gradient_pos, localWheel.background_brightness);
+                setLocalWheel({
+                  ...localWheel,
+                  color_end: newEnd,
+                  background_type: 'gradient',
+                  background_value: g,
+                });
+              }}
+            />
+          </div>
+        </div>
 
-          {/* GRADIENT CONTROLS */}
-          <div className={cn('w-full', 'max-w-[520px]', 'mx-auto', 'mt-6')}>
-            <div className={cn('flex', 'justify-center', 'gap-6')}>
-              <div>
-                <label className={cn('block', 'text-xs', 'mb-1')}>Left Color</label>
-                <input
-                  type="color"
-                  value={localWheel.color_start}
-                  onChange={(e) => {
-                    const newStart = e.target.value;
-                    const g = buildPrizeWheelGradient(
-                      newStart,
-                      localWheel.color_end,
-                      localWheel.gradient_pos,
-                      localWheel.background_brightness
-                    );
-                    setLocalWheel({
-                      ...localWheel,
-                      color_start: newStart,
-                      background_type: 'gradient',
-                      background_value: g,
-                    });
-                  }}
-                />
-              </div>
+        {/* GRADIENT POSITION */}
+        <div className={cn('flex flex-col items-center mt-4')}>
+          <label className={cn('text-xs mb-1')}>Gradient Position</label>
+          <input
+            type="range"
+            min="0"
+            max="100"
+            value={localWheel.gradient_pos}
+            onChange={(e) => {
+              const pos = Number(e.target.value);
+              const g = buildGradient(localWheel.color_start, localWheel.color_end, pos, localWheel.background_brightness);
+              setLocalWheel({
+                ...localWheel,
+                gradient_pos: pos,
+                background_type: 'gradient',
+                background_value: g,
+              });
+            }}
+            className={cn('w-[140px] accent-blue-400')}
+          />
+          <p className={cn('text-xs mt-1')}>{localWheel.gradient_pos}%</p>
+        </div>
 
-              <div>
-                <label className={cn('block', 'text-xs', 'mb-1')}>Right Color</label>
-                <input
-                  type="color"
-                  value={localWheel.color_end}
-                  onChange={(e) => {
-                    const newEnd = e.target.value;
-                    const g = buildPrizeWheelGradient(
-                      localWheel.color_start,
-                      newEnd,
-                      localWheel.gradient_pos,
-                      localWheel.background_brightness
-                    );
-                    setLocalWheel({
-                      ...localWheel,
-                      color_end: newEnd,
-                      background_type: 'gradient',
-                      background_value: g,
-                    });
-                  }}
-                />
-              </div>
+        {/* BACKGROUND BRIGHTNESS */}
+        <div className={cn('flex flex-col items-center mt-4')}>
+          <label className={cn('text-xs mb-1')}>Background Brightness</label>
+          <input
+            type="range"
+            min="20"
+            max="150"
+            value={localWheel.background_brightness}
+            onChange={(e) => {
+              const val = Number(e.target.value);
+              const g = buildGradient(localWheel.color_start, localWheel.color_end, localWheel.gradient_pos, val);
+              setLocalWheel({
+                ...localWheel,
+                background_brightness: val,
+                background_type: 'gradient',
+                background_value: g,
+              });
+            }}
+            className={cn('w-[140px] accent-blue-400')}
+          />
+          <p className={cn('text-xs mt-1')}>{localWheel.background_brightness}%</p>
+        </div>
+
+        {/* TILE COLORS & GLOW */}
+        <p className={cn('text-red-400 text-xs text-center mt-6 mb-2')}>
+          These must be selected before the wheel window is launched.
+        </p>
+
+        <div className={cn('w-full max-w-[520px] mx-auto mt-2 flex justify-center')}>
+          <div
+            className={cn(
+              'flex flex-row gap-12 p-4 rounded-xl border border-white/10 bg-black/20 shadow-inner'
+            )}
+          >
+            {/* Glow */}
+            <div className={cn('flex flex-col items-center')}>
+              <label className={cn('text-sm font-semibold mb-2')}>Glow</label>
+              <input
+                type="color"
+                value={localWheel.tile_glow_color}
+                onChange={(e) => setLocalWheel({ ...localWheel, tile_glow_color: e.target.value })}
+                className={cn('w-10 h-10 rounded-md border border-white/20')}
+              />
+              <div
+                className={cn('h-10 w-16 mt-2 rounded-md border border-white/20')}
+                style={{ background: '#111', boxShadow: `0 0 20px ${localWheel.tile_glow_color}` }}
+              />
             </div>
 
-            <div className={cn('mt-5', 'flex', 'flex-col', 'items-center')}>
-              <label className={cn('text-xs', 'mb-1')}>Gradient Position</label>
-              <div className={cn('w-[160px]', 'p-2', 'rounded-md', 'bg-[#0f172a]/40', 'shadow-inner')}>
-                <input
-                  type="range"
-                  min="0"
-                  max="100"
-                  value={localWheel.gradient_pos}
-                  onChange={(e) => {
-                    const pos = Number(e.target.value);
-                    const g = buildPrizeWheelGradient(
-                      localWheel.color_start,
-                      localWheel.color_end,
-                      pos,
-                      localWheel.background_brightness
-                    );
-                    setLocalWheel({
-                      ...localWheel,
-                      gradient_pos: pos,
-                      background_type: 'gradient',
-                      background_value: g,
-                    });
-                  }}
-                  className={cn('w-full', 'accent-blue-400')}
-                />
-              </div>
-              <p className={cn('text-xs', 'mt-1')}>{localWheel.gradient_pos}%</p>
+            {/* Tile A */}
+            <div className={cn('flex flex-col items-center')}>
+              <label className={cn('text-sm font-semibold mb-2')}>Tile A</label>
+              <input
+                type="color"
+                value={localWheel.tile_color_a}
+                onChange={(e) => setLocalWheel({ ...localWheel, tile_color_a: e.target.value })}
+                className={cn('w-10 h-10 rounded-md border border-white/20')}
+              />
+              <div
+                className={cn('h-10 w-16 mt-2 rounded-md border border-white/20')}
+                style={{ background: localWheel.tile_color_a, opacity: localWheel.tile_brightness_a / 100 }}
+              />
             </div>
 
-            <div className={cn('mt-5', 'flex', 'flex-col', 'items-center')}>
-              <label className={cn('text-xs', 'mb-1')}>Background Brightness</label>
-              <div className={cn('w-[160px]', 'p-2', 'rounded-md', 'bg-[#0f172a]/40', 'shadow-inner')}>
-                <input
-                  type="range"
-                  min="20"
-                  max="150"
-                  value={localWheel.background_brightness}
-                  onChange={(e) => {
-                    const val = Number(e.target.value);
-                    const g = buildPrizeWheelGradient(
-                      localWheel.color_start,
-                      localWheel.color_end,
-                      localWheel.gradient_pos,
-                      val
-                    );
-                    setLocalWheel({
-                      ...localWheel,
-                      background_brightness: val,
-                      background_type: 'gradient',
-                      background_value: g,
-                    });
-                  }}
-                  className={cn('w-full', 'accent-blue-400')}
-                />
-              </div>
-              <p className={cn('text-xs', 'mt-1')}>
-                {localWheel.background_brightness}%
-              </p>
+            {/* Tile B */}
+            <div className={cn('flex flex-col items-center')}>
+              <label className={cn('text-sm font-semibold mb-2')}>Tile B</label>
+              <input
+                type="color"
+                value={localWheel.tile_color_b}
+                onChange={(e) => setLocalWheel({ ...localWheel, tile_color_b: e.target.value })}
+                className={cn('w-10 h-10 rounded-md border border-white/20')}
+              />
+              <div
+                className={cn('h-10 w-16 mt-2 rounded-md border border-white/20')}
+                style={{ background: localWheel.tile_color_b, opacity: localWheel.tile_brightness_b / 100 }}
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* TILE BRIGHTNESS */}
+        <div className={cn('w-full max-w-[520px] mx-auto mt-6')}>
+          {/* A */}
+          <div className={cn('mb-4 flex flex-col items-center')}>
+            <label className={cn('block text-xs mb-1')}>Tile A Brightness</label>
+            <div className={cn('w-[160px] p-2 rounded-md bg-[#0f172a]/40 shadow-inner')}>
+              <input
+                type="range"
+                min="20"
+                max="150"
+                value={localWheel.tile_brightness_a}
+                onChange={(e) =>
+                  setLocalWheel({ ...localWheel, tile_brightness_a: Number(e.target.value) })
+                }
+                className={cn('w-full accent-blue-400')}
+              />
             </div>
           </div>
 
-          {/* TILE COLORS */}
-          <p className={cn('text-red-400', 'text-xs', 'text-center', 'mt-8', 'mb-2')}>
-            These must be selected before the wheel window is launched.
+          {/* B */}
+          <div className={cn('mb-2 flex flex-col items-center')}>
+            <label className={cn('block text-xs mb-1')}>Tile B Brightness</label>
+            <div className={cn('w-[160px] p-2 rounded-md bg-[#0f172a]/40 shadow-inner')}>
+              <input
+                type="range"
+                min="20"
+                max="150"
+                value={localWheel.tile_brightness_b}
+                onChange={(e) =>
+                  setLocalWheel({ ...localWheel, tile_brightness_b: Number(e.target.value) })
+                }
+                className={cn('w-full accent-blue-400')}
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* IMAGE UPLOAD / DELETE */}
+        <div className={cn('flex flex-col items-center mt-4')}>
+          <p className={cn('text-sm font-semibold mb-2')}>Upload Background</p>
+          <label
+            htmlFor="pw-fileUpload"
+            className={cn(
+              'px-4 py-2 rounded-md bg-blue-600 hover:bg-blue-700 text-white font-semibold cursor-pointer'
+            )}
+          >
+            Choose File
+          </label>
+          <input
+            id="pw-fileUpload"
+            type="file"
+            accept="image/png,image/jpeg,image/webp"
+            onChange={handleImageUpload}
+            className="hidden"
+          />
+          <p className={cn('text-xs text-gray-300 mt-2 text-center')}>
+            {uploading
+              ? 'Uploading...'
+              : localWheel.background_type === 'image'
+              ? localWheel.background_value?.split('/').pop()
+              : 'No file chosen'}
           </p>
 
-          <div className={cn('w-full', 'max-w-[520px]', 'mx-auto', 'mt-4', 'flex', 'justify-center')}>
-            <div className={cn(
-              'flex',
-              'flex-row',
-              'gap-12',
-              'p-4',
-              'rounded-xl',
-              'border',
-              'border-white/10',
-              'bg-black/20',
-              'shadow-inner'
-            )}>
+          {localWheel.background_type === 'image' && (
+            <button
+              onClick={handleDeleteImage}
+              className={cn(
+                'mt-3 bg-red-600 hover:bg-red-700 px-3 py-1 rounded text-xs font-semibold'
+              )}
+            >
+              🗑 Delete Background Image
+            </button>
+          )}
+        </div>
 
-              <div className={cn('flex', 'flex-col', 'items-center')}>
-                <label className={cn('text-sm', 'font-semibold', 'mb-2')}>Glow</label>
-                <input
-                  type="color"
-                  value={localWheel.tile_glow_color}
-                  onChange={(e) =>
-                    setLocalWheel({
-                      ...localWheel,
-                      tile_glow_color: e.target.value,
-                    })
-                  }
-                  className={cn('w-10', 'h-10', 'rounded-md', 'border', 'border-white/20')}
-                />
-                <div
-                  className={cn('h-10', 'w-16', 'mt-2', 'rounded-md', 'border', 'border-white/20')}
-                  style={{
-                    background: '#111',
-                    boxShadow: `0 0 20px ${localWheel.tile_glow_color}`,
-                  }}
-                />
-              </div>
-
-              <div className={cn('flex', 'flex-col', 'items-center')}>
-                <label className={cn('text-sm', 'font-semibold', 'mb-2')}>Tile A</label>
-                <input
-                  type="color"
-                  value={localWheel.tile_color_a}
-                  onChange={(e) =>
-                    setLocalWheel({
-                      ...localWheel,
-                      tile_color_a: e.target.value,
-                    })
-                  }
-                  className={cn('w-10', 'h-10', 'rounded-md', 'border', 'border-white/20')}
-                />
-                <div
-                  className={cn('h-10', 'w-16', 'mt-2', 'rounded-md', 'border', 'border-white/20')}
-                  style={{
-                    background: localWheel.tile_color_a,
-                    opacity: localWheel.tile_brightness_a / 100,
-                  }}
-                />
-              </div>
-
-              <div className={cn('flex', 'flex-col', 'items-center')}>
-                <label className={cn('text-sm', 'font-semibold', 'mb-2')}>Tile B</label>
-                <input
-                  type="color"
-                  value={localWheel.tile_color_b}
-                  onChange={(e) =>
-                    setLocalWheel({
-                      ...localWheel,
-                      tile_color_b: e.target.value,
-                    })
-                  }
-                  className={cn('w-10', 'h-10', 'rounded-md', 'border', 'border-white/20')}
-                />
-                <div
-                  className={cn('h-10', 'w-16', 'mt-2', 'rounded-md', 'border', 'border-white/20')}
-                  style={{
-                    background: localWheel.tile_color_b,
-                    opacity: localWheel.tile_brightness_b / 100,
-                  }}
-                />
-              </div>
-
-            </div>
-          </div>
-
-          {/* ✅ TILE BRIGHTNESS (PATCHED) */}
-          <div className={cn('w-full', 'max-w-[520px]', 'mx-auto', 'mt-6')}>
-            
-            {/* A */}
-            <div className={cn('mb-4', 'flex', 'flex-col', 'items-center')}>
-              <label className={cn('block', 'text-xs', 'mb-1')}>Tile A Brightness</label>
-              <div className={cn('w-[160px]', 'p-2', 'rounded-md', 'bg-[#0f172a]/40', 'shadow-inner')}>
-                <input
-                  type="range"
-                  min="20"
-                  max="150"
-                  value={localWheel.tile_brightness_a}
-                  onChange={(e) =>
-                    setLocalWheel({
-                      ...localWheel,
-                      tile_brightness_a: Number(e.target.value),
-                    })
-                  }
-                  className={cn('w-full', 'accent-blue-400')}
-                />
-              </div>
-            </div>
-
-            {/* B */}
-            <div className={cn('mb-4', 'flex', 'flex-col', 'items-center')}>
-              <label className={cn('block', 'text-xs', 'mb-1')}>Tile B Brightness</label>
-              <div className={cn('w-[160px]', 'p-2', 'rounded-md', 'bg-[#0f172a]/40', 'shadow-inner')}>
-                <input
-                  type="range"
-                  min="20"
-                  max="150"
-                  value={localWheel.tile_brightness_b}
-                  onChange={(e) =>
-                    setLocalWheel({
-                      ...localWheel,
-                      tile_brightness_b: Number(e.target.value),
-                    })
-                  }
-                  className={cn('w-full', 'accent-blue-400')}
-                />
-              </div>
-            </div>
-
-          </div>
-
-          {/* BACKGROUND UPLOAD */}
-          <div className={cn('mt-6', 'text-center', 'w-full', 'max-w-[520px]', 'mx-auto')}>
-            <p className={cn('text-sm', 'font-semibold', 'mb-2')}>Upload Background</p>
-
-            <input
-              type="file"
-              accept="image/jpeg,image/png,image/webp"
-              onChange={handleImageUpload}
-              className="w-full"
-            />
-
-            {uploading && (
-              <p className={cn('text-yellow-400', 'text-xs', 'mt-2', 'animate-pulse')}>
-                Uploading…
-              </p>
+        {/* STICKY FOOTER */}
+        <div
+          className={cn(
+            'flex justify-between items-center pt-2 border-t border-white/10',
+            'sticky bottom-0 bg-[#0b0f1a]/90 backdrop-blur-sm py-2'
+          )}
+        >
+          <button
+            onClick={handleDeleteImage}
+            className={cn(
+              'px-3 py-1.5 rounded-md text-sm bg-red-600/80 hover:bg-red-700 font-medium'
             )}
-          </div>
+          >
+            Delete Background
+          </button>
 
-          {/* SAVE + CLOSE */}
-          <div className={cn('text-center', 'mt-6', 'flex', 'justify-center', 'gap-4')}>
+          <div className={cn('flex gap-2')}>
+            <button
+              onClick={onClose}
+              className={cn(
+                'px-3 py-1.5 rounded-md text-sm bg-white/10 hover:bg-white/15 font-medium'
+              )}
+            >
+              Cancel
+            </button>
             <button
               disabled={saving}
               onClick={handleSave}
               className={cn(
-                saving ? 'bg-gray-500' : 'bg-green-600 hover:bg-green-700',
-                'px-4 py-2 rounded font-semibold'
+                'px-3 py-1.5 rounded-md text-sm border font-medium',
+                saving
+                  ? 'opacity-60 cursor-wait'
+                  : 'bg-emerald-600/80 border-emerald-500 hover:bg-emerald-600'
               )}
             >
-              {saving ? 'Saving…' : 'Save'}
-            </button>
-
-            <button
-              onClick={onClose}
-              className={cn('bg-red-600', 'hover:bg-red-700', 'px-4', 'py-2', 'rounded', 'font-semibold')}
-            >
-              Close
+              {saving ? 'Saving…' : 'Save Changes'}
             </button>
           </div>
-
         </div>
       </div>
-    </div>
+    </Modal>
   );
 }

@@ -10,7 +10,12 @@ interface ModalProps extends React.PropsWithChildren {
   size?: "default" | "xl";
 }
 
-export default function Modal({ isOpen, onClose, children, size = "default" }: ModalProps) {
+export default function Modal({
+  isOpen,
+  onClose,
+  children,
+  size = "default",
+}: ModalProps) {
   useEffect(() => {
     const handleEsc = (e: KeyboardEvent) => e.key === "Escape" && onClose();
     window.addEventListener("keydown", handleEsc);
@@ -29,14 +34,16 @@ export default function Modal({ isOpen, onClose, children, size = "default" }: M
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
+          transition={{ duration: 0.2, ease: "easeOut" }}
           onClick={onClose}
         >
+          {/* 🧩 MODAL BODY — removed scale animation to stop flicker */}
           <motion.div
             onClick={(e) => e.stopPropagation()}
-            initial={{ scale: 0.92, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            exit={{ scale: 0.92, opacity: 0 }}
-            transition={{ duration: 0.22, ease: "easeInOut" }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.18, ease: "easeOut" }}
             className={cn(
               "relative border border-blue-900/40 shadow-md rounded-2xl",
               isXL
@@ -46,7 +53,9 @@ export default function Modal({ isOpen, onClose, children, size = "default" }: M
           >
             <button
               onClick={onClose}
-              className={cn('absolute', 'top-3', 'right-3', 'text-gray-400', 'hover:text-white', 'text-2xl', 'leading-none')}
+              className={cn(
+                "absolute top-3 right-3 text-gray-400 hover:text-white text-2xl leading-none"
+              )}
             >
               ×
             </button>

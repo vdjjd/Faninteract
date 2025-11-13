@@ -175,7 +175,7 @@ export default function ActivePrizeWheel3D({ wheel, entries }) {
   const ambientRef = useRef({ speed: 0.00065 });
 
   /* ===========================================================
-     ✅ Freeze + Winner Highlight
+     ✅ Freeze + Winner Highlight (patched for elegant halo)
      =========================================================== */
   function freezeOnWinner(tileIndex) {
     const w = winnerRef.current;
@@ -192,8 +192,9 @@ export default function ActivePrizeWheel3D({ wheel, entries }) {
     const wrapper = wrapperRefs.current[tileIndex];
     if (wrapper) {
       wrapper.style.border = "12px solid gold";
-      wrapper.style.boxShadow = "0 0 70px gold";
-      wrapper.style.animation = "winnerPulse 1.2s ease-in-out infinite";
+      wrapper.style.boxShadow =
+        "0 0 80px rgba(255,215,0,0.6), inset 0 0 20px rgba(255,215,0,0.4)";
+      wrapper.style.animation = "winnerHalo 1.4s ease-in-out infinite";
     }
   }
 
@@ -234,7 +235,7 @@ export default function ActivePrizeWheel3D({ wheel, entries }) {
     cssRenderer.setSize(width, height);
     cssRenderer.domElement.style.position = "absolute";
     cssRenderer.domElement.style.top = "0";
-    cssRenderer.domElement.style.left = "0";
+    cssRenderer.domElement.style.left = ".50";
     container.appendChild(cssRenderer.domElement);
 
     function handleResize() {
@@ -415,10 +416,20 @@ export default function ActivePrizeWheel3D({ wheel, entries }) {
     <div style={{ width: "100%", height: "100vh", position: "relative" }}>
       <style>
         {`
-          @keyframes winnerPulse {
-            0% { box-shadow: 0 0 40px gold; }
-            50% { box-shadow: 0 0 110px gold; }
-            100% { box-shadow: 0 0 40px gold; }
+          /* ✅ Classy golden halo winner animation */
+          @keyframes winnerHalo {
+            0% {
+              box-shadow: 0 0 60px rgba(255,215,0,0.4),
+                          inset 0 0 10px rgba(255,215,0,0.6);
+            }
+            50% {
+              box-shadow: 0 0 150px rgba(255,215,0,1),
+                          inset 0 0 20px rgba(255,215,0,0.8);
+            }
+            100% {
+              box-shadow: 0 0 60px rgba(255,215,0,0.4),
+                          inset 0 0 10px rgba(255,215,0,0.6);
+            }
           }
         `}
       </style>
