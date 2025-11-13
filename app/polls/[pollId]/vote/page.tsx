@@ -91,7 +91,7 @@ export default function VotePage() {
     };
   }, [pollId]);
 
-  /* Submit Vote — ONLY updates poll_options table */
+  /* Submit Vote — increments vote_count directly */
   async function submitVote(optionId: string) {
     if (submitting) return;
     if (hasVoted(pollId)) {
@@ -103,8 +103,9 @@ export default function VotePage() {
 
     const { data, error } = await supabase
       .from("poll_options")
-      .update({ vote_count: supabase.sql`vote_count + 1` })
+      .update({}) // required for supabase client
       .eq("id", optionId)
+      .increment("vote_count", 1)
       .select();
 
     console.log("vote update:", data, error);
@@ -115,6 +116,7 @@ export default function VotePage() {
       return;
     }
 
+    // mark device as voted
     setVoted(pollId);
 
     setSubmitting(false);
