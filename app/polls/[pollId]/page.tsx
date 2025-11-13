@@ -19,7 +19,6 @@ export default function PollRouterPage() {
   const [loading, setLoading] = useState(true);
   const updateTimeout = useRef<NodeJS.Timeout | null>(null);
 
-  /* 🔥 NEW: fade controller */
   const [isFading, setIsFading] = useState(false);
 
   /* ------------------------------------------------------------ */
@@ -55,17 +54,19 @@ export default function PollRouterPage() {
   /* Listen for live broadcast updates                            */
   /* ------------------------------------------------------------ */
   useEffect(() => {
-    if (!rt?.current || !id) return;
-    const channel = rt.current;
+    if (!id) return;
+
+    /* 1️⃣ Listen on shared realtime channel */
+    const channel = rt?.current;
 
     const scheduleUpdate = (data: any) => {
       if (updateTimeout.current) clearTimeout(updateTimeout.current);
       updateTimeout.current = setTimeout(() => {
-        setPoll((prev: any) => ({ ...prev, ...data }));
+        setPoll((prev) => ({ ...prev, ...data }));
       }, 150);
     };
 
-    channel.on('broadcast', {}, ({ event, payload }) => {
+    channel?.on('broadcast', {}, ({ event, payload }) => {
       if (!payload?.id || payload.id !== id) return;
 
       if (event === 'poll_update') scheduleUpdate(payload);
@@ -74,23 +75,38 @@ export default function PollRouterPage() {
       }
     });
 
-    return () => channel.unsubscribe?.();
+    /* 2️⃣ DIRECT subscription to the poll’s specific channel */
+    const pollChannel = supabase
+      .channel(`poll-${id}`)
+      .on(
+        'broadcast',
+        { event: 'poll_status' },
+        (msg) => {
+          if (msg?.payload?.status) {
+            setPoll((prev) => ({ ...prev, status: msg.payload.status }));
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      channel?.unsubscribe?.();
+      supabase.removeChannel(pollChannel);
+    };
   }, [rt, id]);
 
   /* ------------------------------------------------------------ */
-  /* 🔥 Fade Logic: both directions now                           */
+  /* Fade Logic: both directions now                              */
   /* ------------------------------------------------------------ */
   useEffect(() => {
     if (!poll) return;
 
-    // When the poll goes ACTIVE → fade from inactive → active
     if (poll.status === 'active') {
       setIsFading(true);
       const timer = setTimeout(() => setIsFading(false), 1500);
       return () => clearTimeout(timer);
     }
 
-    // When the poll goes INACTIVE or CLOSED → fade from active → inactive
     if (poll.status === 'inactive' || poll.status === 'closed') {
       setIsFading(true);
       const timer = setTimeout(() => setIsFading(false), 1500);
@@ -153,7 +169,6 @@ export default function PollRouterPage() {
         overflow: 'hidden',
       }}
     >
-      {/* Inactive Wall Layer */}
       <div
         style={{
           position: 'absolute',
@@ -166,7 +181,6 @@ export default function PollRouterPage() {
         <InactivePollWall poll={poll} host={host} />
       </div>
 
-      {/* Active Wall Layer */}
       <div
         style={{
           position: 'absolute',
