@@ -16,7 +16,6 @@ export default function PollGrid({ host, refreshPolls, onOpenOptions }: PollGrid
   const [voteCounts, setVoteCounts] = useState<{ [key: string]: number }>({});
   const timers = useRef<{ [key: string]: NodeJS.Timeout }>({});
   const refreshInterval = useRef<NodeJS.Timeout | null>(null);
-  const [fadePollId, setFadePollId] = useState<string | null>(null);
 
   /* ------------------------------------------------------------
      Load Polls + Vote Counts
@@ -68,7 +67,7 @@ export default function PollGrid({ host, refreshPolls, onOpenOptions }: PollGrid
   }
 
   /* ------------------------------------------------------------
-     Start / Stop Logic
+     Start / Stop Logic (NO FADES)
   ------------------------------------------------------------ */
   function startCountdown(poll: any) {
     const secs = getCountdownSeconds(poll);
@@ -98,25 +97,17 @@ export default function PollGrid({ host, refreshPolls, onOpenOptions }: PollGrid
     clearInterval(timers.current[poll.id]);
     setCountdowns((prev) => ({ ...prev, [poll.id]: secs }));
 
-    if (poll.status === 'active') {
-      setFadePollId(poll.id);
-      setTimeout(() => {
-        setFadePollId(null);
-        handleStatus(poll.id, 'inactive');
-      }, 500);
-    } else {
-      handleStatus(poll.id, 'inactive');
-    }
+    // NO FADE — instant inactive
+    handleStatus(poll.id, 'inactive');
   }
 
   /* ------------------------------------------------------------
-     PATCHED: Status Update + Broadcast
+     Status Update + Broadcast
   ------------------------------------------------------------ */
   async function handleStatus(id: string, status: string) {
-    // 1. Update the table
     await supabase.from('polls').update({ status }).eq('id', id);
 
-    // 2. NEW: Broadcast to active poll wall
+    // broadcast to the wall so it fades properly
     await supabase
       .channel(`poll-${id}`)
       .send({
@@ -125,7 +116,6 @@ export default function PollGrid({ host, refreshPolls, onOpenOptions }: PollGrid
         payload: { id, status },
       });
 
-    // 3. Refresh dashboard UI
     await loadPolls();
   }
 
@@ -176,13 +166,12 @@ export default function PollGrid({ host, refreshPolls, onOpenOptions }: PollGrid
             <div
               key={poll.id}
               className={cn(
-                'rounded-xl p-4 text-center shadow-lg flex flex-col justify-between transition-all duration-500',
+                'rounded-xl p-4 text-center shadow-lg flex flex-col justify-between transition-all duration-200', // transition just for hover, not fade
                 poll.status === 'active'
                   ? 'ring-4 ring-lime-400 shadow-lime-500/50'
                   : poll.status === 'closed'
                   ? 'ring-4 ring-rose-500 shadow-rose-500/50'
-                  : 'ring-0',
-                fadePollId === poll.id ? 'opacity-0' : 'opacity-100'
+                  : 'ring-0'
               )}
               style={bgStyle}
             >
@@ -190,6 +179,7 @@ export default function PollGrid({ host, refreshPolls, onOpenOptions }: PollGrid
                 <h3 className={cn('font-bold text-lg mb-1 drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)]')}>
                   {poll.host_title || poll.question || 'Untitled Poll'}
                 </h3>
+
                 <p className={cn('text-sm mb-1 opacity-80')}>
                   <strong>Status:</strong>{' '}
                   <span
@@ -204,9 +194,11 @@ export default function PollGrid({ host, refreshPolls, onOpenOptions }: PollGrid
                     {poll.status?.toUpperCase?.() || 'UNKNOWN'}
                   </span>
                 </p>
+
                 <p className={cn('text-sm opacity-80')}>
                   <strong>Votes:</strong> {voteCounts[poll.id] ?? 0}
                 </p>
+
                 {countdownVal > 0 && (
                   <p className={cn('text-xs text-cyan-300 mt-1')}>
                     Countdown: {countdownVal}s
@@ -214,6 +206,7 @@ export default function PollGrid({ host, refreshPolls, onOpenOptions }: PollGrid
                 )}
               </div>
 
+              {/* Buttons */}
               <div className={cn('flex justify-center gap-2 mb-2')}>
                 <button
                   onClick={() => startCountdown(poll)}
@@ -224,7 +217,7 @@ export default function PollGrid({ host, refreshPolls, onOpenOptions }: PollGrid
 
                 <button
                   onClick={() => stopCountdown(poll)}
-                  className={cn('px-2 py-1 rounded text-sm font-semibold bg-yellow-600 hover:bg-yellow-700')}
+                  className={cn('bg-yellow-600 hover:bg-yellow-700 px-2 py-1 rounded text-sm font-semibold')}
                 >
                   ⏹ Stop
                 </button>
