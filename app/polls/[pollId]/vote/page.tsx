@@ -91,7 +91,7 @@ export default function VotePage() {
     };
   }, [pollId]);
 
-  /* Submit Vote — increments vote_count directly */
+  /* Submit Vote — READ → ADD 1 → UPDATE */
   async function submitVote(optionId: string) {
     if (submitting) return;
     if (hasVoted(pollId)) {
@@ -101,22 +101,36 @@ export default function VotePage() {
 
     setSubmitting(true);
 
-    const { data, error } = await supabase
+    // 1️⃣ Get current vote count
+    const { data: optionRow, error: fetchError } = await supabase
       .from("poll_options")
-      .update({}) // required for supabase client
+      .select("vote_count")
       .eq("id", optionId)
-      .increment("vote_count", 1)
-      .select();
+      .single();
 
-    console.log("vote update:", data, error);
+    if (fetchError) {
+      console.error(fetchError);
+      alert("Could not read current votes.");
+      setSubmitting(false);
+      return;
+    }
 
-    if (error) {
+    const newCount = (optionRow.vote_count || 0) + 1;
+
+    // 2️⃣ Update with +1
+    const { error: updateError } = await supabase
+      .from("poll_options")
+      .update({ vote_count: newCount })
+      .eq("id", optionId);
+
+    if (updateError) {
+      console.error(updateError);
       alert("Vote failed.");
       setSubmitting(false);
       return;
     }
 
-    // mark device as voted
+    // 3️⃣ Lock vote on device
     setVoted(pollId);
 
     setSubmitting(false);
