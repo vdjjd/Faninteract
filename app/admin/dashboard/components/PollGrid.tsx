@@ -22,33 +22,41 @@ export default function PollGrid({ host, refreshPolls, onOpenOptions }: PollGrid
   ------------------------------------------------------------ */
   async function loadPolls() {
     if (!host?.id) return;
+
     const { data: polls, error } = await supabase
       .from('polls')
       .select('*')
       .eq('host_id', host.id)
       .order('created_at', { ascending: false });
+
     if (error) console.error('❌ loadPolls error:', error);
+
     setLocalPolls(polls || []);
 
     if (polls?.length) {
       const { data: opts, error: optsErr } = await supabase
         .from('poll_options')
         .select('poll_id,vote_count');
+
       if (optsErr) console.error('❌ vote_count error:', optsErr);
 
       const counts: { [key: string]: number } = {};
       opts?.forEach((o) => {
         counts[o.poll_id] = (counts[o.poll_id] || 0) + (o.vote_count || 0);
       });
+
       setVoteCounts(counts);
     }
   }
 
   useEffect(() => {
     if (!host?.id) return;
+
     loadPolls();
+
     if (refreshInterval.current) clearInterval(refreshInterval.current);
     refreshInterval.current = setInterval(loadPolls, 5000);
+
     return () => {
       if (refreshInterval.current) clearInterval(refreshInterval.current);
       Object.values(timers.current).forEach(clearInterval);
@@ -60,6 +68,7 @@ export default function PollGrid({ host, refreshPolls, onOpenOptions }: PollGrid
   ------------------------------------------------------------ */
   function getCountdownSeconds(poll: any): number {
     if (!poll?.countdown || poll.countdown === 'none') return 0;
+
     const t = poll.countdown.toLowerCase();
     if (t.includes('sec')) return parseInt(t) || 30;
     if (t.includes('min')) return (parseInt(t) || 1) * 60;
@@ -67,54 +76,114 @@ export default function PollGrid({ host, refreshPolls, onOpenOptions }: PollGrid
   }
 
   /* ------------------------------------------------------------
-     Start / Stop Logic (NO FADES)
+     Start Countdown
   ------------------------------------------------------------ */
-  function startCountdown(poll: any) {
+  async function startCountdown(poll: any) {
     const secs = getCountdownSeconds(poll);
+
     if (secs === 0) {
-      handleStatus(poll.id, 'active');
+      await supabase
+        .from('polls')
+        .update({
+          status: 'active',
+          countdown_active: false,
+          countdown: 'none',
+        })
+        .eq('id', poll.id);
+
+      await supabase.channel(`poll-${poll.id}`).send({
+        type: 'broadcast',
+        event: 'poll_status',
+        payload: {
+          id: poll.id,
+          status: 'active',
+          countdown_active: false,
+        },
+      });
+
+      await loadPolls();
       return;
     }
 
-    setCountdowns((prev) => ({ ...prev, [poll.id]: secs }));
-    handleStatus(poll.id, 'active');
+    await supabase
+      .from('polls')
+      .update({
+        status: 'inactive',
+        countdown_active: true,
+      })
+      .eq('id', poll.id);
 
-    timers.current[poll.id] = setInterval(() => {
+    await supabase.channel(`poll-${poll.id}`).send({
+      type: 'broadcast',
+      event: 'poll_status',
+      payload: {
+        id: poll.id,
+        status: 'inactive',
+        countdown_active: true,
+      },
+    });
+
+    setCountdowns((prev) => ({ ...prev, [poll.id]: secs }));
+
+    timers.current[poll.id] = setInterval(async () => {
       setCountdowns((prev) => {
         const current = prev[poll.id];
+
         if (current <= 1) {
           clearInterval(timers.current[poll.id]);
-          handleStatus(poll.id, 'inactive');
+
+          supabase
+            .from('polls')
+            .update({
+              status: 'active',
+              countdown_active: false,
+              countdown: 'none',
+            })
+            .eq('id', poll.id);
+
+          supabase.channel(`poll-${poll.id}`).send({
+            type: 'broadcast',
+            event: 'poll_status',
+            payload: {
+              id: poll.id,
+              status: 'active',
+              countdown_active: false,
+            },
+          });
+
           return { ...prev, [poll.id]: 0 };
         }
+
         return { ...prev, [poll.id]: current - 1 };
       });
+
+      await loadPolls();
     }, 1000);
+
+    await loadPolls();
   }
 
   async function stopCountdown(poll: any) {
     const secs = getCountdownSeconds(poll);
     clearInterval(timers.current[poll.id]);
     setCountdowns((prev) => ({ ...prev, [poll.id]: secs }));
-
-    // NO FADE — instant inactive
-    handleStatus(poll.id, 'inactive');
+    await handleStatus(poll.id, 'inactive');
   }
 
-  /* ------------------------------------------------------------
-     Status Update + Broadcast
-  ------------------------------------------------------------ */
   async function handleStatus(id: string, status: string) {
-    await supabase.from('polls').update({ status }).eq('id', id);
-
-    // broadcast to the wall so it fades properly
     await supabase
-      .channel(`poll-${id}`)
-      .send({
-        type: 'broadcast',
-        event: 'poll_status',
-        payload: { id, status },
-      });
+      .from('polls')
+      .update({
+        status,
+        ...(status !== 'active' && { countdown_active: false }),
+      })
+      .eq('id', id);
+
+    await supabase.channel(`poll-${id}`).send({
+      type: 'broadcast',
+      event: 'poll_status',
+      payload: { id, status },
+    });
 
     await loadPolls();
   }
@@ -141,11 +210,14 @@ export default function PollGrid({ host, refreshPolls, onOpenOptions }: PollGrid
 
       <div className={cn('grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5')}>
         {localPolls.length === 0 && (
-          <p className={cn('text-gray-400 italic col-span-full')}>No polls created yet.</p>
+          <p className={cn('text-gray-400 italic col-span-full')}>
+            No polls created yet.
+          </p>
         )}
 
         {localPolls.map((poll) => {
           const brightness = poll.background_brightness || 100;
+
           const bgStyle =
             poll.background_type === 'image'
               ? {
@@ -160,13 +232,11 @@ export default function PollGrid({ host, refreshPolls, onOpenOptions }: PollGrid
                   filter: `brightness(${brightness}%)`,
                 };
 
-          const countdownVal = countdowns[poll.id] || 0;
-
           return (
             <div
               key={poll.id}
               className={cn(
-                'rounded-xl p-4 text-center shadow-lg flex flex-col justify-between transition-all duration-200', // transition just for hover, not fade
+                'rounded-xl p-4 text-center shadow-lg flex flex-col justify-between transition-all duration-200',
                 poll.status === 'active'
                   ? 'ring-4 ring-lime-400 shadow-lime-500/50'
                   : poll.status === 'closed'
@@ -198,15 +268,8 @@ export default function PollGrid({ host, refreshPolls, onOpenOptions }: PollGrid
                 <p className={cn('text-sm opacity-80')}>
                   <strong>Votes:</strong> {voteCounts[poll.id] ?? 0}
                 </p>
-
-                {countdownVal > 0 && (
-                  <p className={cn('text-xs text-cyan-300 mt-1')}>
-                    Countdown: {countdownVal}s
-                  </p>
-                )}
               </div>
 
-              {/* Buttons */}
               <div className={cn('flex justify-center gap-2 mb-2')}>
                 <button
                   onClick={() => startCountdown(poll)}
@@ -230,7 +293,7 @@ export default function PollGrid({ host, refreshPolls, onOpenOptions }: PollGrid
                 </button>
               </div>
 
-              <div className={cn('flex justify-center gap-2 mb-2')}>
+              <div className={cn('flex justify-center gap-2')}>
                 <button
                   onClick={() => handleLaunch(poll.id)}
                   className={cn('bg-blue-600 hover:bg-blue-700 px-2 py-1 rounded text-sm font-semibold')}
@@ -246,7 +309,7 @@ export default function PollGrid({ host, refreshPolls, onOpenOptions }: PollGrid
                 </button>
               </div>
 
-              <div className={cn('flex justify-center')}>
+              <div className={cn('flex justify-center mt-2')}>
                 <button
                   onClick={() => handleDelete(poll.id)}
                   className={cn('bg-red-700 hover:bg-red-800 px-3 py-1 rounded text-sm font-semibold')}

@@ -1,45 +1,40 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import { QRCodeCanvas } from 'qrcode.react';
-import { useEffect, useState, useRef } from 'react';
 import { supabase } from '@/lib/supabaseClient';
-import { useRealtimeChannel } from '@/providers/SupabaseRealtimeProvider';
 
-/* ---------- COUNTDOWN COMPONENT ---------- */
-function CountdownDisplay({ countdown, countdownActive, pollId }) {
+/* ---------- COUNTDOWN DISPLAY (LOCAL ONLY) ---------- */
+function CountdownDisplay({ countdown, countdownActive, onEnd }) {
   const [timeLeft, setTimeLeft] = useState(0);
-  const [active, setActive] = useState(countdownActive);
 
   useEffect(() => {
-    if (!countdown) return;
-    const [numStr] = countdown.split(' ');
-    const num = parseInt(numStr);
-    const mins = countdown.toLowerCase().includes('minute');
-    const secs = countdown.toLowerCase().includes('second');
-    const total = mins ? num * 60 : secs ? num : 0;
-    setTimeLeft(total);
-    setActive(!!countdownActive);
-  }, [countdown, countdownActive]);
+    if (!countdown || countdown === 'none') return;
+
+    const lower = countdown.toLowerCase();
+    const num = parseInt(countdown.split(' ')[0]) || 0;
+    const seconds = lower.includes('sec') ? num : lower.includes('min') ? num * 60 : 0;
+
+    setTimeLeft(seconds);
+  }, [countdown]);
 
   useEffect(() => {
-    if (!active || timeLeft <= 0) return;
-    const timer = setInterval(() => setTimeLeft((t) => (t > 1 ? t - 1 : 0)), 1000);
-    return () => clearInterval(timer);
-  }, [active, timeLeft]);
+    if (!countdownActive) return;
+    if (timeLeft <= 0) return;
 
-  useEffect(() => {
-    if (timeLeft === 0 && active) {
-      setActive(false);
-      supabase
-        .from('polls')
-        .update({
-          countdown_active: false,
-          countdown: 'none',
-          status: 'inactive',
-        })
-        .eq('id', pollId);
-    }
-  }, [timeLeft, active, pollId]);
+    const t = setInterval(() => {
+      setTimeLeft((prev) => {
+        if (prev <= 1) {
+          clearInterval(t);
+          onEnd?.();
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(t);
+  }, [countdownActive, timeLeft]);
 
   if (!countdown || countdown === 'none') return null;
 
@@ -49,10 +44,10 @@ function CountdownDisplay({ countdown, countdownActive, pollId }) {
   return (
     <div
       style={{
-        fontSize: 'clamp(6rem,8vw,9rem)',
+        fontSize: 'clamp(6rem,9vw,10rem)',
         fontWeight: 900,
         color: '#fff',
-        marginTop: '2vh',
+        marginTop: '1vh',
         textShadow: '0 0 40px rgba(0,0,0,0.7)',
       }}
     >
@@ -62,38 +57,37 @@ function CountdownDisplay({ countdown, countdownActive, pollId }) {
 }
 
 /* -------------------------------------------------------------------------- */
-/* ✅ INACTIVE POLL WALL — SAME VISUAL AS PRIZE WALL                           */
+/* INACTIVE POLL WALL — POLLING ONLY                                          */
 /* -------------------------------------------------------------------------- */
-export default function InactivePollWall({ poll }) {
-  const rt = useRealtimeChannel();
-  const fullscreenButtonRef = useRef(null);
-
+export default function InactivePollWall({ poll, host }) {
   const [bg, setBg] = useState('linear-gradient(to bottom right,#1b2735,#090a0f)');
-  const [brightness, setBrightness] = useState(poll?.background_brightness || 100);
-  const [wallState, setWallState] = useState({
-    countdown: '',
-    countdownActive: false,
-    title: poll?.question || 'Upcoming Poll',
-  });
-  const updateTimeout = useRef(null);
+  const [brightness, setBrightness] = useState(100);
 
-  const PulseStyle = (
-    <style>{`
-      @keyframes pulseSoonGlow {
-        0%,100% { opacity:.7; text-shadow:0 0 14px rgba(255,255,255,0.3); }
-        50% { opacity:1; text-shadow:0 0 22px rgba(180,220,255,0.8); }
-      }
-      .pulseSoon { animation:pulseSoonGlow 2.5s ease-in-out infinite; }
-    `}</style>
-  );
+  async function handleCountdownEnd() {
+    if (!poll?.id) return;
+
+    await supabase
+      .from('polls')
+      .update({
+        status: 'active',
+        countdown_active: false,
+        countdown: 'none',
+      })
+      .eq('id', poll.id);
+
+    await supabase.channel(`poll-${poll.id}`).send({
+      type: 'broadcast',
+      event: 'poll_status',
+      payload: {
+        id: poll.id,
+        status: 'active',
+        countdown_active: false,
+      },
+    });
+  }
 
   useEffect(() => {
     if (!poll) return;
-    setWallState({
-      countdown: poll.countdown || '',
-      countdownActive: !!poll.countdown_active,
-      title: poll.question || 'Upcoming Poll',
-    });
 
     const value =
       poll.background_type === 'image'
@@ -101,65 +95,14 @@ export default function InactivePollWall({ poll }) {
         : poll.background_value || 'linear-gradient(to bottom right,#1b2735,#090a0f)';
 
     setBg(value);
-    if (poll.background_brightness !== undefined) setBrightness(poll.background_brightness);
+    setBrightness(poll.background_brightness ?? 100);
   }, [poll]);
 
-  /* ✅ Realtime channel updates */
-  useEffect(() => {
-    if (!rt?.current || !poll?.id) return;
-    const channel = rt.current;
-    const scheduleUpdate = (data) => {
-      if (updateTimeout.current) clearTimeout(updateTimeout.current);
-      updateTimeout.current = setTimeout(
-        () => setWallState((prev) => ({ ...prev, ...data })),
-        100
-      );
-    };
-
-    channel.on('broadcast', {}, ({ event, payload }) => {
-      if (!payload?.id || payload.id !== poll.id) return;
-
-      if (event === 'poll_update') {
-        if (payload.background_value) {
-          const newBg =
-            payload.background_type === 'image'
-              ? `url(${payload.background_value}) center/cover no-repeat`
-              : payload.background_value;
-          setBg(newBg);
-        }
-        if (payload.background_brightness !== undefined)
-          setBrightness(payload.background_brightness);
-        if (payload.countdown) scheduleUpdate({ countdown: payload.countdown });
-        if (payload.question) scheduleUpdate({ title: payload.question });
-      }
-
-      if (event === 'poll_status') {
-        if (payload.countdown_active !== undefined)
-          scheduleUpdate({ countdownActive: payload.countdown_active });
-      }
-
-      if (event === 'poll_countdown_finished')
-        scheduleUpdate({ countdownActive: false });
-    });
-
-    return () => channel.unsubscribe?.();
-  }, [rt, poll?.id]);
-
-  const origin =
-    typeof window !== 'undefined' ? window.location.origin : 'https://faninteract.vercel.app';
+  const origin = typeof window !== 'undefined' ? window.location.origin : '';
   const qrValue = `${origin}/guest/signup?redirect=/polls/${poll?.id}/vote`;
+  const displayLogo = host?.branding_logo_url || '/faninteractlogo.png';
 
-  const displayLogo =
-    poll?.host?.branding_logo_url?.trim()
-      ? poll.host.branding_logo_url
-      : '/faninteractlogo.png';
-
-  const toggleFullscreen = () =>
-    !document.fullscreenElement
-      ? document.documentElement.requestFullscreen().catch(() => {})
-      : document.exitFullscreen();
-
-  if (!poll) return <div>Loading Poll Wall…</div>;
+  if (!poll) return null;
 
   return (
     <div
@@ -176,27 +119,21 @@ export default function InactivePollWall({ poll }) {
         paddingTop: '3vh',
       }}
     >
-      {PulseStyle}
-
-      {/* Title */}
+      {/* TITLE */}
       <h1
         style={{
           color: '#fff',
           fontSize: 'clamp(2.5rem,3vw,5rem)',
           fontWeight: 900,
           marginBottom: '1vh',
-          textShadow: `
-            2px 2px 2px #000,
-            -2px 2px 2px #000,
-            2px -2px 2px #000,
-            -2px -2px 2px #000
-          `,
+          textShadow:
+            '2px 2px 4px #000, -2px 2px 4px #000, 2px -2px 4px #000, -2px -2px 4px #000',
         }}
       >
-        {wallState.title}
+        {poll.question || 'Upcoming Poll'}
       </h1>
 
-      {/* Main Panel */}
+      {/* MAIN PANEL */}
       <div
         style={{
           width: '90vw',
@@ -212,7 +149,7 @@ export default function InactivePollWall({ poll }) {
           display: 'flex',
         }}
       >
-        {/* QR Side */}
+        {/* LEFT QR COLUMN */}
         <div
           style={{
             position: 'absolute',
@@ -240,7 +177,7 @@ export default function InactivePollWall({ poll }) {
           />
         </div>
 
-        {/* Info Side */}
+        {/* RIGHT STACK */}
         <div
           style={{
             position: 'relative',
@@ -248,7 +185,7 @@ export default function InactivePollWall({ poll }) {
             marginLeft: '44%',
           }}
         >
-          {/* Logo */}
+          {/* LOGO */}
           <div
             style={{
               position: 'absolute',
@@ -268,7 +205,7 @@ export default function InactivePollWall({ poll }) {
             />
           </div>
 
-          {/* Divider Bar */}
+          {/* DIVIDER */}
           <div
             style={{
               position: 'absolute',
@@ -282,7 +219,7 @@ export default function InactivePollWall({ poll }) {
             }}
           />
 
-          {/* Text */}
+          {/* TEXT */}
           <p
             style={{
               position: 'absolute',
@@ -292,7 +229,6 @@ export default function InactivePollWall({ poll }) {
               color: '#fff',
               fontSize: 'clamp(2em,3.5vw,6rem)',
               fontWeight: 900,
-              margin: 0,
               textAlign: 'center',
               textShadow: '0 0 14px rgba(0,0,0,0.6)',
             }}
@@ -301,7 +237,6 @@ export default function InactivePollWall({ poll }) {
           </p>
 
           <p
-            className="pulseSoon"
             style={{
               position: 'absolute',
               top: '60%',
@@ -311,68 +246,59 @@ export default function InactivePollWall({ poll }) {
               fontSize: 'clamp(2.8rem,2.4vw,3.2rem)',
               fontWeight: 700,
               textAlign: 'center',
-              margin: 0,
             }}
           >
             Starting Soon!!
           </p>
 
+          {/* COUNTDOWN */}
           <div
             style={{
               position: 'absolute',
-              top: '73%',
-              left: '50%',
+              top: '64%',
+              left: '53%',
               transform: 'translateX(-50%)',
             }}
           >
             <CountdownDisplay
-              countdown={wallState.countdown}
-              countdownActive={wallState.countdownActive}
-              pollId={poll.id}
+              countdown={poll.countdown}
+              countdownActive={poll.countdown_active}
+              onEnd={handleCountdownEnd}
             />
           </div>
         </div>
       </div>
 
-      {/* Fullscreen Button */}
-      <div
-        ref={fullscreenButtonRef}
-        style={{
-          position: 'absolute',
-          bottom: 'calc(1.5vh + 1.5%)',
-          right: 'calc(1.5vw + 1.5%)',
-          width: 40,
-          height: 40,
-          borderRadius: 12,
-          background: 'rgba(255,255,255,0.08)',
-          border: '1px solid rgba(255,255,255,0.2)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          cursor: 'pointer',
-          opacity: 0.15,
-          transition: 'opacity 0.2s ease',
-          zIndex: 50,
+      {/* --------------------- FULLSCREEN BUTTON ------------------ */}
+      <button
+        onClick={() => {
+          if (!document.fullscreenElement) {
+            document.documentElement.requestFullscreen().catch(() => {});
+          } else {
+            document.exitFullscreen().catch(() => {});
+          }
         }}
-        onMouseEnter={(e) => (e.currentTarget.style.opacity = '1')}
-        onMouseLeave={(e) => (e.currentTarget.style.opacity = '0.3')}
-        onClick={toggleFullscreen}
+        style={{
+          position: "absolute",
+          bottom: "2vh",
+          right: "2vw",
+          width: 48,
+          height: 48,
+          borderRadius: 10,
+          background: "rgba(255,255,255,0.1)",
+          backdropFilter: "blur(6px)",
+          border: "1px solid rgba(255,255,255,0.25)",
+          color: "#fff",
+          opacity: 0.25,
+          cursor: "pointer",
+          transition: "0.25s",
+          fontSize: "1.4rem",
+          zIndex: 99,
+        }}
       >
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          stroke="white"
-          fill="none"
-          viewBox="0 0 24 24"
-          strokeWidth={1.5}
-          style={{ width: 28, height: 28 }}
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            d="M3 9V4h5M21 9V4h-5M3 15v5h5M21 15v5h-5"
-          />
-        </svg>
-      </div>
+        ⛶
+      </button>
+
     </div>
   );
 }

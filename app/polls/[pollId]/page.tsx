@@ -3,28 +3,30 @@
 import { useEffect, useState, useRef } from 'react';
 import { useParams } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
-import { useRealtimeChannel } from '@/providers/SupabaseRealtimeProvider';
 
 import InactivePollWall from '../components/InactivePollWall';
 import ActivePollWall from '../components/ActivePollWall';
 import { cn } from '../../../lib/utils';
 
+const POLL_REFRESH_MS = 2000; // JD requested
+
 export default function PollRouterPage() {
   const { pollId } = useParams();
   const id = Array.isArray(pollId) ? pollId[0] : pollId;
 
-  const rt = useRealtimeChannel();
   const [poll, setPoll] = useState<any>(null);
   const [host, setHost] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const updateTimeout = useRef<NodeJS.Timeout | null>(null);
-
   const [isFading, setIsFading] = useState(false);
 
-  /* ------------------------------------------------------------ */
-  /* Load Poll + Host                                             */
-  /* ------------------------------------------------------------ */
+  const pollInterval = useRef<NodeJS.Timeout | null>(null);
+
+  /* ---------------------------------------------------------------------- */
+  /* 🔥 POLLING: Load poll + host every 2000ms                              */
+  /* ---------------------------------------------------------------------- */
   async function loadEverything() {
+    if (!id) return;
+
     try {
       const { data: pollData } = await supabase
         .from('polls')
@@ -47,79 +49,69 @@ export default function PollRouterPage() {
   }
 
   useEffect(() => {
-    if (id) loadEverything();
+    if (!id) return;
+    loadEverything();
+
+    // Start polling
+    if (pollInterval.current) clearInterval(pollInterval.current);
+    pollInterval.current = setInterval(loadEverything, POLL_REFRESH_MS);
+
+    return () => {
+      if (pollInterval.current) clearInterval(pollInterval.current);
+    };
   }, [id]);
 
-  /* ------------------------------------------------------------ */
-  /* 🔥 REALTIME LISTENERS (PATCHED)                              */
-  /* ------------------------------------------------------------ */
+  /* ---------------------------------------------------------------------- */
+  /* ⭐ REALTIME: Update immediately when poll status changes                */
+  /* ---------------------------------------------------------------------- */
   useEffect(() => {
     if (!id) return;
 
-    /* 1️⃣ Shared realtime channel */
-    const shared = rt?.current;
-
-    const scheduleUpdate = (data: any) => {
-      if (updateTimeout.current) clearTimeout(updateTimeout.current);
-      updateTimeout.current = setTimeout(() => {
-        setPoll((prev) => ({ ...prev, ...data }));
-      }, 150);
-    };
-
-    shared?.on('broadcast', {}, ({ event, payload }) => {
-      if (!payload?.id || payload.id !== id) return;
-
-      if (event === 'poll_update') scheduleUpdate(payload);
-
-      if (event === 'poll_status' && payload.status) {
-        scheduleUpdate({ status: payload.status });
-      }
-    });
-
-    /* 2️⃣ Dedicated poll-specific realtime channel */
-    const pollChannel = supabase
-      .channel(`poll-${id}`)
+    const channel = supabase
+      .channel(`router-poll-${id}`)
       .on(
-        'broadcast',
-        { event: 'poll_status' },
-        (msg) => {
-          if (msg?.payload?.status) {
-            setPoll((prev) => ({ ...prev, status: msg.payload.status }));
-          }
+        'postgres_changes',
+        {
+          schema: 'public',
+          table: 'polls',
+          event: '*',
+          filter: `id=eq.${id}`,
+        },
+        (payload) => {
+          setPoll((prev) => ({ ...prev, ...payload.new }));
         }
       )
       .subscribe();
 
     return () => {
-      supabase.removeChannel(pollChannel);
-      // ❌ DO NOT unsubscribe shared channel (rt.current)
+      supabase.removeChannel(channel);
     };
-  }, [rt, id]);
+  }, [id]);
 
-  /* ------------------------------------------------------------ */
-  /* Fade Logic: both directions now                              */
-  /* ------------------------------------------------------------ */
+  /* ---------------------------------------------------------------------- */
+  /* Fade Logic                                                             */
+  /* ---------------------------------------------------------------------- */
   useEffect(() => {
     if (!poll) return;
 
-    // Active → fade to active wall
+    // Fade in to Active Wall
     if (poll.status === 'active') {
       setIsFading(true);
-      const timer = setTimeout(() => setIsFading(false), 1500);
-      return () => clearTimeout(timer);
+      const t = setTimeout(() => setIsFading(false), 1500);
+      return () => clearTimeout(t);
     }
 
-    // Inactive / Closed → fade back to inactive wall
+    // Fade back to Inactive Wall
     if (poll.status === 'inactive' || poll.status === 'closed') {
       setIsFading(true);
-      const timer = setTimeout(() => setIsFading(false), 1500);
-      return () => clearTimeout(timer);
+      const t = setTimeout(() => setIsFading(false), 1500);
+      return () => clearTimeout(t);
     }
   }, [poll?.status]);
 
-  /* ------------------------------------------------------------ */
-  /* Render                                                       */
-  /* ------------------------------------------------------------ */
+  /* ---------------------------------------------------------------------- */
+  /* Render                                                                 */
+  /* ---------------------------------------------------------------------- */
   if (loading)
     return (
       <div
@@ -154,14 +146,8 @@ export default function PollRouterPage() {
       </div>
     );
 
-  /* ------------------------------------------------------------ */
-  /* Layer display logic                                          */
-  /* ------------------------------------------------------------ */
-  const showInactive =
-    poll.status !== 'active' || (poll.status === 'active' && isFading);
-
-  const showActive =
-    poll.status === 'active' && !isFading;
+  const showInactive = poll.status !== 'active' || (poll.status === 'active' && isFading);
+  const showActive = poll.status === 'active' && !isFading;
 
   return (
     <div
@@ -172,7 +158,7 @@ export default function PollRouterPage() {
         overflow: 'hidden',
       }}
     >
-      {/* Inactive Wall Layer */}
+      {/* Inactive Wall */}
       <div
         style={{
           position: 'absolute',
@@ -185,7 +171,7 @@ export default function PollRouterPage() {
         <InactivePollWall poll={poll} host={host} />
       </div>
 
-      {/* Active Wall Layer */}
+      {/* Active Wall */}
       <div
         style={{
           position: 'absolute',

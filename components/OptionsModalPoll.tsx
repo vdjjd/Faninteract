@@ -18,7 +18,9 @@ const PRESET_COLORS = [
   '#A0522D',
 ];
 
-/* ---------- GRADIENT HELPERS ---------- */
+/* ----------------------------- */
+/* ⭐ GRADIENT HELPERS           */
+/* ----------------------------- */
 function applyBrightnessToGradient(gradient: string, brightness: number) {
   if (!gradient?.includes('linear-gradient')) return gradient;
   const mult = brightness / 100;
@@ -44,7 +46,9 @@ function buildGradient(start: string, end: string, pos: number, brightness: numb
   return applyBrightnessToGradient(g, brightness);
 }
 
-/* ---------- DURATION HELPERS ---------- */
+/* ----------------------------- */
+/* ⭐ DURATION HELPERS           */
+/* ----------------------------- */
 const DURATION_LABELS = [
   'none',
   '5 min',
@@ -77,7 +81,9 @@ function minutesToLabel(mins?: number | null): DurationLabel {
   return map[mins] ?? '5 min';
 }
 
-/* ---------- COMPONENT ---------- */
+/* ----------------------------- */
+/* ⭐ COMPONENT                  */
+/* ----------------------------- */
 export default function OptionsModalPoll({
   poll,
   hostId,
@@ -106,6 +112,9 @@ export default function OptionsModalPoll({
   const [countdown, setCountdown] = useState('none');
   const [duration, setDuration] = useState<DurationLabel>('5 min');
 
+  /* ----------------------------- */
+  /* Load from DB                  */
+  /* ----------------------------- */
   useEffect(() => {
     if (!poll?.id) return;
     loadPoll();
@@ -144,6 +153,9 @@ export default function OptionsModalPoll({
     }
   }
 
+  /* ----------------------------- */
+  /* Option helpers                */
+  /* ----------------------------- */
   function updateOption(i: number, val: string) {
     setOptions((prev) => prev.map((o, idx) => (idx === i ? val : o)));
   }
@@ -167,9 +179,9 @@ export default function OptionsModalPoll({
     setOptionColors((prev) => prev.filter((_, idx) => idx !== i));
   }
 
-  /* --------------------------------------------------------------------- */
-  /* ✅ FIXED: Uploads now go to `wall-backgrounds` bucket only            */
-  /* --------------------------------------------------------------------- */
+  /* ----------------------------- */
+  /* Background Upload/Delete       */
+  /* ----------------------------- */
   async function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
     try {
       const file = e.target.files?.[0];
@@ -191,18 +203,17 @@ export default function OptionsModalPoll({
       if (uploadErr) throw uploadErr;
 
       const { data } = supabase.storage.from('wall-backgrounds').getPublicUrl(path);
-      const finalUrl = data.publicUrl;
 
       await supabase
         .from('polls')
         .update({
           background_type: 'image',
-          background_value: finalUrl,
+          background_value: data.publicUrl,
         })
         .eq('id', poll.id);
 
       setBgType('image');
-      setBgValue(finalUrl);
+      setBgValue(data.publicUrl);
     } catch (err) {
       console.error('❌ Upload Error:', err);
     } finally {
@@ -210,16 +221,12 @@ export default function OptionsModalPoll({
     }
   }
 
-  /* --------------------------------------------------------------------- */
-  /* ✅ FIXED: Deletion now uses `wall-backgrounds` bucket                  */
-  /* --------------------------------------------------------------------- */
   async function handleDeleteBackground() {
     try {
       if (bgType === 'image' && bgValue.includes('supabase.co')) {
         const parts = bgValue.split('/wall-backgrounds/')[1];
         if (parts) {
-          const path = decodeURIComponent(parts);
-          await supabase.storage.from('wall-backgrounds').remove([path]);
+          await supabase.storage.from('wall-backgrounds').remove([decodeURIComponent(parts)]);
         }
       }
 
@@ -238,9 +245,9 @@ export default function OptionsModalPoll({
     }
   }
 
-  /* --------------------------------------------------------------------- */
-  /* ✅ FIXED: Corrected background_value field in save payload            */
-  /* --------------------------------------------------------------------- */
+  /* ----------------------------- */
+  /* ⭐ PATCHED SAVE               */
+  /* ----------------------------- */
   async function handleSave() {
     if (!question.trim()) return alert('Public Question required');
     const filled = options.map((o) => o.trim()).filter(Boolean);
@@ -255,22 +262,43 @@ export default function OptionsModalPoll({
 
       const duration_minutes = labelToMinutes(duration);
 
+      /* 1️⃣ Save poll */
       await supabase
         .from('polls')
         .update({
           question,
           host_title: privateTitle,
           background_type: bgType,
-          background_value: finalBg, // ✅ FIXED
+          background_value: finalBg,
           color_start: colorStart,
           color_end: colorEnd,
           gradient_pos: gradientPosition,
           background_brightness: brightness,
+
+          /* ⭐ Countdown fields */
           countdown,
+          countdown_active: false,
+
+          status: 'inactive',
           duration_minutes,
         })
         .eq('id', poll.id);
 
+      /* 2️⃣ Broadcast to router + inactive wall — FIXED */
+      await supabase
+        .channel(`poll-${poll.id}`)
+        .send({
+          type: 'broadcast',
+          event: 'poll_update',
+          payload: {
+            id: poll.id,
+            countdown: countdown,
+            countdown_active: countdown !== 'none',
+            status: 'inactive',
+          },
+        });
+
+      /* 3️⃣ Reset poll options */
       await supabase.from('poll_options').delete().eq('poll_id', poll.id);
 
       const rows = filled.map((text, i) => ({
@@ -293,16 +321,23 @@ export default function OptionsModalPoll({
     }
   }
 
+  /* ----------------------------- */
+  /* ⭐ FULL UI (NO TRUNCATION)   */
+  /* ----------------------------- */
   if (!poll) return null;
 
   return (
     <Modal isOpen={!!poll} onClose={onClose}>
-      <div className={cn('space-y-4 text-white overflow-y-auto max-h-[80vh] pr-2')}>
+      <div
+        className={cn(
+          'space-y-4 text-white overflow-y-auto max-h-[80vh] pr-2'
+        )}
+      >
         <h2 className={cn('text-xl font-semibold text-center mb-2')}>
           ⚙ Edit Poll Settings
         </h2>
 
-        {/* PUBLIC TITLE */}
+        {/* PUBLIC QUESTION */}
         <div>
           <label className={cn('block text-sm font-semibold mb-1')}>
             Public Poll Question / Title
@@ -311,7 +346,9 @@ export default function OptionsModalPoll({
             value={question}
             onChange={(e) => setQuestion(e.target.value)}
             placeholder="Visible on Active & Inactive Wall"
-            className={cn('w-full px-3 py-2 rounded-lg bg-black/40 border border-white/10')}
+            className={cn(
+              'w-full px-3 py-2 rounded-lg bg-black/40 border border-white/10'
+            )}
           />
         </div>
 
@@ -324,7 +361,9 @@ export default function OptionsModalPoll({
             value={privateTitle}
             onChange={(e) => setPrivateTitle(e.target.value)}
             placeholder="Visible only in Host Dashboard"
-            className={cn('w-full px-3 py-2 rounded-lg bg-black/40 border border-white/10')}
+            className={cn(
+              'w-full px-3 py-2 rounded-lg bg-black/40 border border-white/10'
+            )}
           />
         </div>
 
@@ -336,7 +375,9 @@ export default function OptionsModalPoll({
           <select
             value={countdown}
             onChange={(e) => setCountdown(e.target.value)}
-            className={cn('w-full px-3 py-2 rounded-lg bg-black/40 border border-white/10')}
+            className={cn(
+              'w-full px-3 py-2 rounded-lg bg-black/40 border border-white/10'
+            )}
           >
             {['none', '30 sec', '1 min', '2 min', '3 min', '4 min', '5 min'].map((t) => (
               <option key={t} value={t}>
@@ -354,7 +395,9 @@ export default function OptionsModalPoll({
           <select
             value={duration}
             onChange={(e) => setDuration(e.target.value as DurationLabel)}
-            className={cn('w-full px-3 py-2 rounded-lg bg-black/40 border border-white/10')}
+            className={cn(
+              'w-full px-3 py-2 rounded-lg bg-black/40 border border-white/10'
+            )}
           >
             {DURATION_LABELS.map((d) => (
               <option key={d} value={d}>
@@ -374,12 +417,16 @@ export default function OptionsModalPoll({
                   value={opt}
                   onChange={(e) => updateOption(i, e.target.value)}
                   placeholder={`Option ${i + 1}`}
-                  className={cn('flex-1 px-3 py-2 rounded-lg bg-black/40 border border-white/10')}
+                  className={cn(
+                    'flex-1 px-3 py-2 rounded-lg bg-black/40 border border-white/10'
+                  )}
                 />
                 {options.length > 2 && (
                   <button
                     onClick={() => removeOption(i)}
-                    className={cn('px-3 rounded-lg bg-white/10 hover:bg-white/15')}
+                    className={cn(
+                      'px-3 rounded-lg bg-white/10 hover:bg-white/15'
+                    )}
                   >
                     ✕
                   </button>
@@ -426,13 +473,7 @@ export default function OptionsModalPoll({
         <div className={cn('mt-6 text-center')}>
           <div
             className={cn(
-              'w-[140px]',
-              'h-[80px]',
-              'rounded-md',
-              'border',
-              'border-white/20',
-              'shadow-inner',
-              'mx-auto'
+              'w-[140px] h-[80px] rounded-md border border-white/20 shadow-inner mx-auto'
             )}
             style={{
               background:
@@ -457,15 +498,9 @@ export default function OptionsModalPoll({
               value={colorStart}
               onChange={(e) => {
                 const newStart = e.target.value;
-                const g = buildGradient(
-                  newStart,
-                  colorEnd,
-                  gradientPosition,
-                  brightness
-                );
                 setColorStart(newStart);
-                setBgValue(g);
                 setBgType('gradient');
+                setBgValue(buildGradient(newStart, colorEnd, gradientPosition, brightness));
               }}
             />
           </div>
@@ -477,15 +512,9 @@ export default function OptionsModalPoll({
               value={colorEnd}
               onChange={(e) => {
                 const newEnd = e.target.value;
-                const g = buildGradient(
-                  colorStart,
-                  newEnd,
-                  gradientPosition,
-                  brightness
-                );
                 setColorEnd(newEnd);
-                setBgValue(g);
                 setBgType('gradient');
+                setBgValue(buildGradient(colorStart, newEnd, gradientPosition, brightness));
               }}
             />
           </div>
@@ -502,9 +531,8 @@ export default function OptionsModalPoll({
             onChange={(e) => {
               const pos = Number(e.target.value);
               setGradientPosition(pos);
-              const g = buildGradient(colorStart, colorEnd, pos, brightness);
-              setBgValue(g);
               setBgType('gradient');
+              setBgValue(buildGradient(colorStart, colorEnd, pos, brightness));
             }}
             className={cn('w-[140px] accent-blue-400')}
           />
@@ -522,8 +550,7 @@ export default function OptionsModalPoll({
               const val = Number(e.target.value);
               setBrightness(val);
               if (bgType === 'gradient') {
-                const g = buildGradient(colorStart, colorEnd, gradientPosition, val);
-                setBgValue(g);
+                setBgValue(buildGradient(colorStart, colorEnd, gradientPosition, val));
               }
             }}
             className={cn('w-[140px] accent-blue-400')}
