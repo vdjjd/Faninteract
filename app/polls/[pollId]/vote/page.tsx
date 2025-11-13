@@ -4,9 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 
-/* ----------------------------- */
-/* Retrieve saved guest profile  */
-/* ----------------------------- */
+/* Retrieve saved guest profile */
 function getStoredGuestProfile() {
   try {
     const raw =
@@ -21,8 +19,7 @@ function getStoredGuestProfile() {
 export default function VotePage() {
   const router = useRouter();
   const params = useParams();
-  const pollId =
-    Array.isArray(params.pollId) ? params.pollId[0] : params.pollId;
+  const pollId = Array.isArray(params.pollId) ? params.pollId[0] : params.pollId;
 
   const [poll, setPoll] = useState<any>(null);
   const [options, setOptions] = useState<any[]>([]);
@@ -65,7 +62,7 @@ export default function VotePage() {
   }, [pollId]);
 
   /* -------------------------------------------------- */
-  /* 3. Realtime poll status updates — FIXED            */
+  /* 3. Realtime status updates                         */
   /* -------------------------------------------------- */
   useEffect(() => {
     if (!pollId) return;
@@ -75,7 +72,7 @@ export default function VotePage() {
       .on(
         "postgres_changes",
         {
-          event: "*",
+          event: "UPDATE",
           schema: "public",
           table: "polls",
           filter: `id=eq.${pollId}`,
@@ -92,7 +89,7 @@ export default function VotePage() {
   }, [pollId]);
 
   /* -------------------------------------------------- */
-  /* 4. Submit vote   (writes to poll_votes table)      */
+  /* 4. Submit vote                                     */
   /* -------------------------------------------------- */
   async function submitVote(optionId: string) {
     if (submitting) return;
@@ -140,9 +137,7 @@ export default function VotePage() {
         overflow: "hidden",
       }}
     >
-      {/* ----------------------------- */}
-      {/* TITLE                         */}
-      {/* ----------------------------- */}
+      {/* Title */}
       <h1
         style={{
           color: "white",
@@ -163,9 +158,7 @@ export default function VotePage() {
         {poll.question}
       </h1>
 
-      {/* ----------------------------- */}
-      {/* OPTIONS / BUTTONS             */}
-      {/* ----------------------------- */}
+      {/* Voting Options */}
       <div style={{ maxWidth: 900, margin: "0 auto" }}>
         {options.map((opt: any) => (
           <button
@@ -186,6 +179,7 @@ export default function VotePage() {
               boxShadow: "0 0 25px rgba(0,0,0,0.6)",
               cursor: isActive ? "pointer" : "default",
               wordBreak: "break-word",
+              transition: "0.2s",
             }}
           >
             {opt.option_text}
@@ -193,10 +187,8 @@ export default function VotePage() {
         ))}
       </div>
 
-      {/* ----------------------------- */}
-      {/* INACTIVE OVERLAY — FIXED     */}
-      {/* ----------------------------- */}
-      {poll.status !== "active" && (
+      {/* INACTIVE OVERLAY — FIXED */}
+      {!isActive && (
         <div
           style={{
             position: "absolute",
@@ -209,8 +201,8 @@ export default function VotePage() {
             alignItems: "center",
             justifyContent: "center",
 
-            /* 🔥 IMPORTANT FIX */
-            pointerEvents: "auto",
+            /* ⭐ FIX: overlay does NOT block buttons */
+            pointerEvents: "none",
           }}
         >
           <h1
