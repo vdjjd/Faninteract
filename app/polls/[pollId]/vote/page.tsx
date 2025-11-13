@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 
-/* Retrieve saved guest profile */
 function getStoredGuestProfile() {
   try {
     const raw =
@@ -26,9 +25,6 @@ export default function VotePage() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
 
-  /* -------------------------------------------------- */
-  /* 1. Require guest profile                           */
-  /* -------------------------------------------------- */
   useEffect(() => {
     const profile = getStoredGuestProfile();
     if (!profile) {
@@ -37,9 +33,6 @@ export default function VotePage() {
     }
   }, []);
 
-  /* -------------------------------------------------- */
-  /* 2. Load poll + options                             */
-  /* -------------------------------------------------- */
   async function loadEverything() {
     const { data: pollData } = await supabase
       .from("polls")
@@ -61,9 +54,6 @@ export default function VotePage() {
     loadEverything();
   }, [pollId]);
 
-  /* -------------------------------------------------- */
-  /* 3. Realtime status updates                         */
-  /* -------------------------------------------------- */
   useEffect(() => {
     if (!pollId) return;
 
@@ -88,9 +78,6 @@ export default function VotePage() {
     };
   }, [pollId]);
 
-  /* -------------------------------------------------- */
-  /* 4. Submit vote                                     */
-  /* -------------------------------------------------- */
   async function submitVote(optionId: string) {
     if (submitting) return;
     setSubmitting(true);
@@ -117,9 +104,6 @@ export default function VotePage() {
     router.push(`/polls/${pollId}/thanks`);
   }
 
-  /* -------------------------------------------------- */
-  /* Render states                                      */
-  /* -------------------------------------------------- */
   if (loading) return <div style={{ color: "#fff" }}>Loading…</div>;
   if (!poll) return <div style={{ color: "#fff" }}>Poll not found.</div>;
 
@@ -149,7 +133,6 @@ export default function VotePage() {
           lineHeight: 1.15,
           wordBreak: "break-word",
           overflowWrap: "break-word",
-          hyphens: "auto",
           maxWidth: "95%",
           marginLeft: "auto",
           marginRight: "auto",
@@ -167,7 +150,7 @@ export default function VotePage() {
             onClick={() => submitVote(opt.id)}
             style={{
               background: opt.bar_color,
-              opacity: isActive ? 1 : 0.4,
+              opacity: isActive ? 1 : 0.35,
               padding: "18px",
               width: "100%",
               marginBottom: "1rem",
@@ -176,9 +159,8 @@ export default function VotePage() {
               fontWeight: 800,
               color: "#fff",
               border: "none",
+              cursor: isActive ? "pointer" : "not-allowed",
               boxShadow: "0 0 25px rgba(0,0,0,0.6)",
-              cursor: isActive ? "pointer" : "default",
-              wordBreak: "break-word",
               transition: "0.2s",
             }}
           >
@@ -186,40 +168,6 @@ export default function VotePage() {
           </button>
         ))}
       </div>
-
-      {/* INACTIVE OVERLAY — FIXED */}
-      {!isActive && (
-        <div
-          style={{
-            position: "absolute",
-            inset: 0,
-            background: "rgba(0,0,0,0.65)",
-            backdropFilter: "blur(6px)",
-            WebkitBackdropFilter: "blur(6px)",
-            zIndex: 50,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-
-            /* ⭐ FIX: overlay does NOT block buttons */
-            pointerEvents: "none",
-          }}
-        >
-          <h1
-            style={{
-              color: "red",
-              fontSize: "4rem",
-              fontWeight: 900,
-              textShadow: "0 0 30px #000",
-              textAlign: "center",
-              padding: "0 20px",
-              lineHeight: 1.1,
-            }}
-          >
-            Voting Not Active Yet
-          </h1>
-        </div>
-      )}
     </div>
   );
 }
