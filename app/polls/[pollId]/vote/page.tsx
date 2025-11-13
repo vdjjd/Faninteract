@@ -4,7 +4,9 @@ import { useEffect, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 
-/* Retrieve saved guest profile */
+/* ----------------------------- */
+/* Retrieve saved guest profile  */
+/* ----------------------------- */
 function getStoredGuestProfile() {
   try {
     const raw =
@@ -19,7 +21,8 @@ function getStoredGuestProfile() {
 export default function VotePage() {
   const router = useRouter();
   const params = useParams();
-  const pollId = Array.isArray(params.pollId) ? params.pollId[0] : params.pollId;
+  const pollId =
+    Array.isArray(params.pollId) ? params.pollId[0] : params.pollId;
 
   const [poll, setPoll] = useState<any>(null);
   const [options, setOptions] = useState<any[]>([]);
@@ -62,7 +65,7 @@ export default function VotePage() {
   }, [pollId]);
 
   /* -------------------------------------------------- */
-  /* 3. Realtime status updates                         */
+  /* 3. Realtime poll status updates — FIXED            */
   /* -------------------------------------------------- */
   useEffect(() => {
     if (!pollId) return;
@@ -72,7 +75,7 @@ export default function VotePage() {
       .on(
         "postgres_changes",
         {
-          event: "UPDATE",
+          event: "*",
           schema: "public",
           table: "polls",
           filter: `id=eq.${pollId}`,
@@ -89,7 +92,7 @@ export default function VotePage() {
   }, [pollId]);
 
   /* -------------------------------------------------- */
-  /* 4. Submit vote  (PATCHED → writes to poll_votes)   */
+  /* 4. Submit vote   (writes to poll_votes table)      */
   /* -------------------------------------------------- */
   async function submitVote(optionId: string) {
     if (submitting) return;
@@ -120,7 +123,6 @@ export default function VotePage() {
   /* -------------------------------------------------- */
   /* Render states                                      */
   /* -------------------------------------------------- */
-
   if (loading) return <div style={{ color: "#fff" }}>Loading…</div>;
   if (!poll) return <div style={{ color: "#fff" }}>Poll not found.</div>;
 
@@ -138,7 +140,9 @@ export default function VotePage() {
         overflow: "hidden",
       }}
     >
-      {/* Title */}
+      {/* ----------------------------- */}
+      {/* TITLE                         */}
+      {/* ----------------------------- */}
       <h1
         style={{
           color: "white",
@@ -159,7 +163,9 @@ export default function VotePage() {
         {poll.question}
       </h1>
 
-      {/* Voting Options */}
+      {/* ----------------------------- */}
+      {/* OPTIONS / BUTTONS             */}
+      {/* ----------------------------- */}
       <div style={{ maxWidth: 900, margin: "0 auto" }}>
         {options.map((opt: any) => (
           <button
@@ -187,19 +193,24 @@ export default function VotePage() {
         ))}
       </div>
 
-      {/* INACTIVE OVERLAY */}
-      {!isActive && (
+      {/* ----------------------------- */}
+      {/* INACTIVE OVERLAY — FIXED     */}
+      {/* ----------------------------- */}
+      {poll.status !== "active" && (
         <div
           style={{
             position: "absolute",
             inset: 0,
             background: "rgba(0,0,0,0.65)",
             backdropFilter: "blur(6px)",
+            WebkitBackdropFilter: "blur(6px)",
             zIndex: 50,
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            pointerEvents: "none",
+
+            /* 🔥 IMPORTANT FIX */
+            pointerEvents: "auto",
           }}
         >
           <h1
