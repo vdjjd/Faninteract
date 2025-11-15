@@ -8,20 +8,32 @@ import { useWallData } from '@/app/wall/hooks/useWallData';
 import InactiveWall from '@/app/wall/components/wall/layouts/InactiveWall';
 import SingleHighlightWall from '@/app/wall/components/wall/layouts/SingleHighlightWall';
 import Grid2x2Wall from '@/app/wall/components/wall/layouts/Grid2x2Wall';
+
 import AdOverlay from '@/app/wall/components/AdOverlay';
 import { cn } from "../../../lib/utils";
 
 export default function FanWallPage() {
-  const { wallId } = useParams();
-  const wallUUID = Array.isArray(wallId) ? wallId[0] : wallId;
 
+  /* ------------------------------------------------------- */
+  /* ✅ Correct param name: eventId                           */
+  /* ------------------------------------------------------- */
+  const { eventId } = useParams();
+  const wallUUID = Array.isArray(eventId) ? eventId[0] : eventId;
+
+
+  /* ------------------------------------------------------- */
+  /* ✅ Load wall data                                       */
+  /* ------------------------------------------------------- */
   const { wall, posts, loading, showLive } = useWallData(wallUUID);
 
   const [bg, setBg] = useState('');
   const [layoutKey, setLayoutKey] = useState(0);
   const prevLayout = useRef<string | null>(null);
 
-  /* BACKGROUND */
+
+  /* ------------------------------------------------------- */
+  /* ✅ Background updater                                   */
+  /* ------------------------------------------------------- */
   useEffect(() => {
     if (!wall) return;
 
@@ -33,7 +45,10 @@ export default function FanWallPage() {
     setBg(value || 'linear-gradient(to bottom right,#1b2735,#090a0f)');
   }, [wall?.background_type, wall?.background_value]);
 
-  /* LAYOUT CHANGE */
+
+  /* ------------------------------------------------------- */
+  /* ✅ Layout key updater                                   */
+  /* ------------------------------------------------------- */
   useEffect(() => {
     if (!wall) return;
     if (wall.layout_type !== prevLayout.current) {
@@ -42,25 +57,45 @@ export default function FanWallPage() {
     }
   }, [wall?.layout_type]);
 
+
+  /* ------------------------------------------------------- */
+  /* ✅ Cleaned-up renderer                                  */
+  /* ------------------------------------------------------- */
   const renderActiveWall = () => {
     if (!wall) return null;
-
     const props = { event: wall, posts };
 
     switch (wall.layout_type) {
       case 'grid2x2':
         return <Grid2x2Wall key={layoutKey} {...props} />;
-      case 'grid4x2':
-        return <Grid4x2Wall key={layoutKey} {...props} />;
+
       default:
         return <SingleHighlightWall key={layoutKey} {...props} />;
     }
   };
 
-  if (loading) return <p className={cn('text-white', 'mt-10', 'text-center')}>Loading…</p>;
-  if (!wall) return <p className={cn('text-white', 'mt-10', 'text-center')}>Wall not found.</p>;
 
-  /* FULLSCREEN TOGGLE */
+  /* ------------------------------------------------------- */
+  /* LOADING + ERROR STATES                                  */
+  /* ------------------------------------------------------- */
+  if (loading)
+    return (
+      <p className={cn('text-white', 'mt-10', 'text-center')}>
+        Loading…
+      </p>
+    );
+
+  if (!wall)
+    return (
+      <p className={cn('text-white', 'mt-10', 'text-center')}>
+        Wall not found.
+      </p>
+    );
+
+
+  /* ------------------------------------------------------- */
+  /* Fullscreen toggle                                       */
+  /* ------------------------------------------------------- */
   const toggleFullscreen = () => {
     if (!document.fullscreenElement) {
       document.documentElement.requestFullscreen().catch(() => {});
@@ -69,6 +104,10 @@ export default function FanWallPage() {
     }
   };
 
+
+  /* ------------------------------------------------------- */
+  /* MAIN RENDER                                             */
+  /* ------------------------------------------------------- */
   return (
     <div
       style={{
@@ -80,6 +119,7 @@ export default function FanWallPage() {
         overflow: 'hidden',
       }}
     >
+
       {/* INACTIVE WALL */}
       <div
         style={{
@@ -106,10 +146,8 @@ export default function FanWallPage() {
         {renderActiveWall()}
       </div>
 
-      {/* ADS — now using POLLING and MASTER→HOST rotation */}
-      {wall?.host?.id && (
-        <AdOverlay hostId={wall.host.id} />
-      )}
+      {/* ADS */}
+      {wall?.host?.id && <AdOverlay hostId={wall.host.id} />}
 
       {/* FULLSCREEN BUTTON */}
       <div
@@ -149,6 +187,7 @@ export default function FanWallPage() {
           />
         </svg>
       </div>
+
     </div>
   );
 }
