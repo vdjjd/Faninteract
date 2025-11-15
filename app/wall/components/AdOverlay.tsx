@@ -1,86 +1,154 @@
 'use client';
-import React from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { cn } from '@/lib/utils';
+
+import { useEffect, useState, useRef } from 'react';
+import { supabase } from '@/lib/supabaseClient';
+import Image from 'next/image';
 
 interface AdOverlayProps {
-  showAd: boolean;
-  currentAd: any | null;        // ✅ now receives the actual ad object
-  onAdEnd: () => void;
+  hostId: string;
 }
 
-export default function AdOverlay({ showAd, currentAd, onAdEnd }: AdOverlayProps) {
-  if (!currentAd) return null;
+interface AdItem {
+  id: string;
+  url: string;
+  type: 'image' | 'video';
+  duration_seconds: number;
+  is_master_ad: boolean;
+  is_host_ad: boolean;
+}
 
-  const ad = currentAd;
+export default function AdOverlay({ hostId }: AdOverlayProps) {
+  const [ads, setAds] = useState<AdItem[]>([]);
+  const [injectorEnabled, setInjectorEnabled] = useState(true);
+  const [currentIndex, setCurrentIndex] = useState(0);
+
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
+
+  /* ---------- FETCH ADS (master + host) ---------------- */
+  async function fetchAds() {
+    if (!hostId) return;
+
+    const { data } = await supabase
+      .from('slide_ads')
+      .select('*')
+      .eq('active', true)
+      .or(`master_id.is.not.null,host_profile_id.eq.${hostId}`)
+      .order('is_master_ad', { ascending: false })
+      .order('order_index', { ascending: true });
+
+    if (!data) return;
+
+    // INTERLEAVE MASTER → HOST → MASTER
+    const masters = data.filter((a) => a.is_master_ad);
+    const hosts = data.filter((a) => a.is_host_ad);
+
+    const interleaved: AdItem[] = [];
+    const max = Math.max(masters.length, hosts.length);
+
+    for (let i = 0; i < max; i++) {
+      if (i < masters.length) interleaved.push(masters[i]);
+      if (i < hosts.length) interleaved.push(hosts[i]);
+    }
+
+    setAds(interleaved);
+  }
+
+  /* ---------- FETCH HOST SETTINGS ---------------- */
+  async function fetchInjector() {
+    if (!hostId) return;
+
+    const { data } = await supabase
+      .from('hosts')
+      .select('injector_enabled')
+      .eq('id', hostId)
+      .maybeSingle();
+
+    if (data) setInjectorEnabled(!!data.injector_enabled);
+  }
+
+  /* ---------- ROTATION ENGINE ---------------- */
+  function rotate() {
+    if (!injectorEnabled || ads.length === 0) return;
+
+    const currentAd = ads[currentIndex];
+    const duration = Number(currentAd.duration_seconds) || 8;
+
+    timerRef.current && clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => {
+      setCurrentIndex((i) => (i + 1) % ads.length);
+    }, duration * 1000);
+  }
+
+  /* ---------- MAIN EFFECTS ---------------- */
+
+  // Poll every 8 seconds (ads + injector)
+  useEffect(() => {
+    fetchAds();
+    fetchInjector();
+
+    const interval = setInterval(() => {
+      fetchAds();
+      fetchInjector();
+    }, 8000);
+
+    return () => clearInterval(interval);
+  }, [hostId]);
+
+  // Rotate ads
+  useEffect(() => {
+    rotate();
+  }, [currentIndex, ads, injectorEnabled]);
+
+  // Stop timer on unmount
+  useEffect(() => {
+    return () => {
+      timerRef.current && clearTimeout(timerRef.current);
+    };
+  }, []);
+
+  /* ---------- NO ADS WHEN INJECTOR OFF ---------------- */
+  if (!injectorEnabled || ads.length === 0) return null;
+
+  const ad = ads[currentIndex];
 
   return (
-    <AnimatePresence mode="wait">
-      {showAd && (
-        <motion.div
-          key={ad.id}
-          initial={{ opacity: 0, filter: 'blur(25px) brightness(0.4)' }}
-          animate={{ opacity: 1, filter: 'blur(0px) brightness(1)' }}
-          exit={{ opacity: 0, filter: 'blur(25px) brightness(0.4)' }}
-          transition={{ duration: 2, ease: 'easeInOut' }}
-          className={cn(
-            'fixed inset-0 z-[9998] flex items-center justify-center pointer-events-auto overflow-hidden'
-          )}
-          style={{ backgroundColor: 'transparent' }}
-        >
-
-          {/* IMAGE */}
-          {ad.type === 'image' && (
-            <motion.img
-              key={`img-${ad.url}`}
-              src={ad.url}
-              alt="Sponsor Ad"
-              className={cn('max-w-full', 'max-h-full', 'object-contain', 'rounded-xl', 'shadow-2xl')}
-              style={{ pointerEvents: 'none', zIndex: 1 }}
-            />
-          )}
-
-          {/* VIDEO */}
-          {ad.type === 'video' && (
-            <motion.video
-              key={`vid-${ad.url}`}
-              src={ad.url}
-              autoPlay
-              muted
-              onEnded={onAdEnd}
-              className={cn('max-w-full', 'max-h-full', 'object-contain', 'rounded-xl', 'shadow-2xl')}
-              style={{ pointerEvents: 'none', zIndex: 1 }}
-            />
-          )}
-
-          {/* FILM GRAIN */}
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 0.15 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 2, ease: 'easeInOut' }}
-            className={cn('absolute', 'inset-0', 'pointer-events-none')}
-            style={{
-              backgroundImage:
-                'repeating-radial-gradient(circle at 0 0, rgba(255,255,255,0.05) 0, rgba(255,255,255,0.05) 1px, transparent 1px, transparent 100%)',
-              backgroundSize: '3px 3px',
-              animation: 'grainShift 0.4s steps(2, end) infinite',
-              zIndex: 2,
-              mixBlendMode: 'overlay',
-            }}
-          />
-
-          <style jsx>{`
-            @keyframes grainShift {
-              0% { transform: translate(0,0); }
-              25% { transform: translate(-10%,5%); }
-              50% { transform: translate(5%,-10%); }
-              75% { transform: translate(10%,10%); }
-              100% { transform: translate(0,0); }
-            }
-          `}</style>
-        </motion.div>
+    <div
+      style={{
+        position: 'absolute',
+        inset: 0,
+        pointerEvents: 'none',
+        zIndex: 50,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: 'transparent',
+      }}
+    >
+      {ad.type === 'image' ? (
+        <Image
+          src={ad.url}
+          alt="ad"
+          width={1920}
+          height={1080}
+          style={{
+            objectFit: 'contain',
+            maxWidth: '100%',
+            maxHeight: '100%',
+          }}
+        />
+      ) : (
+        <video
+          src={ad.url}
+          autoPlay
+          muted
+          playsInline
+          style={{
+            objectFit: 'contain',
+            maxWidth: '100%',
+            maxHeight: '100%',
+          }}
+        />
       )}
-    </AnimatePresence>
+    </div>
   );
 }

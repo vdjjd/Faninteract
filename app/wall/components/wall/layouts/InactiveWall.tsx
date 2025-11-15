@@ -2,20 +2,23 @@
 
 import { QRCodeCanvas } from 'qrcode.react';
 import { useEffect, useState, useRef } from 'react';
-import { useRealtimeChannel } from '@/providers/SupabaseRealtimeProvider';
 
-/* ---------- COUNTDOWN COMPONENT ---------- */
+/* ---------- COUNTDOWN COMPONENT (Fan Wall) ---------- */
 function CountdownDisplay({ countdown, countdownActive }) {
   const [timeLeft, setTimeLeft] = useState(0);
   const [active, setActive] = useState(countdownActive);
 
   useEffect(() => {
     if (!countdown) return;
-    const [numStr] = countdown.split(' ');
+
+    const [numStr] = countdown.split(" ");
     const num = parseInt(numStr);
-    const mins = countdown.toLowerCase().includes('minute');
-    const secs = countdown.toLowerCase().includes('second');
-    const total = mins ? num * 60 : secs ? num : 0;
+
+    const total = countdown.toLowerCase().includes("minute")
+      ? num * 60
+      : countdown.toLowerCase().includes("second")
+      ? num
+      : 0;
 
     setTimeLeft(total);
     setActive(!!countdownActive);
@@ -23,11 +26,16 @@ function CountdownDisplay({ countdown, countdownActive }) {
 
   useEffect(() => {
     if (!active || timeLeft <= 0) return;
-    const timer = setInterval(() => setTimeLeft(t => (t > 1 ? t - 1 : 0)), 1000);
+
+    const timer = setInterval(() => {
+      setTimeLeft(t => (t > 1 ? t - 1 : 0));
+    }, 1000);
+
     return () => clearInterval(timer);
   }, [active, timeLeft]);
 
-  if (!countdown || countdown === 'none') return null;
+  if (!countdown || countdown === "none") return null;
+
   const m = Math.floor(timeLeft / 60);
   const s = timeLeft % 60;
 
@@ -37,6 +45,7 @@ function CountdownDisplay({ countdown, countdownActive }) {
         fontSize: 'clamp(6rem,8vw,9rem)',
         fontWeight: 900,
         color: '#fff',
+        marginTop: '2vh',
         textShadow: '0 0 40px rgba(0,0,0,0.7)',
       }}
     >
@@ -46,102 +55,65 @@ function CountdownDisplay({ countdown, countdownActive }) {
 }
 
 /* -------------------------------------------------------------------------- */
-/* ✅ INACTIVE WALL — FULLY RESPONSIVE                                         */
+/* ✅ FAN WALL — INACTIVE WALL (CLEANED)                                      */
 /* -------------------------------------------------------------------------- */
 export default function InactiveWall({ wall }) {
-  const rt = useRealtimeChannel();
-  const fullscreenButtonRef = useRef(null); // ✅ FIX: define the ref
-
   const [bg, setBg] = useState('linear-gradient(to bottom right,#1b2735,#090a0f)');
   const [brightness, setBrightness] = useState(wall?.background_brightness || 100);
-  const [wallState, setWallState] = useState({
-    countdown: '',
-    countdownActive: false,
-    title: '',
-  });
-  const updateTimeout = useRef(null);
 
-  /* ✅ Pulse Animation */
+  const [wallState, setWallState] = useState({
+    countdown: wall?.countdown || '',
+    countdownActive: !!wall?.countdown_active,
+  });
+
+  /* ANIMATION CSS */
   const PulseStyle = (
     <style>{`
       @keyframes pulseSoonGlow {
-        0%,100% { opacity:.7; text-shadow:0 0 14px rgba(255,255,255,0.3); }
-        50% { opacity:1; text-shadow:0 0 22px rgba(180,220,255,0.8); }
+        0%,100% { opacity: .7; text-shadow: 0 0 14px rgba(255,255,255,0.3); }
+        50% { opacity: 1; text-shadow: 0 0 22px rgba(180,220,255,0.8); }
       }
-      .pulseSoon { animation:pulseSoonGlow 2.5s ease-in-out infinite; }
+      .pulseSoon { animation: pulseSoonGlow 2.5s ease-in-out infinite; }
     `}</style>
   );
 
-  /* Load initial data */
+  /* Sync props → state */
   useEffect(() => {
     if (!wall) return;
 
     setWallState({
       countdown: wall.countdown || '',
       countdownActive: !!wall.countdown_active,
-      title: wall.title || '',
     });
 
     const value =
       wall.background_type === 'image'
         ? `url(${wall.background_value}) center/cover no-repeat`
-        : wall.background_value ||
-          'linear-gradient(to bottom right,#1b2735,#090a0f)';
+        : wall.background_value || 'linear-gradient(to bottom right,#1b2735,#090a0f)';
+
     setBg(value);
-    if (wall.background_brightness !== undefined) setBrightness(wall.background_brightness);
+
+    if (wall.background_brightness !== undefined)
+      setBrightness(wall.background_brightness);
   }, [wall]);
 
-  /* Realtime listener */
-  useEffect(() => {
-    if (!rt?.current || !wall?.id) return;
-    const channel = rt.current;
-    const scheduleUpdate = (data) => {
-      if (updateTimeout.current) clearTimeout(updateTimeout.current);
-      updateTimeout.current = setTimeout(() => setWallState(prev => ({ ...prev, ...data })), 100);
-    };
-
-    channel.on('broadcast', {}, ({ event, payload }) => {
-      if (!payload?.id || payload.id !== wall.id) return;
-      if (event === 'wall_updated') {
-        if (payload.background_value) {
-          setBg(
-            payload.background_type === 'image'
-              ? `url(${payload.background_value}) center/cover no-repeat`
-              : payload.background_value
-          );
-        }
-        if (payload.background_brightness !== undefined)
-          setBrightness(payload.background_brightness);
-        if (payload.title) scheduleUpdate({ title: payload.title });
-        if (payload.countdown) scheduleUpdate({ countdown: payload.countdown });
-      }
-      if (event === 'wall_status_changed') {
-        if (payload.countdown_active !== undefined)
-          scheduleUpdate({ countdownActive: payload.countdown_active });
-      }
-      if (event === 'countdown_finished') scheduleUpdate({ countdownActive: false });
-    });
-
-    return () => channel.unsubscribe?.();
-  }, [rt, wall?.id]);
+  if (!wall) return <div>Loading Fan Wall…</div>;
 
   const origin =
     typeof window !== 'undefined'
       ? window.location.origin
       : 'https://faninteract.vercel.app';
-  const qrValue = `${origin}/guest/signup?wall=${wall?.id}`;
+
+  const qrValue = `${origin}/guest/signup?wall=${wall.id}`;
+
   const displayLogo =
     wall?.host?.branding_logo_url?.trim()
       ? wall.host.branding_logo_url
       : '/faninteractlogo.png';
 
-  const toggleFullscreen = () =>
-    !document.fullscreenElement
-      ? document.documentElement.requestFullscreen().catch(() => {})
-      : document.exitFullscreen();
-
-  if (!wall) return <div>Loading Wall…</div>;
-
+  /* ---------------------------------------------------------------------- */
+  /* RENDER                                                                 */
+  /* ---------------------------------------------------------------------- */
   return (
     <div
       style={{
@@ -159,7 +131,7 @@ export default function InactiveWall({ wall }) {
     >
       {PulseStyle}
 
-      {/* Title */}
+      {/* TITLE */}
       <h1
         style={{
           color: '#fff',
@@ -167,17 +139,17 @@ export default function InactiveWall({ wall }) {
           fontWeight: 900,
           marginBottom: '1vh',
           textShadow: `
-      2px 2px 2px #000,
-      -2px 2px 2px #000,
-      2px -2px 2px #000,
-      -2px -2px 2px #000
-    `,
+            2px 2px 2px #000,
+            -2px 2px 2px #000,
+            2px -2px 2px #000,
+            -2px -2px 2px #000
+          `,
         }}
       >
-        {wallState.title || 'Fan Zone Wall'}
+        Fan Zone Wall
       </h1>
 
-      {/* Main Panel */}
+      {/* MAIN PANEL */}
       <div
         style={{
           width: '90vw',
@@ -193,7 +165,7 @@ export default function InactiveWall({ wall }) {
           display: 'flex',
         }}
       >
-        {/* QR Side */}
+        {/* QR SIDE */}
         <div
           style={{
             position: 'absolute',
@@ -201,11 +173,10 @@ export default function InactiveWall({ wall }) {
             left: '3%',
             width: '47%',
             height: '90%',
-            borderRadius: 0,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            background: 'rgba(255,255,255,0.00)',
+            background: 'transparent',
           }}
         >
           <QRCodeCanvas
@@ -223,7 +194,7 @@ export default function InactiveWall({ wall }) {
           />
         </div>
 
-        {/* Info Side */}
+        {/* INFO SIDE */}
         <div
           style={{
             position: 'relative',
@@ -231,7 +202,7 @@ export default function InactiveWall({ wall }) {
             marginLeft: '44%',
           }}
         >
-          {/* Logo */}
+          {/* LOGO */}
           <div
             style={{
               position: 'absolute',
@@ -251,7 +222,7 @@ export default function InactiveWall({ wall }) {
             />
           </div>
 
-          {/* Divider Bar */}
+          {/* DIVIDER */}
           <div
             style={{
               position: 'absolute',
@@ -265,7 +236,7 @@ export default function InactiveWall({ wall }) {
             }}
           />
 
-          {/* Text */}
+          {/* TEXT */}
           <p
             style={{
               position: 'absolute',
@@ -275,8 +246,8 @@ export default function InactiveWall({ wall }) {
               color: '#fff',
               fontSize: 'clamp(2em,3.5vw,6rem)',
               fontWeight: 900,
-              margin: 0,
               textAlign: 'center',
+              margin: 0,
               textShadow: '0 0 14px rgba(0,0,0,0.6)',
             }}
           >
@@ -293,7 +264,6 @@ export default function InactiveWall({ wall }) {
               color: '#bcd9ff',
               fontSize: 'clamp(2.8rem,2.4vw,3.2rem)',
               fontWeight: 700,
-              textAlign: 'center',
               margin: 0,
             }}
           >
@@ -303,8 +273,8 @@ export default function InactiveWall({ wall }) {
           <div
             style={{
               position: 'absolute',
-              top: '73%',
-              left: '50%',
+              top: '70%',
+              left: '53%',
               transform: 'translateX(-50%)',
             }}
           >
@@ -314,46 +284,6 @@ export default function InactiveWall({ wall }) {
             />
           </div>
         </div>
-      </div>
-
-      {/* ✅ Fullscreen Button */}
-      <div
-        ref={fullscreenButtonRef}
-        style={{
-          position: 'absolute',
-          bottom: 'calc(1.5vh + 1.5%)',
-          right: 'calc(1.5vw + 1.5%)',
-          width: 40,
-          height: 40,
-          borderRadius: 12,
-          background: 'rgba(255,255,255,0.08)',
-          border: '1px solid rgba(255,255,255,0.2)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          cursor: 'pointer',
-          opacity: 0.15,
-          transition: 'opacity 0.2s ease',
-          zIndex: 50,
-        }}
-        onMouseEnter={(e) => (e.currentTarget.style.opacity = '1')}
-        onMouseLeave={(e) => (e.currentTarget.style.opacity = '0.3')}
-        onClick={toggleFullscreen}
-      >
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          stroke="white"
-          fill="none"
-          viewBox="0 0 24 24"
-          strokeWidth={1.5}
-          style={{ width: 28, height: 28 }}
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            d="M3 9V4h5M21 9V4h-5M3 15v5h5M21 15v5h-5"
-          />
-        </svg>
       </div>
     </div>
   );

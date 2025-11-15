@@ -1,261 +1,73 @@
 'use client';
+
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams } from 'next/navigation';
-import { supabase } from '@/lib/supabaseClient';
+
 import { useWallData } from '@/app/wall/hooks/useWallData';
-import { useAdInjector } from '@/hooks/useAdInjector';
-import InactiveWall from '@/app/wall/components/wall/InactiveWall';
+
+import InactiveWall from '@/app/wall/components/wall/layouts/InactiveWall';
 import SingleHighlightWall from '@/app/wall/components/wall/layouts/SingleHighlightWall';
 import Grid2x2Wall from '@/app/wall/components/wall/layouts/Grid2x2Wall';
-import Grid4x2Wall from '@/app/wall/components/wall/layouts/Grid4x2Wall';
 import AdOverlay from '@/app/wall/components/AdOverlay';
-import { useRealtimeChannel } from '@/providers/SupabaseRealtimeProvider';
-import { cn } from '../../../lib/utils';
+import { cn } from "../../../lib/utils";
 
 export default function FanWallPage() {
   const { wallId } = useParams();
   const wallUUID = Array.isArray(wallId) ? wallId[0] : wallId;
 
   const { wall, posts, loading, showLive } = useWallData(wallUUID);
-  const channelRef = useRealtimeChannel();
 
-  const [cachedWall, setCachedWall] = useState<any>(null);
-  const [cachedPosts, setCachedPosts] = useState<any[]>([]);
-  const [displayLive, setDisplayLive] = useState(showLive);
-  const [opacityLive, setOpacityLive] = useState(showLive ? 1 : 0);
-  const [opacityInactive, setOpacityInactive] = useState(showLive ? 0 : 1);
-  const [bg, setBg] = useState('linear-gradient(to bottom right,#1b2735,#090a0f)');
-  const [ready, setReady] = useState(false);
+  const [bg, setBg] = useState('');
   const [layoutKey, setLayoutKey] = useState(0);
-
-  const FADE_DURATION = 900;
   const prevLayout = useRef<string | null>(null);
-  const fadeTimeout = useRef<NodeJS.Timeout | null>(null);
 
-  /* ✅ Initial load */
+  /* BACKGROUND */
   useEffect(() => {
-    if (wall) {
-      setCachedWall(wall);
-      setReady(true);
-    }
-    if (posts?.length) setCachedPosts(posts);
-  }, [wall, posts]);
-
-  /* ✅ Background updates */
-  useEffect(() => {
-    if (!cachedWall) return;
+    if (!wall) return;
 
     const value =
-      cachedWall.background_type === 'image'
-        ? `url(${cachedWall.background_value}) center/cover no-repeat`
-        : cachedWall.background_value || 'linear-gradient(to bottom right,#1b2735,#090a0f)';
+      wall.background_type === 'image'
+        ? `url(${wall.background_value}) center/cover no-repeat`
+        : wall.background_value;
 
-    setBg(value);
-  }, [cachedWall?.background_type, cachedWall?.background_value]);
+    setBg(value || 'linear-gradient(to bottom right,#1b2735,#090a0f)');
+  }, [wall?.background_type, wall?.background_value]);
 
-  /* ✅ Layout switching */
+  /* LAYOUT CHANGE */
   useEffect(() => {
-    if (cachedWall?.layout_type && cachedWall?.layout_type !== prevLayout.current) {
-      prevLayout.current = cachedWall.layout_type;
-      setLayoutKey(prev => prev + 1);
+    if (!wall) return;
+    if (wall.layout_type !== prevLayout.current) {
+      prevLayout.current = wall.layout_type;
+      setLayoutKey(k => k + 1);
     }
-  }, [cachedWall?.layout_type]);
+  }, [wall?.layout_type]);
 
-  /* ✅ Realtime wall broadcast events */
-  useEffect(() => {
-    if (!channelRef?.current || !wallUUID) return;
-
-    const channel = channelRef.current;
-
-    const handleBroadcast = (msg: any) => {
-      const { event, payload: data } = msg;
-      if (!data?.id || data.id !== wallUUID) return;
-
-      switch (event) {
-        case 'wall_status_changed':
-          setDisplayLive(data.status === 'live');
-          startFade(data.status === 'live');
-          break;
-
-        case 'wall_updated':
-          setCachedWall(prev => ({ ...(prev || {}), ...data }));
-          break;
-
-        case 'countdown_finished':
-          setDisplayLive(true);
-          startFade(true);
-          break;
-      }
-    };
-
-    channel.on('broadcast', {}, handleBroadcast);
-
-    return () => channel.on('broadcast', {}, () => {});
-  }, [channelRef, wallUUID]);
-
-  /* ✅ Polling fallback (kept as backup) */
-  useEffect(() => {
-    if (!wallUUID) return;
-    let interval: NodeJS.Timeout;
-    let lastUpdated = cachedWall?.updated_at;
-
-    async function pollWallState() {
-      const { data } = await supabase
-        .from('fan_walls')
-        .select('*')
-        .eq('id', wallUUID)
-        .maybeSingle();
-      if (!data) return;
-
-      if (lastUpdated !== data.updated_at) {
-        lastUpdated = data.updated_at;
-        setCachedWall(prev => ({ ...(prev || {}), ...data }));
-
-        const shouldBeLive = data.status === 'live';
-        setDisplayLive(prev => {
-          if (prev !== shouldBeLive) startFade(shouldBeLive);
-          return shouldBeLive;
-        });
-      }
-    }
-
-    interval = setInterval(pollWallState, 1000);
-    return () => clearInterval(interval);
-  }, [wallUUID, cachedWall?.updated_at]);
-
-  /* ✅ Fade handler */
-  useEffect(() => {
-    if (showLive !== displayLive) startFade(showLive);
-  }, [showLive]);
-
-  function startFade(toLive: boolean) {
-    if (fadeTimeout.current) clearTimeout(fadeTimeout.current);
-
-    if (toLive) {
-      setOpacityInactive(1);
-      requestAnimationFrame(() => {
-        setOpacityLive(1);
-        setOpacityInactive(0);
-      });
-      fadeTimeout.current = setTimeout(() => setDisplayLive(true), FADE_DURATION);
-    } else {
-      setOpacityLive(1);
-      requestAnimationFrame(() => {
-        setOpacityLive(0);
-        setOpacityInactive(1);
-      });
-      fadeTimeout.current = setTimeout(() => setDisplayLive(false), FADE_DURATION);
-    }
-  }
-
-  /* ✅ Ad Injector */
-  const { ads, showAd, currentAdIndex, injectorEnabled, handlePostRotationTick } = useAdInjector({
-    hostId: cachedWall?.host_profile_id || '',
-    triggerInterval: cachedWall?.trigger_interval || 8,
-  });
-
-  /* ✅ ✅ ✅ REALTIME GUEST POSTS (THE FIX) */
-  useEffect(() => {
-    if (!channelRef?.current || !wallUUID) return;
-
-    const channel = channelRef.current;
-
-    console.log("✅ Subscribing to guest_posts realtime for wall:", wallUUID);
-
-    const upsertPost = (row: any) => {
-      if (!row || row.fan_wall_id !== wallUUID) return;
-      if (row.status !== "approved") return;
-
-      setCachedPosts(prev => {
-        const exists = prev.find(p => p.id === row.id);
-        if (exists) return prev.map(p => (p.id === row.id ? row : p));
-        return [row, ...prev];
-      });
-    };
-
-    const removePost = (row: any) => {
-      setCachedPosts(prev => prev.filter(p => p.id !== row.id));
-    };
-
-    /* INSERT */
-    channel.on(
-      "postgres_changes",
-      {
-        event: "INSERT",
-        schema: "public",
-        table: "guest_posts",
-        filter: `fan_wall_id=eq.${wallUUID}`,
-      },
-      payload => {
-        const row = payload.new;
-        if (row?.status === "approved") upsertPost(row);
-      }
-    );
-
-    /* UPDATE */
-    channel.on(
-      "postgres_changes",
-      {
-        event: "UPDATE",
-        schema: "public",
-        table: "guest_posts",
-        filter: `fan_wall_id=eq.${wallUUID}`,
-      },
-      payload => {
-        const row = payload.new;
-        const old = payload.old;
-
-        if (row?.status === "approved") upsertPost(row);
-        if (old?.status === "approved" && row?.status !== "approved") removePost(row);
-      }
-    );
-
-    /* DELETE */
-    channel.on(
-      "postgres_changes",
-      {
-        event: "DELETE",
-        schema: "public",
-        table: "guest_posts",
-        filter: `fan_wall_id=eq.${wallUUID}`,
-      },
-      payload => removePost(payload.old)
-    );
-
-  }, [channelRef, wallUUID]);
-
-  /* ✅ Render selected wall layout */
   const renderActiveWall = () => {
-    const layout = cachedWall.layout_type;
-    const bgValue = cachedWall.background_value;
+    if (!wall) return null;
 
-    const props = {
-      event: cachedWall,
-      posts: cachedPosts,
-      background: bgValue,
-      onPostRotation: handlePostRotationTick,
-    };
+    const props = { event: wall, posts };
 
-    switch (layout) {
-      case 'Grid 2x2':
-      case '2x2':
-      case '2x2 Grid':
+    switch (wall.layout_type) {
+      case 'grid2x2':
         return <Grid2x2Wall key={layoutKey} {...props} />;
-
-      case 'Grid 4x2':
-      case '4x2':
-      case '4x2 Grid':
+      case 'grid4x2':
         return <Grid4x2Wall key={layoutKey} {...props} />;
-
       default:
         return <SingleHighlightWall key={layoutKey} {...props} />;
     }
   };
 
-  if (loading && !ready)
-    return <p className={cn('text-white text-center mt-20 animate-pulse')}>Loading Wall…</p>;
-  if (!cachedWall)
-    return <p className={cn('text-white text-center mt-20')}>Wall not found.</p>;
+  if (loading) return <p className={cn('text-white', 'mt-10', 'text-center')}>Loading…</p>;
+  if (!wall) return <p className={cn('text-white', 'mt-10', 'text-center')}>Wall not found.</p>;
+
+  /* FULLSCREEN TOGGLE */
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen().catch(() => {});
+    } else {
+      document.exitFullscreen();
+    }
+  };
 
   return (
     <div
@@ -263,44 +75,80 @@ export default function FanWallPage() {
         position: 'relative',
         width: '100%',
         height: '100vh',
-        overflow: 'hidden',
         background: bg,
-        transition: 'background 0.6s ease-in-out',
+        transition: 'background 0.6s ease',
+        overflow: 'hidden',
       }}
     >
-      {/* Inactive */}
+      {/* INACTIVE WALL */}
       <div
         style={{
           position: 'absolute',
           inset: 0,
-          opacity: opacityInactive,
+          opacity: showLive ? 0 : 1,
+          transition: 'opacity 0.6s ease',
           zIndex: 1,
-          transition: `opacity ${FADE_DURATION}ms ease-in-out`,
         }}
       >
-        <InactiveWall wall={cachedWall} />
+        <InactiveWall wall={wall} />
       </div>
 
-      {/* LIVE */}
+      {/* LIVE WALL */}
       <div
         style={{
           position: 'absolute',
           inset: 0,
-          opacity: opacityLive,
+          opacity: showLive ? 1 : 0,
+          transition: 'opacity 0.6s ease',
           zIndex: 2,
-          transition: `opacity ${FADE_DURATION}ms ease-in-out`,
         }}
       >
         {renderActiveWall()}
       </div>
 
-      {/* Ads */}
-      <AdOverlay
-        showAd={showAd && injectorEnabled}
-        ads={ads}
-        currentAdIndex={currentAdIndex}
-        onAdEnd={() => {}}
-      />
+      {/* ADS — now using POLLING and MASTER→HOST rotation */}
+      {wall?.host?.id && (
+        <AdOverlay hostId={wall.host.id} />
+      )}
+
+      {/* FULLSCREEN BUTTON */}
+      <div
+        style={{
+          position: 'fixed',
+          bottom: '30px',
+          right: '30px',
+          width: 40,
+          height: 40,
+          borderRadius: 12,
+          background: 'rgba(255,255,255,0.08)',
+          border: '1px solid rgba(255,255,255,0.2)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          cursor: 'pointer',
+          opacity: 0.35,
+          transition: 'opacity 0.2s ease',
+          zIndex: 999999999,
+        }}
+        onMouseEnter={(e) => (e.currentTarget.style.opacity = '1')}
+        onMouseLeave={(e) => (e.currentTarget.style.opacity = '0.35')}
+        onClick={toggleFullscreen}
+      >
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          stroke="white"
+          fill="none"
+          viewBox="0 0 24 24"
+          strokeWidth={1.5}
+          style={{ width: 28, height: 28 }}
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M3 9V4h5M21 9V4h-5M3 15v5h5M21 15v5h-5"
+          />
+        </svg>
+      </div>
     </div>
   );
 }

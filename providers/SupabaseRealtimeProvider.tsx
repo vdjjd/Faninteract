@@ -1,41 +1,88 @@
 'use client';
 
-import { createContext, useContext, useRef, useEffect } from 'react';
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useRef,
+  useState
+} from 'react';
 import { supabase } from '@/lib/supabaseClient';
 
-const RTContext = createContext(null);
+interface BroadcastMessage {
+  event: string;
+  payload: any;
+}
+
+const RTContext = createContext<{
+  realtimeReady: boolean;
+  broadcast: (event: string, payload: any) => void;
+} | null>(null);
 
 export function SupabaseRealtimeProvider({ children }) {
-  const channelRef = useRef(null);
+  const unifiedRef = useRef(null);
+  const busRef = useRef<BroadcastChannel | null>(null);
+  const [realtimeReady, setRealtimeReady] = useState(false);
+
+  // 🚌 Create shared cross-tab bus
+  if (!busRef.current) {
+    busRef.current = new BroadcastChannel("faninteract_realtime_bus");
+  }
 
   useEffect(() => {
-    if (!channelRef.current) {
-      // Create channel
-      const ch = supabase.channel('faninteract_unified', {
-        config: {
-          broadcast: { self: false },
-          presence: { key: `tab-${Math.random().toString(36).slice(2)}` },
-        },
-      });
+    console.log("🟢 Initializing unified realtime channel...");
 
-      // Proper subscribe signature (Supabase v2)
-      ch.subscribe((status) => {
-        console.log('📡 Realtime status:', status);
-      });
+    const unified = supabase.channel("faninteract_unified_shared", {
+      config: {
+        broadcast: { self: false },
+        presence: { key: `client-${crypto.randomUUID()}` }
+      }
+    });
 
-      // Store channel ref
-      channelRef.current = ch;
-    }
+    unified.on("broadcast", (msg) => {
+      console.log("📥 SUPABASE → BUS", msg);
+      busRef.current?.postMessage({
+        type: "broadcast",
+        msg
+      });
+    });
+
+    unified.subscribe((status) => {
+      console.log("📡 Unified status:", status);
+      if (status === "SUBSCRIBED") {
+        unifiedRef.current = unified;
+        setRealtimeReady(true);
+      }
+    });
 
     return () => {
-      // Do NOT unsubscribe automatically.
-      // The router depends on a persistent realtime channel.
-      // If you unsubscribe here you break countdown, fade, etc.
+      unified.unsubscribe();
     };
   }, []);
 
+  // 🟦 Safe broadcast function
+  function broadcast(event: string, payload: any) {
+    const safePayload = {
+      ...payload,
+      id: payload?.id ? String(payload.id).trim() : null
+    };
+
+    // 1. Send to supabase
+    unifiedRef.current?.send({
+      type: "broadcast",
+      event,
+      payload: safePayload
+    });
+
+    // 2. Mirror to all tabs instantly
+    busRef.current?.postMessage({
+      type: "broadcast",
+      msg: { event, payload: safePayload }
+    });
+  }
+
   return (
-    <RTContext.Provider value={channelRef}>
+    <RTContext.Provider value={{ realtimeReady, broadcast }}>
       {children}
     </RTContext.Provider>
   );

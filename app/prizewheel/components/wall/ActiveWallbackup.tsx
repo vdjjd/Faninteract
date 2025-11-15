@@ -5,11 +5,6 @@ import { supabase } from "@/lib/supabaseClient";
 import * as THREE from "three";
 import { CSS3DRenderer, CSS3DObject } from "three/examples/jsm/renderers/CSS3DRenderer";
 
-/* ===========================================================
-   🔧 HELPER FUNCTIONS (ORGANIZED + SAFE)
-   =========================================================== */
-
-/** Apply brightness + background transitions */
 function applyBrightness(bg: string, brightness: number) {
   return {
     background: bg,
@@ -18,80 +13,66 @@ function applyBrightness(bg: string, brightness: number) {
   };
 }
 
-/** Filter + normalize entries */
-function normalizeEntries(list: any[] = []) {
-  return list
-    .filter((e) => e.status === "approved")
-    .map((e) => ({
-      photo_url: e.photo_url?.trim() || null,
-      first_name: e.first_name || e?.guest_profiles?.first_name || null,
-      last_name: e.last_name || e?.guest_profiles?.last_name || null,
-    }));
-}
-
-/** Fisher-Yates shuffle */
-function shuffleArray(arr: any[]) {
-  const copy = [...arr];
-  for (let i = copy.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [copy[i], copy[j]] = [copy[j], copy[i]];
-  }
-  return copy;
-}
-
-/** Reset winner halo styles */
-function clearWinnerStyles(wrapper: HTMLElement) {
-  wrapper.style.border = "none";
-  wrapper.style.animation = "none";
-  wrapper.style.boxShadow = "";
-}
-
-/** Apply winner halo styles */
-function setWinnerStyles(wrapper: HTMLElement) {
-  wrapper.style.border = "12px solid gold";
-  wrapper.style.boxShadow =
-    "0 0 80px rgba(255,215,0,0.6), inset 0 0 20px rgba(255,215,0,0.4)";
-  wrapper.style.animation = "winnerHalo 1.4s ease-in-out infinite";
-}
-
-/* ===========================================================
-   MAIN COMPONENT
-   =========================================================== */
-
 export default function ActivePrizeWheel3D({ wheel, entries }) {
   const mountRef = useRef<HTMLDivElement | null>(null);
   const currentWheelGroup = useRef<any>(null);
+
   const tileRefs = useRef<any[]>([]);
   const wrapperRefs = useRef<HTMLElement[]>([]);
-
-  const selectedEntriesRef = useRef<any[] | null>(null);
+  const selectedEntriesRef = useRef<any[] | null>(null); // ✅ cache random selection
 
   const winnerRef = useRef({
-    winnerIndex: null as null | number,
+    winnerIndex: null,
     freezeStart: 0,
-    isFrozen: false,
+    isFrozen: false
   });
 
   const bgRef = useRef<string>(
     wheel?.background_type === "image"
       ? `url(${wheel.background_value}) center/cover no-repeat`
-      : wheel?.background_value ||
-        "linear-gradient(135deg, #1b2735, #090a0f)"
+      : wheel?.background_value || "linear-gradient(135deg, #1b2735, #090a0f)"
   );
 
   const brightnessRef = useRef<number>(wheel?.background_brightness || 100);
 
+  const glowColor = wheel?.tile_glow_color || "#ffffff";
   const tileA = wheel?.tile_color_a || "#ffffff";
   const tileB = wheel?.tile_color_b || "#ffffff";
   const brightA = wheel?.tile_brightness_a ?? 100;
   const brightB = wheel?.tile_brightness_b ?? 100;
 
   /* ---------------------------------------------------------
-     Assign normalized entries to tiles (safe, unchanged)
+     ✅ normalizeEntries — only approved
      --------------------------------------------------------- */
-  function assignEntriesToTiles(normalized: any[]) {
-    if (!normalized?.length) return;
+  function normalizeEntries(list) {
+    if (!Array.isArray(list)) return [];
 
+    const approved = list.filter(e => e.status === "approved");
+
+    return approved.map(e => {
+      let photo = e.photo_url?.trim() ? e.photo_url : null;
+      const first = e.first_name || e?.guest_profiles?.first_name || null;
+      const last = e.last_name || e?.guest_profiles?.last_name || null;
+      return { photo_url: photo, first_name: first, last_name: last };
+    });
+  }
+
+  /* ---------------------------------------------------------
+     ✅ Random selection — locked for session
+     --------------------------------------------------------- */
+  function shuffleArray(arr) {
+    const copy = [...arr];
+    for (let i = copy.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [copy[i], copy[j]] = [copy[j], copy[i]];
+    }
+    return copy;
+  }
+
+  function assignEntriesToTiles(normalized) {
+    if (!normalized || normalized.length === 0) return;
+
+    // ✅ Only randomize once per component load
     if (!selectedEntriesRef.current) {
       const shuffled = shuffleArray(normalized);
       selectedEntriesRef.current = shuffled.slice(0, 16);
@@ -99,21 +80,22 @@ export default function ActivePrizeWheel3D({ wheel, entries }) {
 
     const selected = selectedEntriesRef.current;
 
-    wrapperRefs.current.forEach((wrap, i) => {
+    for (let i = 0; i < wrapperRefs.current.length; i++) {
       const entry = selected[i % selected.length];
-      const imgHolder = wrap.querySelector(".imgHolder") as HTMLElement | null;
-      const nameHolder = wrap.querySelector(".nameHolder") as HTMLElement | null;
-      if (!imgHolder || !nameHolder) return;
+      const wrap = wrapperRefs.current[i];
+      const imgHolder = wrap.querySelector(".imgHolder");
+      const nameHolder = wrap.querySelector(".nameHolder");
+      if (!imgHolder || !nameHolder) continue;
 
       if (entry.photo_url) {
         imgHolder.style.background = `url(${entry.photo_url}) center/cover no-repeat`;
+        imgHolder.style.border = "4px solid rgba(255,255,255,0.5)";
         imgHolder.innerText = "";
       } else {
         imgHolder.style.background = "rgba(0,0,0,0.25)";
+        imgHolder.style.border = "4px solid rgba(255,255,255,0.5)";
         imgHolder.innerText = "IMG";
       }
-
-      imgHolder.style.border = "4px solid rgba(255,255,255,0.5)";
 
       if (entry.first_name) {
         const ln = entry.last_name?.charAt(0)?.toUpperCase() || "";
@@ -121,7 +103,7 @@ export default function ActivePrizeWheel3D({ wheel, entries }) {
       } else {
         nameHolder.innerText = "";
       }
-    });
+    }
 
     console.log("🎯 Selected random entries (locked this session):", selected);
   }
@@ -193,18 +175,27 @@ export default function ActivePrizeWheel3D({ wheel, entries }) {
   const ambientRef = useRef({ speed: 0.00065 });
 
   /* ===========================================================
-     Freeze + highlight winner
+     ✅ Freeze + Winner Highlight (patched for elegant halo)
      =========================================================== */
-  function freezeOnWinner(tileIndex: number) {
+  function freezeOnWinner(tileIndex) {
     const w = winnerRef.current;
     w.winnerIndex = tileIndex;
     w.freezeStart = performance.now();
     w.isFrozen = true;
 
-    wrapperRefs.current.forEach(clearWinnerStyles);
+    wrapperRefs.current.forEach(w => {
+      w.style.border = "none";
+      w.style.animation = "none";
+      w.style.boxShadow = "";
+    });
 
-    const winner = wrapperRefs.current[tileIndex];
-    if (winner) setWinnerStyles(winner);
+    const wrapper = wrapperRefs.current[tileIndex];
+    if (wrapper) {
+      wrapper.style.border = "12px solid gold";
+      wrapper.style.boxShadow =
+        "0 0 80px rgba(255,215,0,0.6), inset 0 0 20px rgba(255,215,0,0.4)";
+      wrapper.style.animation = "winnerHalo 1.4s ease-in-out infinite";
+    }
   }
 
   /* ---------------------- SPIN TRIGGER LISTENER ---------------------- */
@@ -222,7 +213,7 @@ export default function ActivePrizeWheel3D({ wheel, entries }) {
   }, [wheel?.id]);
 
   /* ===========================================================
-     THREE.JS INIT
+     ✅ THREE.JS INIT
      =========================================================== */
   useEffect(() => {
     if (!mountRef.current) return;
@@ -244,10 +235,9 @@ export default function ActivePrizeWheel3D({ wheel, entries }) {
     cssRenderer.setSize(width, height);
     cssRenderer.domElement.style.position = "absolute";
     cssRenderer.domElement.style.top = "0";
-    cssRenderer.domElement.style.left = "0px"; // 🔧 FIXED from ".50"
+    cssRenderer.domElement.style.left = ".50";
     container.appendChild(cssRenderer.domElement);
 
-    /* ---------------- Resize ---------------- */
     function handleResize() {
       if (!mountRef.current) return;
       const w = mountRef.current.clientWidth;
@@ -263,21 +253,25 @@ export default function ActivePrizeWheel3D({ wheel, entries }) {
 
     const wheelGroup = new THREE.Group();
     currentWheelGroup.current = wheelGroup;
+
+    tileRefs.current = [];
+    wrapperRefs.current = [];
     wheelGroup.rotation.y = 0;
     scene.add(wheelGroup);
 
-    /* ---------------- Global spin controller ---------------- */
     (window as any)._prizewheel = {
       _spin: {
         start: () => {
           spinRef.current.spinning = false;
           driftRef.current.drifting = false;
-
           const w = winnerRef.current;
           w.isFrozen = false;
+          wrapperRefs.current.forEach(w => {
+            w.style.border = "none";
+            w.style.animation = "none";
+            w.style.boxShadow = "";
+          });
           w.winnerIndex = null;
-
-          wrapperRefs.current.forEach(clearWinnerStyles);
 
           const ctrl = spinRef.current;
           ctrl.spinning = true;
@@ -289,13 +283,9 @@ export default function ActivePrizeWheel3D({ wheel, entries }) {
           let rawEnd = ctrl.startRot + Math.PI * 2 * fullSpins;
           rawEnd = Math.round(rawEnd / TILE_STEP) * TILE_STEP;
           ctrl.endRot = rawEnd;
-        },
-      },
+        }
+      }
     };
-
-    /* ---------------- Build Tiles ---------------- */
-    tileRefs.current = [];
-    wrapperRefs.current = [];
 
     for (let i = 0; i < TILE_COUNT; i++) {
       const wrapper = document.createElement("div");
@@ -313,7 +303,6 @@ export default function ActivePrizeWheel3D({ wheel, entries }) {
       wrapper.style.background = isA ? tileA : tileB;
       wrapper.style.filter = `brightness(${isA ? brightA : brightB}%)`;
 
-      /* IMG HOLDER */
       const imgHolder = document.createElement("div");
       imgHolder.className = "imgHolder";
       imgHolder.style.position = "absolute";
@@ -334,7 +323,6 @@ export default function ActivePrizeWheel3D({ wheel, entries }) {
       imgHolder.innerText = "IMG";
       wrapper.appendChild(imgHolder);
 
-      /* NAME HOLDER */
       const nameHolder = document.createElement("div");
       nameHolder.className = "nameHolder";
       nameHolder.style.position = "absolute";
@@ -348,7 +336,6 @@ export default function ActivePrizeWheel3D({ wheel, entries }) {
       nameHolder.innerText = "Name L.";
       wrapper.appendChild(nameHolder);
 
-      /* Add to scene */
       const tile = new CSS3DObject(wrapper);
       const angle = i * TILE_STEP;
       tile.position.x = Math.sin(angle) * RADIUS;
@@ -362,8 +349,7 @@ export default function ActivePrizeWheel3D({ wheel, entries }) {
 
     assignEntriesToTiles(normalizeEntries(entries));
 
-    /* ---------------- Animation Loop ---------------- */
-    function animate(time: number) {
+    function animate(time) {
       const spin = spinRef.current;
       const drift = driftRef.current;
       const winner = winnerRef.current;
@@ -405,33 +391,32 @@ export default function ActivePrizeWheel3D({ wheel, entries }) {
 
     animate(0);
 
-    /* ---------------- Cleanup ---------------- */
     return () => {
       window.removeEventListener("resize", handleResize);
       document.removeEventListener("fullscreenchange", handleResize);
-
       container.removeChild(renderer.domElement);
       container.removeChild(cssRenderer.domElement);
-
       renderer.dispose();
     };
   }, []);
 
   /* ===========================================================
-     UPDATE ENTRIES (won't reshuffle)
+     ✅ UPDATE ENTRIES (won’t reshuffle mid-session)
      =========================================================== */
   useEffect(() => {
     if (!wrapperRefs.current.length) return;
-    assignEntriesToTiles(normalizeEntries(entries));
+    const normalized = normalizeEntries(entries);
+    assignEntriesToTiles(normalized);
   }, [entries]);
 
   /* ===========================================================
-     RENDER
+     ✅ RENDER
      =========================================================== */
   return (
     <div style={{ width: "100%", height: "100vh", position: "relative" }}>
       <style>
         {`
+          /* ✅ Classy golden halo winner animation */
           @keyframes winnerHalo {
             0% {
               box-shadow: 0 0 60px rgba(255,215,0,0.4),

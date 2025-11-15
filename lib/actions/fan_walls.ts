@@ -3,6 +3,36 @@
 import { supabase } from '@/lib/supabaseClient';
 
 /* -------------------------------------------------------------------------- */
+/* 🟢 SINGLE SOURCE OF TRUTH: UNIFIED CHANNEL                                  */
+/* -------------------------------------------------------------------------- */
+function getUnifiedChannel() {
+  return supabase.channel("faninteract_unified_shared", {
+    config: {
+      broadcast: { self: true }
+    }
+  });
+}
+
+async function broadcast(event: string, payload: any) {
+  try {
+    const safePayload = {
+      ...payload,
+      id: String(payload.id).trim(),
+    };
+
+    const unified = getUnifiedChannel();
+
+    await unified.send({
+      type: "broadcast",
+      event,
+      payload: safePayload,
+    });
+  } catch (err) {
+    console.error("❌ Broadcast error:", err);
+  }
+}
+
+/* -------------------------------------------------------------------------- */
 /* 🟢 CREATE FAN WALL                                                         */
 /* -------------------------------------------------------------------------- */
 export async function createFanWall(host_id: string, { title }: { title: string }) {
@@ -11,7 +41,7 @@ export async function createFanWall(host_id: string, { title }: { title: string 
       host_id,
       title: title || 'Untitled Fan Zone Wall',
       status: 'inactive',
-      layout_type: 'Grid4x2',
+      layout_type: 'singleHighlight',
       transition_speed: 'Medium',
       post_transition: 'Fade In / Fade Out',
       countdown: null,
@@ -32,13 +62,7 @@ export async function createFanWall(host_id: string, { title }: { title: string 
 
     console.log('✅ Fan wall created:', data.id);
 
-    // 🛰️ Broadcast creation event
-    const channel = supabase.channel('fan_walls-realtime');
-    await channel.send({
-      type: 'broadcast',
-      event: 'wall_created',
-      payload: { id: data.id, ...newWall },
-    });
+    await broadcast("wall_created", { id: data.id, ...newWall });
 
     return data;
   } catch (err) {
@@ -71,7 +95,7 @@ export async function getFanWallsByHost(host_id: string) {
 }
 
 /* -------------------------------------------------------------------------- */
-/* 🟡 UPDATE FAN WALL SETTINGS (Sanitized + Supabase Safe)                    */
+/* 🟡 UPDATE FAN WALL SETTINGS                                                */
 /* -------------------------------------------------------------------------- */
 export async function updateFanWallSettings(
   id: string,
@@ -88,10 +112,9 @@ export async function updateFanWallSettings(
   }>
 ) {
   try {
-    // 🧹 Clean invalid or undefined fields before update
     const cleanFields = Object.fromEntries(
       Object.entries(fields)
-        .filter(([_, v]) => v !== undefined && v !== null && v !== '') // prevents null/empty-string updates
+        .filter(([_, v]) => v !== undefined && v !== null && v !== '')
         .map(([key, value]) => {
           if (key === 'countdown') return [key, value === 'none' ? null : value];
           if (key === 'countdown_active') return [key, value == null ? false : value];
@@ -106,27 +129,17 @@ export async function updateFanWallSettings(
       .select()
       .maybeSingle();
 
-    if (error) {
-      console.error('❌ Supabase update error:', error);
-      throw error;
-    }
+    if (error) throw error;
 
     console.log('✅ Fan wall updated:', id, cleanFields);
 
-    // 🛰 Broadcast realtime update
-    const channel = supabase.channel('fan_walls-realtime');
-    await channel.send({
-      type: 'broadcast',
-      event: 'wall_updated',
-      payload: { id, ...cleanFields },
-    });
+    await broadcast("wall_updated", { id, ...cleanFields });
 
-    // ⏱ Broadcast countdown started if applicable
     if (cleanFields.countdown_active && cleanFields.countdown) {
-      await channel.send({
-        type: 'broadcast',
-        event: 'countdown_started',
-        payload: { id, countdown: cleanFields.countdown, countdown_active: true },
+      await broadcast("countdown_started", {
+        id,
+        countdown: cleanFields.countdown,
+        countdown_active: true,
       });
     }
 
@@ -147,12 +160,7 @@ export async function deleteFanWall(id: string) {
 
     console.log('🗑️ Fan wall deleted:', id);
 
-    const channel = supabase.channel('fan_walls-realtime');
-    await channel.send({
-      type: 'broadcast',
-      event: 'wall_deleted',
-      payload: { id },
-    });
+    await broadcast("wall_deleted", { id });
   } catch (err) {
     console.error('❌ Error deleting fan wall:', err);
   }
@@ -169,6 +177,7 @@ export async function clearFanWallPosts(fan_wall_id: string) {
       .eq('fan_wall_id', fan_wall_id);
 
     if (error) throw error;
+
     console.log('🧹 Posts cleared for fan wall:', fan_wall_id);
   } catch (err) {
     console.error('❌ Error clearing posts:', err);
@@ -176,7 +185,7 @@ export async function clearFanWallPosts(fan_wall_id: string) {
 }
 
 /* -------------------------------------------------------------------------- */
-/* 🔁 TOGGLE LIVE / INACTIVE (Realtime Broadcast)                             */
+/* 🔁 TOGGLE LIVE / INACTIVE                                                 */
 /* -------------------------------------------------------------------------- */
 export async function toggleFanWallStatus(id: string, makeLive: boolean) {
   try {
@@ -188,24 +197,18 @@ export async function toggleFanWallStatus(id: string, makeLive: boolean) {
       .eq('id', id);
 
     if (error) throw error;
+
     console.log(`🔄 Fan wall ${id} → ${status.toUpperCase()}`);
 
-    const channel = supabase.channel('fan_walls-realtime');
-    await channel.send({
-      type: 'broadcast',
-      event: 'wall_status_changed',
-      payload: { id, status },
-    });
+    await broadcast("wall_status_changed", { id, status });
 
     if (makeLive) {
-      await channel.send({
-        type: 'broadcast',
-        event: 'countdown_finished',
-        payload: { id, status: 'live' },
+      await broadcast("countdown_finished", {
+        id,
+        status: "live",
       });
     }
   } catch (err) {
     console.error('❌ Error toggling fan wall status:', err);
   }
 }
-

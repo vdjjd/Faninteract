@@ -1,15 +1,12 @@
-"use client";
+'use client';
 
 import { useEffect, useState, useRef } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import Image from "next/image";
+import { Lock, Trash2, Upload } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { Info } from "lucide-react";
 
-/* ------------------------------------------- */
 /* TYPES */
-/* ------------------------------------------- */
-
 interface AdsManagerModalProps {
   host: any;
   onClose: () => void;
@@ -22,231 +19,229 @@ interface AdItem {
   order_index: number;
   duration_seconds: number;
   storage_path: string;
+  is_master_ad: boolean;
+  is_host_ad: boolean;
 }
 
-/* ------------------------------------------- */
-/* ARRAY MOVE — FIXED VERSION */
-/* ------------------------------------------- */
+/* Utility: arrayMove */
 function arrayMove<T>(arr: T[], from: number, to: number) {
-  const newArr = [...arr];
-  const item = newArr[from];
-  newArr.splice(from, 1);
-  newArr.splice(to, 0, item);
-  return newArr;
+  const clone = [...arr];
+  const item = clone[from];
+  clone.splice(from, 1);
+  clone.splice(to, 0, item);
+  return clone;
 }
-
-/* ------------------------------------------- */
-/* COMPONENT */
-/* ------------------------------------------- */
 
 export default function AdsManagerModal({ host, onClose }: AdsManagerModalProps) {
   const [ads, setAds] = useState<AdItem[]>([]);
   const [loading, setLoading] = useState(true);
 
   const [triggerInterval, setTriggerInterval] = useState(8);
-  const [injectorEnabled, setInjectorEnabled] = useState(true);
+
+  // 🔥 DEFAULT OFF
+  const [injectorEnabled, setInjectorEnabled] = useState(false);
+
+  const [continuousMode, setContinuousMode] = useState(false);
 
   const [reorderMode, setReorderMode] = useState(false);
   const [savingOrder, setSavingOrder] = useState(false);
 
   const dragFrom = useRef<number | null>(null);
 
-  /* ------------------------------------------- */
-  /* LOAD HOST SETTINGS + ADS */
-  /* ------------------------------------------- */
+  const isMaster = host?.role === "master";
+
+  /* ---------------------------------------------------
+     LOAD SETTINGS + ADS (NO REALTIME)
+  --------------------------------------------------- */
   useEffect(() => {
     if (!host?.id) return;
-    loadHostSettings();
-    loadAds();
+
+    if (!isMaster) loadHostSettings();
+    loadMixedAds();
   }, [host?.id]);
 
   async function loadHostSettings() {
     const { data } = await supabase
       .from("hosts")
-      .select("injector_enabled, trigger_interval")
+      .select("injector_enabled, trigger_interval, continuous_mode")
       .eq("id", host.id)
       .single();
 
     if (data) {
-      // coerce to proper types in case DB returns text
-      const enabled = !!data.injector_enabled;
-      const intervalNum = Number(data.trigger_interval ?? 8) || 8;
-
-      setInjectorEnabled(enabled);
-      setTriggerInterval(intervalNum);
+      // respects DB values
+      setInjectorEnabled(!!data.injector_enabled);
+      setTriggerInterval(Number(data.trigger_interval ?? 8) || 8);
+      setContinuousMode(!!data.continuous_mode);
     }
   }
 
-  async function saveHostSettings(enabled: boolean, interval: number) {
-    // persist
-    await supabase
-      .from("hosts")
-      .update({ injector_enabled: enabled, trigger_interval: interval })
-      .eq("id", host.id);
-
-    // reflect latest in local state immediately
-    setInjectorEnabled(!!enabled);
-    setTriggerInterval(Number(interval) || 8);
-
-    // broadcast so any live hooks can react without a refresh
-    try {
-      await supabase
-        .channel("fan_wall_broadcast")
-        .send({
-          type: "broadcast",
-          event: "injector_settings_changed",
-          payload: {
-            host_id: host.id,
-            enabled: !!enabled,
-            trigger_interval: Number(interval) || 8,
-          },
-        });
-    } catch {
-      // silent — UI unchanged per request
-    }
-  }
-
-  async function loadAds() {
+  async function loadMixedAds() {
     setLoading(true);
 
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("slide_ads")
       .select("*")
-      .eq("host_profile_id", host.id)
+      .or(`master_id.is.not.null,host_profile_id.eq.${host.id}`)
+      .order("is_master_ad", { ascending: false })
       .order("order_index", { ascending: true });
 
-    setAds(data || []);
+    if (!error && data) setAds(data as AdItem[]);
     setLoading(false);
   }
 
-  /* ------------------------------------------- */
-  /* UPLOAD (UNCHANGED) */
-  /* ------------------------------------------- */
+  /* ---------------------------------------------------
+     SAVE INJECTOR TOGGLE (NO REALTIME)
+  --------------------------------------------------- */
+  async function saveInjectorEnabled(value: boolean) {
+    await supabase
+      .from("hosts")
+      .update({ injector_enabled: value })
+      .eq("id", host.id);
 
-  const uploadFiles = async (files: FileList | null) => {
-    if (!files) return;
-
-    for (const file of Array.from(files)) {
-      const type = file.type.startsWith("video") ? "video" : "image";
-      const bucket = type === "image" ? "ads-images" : "ads-videos";
-      const path = `${host.id}/${Date.now()}-${file.name}`;
-
-      const { error } = await supabase.storage.from(bucket).upload(path, file);
-      if (error) continue;
-
-      const publicUrl =
-        supabase.storage.from(bucket).getPublicUrl(path).data.publicUrl;
-
-      const nextIndex = ads.length;
-
-      await supabase.from("slide_ads").insert({
-        host_profile_id: host.id,
-        type,
-        url: publicUrl,
-        storage_path: path,
-        order_index: nextIndex,
-        duration_seconds: type === "video" ? 15 : 8,
-        active: true,
-      });
-    }
-
-    loadAds();
-  };
-
-  /* ------------------------------------------- */
-  /* DND (UNCHANGED)                              */
-  /* ------------------------------------------- */
-
-  function handleDragStart(e: React.DragEvent, index: number) {
-    if (!reorderMode) return;
-    dragFrom.current = index;
-    e.dataTransfer.effectAllowed = "move";
-    e.dataTransfer.setData("text/plain", String(index));
+    setInjectorEnabled(value);
   }
 
-  function handleDragOver(e: React.DragEvent) {
-    if (!reorderMode) return;
-    e.preventDefault(); // required for drop to work
-  }
-
-  function handleDrop(e: React.DragEvent, index: number) {
-    if (!reorderMode || dragFrom.current === null) return;
-    e.preventDefault();
-
-    const fromIndex = dragFrom.current;
-    const toIndex = index;
-
-    if (fromIndex === toIndex) return;
-
-    const newOrder = arrayMove(ads, fromIndex, toIndex);
-    setAds(newOrder);
-
-    dragFrom.current = null;
-  }
-
-  /* ------------------------------------------- */
-  /* SAVE ORDER — FIXED INDEXING */
-  /* ------------------------------------------- */
-
+  /* ---------------------------------------------------
+     SAVE ORDER
+  --------------------------------------------------- */
   async function saveOrder() {
     setSavingOrder(true);
 
-    try {
-      await Promise.all(
-        ads.map((ad, idx) =>
-          supabase
-            .from("slide_ads")
-            .update({ order_index: idx })
-            .eq("id", ad.id)
-        )
-      );
+    const updates = ads.map((ad, index) => {
+      if (!isMaster && ad.is_master_ad) return null;
+      return supabase.from("slide_ads").update({ order_index: index }).eq("id", ad.id);
+    });
 
-      await loadAds();
-      setReorderMode(false);
-    } finally {
-      setSavingOrder(false);
-    }
+    await Promise.all(updates.filter(Boolean));
+    await loadMixedAds();
+
+    setSavingOrder(false);
+    setReorderMode(false);
   }
 
-  /* ------------------------------------------- */
-  /* UI — UNTOUCHED LOOK; JUST WIRED CORRECTLY   */
-  /* ------------------------------------------- */
+  /* ---------------------------------------------------
+     DELETE AD
+  --------------------------------------------------- */
+  async function deleteAd(ad: AdItem) {
+    if (!isMaster && ad.is_master_ad) return;
 
+    await supabase.from("slide_ads").delete().eq("id", ad.id);
+
+    if (ad.storage_path) {
+      await supabase.storage.from("ads").remove([ad.storage_path]);
+    }
+
+    await loadMixedAds();
+  }
+
+  /* ---------------------------------------------------
+     UPLOAD AD
+  --------------------------------------------------- */
+  async function handleFileUpload(e: any) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const ext = file.name.split('.').pop();
+    const uuid = crypto.randomUUID();
+    const path = `${host.id}/${uuid}.${ext}`;
+
+    const { error: uploadErr } = await supabase.storage
+      .from("ads")
+      .upload(path, file);
+
+    if (uploadErr) return alert("Upload failed");
+
+    const { data: { publicUrl } } = supabase.storage.from("ads").getPublicUrl(path);
+
+    await supabase.from("slide_ads").insert({
+      host_profile_id: isMaster ? null : host.id,
+      master_id: isMaster ? host.id : null,
+      url: publicUrl,
+      type: file.type.startsWith("video") ? "video" : "image",
+      storage_path: path,
+      order_index: ads.length,
+    });
+
+    await loadMixedAds();
+  }
+
+  /* ---------------------------------------------------
+     DRAG / DROP with SNAP BACK
+  --------------------------------------------------- */
+  function handleDragStart(e: any, index: number, locked: boolean) {
+    if (!reorderMode) return;
+    if (!isMaster && locked) return;
+    dragFrom.current = index;
+  }
+
+  function handleDragOver(e: any) {
+    if (!reorderMode) return;
+    e.preventDefault();
+  }
+
+  function handleDrop(e: any, index: number, locked: boolean) {
+    if (!reorderMode) return;
+    if (dragFrom.current === null) return;
+
+    const from = dragFrom.current;
+    const to = index;
+
+    const draggedAd = ads[from];
+
+    if (!isMaster) {
+      const movingHostAdUpOverCorp =
+        draggedAd.is_host_ad &&
+        ads[to]?.is_master_ad &&
+        to < from;
+
+      if (movingHostAdUpOverCorp) {
+        dragFrom.current = null;
+        return;
+      }
+    }
+
+    const newOrder = arrayMove(ads, from, to);
+    setAds(newOrder);
+    dragFrom.current = null;
+  }
+
+  /* ---------------------------------------------------
+     UI
+  --------------------------------------------------- */
   return (
     <div
-      className={cn('fixed', 'inset-0', 'bg-black/70', 'backdrop-blur-md', 'z-[9999]', 'flex', 'items-center', 'justify-center')}
+      className={cn(
+        "fixed inset-0 bg-black/70 backdrop-blur-md z-[9999] flex items-center justify-center"
+      )}
       onClick={onClose}
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className={cn('relative', 'w-full', 'max-w-[960px]', 'max-h-[90vh]', 'rounded-2xl', 'border', 'border-blue-500/30', 'bg-gradient-to-br', 'from-[#0b0f1a]/95', 'to-[#111827]/95', 'shadow-[0_0_40px_rgba(0,140,255,0.45)]', 'p-6', 'flex', 'flex-col', 'overflow-hidden')}
+        className={cn(
+          "relative w-full max-w-[960px] max-h-[90vh] rounded-2xl border border-blue-500/30",
+          "bg-gradient-to-br from-[#0b0f1a]/95 to-[#111827]/95 shadow-[0_0_40px_rgba(0,140,255,0.45)]",
+          "p-6 flex flex-col overflow-hidden"
+        )}
       >
-        {/* close */}
-        <button
-          onClick={onClose}
-          className={cn('absolute', 'top-3', 'right-3', 'text-white', 'text-xl')}
-        >
+        {/* CLOSE */}
+        <button onClick={onClose} className={cn('absolute', 'top-3', 'right-3', 'text-white', 'text-xl')}>
           ✕
         </button>
 
-        {/* header */}
+        {/* TITLE */}
         <div className={cn('text-center', 'mb-4', 'border-b', 'border-white/10', 'pb-3')}>
           <h1 className={cn('text-2xl', 'font-bold', 'bg-gradient-to-r', 'from-blue-400', 'to-cyan-400', 'bg-clip-text', 'text-transparent')}>
-            Ad Injector Manager
+            Ad Manager
           </h1>
         </div>
 
-        {/* controls */}
-        <div className={cn('flex', 'items-center', 'justify-between', 'bg-white/5', 'rounded-lg', 'px-4', 'py-3', 'mb-4', 'border', 'border-white/10')}>
-          <div className={cn('flex', 'items-center', 'gap-3')}>
-            <span className={cn('text-sm', 'text-white/80', 'font-medium')}>Ad Injector:</span>
+        {/* INJECTOR SWITCH (host only) */}
+        {!isMaster && (
+          <div className={cn('flex', 'items-center', 'justify-between', 'bg-white/5', 'border', 'border-white/10', 'px-4', 'py-3', 'rounded-lg', 'mb-5')}>
+            <span className={cn('text-white/80', 'text-sm', 'font-medium')}>Ad Injector</span>
 
             <div
-              onClick={async () => {
-                const nextEnabled = !injectorEnabled;
-                // update immediately and persist+broadcast
-                await saveHostSettings(nextEnabled, triggerInterval);
-              }}
+              onClick={() => saveInjectorEnabled(!injectorEnabled)}
               className={cn(
                 "relative w-14 h-7 rounded-full cursor-pointer transition-all",
                 injectorEnabled
@@ -262,108 +257,89 @@ export default function AdsManagerModal({ host, onClose }: AdsManagerModalProps)
               />
             </div>
           </div>
+        )}
 
-          <div className={cn('flex', 'items-center', 'gap-2')}>
-            <span className={cn('text-sm', 'text-white/80', 'font-medium', 'flex', 'items-center', 'gap-1')}>
-              Post Rotation <Info size={14} className="text-blue-400/70" />
-            </span>
+        {/* UPLOAD + REORDER */}
+        <div className={cn('mb-4', 'flex', 'items-center', 'gap-3')}>
+          <label className={cn('cursor-pointer', 'flex', 'items-center', 'gap-2', 'text-white/80', 'border', 'border-white/20', 'px-3', 'py-2', 'rounded-lg', 'hover:bg-white/10')}>
+            <Upload size={18} />
+            Upload Ad
+            <input type="file" className="hidden" accept="image/*,video/*" onChange={handleFileUpload} />
+          </label>
 
-            <select
-              className={cn('bg-black/60', 'border', 'border-blue-500/30', 'text-white', 'text-xs', 'rounded', 'px-2', 'py-1')}
-              value={triggerInterval}
-              onChange={async (e) => {
-                const v = Number(e.target.value) || 8;
-                // update immediately and persist+broadcast
-                await saveHostSettings(injectorEnabled, v);
-              }}
-            >
-              <option value={8}>8</option>
-              <option value={12}>12</option>
-              <option value={24}>24</option>
-            </select>
-          </div>
-        </div>
-
-        {/* upload */}
-        <label className={cn('border', 'border-dashed', 'border-blue-500/40', 'rounded-lg', 'bg-gradient-to-br', 'from-blue-500/5', 'to-cyan-400/5', 'hover:from-blue-500/10', 'hover:to-cyan-400/10', 'transition-all', 'cursor-pointer', 'flex', 'flex-col', 'items-center', 'justify-center', 'p-6', 'mb-3')}>
-          <p className={cn('text-sm', 'font-medium', 'text-blue-100/80')}>Upload Ads</p>
-          <input
-            type="file"
-            multiple
-            hidden
-            onChange={(e) => uploadFiles(e.target.files)}
-          />
-        </label>
-
-        {/* grid */}
-        <div className={cn('flex-1', 'border', 'border-white/10', 'bg-white/5', 'p-3', 'rounded-lg', 'overflow-auto')}>
-          {loading ? (
-            <p className={cn('text-center', 'opacity-60', 'mt-8')}>Loading ads...</p>
-          ) : ads.length === 0 ? (
-            <p className={cn('text-center', 'opacity-60', 'mt-8')}>No ads yet</p>
-          ) : (
-            <div className={cn('grid', 'grid-cols-4', 'gap-3')}>
-              {ads.map((ad, i) => (
-                <div
-                  key={ad.id}
-                  draggable={reorderMode}
-                  onDragStart={(e) => handleDragStart(e, i)}
-                  onDragOver={handleDragOver}
-                  onDrop={(e) => handleDrop(e, i)}
-                  className={cn(
-                    "relative rounded-lg overflow-hidden border border-white/10 bg-white/10 transition-all",
-                    reorderMode ? "cursor-move ring-2 ring-blue-400/50" : ""
-                  )}
-                >
-                  <span className={cn('absolute', 'top-1', 'left-1', 'bg-blue-500/80', 'text-white', 'text-[10px]', 'px-2', 'py-[1px]', 'rounded-full')}>
-                    #{i + 1}
-                  </span>
-
-                  {ad.type === "image" ? (
-                    <Image
-                      src={ad.url}
-                      alt=""
-                      width={300}
-                      height={200}
-                      className={cn('h-32', 'w-full', 'object-cover')}
-                      draggable={false}
-                    />
-                  ) : (
-                    <video
-                      src={ad.url}
-                      muted
-                      className={cn('h-32', 'w-full', 'object-cover')}
-                      draggable={false}
-                    />
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* footer */}
-        <div className={cn('mt-3', 'flex', 'justify-between', 'items-center')}>
           <button
-            onClick={() => setReorderMode(!reorderMode)}
             className={cn(
-              "text-sm px-4 py-2 rounded-lg",
-              reorderMode ? "bg-blue-600/70" : "bg-blue-600/40"
+              "px-4 py-2 rounded-lg border border-white/10 text-white/90",
+              reorderMode ? "bg-blue-600" : "bg-white/10"
             )}
+            onClick={() => setReorderMode(!reorderMode)}
           >
-            {reorderMode ? "Done Reordering" : "Reorder Ads"}
+            {reorderMode ? "Done" : "Reorder"}
           </button>
-
-          {reorderMode && (
-            <button
-              onClick={saveOrder}
-              disabled={savingOrder}
-              className={cn('text-sm', 'px-4', 'py-2', 'rounded-lg', 'bg-green-600/60')}
-            >
-              {savingOrder ? "Saving…" : "✅ Save Order"}
-            </button>
-          )}
         </div>
+
+        {/* GRID */}
+        <div className={cn('grid', 'grid-cols-3', 'gap-3', 'overflow-y-auto', 'pr-2')}>
+          {ads.map((ad, i) => {
+            const locked = ad.is_master_ad && !isMaster;
+
+            return (
+              <div
+                key={ad.id}
+                draggable={reorderMode && !locked}
+                onDragStart={(e) => handleDragStart(e, i, locked)}
+                onDragOver={handleDragOver}
+                onDrop={(e) => handleDrop(e, i, locked)}
+                className={cn(
+                  "relative rounded-lg overflow-hidden border cursor-pointer select-none",
+                  locked
+                    ? "border-amber-400/40 bg-amber-700/20 opacity-80"
+                    : "border-white/10 bg-white/5"
+                )}
+              >
+                {/* LOCK BADGE */}
+                {locked && (
+                  <div className={cn('absolute', 'top-2', 'right-2', 'bg-amber-600/90', 'text-white', 'p-1', 'rounded-full', 'z-20')}>
+                    <Lock size={14} />
+                  </div>
+                )}
+
+                {/* DELETE */}
+                {(isMaster || ad.is_host_ad) && (
+                  <button
+                    onClick={() => deleteAd(ad)}
+                    className={cn('absolute', 'top-2', 'left-2', 'bg-red-600/80', 'text-white', 'p-1', 'rounded-full', 'z-20')}
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                )}
+
+                {/* PREVIEW */}
+                {ad.type === "image" ? (
+                  <Image src={ad.url} alt="" width={300} height={200} className={cn('object-cover', 'w-full', 'h-32')} />
+                ) : (
+                  <video src={ad.url} muted className={cn('object-cover', 'w-full', 'h-32')} />
+                )}
+
+                {/* ORDER */}
+                <div className={cn('absolute', 'bottom-1', 'left-1', 'bg-black/50', 'text-white', 'text-xs', 'px-2', 'py-0.5', 'rounded')}>
+                  #{i + 1}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* SAVE ORDER */}
+        {reorderMode && (
+          <button
+            disabled={savingOrder}
+            onClick={saveOrder}
+            className={cn('mt-4', 'w-full', 'py-2', 'bg-blue-600', 'hover:bg-blue-500', 'text-white', 'rounded-lg')}
+          >
+            {savingOrder ? "Saving…" : "Save Order"}
+          </button>
+        )}
       </div>
     </div>
   );

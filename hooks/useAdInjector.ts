@@ -1,124 +1,208 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 
 interface UseAdInjectorOptions {
   hostId: string;
 }
 
+/**
+ * ADS INJECTOR — MIXED CORPORATE + HOST ADS (FINAL)
+ *
+ *  ✔ Corporate ads come from slide_ads where master_id = host.master_id
+ *  ✔ Local ads come from slide_ads where host_profile_id = host.id
+ *  ✔ Unified sort order = corporate first, then local
+ *      ORDER BY is_master_ad DESC, order_index ASC
+ *  ✔ Corporate ads locked from editing
+ *  ✔ Supports 3 modes: rotation, slideshow, takeover
+ *  ✔ Handles realtime updates cleanly
+ */
 export function useAdInjector({ hostId }: UseAdInjectorOptions) {
   const [ads, setAds] = useState<any[]>([]);
   const [showAd, setShowAd] = useState(false);
   const [current, setCurrent] = useState(0);
 
-  const [enabled, setEnabled] = useState(false);
-  const [interval, setInterval] = useState(8);
+  const [injectorEnabled, setInjectorEnabled] = useState(false);
+  const [triggerInterval, setTriggerInterval] = useState(8);
+  const [injectorMode, setInjectorMode] =
+    useState<'rotation' | 'slideshow' | 'takeover'>('rotation');
 
-  const rotationCount = useRef(0);
-  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const masterIdRef = useRef<string | null>(null);
+  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const rotationRef = useRef(0);
 
-  /* ------------------ LOAD SETTINGS + ADS ------------------ */
+  /* --------------------------------------------------------------------
+     LOAD HOST SETTINGS + BOTH AD TYPES
+  -------------------------------------------------------------------- */
   useEffect(() => {
     if (!hostId) return;
 
     async function loadAll() {
-
-      /* ✅ Load injector settings */
-      const { data: hostSettings } = await supabase
+      /** 1. Load host settings including master_id */
+      const { data: host } = await supabase
         .from('hosts')
-        .select('injector_enabled, trigger_interval')
+        .select('injector_enabled, trigger_interval, injector_mode, master_id')
         .eq('id', hostId)
         .single();
 
-      if (hostSettings) {
-        setEnabled(hostSettings.injector_enabled ?? false);
-        setInterval(Number(hostSettings.trigger_interval) || 8);
+      if (host) {
+        setInjectorEnabled(!!host.injector_enabled);
+        setTriggerInterval(Number(host.trigger_interval) || 8);
+        setInjectorMode(host.injector_mode || 'rotation');
+        masterIdRef.current = host.master_id || null;
       }
 
-      /* ✅ Load ads (sorted by global_order_index ASC) */
-      let { data: adList, error } = await supabase
+      /** 2. Load local ads */
+      const { data: localAds } = await supabase
         .from('slide_ads')
         .select('*')
-        .order('global_order_index', { ascending: true });
+        .eq('host_profile_id', hostId)
+        .eq('active', true)
+        .order('order_index', { ascending: true });
 
-      if (!error && adList) {
-        // Remove any ads missing ordering
-        adList = adList.filter((a: any) => a.global_order_index !== null);
+      /** 3. Load corporate ads (same table, master_id column) */
+      let corporateAds: any[] = [];
 
-        // Fallback sort (important)
-        adList.sort((a: any, b: any) => {
-          if (a.global_order_index == null) return 1;
-          if (b.global_order_index == null) return -1;
-          return a.global_order_index - b.global_order_index;
-        });
+      if (masterIdRef.current) {
+        const { data: corp } = await supabase
+          .from('slide_ads')
+          .select('*')
+          .eq('master_id', masterIdRef.current)
+          .eq('active', true)
+          .order('order_index', { ascending: true });
 
-        setAds(adList);
+        corporateAds =
+          (corp || []).map(a => ({
+            ...a,
+            locked: true, // mark for UI
+          })) || [];
       }
+
+      /** 4. Merge using SQL sort rules */
+      const merged = [...(corporateAds || []), ...(localAds || [])].sort((a, b) => {
+        // Corporate first (is_master_ad DESC)
+        if (a.master_id && !b.master_id) return -1;
+        if (!a.master_id && b.master_id) return 1;
+
+        // Within group, use order_index
+        return (a.order_index ?? 9999) - (b.order_index ?? 9999);
+      });
+
+      setAds(merged);
     }
 
     loadAll();
 
-    /* ✅ Listen for realtime changes */
-    const channel = supabase
-      .channel(`slide_ads_${hostId}`)
+    /* realtime — local host ads */
+    const localChannel = supabase
+      .channel(`slide_ads_local_${hostId}`)
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: 'slide_ads' },
-        loadAll
+        { event: '*', schema: 'public', table: 'slide_ads', filter: `host_profile_id=eq.${hostId}` },
+        () => loadAll()
       )
       .subscribe();
 
-    return () => supabase.removeChannel(channel);
+    /* realtime — corporate ads */
+    const corpChannel = supabase
+      .channel(`slide_ads_corp_${hostId}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'slide_ads' },
+        payload => {
+          if (payload.new?.master_id === masterIdRef.current) loadAll();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(localChannel);
+      supabase.removeChannel(corpChannel);
+    };
   }, [hostId]);
 
-  /* ------------------ RUN AD INJECTION ------------------ */
-  const runInjection = () => {
-    if (!enabled || ads.length === 0) return;
+  /* --------------------------------------------------------------------
+     AD SWITCHER
+  -------------------------------------------------------------------- */
+  const showNextAd = () => {
+    if (!injectorEnabled || ads.length === 0) return;
+
+    setCurrent(prev => {
+      const next = (prev + 1) % ads.length;
+      return next;
+    });
 
     setShowAd(true);
-
-    const nextIndex = (current + 1) % ads.length;
-    setCurrent(nextIndex);
-
-    if (timeoutRef.current) clearTimeout(timeoutRef.current);
-
-    timeoutRef.current = setTimeout(() => {
-      setShowAd(false);
-    }, 8000);
   };
 
-  /* ------------------ TICK (CALLED BY WALL EACH ROTATION) ------------------ */
+  /* --------------------------------------------------------------------
+     TAKEOVER MODE (always showing ads)
+  -------------------------------------------------------------------- */
+  useEffect(() => {
+    if (injectorMode !== 'takeover') return hideAndClear();
+    if (!injectorEnabled || ads.length === 0) return hideAndClear();
+
+    setShowAd(true); // permanent
+
+    restartInterval(() => showNextAd(), triggerInterval * 1000);
+
+    return clearIntervalOnly;
+  }, [injectorMode, injectorEnabled, ads.length, triggerInterval]);
+
+  /* --------------------------------------------------------------------
+     SLIDESHOW MODE (timed show + hide)
+  -------------------------------------------------------------------- */
+  useEffect(() => {
+    if (injectorMode !== 'slideshow') return hideAndClear();
+    if (!injectorEnabled || ads.length === 0) return hideAndClear();
+
+    restartInterval(() => {
+      showNextAd();
+      setTimeout(() => setShowAd(false), 8000);
+    }, triggerInterval * 1000);
+
+    return clearIntervalOnly;
+  }, [injectorMode, injectorEnabled, ads.length, triggerInterval]);
+
+  /* --------------------------------------------------------------------
+     ROTATION MODE (wall-driven tick)
+  -------------------------------------------------------------------- */
   const tick = () => {
-    if (!enabled || ads.length === 0) return;
+    if (injectorMode !== 'rotation') return;
+    if (!injectorEnabled || ads.length === 0) return;
+    if (showAd) return;
 
-    rotationCount.current++;
+    rotationRef.current++;
 
-    console.log(
-      `Tick → ${rotationCount.current}/${interval} (ads: ${ads.length})`
-    );
-
-    if (rotationCount.current >= interval) {
-      rotationCount.current = 0;
-      runInjection();
+    if (rotationRef.current >= triggerInterval) {
+      rotationRef.current = 0;
+      showNextAd();
+      setTimeout(() => setShowAd(false), 8000);
     }
   };
 
-  /* ------------------ CLEANUP ------------------ */
-  useEffect(() => {
-    return () => {
-      if (timeoutRef.current) clearTimeout(timeoutRef.current);
-    };
-  }, []);
+  /* UTILITIES --------------------------------------------------------- */
+  function restartInterval(fn: () => void, ms: number) {
+    if (intervalRef.current) clearInterval(intervalRef.current);
+    intervalRef.current = setInterval(fn, ms);
+  }
 
-  /* ------------------ RETURN API ------------------ */
+  function clearIntervalOnly() {
+    if (intervalRef.current) clearInterval(intervalRef.current);
+  }
+
+  function hideAndClear() {
+    setShowAd(false);
+    clearIntervalOnly();
+  }
+
   return {
     ads,
     showAd,
     currentAd: ads[current] || null,
-    currentAdIndex: current,
+    injectorEnabled,
+    injectorMode,
     tick,
-    setShowAd,
-    injectorEnabled: enabled,
   };
 }
