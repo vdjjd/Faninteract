@@ -15,14 +15,18 @@ import { cn } from "../../../lib/utils";
 export default function FanWallPage() {
 
   /* ------------------------------------------------------- */
-  /* ✅ Correct param name: eventId                           */
+  /* ✅ Correct param name: wallId                           */
   /* ------------------------------------------------------- */
-  const { eventId } = useParams();
-  const wallUUID = Array.isArray(eventId) ? eventId[0] : eventId;
+  const { wallId } = useParams();
 
+  // Convert param to usable value
+  const wallUUID = Array.isArray(wallId) ? wallId[0] : wallId;
+
+  console.log("🔥 useParams.wallId =", wallId);
+  console.log("🔥 wallUUID =", wallUUID);
 
   /* ------------------------------------------------------- */
-  /* ✅ Load wall data                                       */
+  /* Load wall data                                          */
   /* ------------------------------------------------------- */
   const { wall, posts, loading, showLive } = useWallData(wallUUID);
 
@@ -32,7 +36,7 @@ export default function FanWallPage() {
 
 
   /* ------------------------------------------------------- */
-  /* ✅ Background updater                                   */
+  /* Background updater                                      */
   /* ------------------------------------------------------- */
   useEffect(() => {
     if (!wall) return;
@@ -47,7 +51,7 @@ export default function FanWallPage() {
 
 
   /* ------------------------------------------------------- */
-  /* ✅ Layout key updater                                   */
+  /* Layout key updater                                      */
   /* ------------------------------------------------------- */
   useEffect(() => {
     if (!wall) return;
@@ -59,7 +63,7 @@ export default function FanWallPage() {
 
 
   /* ------------------------------------------------------- */
-  /* ✅ Cleaned-up renderer                                  */
+  /* Render Active Wall                                      */
   /* ------------------------------------------------------- */
   const renderActiveWall = () => {
     if (!wall) return null;
@@ -68,7 +72,6 @@ export default function FanWallPage() {
     switch (wall.layout_type) {
       case 'grid2x2':
         return <Grid2x2Wall key={layoutKey} {...props} />;
-
       default:
         return <SingleHighlightWall key={layoutKey} {...props} />;
     }
