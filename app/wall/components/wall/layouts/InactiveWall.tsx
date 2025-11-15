@@ -1,7 +1,7 @@
 'use client';
 
 import { QRCodeCanvas } from 'qrcode.react';
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState } from 'react';
 
 /* ---------- COUNTDOWN COMPONENT (Fan Wall) ---------- */
 function CountdownDisplay({ countdown, countdownActive }) {
@@ -45,7 +45,6 @@ function CountdownDisplay({ countdown, countdownActive }) {
         fontSize: 'clamp(6rem,8vw,9rem)',
         fontWeight: 900,
         color: '#fff',
-        marginTop: '2vh',
         textShadow: '0 0 40px rgba(0,0,0,0.7)',
       }}
     >
@@ -55,7 +54,7 @@ function CountdownDisplay({ countdown, countdownActive }) {
 }
 
 /* -------------------------------------------------------------------------- */
-/* ✅ FAN WALL — INACTIVE WALL (CLEANED)                                      */
+/* ✅ FAN WALL — INACTIVE WALL (FIXED + ALIGNED)                              */
 /* -------------------------------------------------------------------------- */
 export default function InactiveWall({ wall }) {
   const [bg, setBg] = useState('linear-gradient(to bottom right,#1b2735,#090a0f)');
@@ -66,7 +65,7 @@ export default function InactiveWall({ wall }) {
     countdownActive: !!wall?.countdown_active,
   });
 
-  /* ANIMATION CSS */
+  /* Pulse Animation CSS */
   const PulseStyle = (
     <style>{`
       @keyframes pulseSoonGlow {
@@ -155,7 +154,7 @@ export default function InactiveWall({ wall }) {
           width: '90vw',
           height: '78vh',
           maxWidth: '1800px',
-          aspectRatio: '16 / 9',
+          aspectRatio: '16/9',
           background: 'rgba(255,255,255,0.08)',
           backdropFilter: 'blur(20px)',
           border: '1px solid rgba(255,255,255,0.15)',
@@ -176,7 +175,6 @@ export default function InactiveWall({ wall }) {
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            background: 'transparent',
           }}
         >
           <QRCodeCanvas
@@ -236,55 +234,17 @@ export default function InactiveWall({ wall }) {
             }}
           />
 
-          {/* TEXT */}
-          <p
-            style={{
-              position: 'absolute',
-              top: '56%',
-              left: '53%',
-              transform: 'translateX(-50%)',
-              color: '#fff',
-              fontSize: 'clamp(2em,3.5vw,6rem)',
-              fontWeight: 900,
-              textAlign: 'center',
-              margin: 0,
-              textShadow: '0 0 14px rgba(0,0,0,0.6)',
-            }}
-          >
-            Fan Zone Wall
-          </p>
-
-          <p
-            className="pulseSoon"
-            style={{
-              position: 'absolute',
-              top: '67%',
-              left: '53%',
-              transform: 'translateX(-50%)',
-              color: '#bcd9ff',
-              fontSize: 'clamp(2.8rem,2.4vw,3.2rem)',
-              fontWeight: 700,
-              margin: 0,
-            }}
-          >
-            Starting Soon!!
-          </p>
-
+          {/* TEXT BLOCK — FIXED */}
           <div
             style={{
               position: 'absolute',
-              top: '70%',
+              top: '53%',
               left: '53%',
               transform: 'translateX(-50%)',
+              width: '75%',
+              textAlign: 'center',
             }}
           >
-            <CountdownDisplay
-              countdown={wallState.countdown}
-              countdownActive={wallState.countdownActive}
-            />
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
+            <p
+              style={{
+                co
