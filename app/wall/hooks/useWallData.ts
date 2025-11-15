@@ -18,23 +18,27 @@ function canonicalLayout(input?: string) {
 /* MAIN POLLING HOOK                               */
 /* ---------------------------------------------- */
 export function useWallData(wallId: string | undefined) {
-  const wallUUID = String(wallId || '').trim();
 
   const [wall, setWall] = useState<any>(null);
   const [posts, setPosts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-
   const [showLive, setShowLive] = useState(false);
 
-  /* TRACK LAST VALUES TO AVOID UNNECESSARY SETSTATE */
   const lastWallJSON = useRef<string>('');
   const lastPostCount = useRef<number>(0);
 
   /* ---------------------------------------------- */
-  /* REFRESH FUNCTION (called on interval + load)    */
+  /* REFRESH FUNCTION                                */
   /* ---------------------------------------------- */
   const refresh = useCallback(async () => {
-    if (!wallUUID) return;
+
+    // 🚨 FIX: wait for Next.js to hydrate params
+    if (!wallId) {
+      setLoading(true);
+      return;
+    }
+
+    const wallUUID = wallId.trim();
 
     /* 1️⃣ FETCH WALL SETTINGS */
     const { data: wallRow } = await supabase
@@ -49,7 +53,6 @@ export function useWallData(wallId: string | undefined) {
       return;
     }
 
-    /* Canonical layout */
     const normalized = {
       ...wallRow,
       layout_type: canonicalLayout(wallRow.layout_type),
@@ -57,12 +60,9 @@ export function useWallData(wallId: string | undefined) {
 
     const nextJSON = JSON.stringify(normalized);
 
-    /* Only update React state if something actually changed */
     if (nextJSON !== lastWallJSON.current) {
       lastWallJSON.current = nextJSON;
       setWall(normalized);
-
-      /* update showLive when status changes */
       setShowLive(wallRow.status === 'live');
     }
 
@@ -82,15 +82,16 @@ export function useWallData(wallId: string | undefined) {
     }
 
     setLoading(false);
-  }, [wallUUID]);
+
+  }, [wallId]);
 
   /* ---------------------------------------------- */
   /* INITIAL LOAD + POLLING                         */
   /* ---------------------------------------------- */
   useEffect(() => {
-    refresh(); // load immediately
+    refresh();  // run immediately when hydrated
 
-    const interval = setInterval(refresh, 3000); // poll every 3 sec
+    const interval = setInterval(refresh, 3000);
     return () => clearInterval(interval);
   }, [refresh]);
 
