@@ -1,15 +1,12 @@
 'use client';
 
 import { useState } from 'react';
-import dynamic from 'next/dynamic';
 import { motion } from 'framer-motion';
 import Image from 'next/image';
 import Link from 'next/link';
 import Modal from '@/components/Modal';
+import HostSignupForm from '@/components/Signup/HostSignupForm';   // ✅ FIXED
 import { cn } from "../lib/utils";
-
-// ✅ Use RELATIVE import — fixes "module not found"
-const SignUpPage = dynamic(() => import('./signup/page'), { ssr: false });
 
 export default function LandingPage() {
   const [showSignup, setShowSignup] = useState(false);
@@ -56,7 +53,7 @@ export default function LandingPage() {
           transition={{ duration: 1 }}
           className={cn('flex', 'flex-col', 'items-center', 'justify-center', 'space-y-12', 'mt-[-60px]')}
         >
-          {/* ✅ Logo */}
+          {/* Logo */}
           <motion.div
             animate={{ scale: [1, 1.06, 1] }}
             transition={{ duration: 7, repeat: Infinity, ease: 'easeInOut' }}
@@ -72,21 +69,19 @@ export default function LandingPage() {
             />
           </motion.div>
 
-          <h1
-            className={cn(
-              'text-5xl',
-              'md:text-7xl',
-              'font-extrabold',
-              'tracking-tight',
-              'bg-clip-text',
-              'text-transparent',
-              'bg-gradient-to-r',
-              'from-sky-400',
-              'via-blue-500',
-              'to-indigo-400',
-              'drop-shadow-[0_0_30px_rgba(56,189,248,0.25)]'
-            )}
-          >
+          <h1 className={cn(
+            'text-5xl',
+            'md:text-7xl',
+            'font-extrabold',
+            'tracking-tight',
+            'bg-clip-text',
+            'text-transparent',
+            'bg-gradient-to-r',
+            'from-sky-400',
+            'via-blue-500',
+            'to-indigo-400',
+            'drop-shadow-[0_0_30px_rgba(56,189,248,0.25)]'
+          )}>
             Turn Crowds Into Communities
           </h1>
 
@@ -137,12 +132,11 @@ export default function LandingPage() {
         </motion.div>
       </div>
 
-      {/* 🧩 Signup Modal — renders your real signup page */}
+      {/* Signup Modal */}
       <Modal isOpen={showSignup} onClose={() => setShowSignup(false)}>
-        <SignUpPage />
+        <HostSignupForm /> {/* ✅ FIXED */}
       </Modal>
 
-      {/* 🦶 Footer */}
       <footer
         className={cn(
           'relative',
