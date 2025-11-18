@@ -46,14 +46,17 @@ function CountdownDisplay({ countdown, countdownActive }) {
 }
 
 /* -------------------------------------------------------------------------- */
-/* ✅ INACTIVE WALL — FULLY RESPONSIVE                                         */
+/* ✅ INACTIVE WALL — CLEAN VERSION (NO FULLSCREEN BUTTON)                     */
 /* -------------------------------------------------------------------------- */
 export default function InactiveWall({ wall }) {
   const rt = useRealtimeChannel();
-  const fullscreenButtonRef = useRef(null); // ✅ FIX: define the ref
 
-  const [bg, setBg] = useState('linear-gradient(to bottom right,#1b2735,#090a0f)');
-  const [brightness, setBrightness] = useState(wall?.background_brightness || 100);
+  const [bg, setBg] = useState(
+    'linear-gradient(to bottom right,#1b2735,#090a0f)'
+  );
+  const [brightness, setBrightness] = useState(
+    wall?.background_brightness || 100
+  );
   const [wallState, setWallState] = useState({
     countdown: '',
     countdownActive: false,
@@ -61,7 +64,7 @@ export default function InactiveWall({ wall }) {
   });
   const updateTimeout = useRef(null);
 
-  /* ✅ Pulse Animation */
+  /* Pulse animation */
   const PulseStyle = (
     <style>{`
       @keyframes pulseSoonGlow {
@@ -87,21 +90,30 @@ export default function InactiveWall({ wall }) {
         ? `url(${wall.background_value}) center/cover no-repeat`
         : wall.background_value ||
           'linear-gradient(to bottom right,#1b2735,#090a0f)';
+
     setBg(value);
-    if (wall.background_brightness !== undefined) setBrightness(wall.background_brightness);
+
+    if (wall.background_brightness !== undefined)
+      setBrightness(wall.background_brightness);
   }, [wall]);
 
-  /* Realtime listener */
+  /* Supabase Realtime Listener */
   useEffect(() => {
     if (!rt?.current || !wall?.id) return;
+
     const channel = rt.current;
+
     const scheduleUpdate = (data) => {
       if (updateTimeout.current) clearTimeout(updateTimeout.current);
-      updateTimeout.current = setTimeout(() => setWallState(prev => ({ ...prev, ...data })), 100);
+      updateTimeout.current = setTimeout(
+        () => setWallState((prev) => ({ ...prev, ...data })),
+        100
+      );
     };
 
     channel.on('broadcast', {}, ({ event, payload }) => {
       if (!payload?.id || payload.id !== wall.id) return;
+
       if (event === 'wall_updated') {
         if (payload.background_value) {
           setBg(
@@ -115,30 +127,31 @@ export default function InactiveWall({ wall }) {
         if (payload.title) scheduleUpdate({ title: payload.title });
         if (payload.countdown) scheduleUpdate({ countdown: payload.countdown });
       }
+
       if (event === 'wall_status_changed') {
         if (payload.countdown_active !== undefined)
           scheduleUpdate({ countdownActive: payload.countdown_active });
       }
-      if (event === 'countdown_finished') scheduleUpdate({ countdownActive: false });
+
+      if (event === 'countdown_finished')
+        scheduleUpdate({ countdownActive: false });
     });
 
     return () => channel.unsubscribe?.();
   }, [rt, wall?.id]);
 
+  /* QR + Logo setup */
   const origin =
     typeof window !== 'undefined'
       ? window.location.origin
       : 'https://faninteract.vercel.app';
+
   const qrValue = `${origin}/guest/signup?wall=${wall?.id}`;
+
   const displayLogo =
     wall?.host?.branding_logo_url?.trim()
       ? wall.host.branding_logo_url
       : '/faninteractlogo.png';
-
-  const toggleFullscreen = () =>
-    !document.fullscreenElement
-      ? document.documentElement.requestFullscreen().catch(() => {})
-      : document.exitFullscreen();
 
   if (!wall) return <div>Loading Wall…</div>;
 
@@ -167,11 +180,11 @@ export default function InactiveWall({ wall }) {
           fontWeight: 900,
           marginBottom: '1vh',
           textShadow: `
-      2px 2px 2px #000,
-      -2px 2px 2px #000,
-      2px -2px 2px #000,
-      -2px -2px 2px #000
-    `,
+            2px 2px 2px #000,
+            -2px 2px 2px #000,
+            2px -2px 2px #000,
+            -2px -2px 2px #000
+          `,
         }}
       >
         {wallState.title || 'Fan Zone Wall'}
@@ -201,11 +214,9 @@ export default function InactiveWall({ wall }) {
             left: '3%',
             width: '47%',
             height: '90%',
-            borderRadius: 0,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            background: 'rgba(255,255,255,0.00)',
           }}
         >
           <QRCodeCanvas
@@ -300,6 +311,7 @@ export default function InactiveWall({ wall }) {
             Starting Soon!!
           </p>
 
+          {/* Countdown */}
           <div
             style={{
               position: 'absolute',
@@ -314,46 +326,6 @@ export default function InactiveWall({ wall }) {
             />
           </div>
         </div>
-      </div>
-
-      {/* ✅ Fullscreen Button */}
-      <div
-        ref={fullscreenButtonRef}
-        style={{
-          position: 'absolute',
-          bottom: 'calc(1.5vh + 1.5%)',
-          right: 'calc(1.5vw + 1.5%)',
-          width: 40,
-          height: 40,
-          borderRadius: 12,
-          background: 'rgba(255,255,255,0.08)',
-          border: '1px solid rgba(255,255,255,0.2)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          cursor: 'pointer',
-          opacity: 0.15,
-          transition: 'opacity 0.2s ease',
-          zIndex: 50,
-        }}
-        onMouseEnter={(e) => (e.currentTarget.style.opacity = '1')}
-        onMouseLeave={(e) => (e.currentTarget.style.opacity = '0.3')}
-        onClick={toggleFullscreen}
-      >
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          stroke="white"
-          fill="none"
-          viewBox="0 0 24 24"
-          strokeWidth={1.5}
-          style={{ width: 28, height: 28 }}
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            d="M3 9V4h5M21 9V4h-5M3 15v5h5M21 15v5h-5"
-          />
-        </svg>
       </div>
     </div>
   );
