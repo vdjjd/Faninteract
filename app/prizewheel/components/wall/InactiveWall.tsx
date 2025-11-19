@@ -51,8 +51,6 @@ function CountdownDisplay({ countdown, countdownActive, wheelId }) {
 
         if (error) {
           console.error('COUNTDOWN UPDATE FAILED:', error);
-        } else {
-          console.log('COUNTDOWN UPDATED → LIVE:', data);
         }
       })();
     }
@@ -79,7 +77,7 @@ function CountdownDisplay({ countdown, countdownActive, wheelId }) {
 }
 
 /* -------------------------------------------------------------------------- */
-/*  PRIZE WHEEL INACTIVE WALL — PATCHED FULL CODE                             */
+/*  PRIZE WHEEL INACTIVE WALL — FULL PATCH                                    */
 /* -------------------------------------------------------------------------- */
 export default function InactivePrizeWall({ wheel }) {
   const rt = useRealtimeChannel();
@@ -94,7 +92,6 @@ export default function InactivePrizeWall({ wheel }) {
     countdownActive: false,
   });
 
-  /* ⭐ CORRECT TITLE */
   const displayTitle =
     wheel?.title ||
     wheel?.host_title ||
@@ -178,12 +175,15 @@ export default function InactivePrizeWall({ wheel }) {
     return () => channel.unsubscribe?.();
   }, [rt, wheel?.id]);
 
+  /* ----------------------------------------------------------
+     ⭐ FIXED QR VALUE — NO MORE redirect=/... BUG
+     ---------------------------------------------------------- */
   const origin =
     typeof window !== 'undefined'
       ? window.location.origin
       : 'https://faninteract.vercel.app';
 
-  const qrValue = `${origin}/guest/signup?redirect=/prizewheel/${wheel.id}/submit`;
+  const qrValue = `${origin}/guest/signup?prizewheel=${wheel.id}`;
 
   /* Logo */
   const displayLogo =
@@ -215,7 +215,6 @@ export default function InactivePrizeWall({ wheel }) {
     >
       {PulseStyle}
 
-      {/* ⭐ CORRECT PUBLIC TITLE */}
       <h1
         style={{
           color: '#fff',
@@ -233,7 +232,6 @@ export default function InactivePrizeWall({ wheel }) {
         {displayTitle}
       </h1>
 
-      {/* Main Panel */}
       <div
         style={{
           width: '90vw',
@@ -249,7 +247,7 @@ export default function InactivePrizeWall({ wheel }) {
           display: 'flex',
         }}
       >
-        {/* QR Side */}
+        {/* LEFT: QR Code */}
         <div
           style={{
             position: 'absolute',
@@ -277,7 +275,7 @@ export default function InactivePrizeWall({ wheel }) {
           />
         </div>
 
-        {/* Right Info */}
+        {/* RIGHT SIDE */}
         <div
           style={{
             position: 'relative',
@@ -285,7 +283,6 @@ export default function InactivePrizeWall({ wheel }) {
             marginLeft: '44%',
           }}
         >
-          {/* Logo */}
           <div
             style={{
               position: 'absolute',
@@ -305,7 +302,6 @@ export default function InactivePrizeWall({ wheel }) {
             />
           </div>
 
-          {/* Divider */}
           <div
             style={{
               position: 'absolute',
@@ -319,7 +315,6 @@ export default function InactivePrizeWall({ wheel }) {
             }}
           />
 
-          {/* ⭐ CENTER TITLE (MATCHES PUBLIC TITLE) */}
           <p
             style={{
               position: 'absolute',
@@ -337,7 +332,6 @@ export default function InactivePrizeWall({ wheel }) {
             Prize Wheel
           </p>
 
-          {/* Starting Soon */}
           <p
             className="pulseSoon"
             style={{
@@ -355,7 +349,6 @@ export default function InactivePrizeWall({ wheel }) {
             Starting Soon!!
           </p>
 
-          {/* Countdown */}
           <div
             style={{
               position: 'absolute',
@@ -373,7 +366,6 @@ export default function InactivePrizeWall({ wheel }) {
         </div>
       </div>
 
-      {/* Fullscreen Button */}
       <div
         ref={fullscreenButtonRef}
         style={{

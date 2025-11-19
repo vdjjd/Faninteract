@@ -6,7 +6,9 @@ import Cropper from "react-easy-crop";
 import imageCompression from "browser-image-compression";
 import { getSupabaseClient } from "@/lib/supabaseClient";
 
-/* ✅ Get stored profile */
+/* ---------------------------------------------------------
+   Get stored profile
+--------------------------------------------------------- */
 function getStoredGuestProfile() {
   try {
     const raw =
@@ -28,7 +30,7 @@ export default function GuestSubmissionPage() {
   const supabase = getSupabaseClient();
 
   const [wall, setWall] = useState<any>(null);
-  const [profile, setProfile] = useState<any>(null);
+  const [profile, setProfile] = useState<any | null>(undefined); // undefined = loading
 
   const [imageSrc, setImageSrc] = useState<string | null>(null);
   const [croppedAreaPixels, setCroppedAreaPixels] = useState(null);
@@ -40,14 +42,24 @@ export default function GuestSubmissionPage() {
 
   const fileRef = useRef<HTMLInputElement>(null);
 
-  /* ✅ enforce signup */
+  /* ---------------------------------------------------------
+     Enforce signup BEFORE rendering anything
+  --------------------------------------------------------- */
   useEffect(() => {
     const p = getStoredGuestProfile();
-    if (!p) router.replace(`/guest/signup?redirect=/wall/${wallUUID}/submit`);
-    else setProfile(p);
+
+    if (!p) {
+      router.replace(`/guest/signup?wall=${wallUUID}`);
+      setProfile(null); // ensure null state
+      return;
+    }
+
+    setProfile(p);
   }, [router, wallUUID]);
 
-  /* ✅ load wall data */
+  /* ---------------------------------------------------------
+     Load wall data
+  --------------------------------------------------------- */
   useEffect(() => {
     async function loadWall() {
       const { data } = await supabase
@@ -57,12 +69,15 @@ export default function GuestSubmissionPage() {
         )
         .eq("id", wallUUID)
         .single();
+
       setWall(data);
     }
     loadWall();
-  }, []);
+  }, [supabase, wallUUID]);
 
-  /* ✅ camera open */
+  /* ---------------------------------------------------------
+     Camera open
+  --------------------------------------------------------- */
   const openCamera = () => {
     if (fileRef.current) {
       fileRef.current.setAttribute("capture", "user");
@@ -70,23 +85,30 @@ export default function GuestSubmissionPage() {
     }
   };
 
-  /* ✅ file handler */
+  /* ---------------------------------------------------------
+     File handler
+  --------------------------------------------------------- */
   const handleFile = async (e: any) => {
     const file = e.target.files?.[0];
     if (!file) return;
+
     const compressed = await imageCompression(file, {
       maxSizeMB: 0.6,
       maxWidthOrHeight: 1080,
       useWebWorker: true,
     });
+
     const reader = new FileReader();
     reader.onload = () => setImageSrc(reader.result as string);
     reader.readAsDataURL(compressed);
   };
 
-  /* ✅ upload helper */
+  /* ---------------------------------------------------------
+     Upload helper
+  --------------------------------------------------------- */
   const uploadImage = async () => {
     if (!imageSrc) return null;
+
     const blob = await (await fetch(imageSrc)).blob();
     const file = new File([blob], "upload.jpg", { type: "image/jpeg" });
     const fileName = `${Date.now()}-guest.jpg`;
@@ -104,7 +126,9 @@ export default function GuestSubmissionPage() {
     return data.publicUrl;
   };
 
-  /* ✅ submit */
+  /* ---------------------------------------------------------
+     Submit
+  --------------------------------------------------------- */
   const submitPost = async (e: any) => {
     e.preventDefault();
 
@@ -114,7 +138,7 @@ export default function GuestSubmissionPage() {
     }
 
     if (!message.trim()) {
-      alert("Please enter a message to post.");
+      alert("Please enter a message.");
       return;
     }
 
@@ -122,7 +146,7 @@ export default function GuestSubmissionPage() {
     const photoUrl = await uploadImage();
 
     if (!photoUrl) {
-      alert("Photo upload failed. Please try again.");
+      alert("Photo upload failed.");
       setSubmitting(false);
       return;
     }
@@ -138,13 +162,22 @@ export default function GuestSubmissionPage() {
       },
     ]);
 
-    setTimeout(() => {
-      router.push(`/thanks/${wallUUID}`);
-    }, 200);
+    router.push(`/thanks/${wallUUID}`);
   };
 
-  if (!wall || !profile) return null;
+  /* ---------------------------------------------------------
+     Prevent rendering while loading OR redirecting
+  --------------------------------------------------------- */
+  if (profile === undefined || !wall) return null;
 
+  /* ---------------------------------------------------------
+     If redirect triggered, don't render the form
+  --------------------------------------------------------- */
+  if (profile === null) return null;
+
+  /* ---------------------------------------------------------
+     Background + logo
+  --------------------------------------------------------- */
   const bg = wall.background_value?.includes("http")
     ? `url(${wall.background_value})`
     : wall.background_value;
@@ -154,6 +187,9 @@ export default function GuestSubmissionPage() {
       ? wall.host.branding_logo_url
       : "/faninteractlogo.png";
 
+  /* ---------------------------------------------------------
+     RENDER UI
+  --------------------------------------------------------- */
   return (
     <div
       style={{
@@ -188,7 +224,7 @@ export default function GuestSubmissionPage() {
           border: "1px solid rgba(255,255,255,0.15)",
         }}
       >
-        {/* ✅ Logo */}
+        {/* Logo */}
         <img
           src={logo}
           style={{
@@ -200,10 +236,9 @@ export default function GuestSubmissionPage() {
           }}
         />
 
-        {/* ✅ Wall Title */}
         <h2 style={{ marginBottom: 16, fontWeight: 800 }}>{wall.title}</h2>
 
-        {/* ✅ CROP BOX ALWAYS SHOWN */}
+        {/* Cropper */}
         <div
           style={{
             width: "100%",
@@ -241,7 +276,6 @@ export default function GuestSubmissionPage() {
           )}
         </div>
 
-        {/* ✅ Buttons under crop */}
         <button
           type="button"
           onClick={openCamera}
@@ -282,7 +316,6 @@ export default function GuestSubmissionPage() {
           onChange={handleFile}
         />
 
-        {/* ✅ Retake */}
         {imageSrc && (
           <button
             type="button"
@@ -298,7 +331,6 @@ export default function GuestSubmissionPage() {
           </button>
         )}
 
-        {/* ✅ Name auto-filled */}
         <input
           value={profile.first_name}
           readOnly
@@ -314,7 +346,6 @@ export default function GuestSubmissionPage() {
           }}
         />
 
-        {/* ✅ Message */}
         <textarea
           maxLength={150}
           value={message}
@@ -336,7 +367,6 @@ export default function GuestSubmissionPage() {
           {message.length}/150
         </div>
 
-        {/* ✅ Submit */}
         <button
           disabled={submitting}
           style={{

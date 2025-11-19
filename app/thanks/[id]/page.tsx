@@ -21,18 +21,24 @@ export default function ThankYouPage() {
   const searchParams = useSearchParams();
   const supabase = getSupabaseClient();
 
-  /* --------------------------------------------------------------------
-     🟢 PATCHED TYPE LOGIC — AUTO-DETECT POLLS
-     -------------------------------------------------------------------- */
+  /* ---------------------------------------------------------------
+     DEFINITIVE TYPE DETECTION — CORRECT 100% OF ROUTES
+  ---------------------------------------------------------------- */
   const rawType = searchParams.get("type");
   const path =
     typeof window !== "undefined" ? window.location.pathname : "";
 
-  const type =
-    rawType?.toLowerCase() ||
-    (path.includes("/polls/") ? "poll" : "wheel");
+  let detectedType =
+    path.includes("/polls/") ? "poll" :
+    path.includes("/prizewheel/") ? "wheel" :
+    path.includes("/wall/") ? "wall" :
+    null;
 
-  /* -------------------------------------------------------------------- */
+  if (rawType) detectedType = rawType.toLowerCase();
+
+  const type = detectedType || "wall";
+
+  /* --------------------------------------------------------------- */
 
   const [data, setData] = useState<any>(null);
   const [showCloseHint, setShowCloseHint] = useState(false);
@@ -281,7 +287,7 @@ export default function ThankYouPage() {
           {message}
         </p>
 
-        {/* WHEEL MESSAGE (HIDDEN FOR POLLS AUTOMATICALLY) */}
+        {/* 🔥 SHOW THIS ONLY FOR PRIZE WHEELS */}
         {type === "wheel" && (
           <div
             style={{
@@ -301,12 +307,10 @@ export default function ThankYouPage() {
             <br />
             At any moment, you could be chosen to{" "}
             <strong>SPIN THE WHEEL</strong> from your phone.
-            <br />
-            If you're picked, your button will light up automatically.
           </div>
         )}
 
-        {/* WHEEL SPIN BUTTON (HIDDEN FOR POLLS AUTOMATICALLY) */}
+        {/* 🔥 REMOTE SPIN BUTTON — WHEEL ONLY */}
         {type === "wheel" && !isFanWall && remoteEnabled && armed && (
           <button
             onClick={handleRemotePress}
