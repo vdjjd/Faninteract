@@ -32,7 +32,7 @@ function arrayMove<T>(arr: T[], from: number, to: number) {
   return clone;
 }
 
-/* Transition list (static) */
+/* Transition list */
 const TRANSITIONS = [
   "Fade In / Fade Out",
   "Slide Up / Slide Out",
@@ -50,7 +50,7 @@ export default function AdsManagerModal({ host, onClose }: AdsManagerModalProps)
   const [ads, setAds] = useState<AdItem[]>([]);
   const [loading, setLoading] = useState(true);
 
-  /* SETTINGS ---------------------------- */
+  /* Settings */
   const [injectorEnabled, setInjectorEnabled] = useState(false);
   const [triggerInterval, setTriggerInterval] = useState(8);
   const [adDuration, setAdDuration] = useState(8);
@@ -72,7 +72,7 @@ export default function AdsManagerModal({ host, onClose }: AdsManagerModalProps)
     loadMixedAds();
   }, [host?.id]);
 
-  /* 1️⃣ Load injector settings for host */
+  /* Load host settings */
   async function loadHostSettings() {
     const { data } = await supabase
       .from("hosts")
@@ -88,7 +88,7 @@ export default function AdsManagerModal({ host, onClose }: AdsManagerModalProps)
     }
   }
 
-  /* 2️⃣ Load host ads + master ads (if exists) */
+  /* Load both host + master ads */
   async function loadMixedAds() {
     try {
       setLoading(true);
@@ -99,16 +99,13 @@ export default function AdsManagerModal({ host, onClose }: AdsManagerModalProps)
       let query;
 
       if (masterId) {
-        // Host WITH master → load BOTH
         query = supabase
           .from("slide_ads")
           .select("*, is_master_ad, is_host_ad, global_order_index, order_index")
           .or(`master_id.eq.${masterId},host_profile_id.eq.${hostId}`)
           .order("global_order_index", { ascending: true })
           .order("order_index", { ascending: true });
-
       } else {
-        // Host WITHOUT master → only host ads
         query = supabase
           .from("slide_ads")
           .select("*, is_master_ad, is_host_ad, global_order_index, order_index")
@@ -131,12 +128,12 @@ export default function AdsManagerModal({ host, onClose }: AdsManagerModalProps)
     }
   }
 
-  /* 3️⃣ Save any host setting */
+  /* Save a host setting */
   async function saveSettings(key: string, value: any) {
     await supabase.from("hosts").update({ [key]: value }).eq("id", host.id);
   }
 
-  /* 4️⃣ Save order to DB */
+  /* Save reorder */
   async function saveOrder() {
     setSavingOrder(true);
 
@@ -152,20 +149,20 @@ export default function AdsManagerModal({ host, onClose }: AdsManagerModalProps)
     setReorderMode(false);
   }
 
-  /* 5️⃣ Delete an ad */
+  /* Delete ad (patched bucket name) */
   async function deleteAd(ad: AdItem) {
     if (!isMaster && ad.is_master_ad) return;
 
     await supabase.from("slide_ads").delete().eq("id", ad.id);
 
     if (ad.storage_path) {
-      await supabase.storage.from("ads").remove([ad.storage_path]);
+      await supabase.storage.from("ads-images").remove([ad.storage_path]);
     }
 
     await loadMixedAds();
   }
 
-  /* 6️⃣ Upload ad */
+  /* Upload ad (patched bucket name) */
   async function handleFileUpload(e: any) {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -174,10 +171,11 @@ export default function AdsManagerModal({ host, onClose }: AdsManagerModalProps)
     const uuid = crypto.randomUUID();
     const path = `${host.id}/${uuid}.${ext}`;
 
-    const { error: uploadErr } = await supabase.storage.from("ads").upload(path, file);
+    // CHANGED → ads-images
+    const { error: uploadErr } = await supabase.storage.from("ads-images").upload(path, file);
     if (uploadErr) return alert("Upload failed");
 
-    const { data: { publicUrl } } = supabase.storage.from("ads").getPublicUrl(path);
+    const { data: { publicUrl } } = supabase.storage.from("ads-images").getPublicUrl(path);
 
     await supabase.from("slide_ads").insert({
       host_profile_id: isMaster ? null : host.id,
@@ -212,11 +210,13 @@ export default function AdsManagerModal({ host, onClose }: AdsManagerModalProps)
 
     const draggedAd = ads[from];
 
+    // Prevent host ads jumping above master ads
     if (!isMaster) {
       const movingHostAdUpOverCorp =
         draggedAd.is_host_ad &&
         ads[to]?.is_master_ad &&
         to < from;
+
       if (movingHostAdUpOverCorp) {
         dragFrom.current = null;
         return;
@@ -244,6 +244,7 @@ export default function AdsManagerModal({ host, onClose }: AdsManagerModalProps)
           "p-6 flex flex-col overflow-hidden"
         )}
       >
+
         {/* CLOSE BUTTON */}
         <button onClick={onClose} className={cn('absolute', 'top-3', 'right-3', 'text-white', 'text-xl')}>
           ✕
