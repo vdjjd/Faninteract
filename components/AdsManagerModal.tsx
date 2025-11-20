@@ -32,78 +32,111 @@ function arrayMove<T>(arr: T[], from: number, to: number) {
   return clone;
 }
 
+/* Transition list (static) */
+const TRANSITIONS = [
+  "Fade In / Fade Out",
+  "Slide Up / Slide Out",
+  "Slide Down / Slide Out",
+  "Slide Left / Slide Right",
+  "Slide Right / Slide Left",
+  "Zoom In / Zoom Out",
+  "Zoom Out / Zoom In",
+  "Flip",
+  "Rotate In / Rotate Out",
+];
+
 export default function AdsManagerModal({ host, onClose }: AdsManagerModalProps) {
+
   const [ads, setAds] = useState<AdItem[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const [triggerInterval, setTriggerInterval] = useState(8);
-
-  // 🔥 DEFAULT OFF
+  /* SETTINGS ---------------------------- */
   const [injectorEnabled, setInjectorEnabled] = useState(false);
-
-  const [continuousMode, setContinuousMode] = useState(false);
+  const [triggerInterval, setTriggerInterval] = useState(8);
+  const [adDuration, setAdDuration] = useState(8);
+  const [overlayTransition, setOverlayTransition] = useState("Fade In / Fade Out");
 
   const [reorderMode, setReorderMode] = useState(false);
   const [savingOrder, setSavingOrder] = useState(false);
 
   const dragFrom = useRef<number | null>(null);
-
   const isMaster = host?.role === "master";
 
   /* ---------------------------------------------------
-     LOAD SETTINGS + ADS (NO REALTIME)
+     LOAD SETTINGS + ADS
   --------------------------------------------------- */
   useEffect(() => {
     if (!host?.id) return;
 
-    if (!isMaster) loadHostSettings();
+    loadHostSettings();
     loadMixedAds();
   }, [host?.id]);
 
+  /* 1️⃣ Load injector settings for host */
   async function loadHostSettings() {
     const { data } = await supabase
       .from("hosts")
-      .select("injector_enabled, trigger_interval, continuous_mode")
+      .select("injector_enabled, trigger_interval, ad_duration_seconds, ad_overlay_transition, master_id")
       .eq("id", host.id)
       .single();
 
     if (data) {
-      // respects DB values
       setInjectorEnabled(!!data.injector_enabled);
-      setTriggerInterval(Number(data.trigger_interval ?? 8) || 8);
-      setContinuousMode(!!data.continuous_mode);
+      setTriggerInterval(Number(data.trigger_interval ?? 8));
+      setAdDuration(Number(data.ad_duration_seconds ?? 8));
+      setOverlayTransition(data.ad_overlay_transition || "Fade In / Fade Out");
     }
   }
 
+  /* 2️⃣ Load host ads + master ads (if exists) */
   async function loadMixedAds() {
-    setLoading(true);
+    try {
+      setLoading(true);
 
-    const { data, error } = await supabase
-      .from("slide_ads")
-      .select("*")
-      .or(`master_id.is.not.null,host_profile_id.eq.${host.id}`)
-      .order("is_master_ad", { ascending: false })
-      .order("order_index", { ascending: true });
+      const hostId = host.id;
+      const masterId = host.master_id;
 
-    if (!error && data) setAds(data as AdItem[]);
-    setLoading(false);
+      let query;
+
+      if (masterId) {
+        // Host WITH master → load BOTH
+        query = supabase
+          .from("slide_ads")
+          .select("*, is_master_ad, is_host_ad, global_order_index, order_index")
+          .or(`master_id.eq.${masterId},host_profile_id.eq.${hostId}`)
+          .order("global_order_index", { ascending: true })
+          .order("order_index", { ascending: true });
+
+      } else {
+        // Host WITHOUT master → only host ads
+        query = supabase
+          .from("slide_ads")
+          .select("*, is_master_ad, is_host_ad, global_order_index, order_index")
+          .eq("host_profile_id", hostId)
+          .order("order_index", { ascending: true });
+      }
+
+      const { data, error } = await query;
+
+      if (error) {
+        console.error("❌ Error loading ads:", error);
+        setAds([]);
+      } else {
+        console.log("🔵 Loaded ads:", data);
+        setAds(data || []);
+      }
+
+    } finally {
+      setLoading(false);
+    }
   }
 
-  /* ---------------------------------------------------
-     SAVE INJECTOR TOGGLE (NO REALTIME)
-  --------------------------------------------------- */
-  async function saveInjectorEnabled(value: boolean) {
-    await supabase
-      .from("hosts")
-      .update({ injector_enabled: value })
-      .eq("id", host.id);
-
-    setInjectorEnabled(value);
+  /* 3️⃣ Save any host setting */
+  async function saveSettings(key: string, value: any) {
+    await supabase.from("hosts").update({ [key]: value }).eq("id", host.id);
   }
 
-  /* ---------------------------------------------------
-     SAVE ORDER
-  --------------------------------------------------- */
+  /* 4️⃣ Save order to DB */
   async function saveOrder() {
     setSavingOrder(true);
 
@@ -119,9 +152,7 @@ export default function AdsManagerModal({ host, onClose }: AdsManagerModalProps)
     setReorderMode(false);
   }
 
-  /* ---------------------------------------------------
-     DELETE AD
-  --------------------------------------------------- */
+  /* 5️⃣ Delete an ad */
   async function deleteAd(ad: AdItem) {
     if (!isMaster && ad.is_master_ad) return;
 
@@ -134,9 +165,7 @@ export default function AdsManagerModal({ host, onClose }: AdsManagerModalProps)
     await loadMixedAds();
   }
 
-  /* ---------------------------------------------------
-     UPLOAD AD
-  --------------------------------------------------- */
+  /* 6️⃣ Upload ad */
   async function handleFileUpload(e: any) {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -145,10 +174,7 @@ export default function AdsManagerModal({ host, onClose }: AdsManagerModalProps)
     const uuid = crypto.randomUUID();
     const path = `${host.id}/${uuid}.${ext}`;
 
-    const { error: uploadErr } = await supabase.storage
-      .from("ads")
-      .upload(path, file);
-
+    const { error: uploadErr } = await supabase.storage.from("ads").upload(path, file);
     if (uploadErr) return alert("Upload failed");
 
     const { data: { publicUrl } } = supabase.storage.from("ads").getPublicUrl(path);
@@ -165,9 +191,7 @@ export default function AdsManagerModal({ host, onClose }: AdsManagerModalProps)
     await loadMixedAds();
   }
 
-  /* ---------------------------------------------------
-     DRAG / DROP with SNAP BACK
-  --------------------------------------------------- */
+  /* Drag handlers */
   function handleDragStart(e: any, index: number, locked: boolean) {
     if (!reorderMode) return;
     if (!isMaster && locked) return;
@@ -193,7 +217,6 @@ export default function AdsManagerModal({ host, onClose }: AdsManagerModalProps)
         draggedAd.is_host_ad &&
         ads[to]?.is_master_ad &&
         to < from;
-
       if (movingHostAdUpOverCorp) {
         dragFrom.current = null;
         return;
@@ -210,20 +233,18 @@ export default function AdsManagerModal({ host, onClose }: AdsManagerModalProps)
   --------------------------------------------------- */
   return (
     <div
-      className={cn(
-        "fixed inset-0 bg-black/70 backdrop-blur-md z-[9999] flex items-center justify-center"
-      )}
+      className={cn("fixed inset-0 bg-black/70 backdrop-blur-md z-[9999] flex items-center justify-center")}
       onClick={onClose}
     >
       <div
-        onClick={(e) => e.stopPropagation()}
+        onClick={e => e.stopPropagation()}
         className={cn(
           "relative w-full max-w-[960px] max-h-[90vh] rounded-2xl border border-blue-500/30",
           "bg-gradient-to-br from-[#0b0f1a]/95 to-[#111827]/95 shadow-[0_0_40px_rgba(0,140,255,0.45)]",
           "p-6 flex flex-col overflow-hidden"
         )}
       >
-        {/* CLOSE */}
+        {/* CLOSE BUTTON */}
         <button onClick={onClose} className={cn('absolute', 'top-3', 'right-3', 'text-white', 'text-xl')}>
           ✕
         </button>
@@ -235,27 +256,84 @@ export default function AdsManagerModal({ host, onClose }: AdsManagerModalProps)
           </h1>
         </div>
 
-        {/* INJECTOR SWITCH (host only) */}
+        {/* SETTINGS PANEL */}
         {!isMaster && (
-          <div className={cn('flex', 'items-center', 'justify-between', 'bg-white/5', 'border', 'border-white/10', 'px-4', 'py-3', 'rounded-lg', 'mb-5')}>
-            <span className={cn('text-white/80', 'text-sm', 'font-medium')}>Ad Injector</span>
+          <div className={cn('mb-6', 'space-y-4', 'bg-white/5', 'border', 'border-white/10', 'rounded-xl', 'p-4')}>
 
-            <div
-              onClick={() => saveInjectorEnabled(!injectorEnabled)}
-              className={cn(
-                "relative w-14 h-7 rounded-full cursor-pointer transition-all",
-                injectorEnabled
-                  ? "bg-green-500 shadow-[0_0_12px_rgba(0,255,128,0.5)]"
-                  : "bg-gray-600"
-              )}
-            >
-              <span
+            {/* Injector Switch */}
+            <div className={cn('flex', 'items-center', 'justify-between')}>
+              <span className={cn('text-white/80', 'text-sm', 'font-medium')}>Ad Injector Enabled</span>
+
+              <div
+                onClick={() => {
+                  const next = !injectorEnabled;
+                  setInjectorEnabled(next);
+                  saveSettings("injector_enabled", next);
+                }}
                 className={cn(
-                  "absolute top-1 left-1 w-5 h-5 rounded-full bg-white shadow transition-all",
-                  injectorEnabled ? "translate-x-7" : ""
+                  "relative w-14 h-7 rounded-full cursor-pointer transition-all",
+                  injectorEnabled ? "bg-green-500" : "bg-gray-600"
                 )}
+              >
+                <span
+                  className={cn(
+                    "absolute top-1 left-1 w-5 h-5 rounded-full bg-white shadow transition-all",
+                    injectorEnabled ? "translate-x-7" : ""
+                  )}
+                />
+              </div>
+            </div>
+
+            {/* Ad Every X Submissions */}
+            <div className={cn('flex', 'items-center', 'justify-between')}>
+              <label className={cn('text-white/80', 'text-sm', 'font-medium')}>Show Ad Every X Submissions</label>
+              <input
+                type="number"
+                min={1}
+                value={triggerInterval}
+                onChange={e => {
+                  const val = Number(e.target.value);
+                  setTriggerInterval(val);
+                  saveSettings("ad_every_x_submissions", val);
+                }}
+                className={cn('w-20', 'bg-black/30', 'border', 'border-white/20', 'rounded', 'px-2', 'py-1', 'text-white')}
               />
             </div>
+
+            {/* Ad Duration */}
+            <div className={cn('flex', 'items-center', 'justify-between')}>
+              <label className={cn('text-white/80', 'text-sm', 'font-medium')}>Ad Duration (seconds)</label>
+              <input
+                type="number"
+                min={2}
+                max={20}
+                value={adDuration}
+                onChange={e => {
+                  const val = Number(e.target.value);
+                  setAdDuration(val);
+                  saveSettings("ad_duration_seconds", val);
+                }}
+                className={cn('w-20', 'bg-black/30', 'border', 'border-white/20', 'rounded', 'px-2', 'py-1', 'text-white')}
+              />
+            </div>
+
+            {/* Overlay Transition */}
+            <div className={cn('flex', 'items-center', 'justify-between')}>
+              <label className={cn('text-white/80', 'text-sm', 'font-medium')}>Overlay Transition</label>
+              <select
+                value={overlayTransition}
+                onChange={e => {
+                  setOverlayTransition(e.target.value);
+                  saveSettings("ad_overlay_transition", e.target.value);
+                }}
+                className={cn('bg-black/40', 'text-white', 'border', 'border-white/20', 'rounded', 'px-2', 'py-1')}
+              >
+                {TRANSITIONS.map(t => (
+                  <option key={t} value={t}>{t}</option>
+                ))}
+              </select>
+            </div>
+
           </div>
         )}
 
@@ -278,7 +356,7 @@ export default function AdsManagerModal({ host, onClose }: AdsManagerModalProps)
           </button>
         </div>
 
-        {/* GRID */}
+        {/* AD GRID */}
         <div className={cn('grid', 'grid-cols-3', 'gap-3', 'overflow-y-auto', 'pr-2')}>
           {ads.map((ad, i) => {
             const locked = ad.is_master_ad && !isMaster;
@@ -287,24 +365,21 @@ export default function AdsManagerModal({ host, onClose }: AdsManagerModalProps)
               <div
                 key={ad.id}
                 draggable={reorderMode && !locked}
-                onDragStart={(e) => handleDragStart(e, i, locked)}
+                onDragStart={e => handleDragStart(e, i, locked)}
                 onDragOver={handleDragOver}
-                onDrop={(e) => handleDrop(e, i, locked)}
+                onDrop={e => handleDrop(e, i, locked)}
                 className={cn(
                   "relative rounded-lg overflow-hidden border cursor-pointer select-none",
-                  locked
-                    ? "border-amber-400/40 bg-amber-700/20 opacity-80"
-                    : "border-white/10 bg-white/5"
+                  locked ? "border-amber-400/40 bg-amber-700/20 opacity-80"
+                         : "border-white/10 bg-white/5"
                 )}
               >
-                {/* LOCK BADGE */}
                 {locked && (
                   <div className={cn('absolute', 'top-2', 'right-2', 'bg-amber-600/90', 'text-white', 'p-1', 'rounded-full', 'z-20')}>
                     <Lock size={14} />
                   </div>
                 )}
 
-                {/* DELETE */}
                 {(isMaster || ad.is_host_ad) && (
                   <button
                     onClick={() => deleteAd(ad)}
@@ -314,14 +389,14 @@ export default function AdsManagerModal({ host, onClose }: AdsManagerModalProps)
                   </button>
                 )}
 
-                {/* PREVIEW */}
+                {/* Preview */}
                 {ad.type === "image" ? (
                   <Image src={ad.url} alt="" width={300} height={200} className={cn('object-cover', 'w-full', 'h-32')} />
                 ) : (
                   <video src={ad.url} muted className={cn('object-cover', 'w-full', 'h-32')} />
                 )}
 
-                {/* ORDER */}
+                {/* Order badge */}
                 <div className={cn('absolute', 'bottom-1', 'left-1', 'bg-black/50', 'text-white', 'text-xs', 'px-2', 'py-0.5', 'rounded')}>
                   #{i + 1}
                 </div>
@@ -330,7 +405,7 @@ export default function AdsManagerModal({ host, onClose }: AdsManagerModalProps)
           })}
         </div>
 
-        {/* SAVE ORDER */}
+        {/* SAVE ORDER BUTTON */}
         {reorderMode && (
           <button
             disabled={savingOrder}

@@ -4,6 +4,9 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useParams } from 'next/navigation';
 
 import { useWallData } from '@/app/wall/hooks/useWallData';
+import { useAdOverlayer } from '@/app/wall/hooks/useAdOverlayer';
+
+import AdOverlay from '@/app/wall/components/wall/AdOverlay';
 
 import InactiveWall from '@/app/wall/components/wall/layouts/InactiveWall';
 import SingleHighlightWall from '@/app/wall/components/wall/layouts/SingleHighlightWall';
@@ -17,11 +20,25 @@ export default function FanWallPage() {
 
   const { wall, posts, loading, showLive } = useWallData(wallUUID);
 
+  /* -------------------------------------------------- */
+  /* CENTRAL AD ENGINE — ONLY RUNS HERE                 */
+  /* -------------------------------------------------- */
+  const {
+    ads,
+    showAd,
+    currentAd,
+    tickSubmissionDisplayed,
+    pauseFlag,
+    adTransition
+  } = useAdOverlayer(wall?.host_id);
+
+  /* -------------------------------------------------- */
+  /* BACKGROUND + LAYOUT                                */
+  /* -------------------------------------------------- */
   const [bg, setBg] = useState('');
   const [layoutKey, setLayoutKey] = useState(0);
   const prevLayout = useRef<string | null>(null);
 
-  /* BACKGROUND UPDATER */
   useEffect(() => {
     if (!wall) return;
 
@@ -33,7 +50,7 @@ export default function FanWallPage() {
     setBg(value || 'linear-gradient(to bottom right,#1b2735,#090a0f)');
   }, [wall?.background_type, wall?.background_value]);
 
-  /* LAYOUT UPDATER */
+  /* Reset layout on layout_type change */
   useEffect(() => {
     if (!wall) return;
 
@@ -43,9 +60,18 @@ export default function FanWallPage() {
     }
   }, [wall?.layout_type]);
 
+  /* -------------------------------------------------- */
+  /* ACTIVE WALL — PASS ONLY WHAT LAYOUTS NEED          */
+  /* -------------------------------------------------- */
   const renderActiveWall = () => {
     if (!wall) return null;
-    const props = { event: wall, posts };
+
+    const props = {
+      event: wall,
+      posts,
+      tickSubmissionDisplayed,
+      pauseFlag
+    };
 
     switch (wall.layout_type) {
       case 'grid2x2':
@@ -55,12 +81,18 @@ export default function FanWallPage() {
     }
   };
 
+  /* -------------------------------------------------- */
+  /* LOADING / NOT FOUND                                */
+  /* -------------------------------------------------- */
   if (loading)
     return <p className={cn('text-white mt-10 text-center')}>Loading…</p>;
 
   if (!wall)
     return <p className={cn('text-white mt-10 text-center')}>Wall not found.</p>;
 
+  /* -------------------------------------------------- */
+  /* FULLSCREEN BUTTON                                   */
+  /* -------------------------------------------------- */
   const toggleFullscreen = () => {
     if (!document.fullscreenElement) {
       document.documentElement.requestFullscreen().catch(() => {});
@@ -69,6 +101,9 @@ export default function FanWallPage() {
     }
   };
 
+  /* -------------------------------------------------- */
+  /* RENDER PAGE                                         */
+  /* -------------------------------------------------- */
   return (
     <div
       style={{
@@ -106,6 +141,13 @@ export default function FanWallPage() {
         {renderActiveWall()}
       </div>
 
+      {/* AD OVERLAY */}
+      <AdOverlay
+        showAd={showAd}
+        currentAd={currentAd}
+        adTransition={adTransition}
+      />
+
       {/* FULLSCREEN BUTTON */}
       <div
         style={{
@@ -137,7 +179,11 @@ export default function FanWallPage() {
           strokeWidth={1.5}
           style={{ width: 28, height: 28 }}
         >
-          <path strokeLinecap="round" strokeLinejoin="round" d="M3 9V4h5M21 9V4h-5M3 15v5h5M21 15v5h-5" />
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M3 9V4h5M21 9V4h-5M3 15v5h5M21 15v5h-5"
+          />
         </svg>
       </div>
     </div>

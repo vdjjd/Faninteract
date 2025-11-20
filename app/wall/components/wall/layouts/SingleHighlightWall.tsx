@@ -6,10 +6,10 @@ import { QRCodeCanvas } from 'qrcode.react';
 import React from 'react';
 
 /* ---------------------------------------------------- */
-/*  STYLE CONTROL BLOCK — FULLY TYPED                   */
+/*  STYLE CONTROL BLOCK                                  */
 /* ---------------------------------------------------- */
 
-const STYLE = {
+const STYLE: Record<string, React.CSSProperties> = {
   title: {
     color: '#fff',
     marginTop: '-9vh',
@@ -26,7 +26,7 @@ const STYLE = {
       drop-shadow(0 0 25px rgba(255,255,255,0.6))
       drop-shadow(0 0 40px rgba(255,255,255,0.3))
     `,
-  } as React.CSSProperties,
+  },
 
   greyBar: {
     width: '90%',
@@ -36,7 +36,7 @@ const STYLE = {
     marginLeft: '3.5%',
     background: 'linear-gradient(to right, #000, #4444)',
     borderRadius: '6px',
-  } as React.CSSProperties,
+  },
 
   nickname: {
     fontSize: 'clamp(3rem,4vw,5rem)',
@@ -44,7 +44,7 @@ const STYLE = {
     color: '#fff',
     textTransform: 'uppercase',
     margin: 0,
-  } as React.CSSProperties,
+  },
 
   message: {
     fontSize: 'clamp(4rem,1vw,2.4rem)',
@@ -53,22 +53,21 @@ const STYLE = {
     maxWidth: '90%',
     marginTop: '1.2vh',
     fontWeight: 600,
-  } as React.CSSProperties,
+  },
 
   scanText: {
     color: '#fff',
     fontWeight: 700,
     marginBottom: '0.6vh',
     fontSize: 'clamp(1rem,1.4vw,1.4rem)',
-  } as React.CSSProperties,
+  },
 
   qrWrapper: {
     padding: '4px',
     borderRadius: '20px',
     background: 'rgba(255,255,255,0.10)',
-    boxShadow:
-      '0 0 25px rgba(255,255,255,0.6), 0 0 40px rgba(255,255,255,0.3)',
-  } as React.CSSProperties,
+    boxShadow: '0 0 25px rgba(255,255,255,0.6), 0 0 40px rgba(255,255,255,0.3)',
+  },
 
   qrContainer: {
     position: 'absolute',
@@ -77,7 +76,7 @@ const STYLE = {
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
-  } as React.CSSProperties,
+  },
 };
 
 /* ---------------------------------------------------- */
@@ -91,69 +90,85 @@ const transitions: Record<string, any> = {
     exit: { opacity: 0 },
     transition: { duration: 0.8, ease: 'easeInOut' },
   },
+
   'Slide Up / Slide Out': {
     initial: { opacity: 0, y: 100 },
     animate: { opacity: 1, y: 0 },
     exit: { opacity: 0, y: -100 },
     transition: { duration: 0.9, ease: 'easeInOut' },
   },
+
   'Slide Down / Slide Out': {
     initial: { opacity: 0, y: -100 },
     animate: { opacity: 1, y: 0 },
     exit: { opacity: 0, y: 100 },
     transition: { duration: 0.9, ease: 'easeInOut' },
   },
+
   'Slide Left / Slide Right': {
     initial: { opacity: 0, x: 120 },
     animate: { opacity: 1, x: 0 },
     exit: { opacity: 0, x: -120 },
     transition: { duration: 0.9, ease: 'easeInOut' },
   },
+
   'Slide Right / Slide Left': {
     initial: { opacity: 0, x: -120 },
     animate: { opacity: 1, x: 0 },
     exit: { opacity: 0, x: 120 },
     transition: { duration: 0.9, ease: 'easeInOut' },
   },
+
   'Zoom In / Zoom Out': {
     initial: { opacity: 0, scale: 0.8 },
     animate: { opacity: 1, scale: 1 },
     exit: { opacity: 0, scale: 1.15 },
     transition: { duration: 0.9, ease: 'easeInOut' },
   },
+
   'Zoom Out / Zoom In': {
     initial: { opacity: 0, scale: 0.7 },
     animate: { opacity: 1, scale: 1 },
     exit: { opacity: 0, scale: 0.7 },
     transition: { duration: 0.9, ease: 'easeInOut' },
   },
-  Flip: {
-    initial: { opacity: 0, rotateY: 180 },
+
+  /* ⭐ NEW — Flip (horizontal flip) */
+  'Flip': {
+    initial: { opacity: 0, rotateY: 90 },
     animate: { opacity: 1, rotateY: 0 },
-    exit: { opacity: 0, rotateY: -180 },
-    transition: { duration: 1, ease: 'easeInOut' },
+    exit: { opacity: 0, rotateY: -90 },
+    transition: { duration: 0.9, ease: 'easeInOut' },
   },
+
+  /* ⭐ NEW — Rotate In / Rotate Out */
   'Rotate In / Rotate Out': {
-    initial: { opacity: 0, rotate: -90 },
+    initial: { opacity: 0, rotate: -180 },
     animate: { opacity: 1, rotate: 0 },
-    exit: { opacity: 0, rotate: 90 },
-    transition: { duration: 1, ease: 'easeInOut' },
+    exit: { opacity: 0, rotate: 180 },
+    transition: { duration: 0.9, ease: 'easeInOut' },
   },
 };
 
+
 const transitionKeys = Object.keys(transitions);
 
-const speedMap: Record<string, number> = {
+const speedMap = {
   Slow: 12000,
   Medium: 8000,
   Fast: 4000,
 };
 
 /* ---------------------------------------------------- */
-/*  CLEANED SingleHighlightWall (NO ADS)                */
+/*      SingleHighlightWall (FINAL + PATCHED)           */
 /* ---------------------------------------------------- */
 
-export default function SingleHighlightWall({ event, posts }) {
+export default function SingleHighlightWall({
+  event,
+  posts,
+  tickSubmissionDisplayed,
+  pauseFlag,
+}) {
   const [livePosts, setLivePosts] = useState(posts || []);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [randomTransition, setRandomTransition] = useState<string | null>(null);
@@ -171,37 +186,39 @@ export default function SingleHighlightWall({ event, posts }) {
       : event?.background_value || 'linear-gradient(135deg,#1b2735,#090a0f)';
 
   const brightness = event?.background_brightness ?? 100;
-
   const transitionType = event?.post_transition || 'Fade In / Fade Out';
   const displayDuration = speedMap[event?.transition_speed || 'Medium'];
 
-  /* Reset posts on change */
+  /* Reset posts on load */
   useEffect(() => {
     setLivePosts(posts || []);
     setCurrentIndex(0);
   }, [posts]);
 
-  /* Post cycling & transition switching */
+  /* Rotation Engine */
   useEffect(() => {
     if (!livePosts.length) return;
 
-    const interval = setInterval(() => {
+    const cycle = () => {
+      if (pauseFlag.current) return;
+
+      tickSubmissionDisplayed();
       setCurrentIndex(prev => (prev + 1) % livePosts.length);
 
       if (transitionType === 'Random') {
-        const nextKey =
-          transitionKeys[Math.floor(Math.random() * transitionKeys.length)];
-        setRandomTransition(nextKey);
+        const idx = Math.floor(Math.random() * transitionKeys.length);
+        setRandomTransition(transitionKeys[idx]);
       }
-    }, displayDuration);
+    };
 
+    const interval = setInterval(cycle, displayDuration);
     return () => clearInterval(interval);
   }, [livePosts.length, displayDuration, transitionType]);
 
+  /* Choose transition */
   const effectiveTransition = useMemo(() => {
-    if (transitionType === 'Random') {
+    if (transitionType === 'Random')
       return transitions[randomTransition || 'Fade In / Fade Out'];
-    }
     return transitions[transitionType] || transitions['Fade In / Fade Out'];
   }, [transitionType, randomTransition]);
 
@@ -212,6 +229,9 @@ export default function SingleHighlightWall({ event, posts }) {
       ? window.location.origin
       : 'https://faninteract.vercel.app';
 
+  /* ---------------------------------------------------- */
+  /* RENDER                                               */
+  /* ---------------------------------------------------- */
   return (
     <div
       style={{
@@ -227,10 +247,8 @@ export default function SingleHighlightWall({ event, posts }) {
         position: 'relative',
       }}
     >
-      {/* TITLE */}
       <h1 style={STYLE.title}>{title}</h1>
 
-      {/* MAIN PANEL */}
       <div
         style={{
           width: 'min(92vw,1800px)',
@@ -244,7 +262,6 @@ export default function SingleHighlightWall({ event, posts }) {
           display: 'flex',
         }}
       >
-        {/* LEFT IMAGE */}
         <div
           style={{
             position: 'absolute',
@@ -257,38 +274,20 @@ export default function SingleHighlightWall({ event, posts }) {
           }}
         >
           <AnimatePresence mode="wait">
-            {current?.photo_url ? (
-              <motion.img
-                key={`${current.id}-${currentIndex}`}
-                src={current.photo_url}
-                {...effectiveTransition}
-                style={{
-                  width: '100%',
-                  height: '100%',
-                  objectFit: 'cover',
-                  borderRadius: 18,
-                }}
-              />
-            ) : (
-              <motion.div
-                key={`no-photo-${currentIndex}`}
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                style={{
-                  color: 'rgba(255,255,255,0.6)',
-                  fontSize: '2rem',
-                  textAlign: 'center',
-                  marginTop: '20%',
-                }}
-              >
-                No Photo
-              </motion.div>
-            )}
+            <motion.img
+              key={`${current?.id || 'blank'}-${currentIndex}`}
+              src={current?.photo_url || '/fallback.png'}
+              {...effectiveTransition}
+              style={{
+                width: '100%',
+                height: '100%',
+                objectFit: 'cover',
+                borderRadius: 18,
+              }}
+            />
           </AnimatePresence>
         </div>
 
-        {/* RIGHT SIDE */}
         <div
           style={{
             flexGrow: 1,
@@ -299,8 +298,6 @@ export default function SingleHighlightWall({ event, posts }) {
             alignItems: 'center',
           }}
         >
-
-          {/* LOGO CONTAINER */}
           <div
             style={{
               width: 'clamp(400px,28vw,380px)',
@@ -330,13 +327,10 @@ export default function SingleHighlightWall({ event, posts }) {
 
           <p style={STYLE.nickname}>{current?.nickname || 'Guest'}</p>
 
-          <p style={STYLE.message}>
-            {current?.message || 'Be the first to post!'}
-          </p>
+          <p style={STYLE.message}>{current?.message || 'Be the first to post!'}</p>
         </div>
       </div>
 
-      {/* QR CODE */}
       <div style={STYLE.qrContainer}>
         <p style={STYLE.scanText}>Scan Me To Join</p>
 

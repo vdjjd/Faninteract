@@ -23,23 +23,76 @@ const animSpeedMap: Record<string, number> = {
 };
 
 /* -------------------------------------- */
-/* SLIDE TRANSITION                        */
+/* FULL TRANSITION MAP (MATCHES OPTIONS)   */
 /* -------------------------------------- */
-function buildSlideUpTransition(speed: string) {
-  const duration = animSpeedMap[speed] || 1.5;
+const transitions: Record<string, any> = {
+  'Fade In / Fade Out': {
+    initial: { opacity: 0 },
+    animate: { opacity: 1 },
+    exit: { opacity: 0 },
+    transition: { duration: 0.8, ease: 'easeInOut' },
+  },
 
-  return {
+  'Slide Up / Slide Out': {
     initial: { opacity: 0, y: 100 },
     animate: { opacity: 1, y: 0 },
     exit: { opacity: 0, y: -100 },
-    transition: { duration, ease: 'easeInOut' },
-  };
-}
+    transition: { duration: 0.9, ease: 'easeInOut' },
+  },
 
-interface Grid2x2WallProps {
-  event: any;
-  posts: any[];
-}
+  'Slide Down / Slide Out': {
+    initial: { opacity: 0, y: -100 },
+    animate: { opacity: 1, y: 0 },
+    exit: { opacity: 0, y: 100 },
+    transition: { duration: 0.9, ease: 'easeInOut' },
+  },
+
+  'Slide Left / Slide Right': {
+    initial: { opacity: 0, x: 120 },
+    animate: { opacity: 1, x: 0 },
+    exit: { opacity: 0, x: -120 },
+    transition: { duration: 0.9, ease: 'easeInOut' },
+  },
+
+  'Slide Right / Slide Left': {
+    initial: { opacity: 0, x: -120 },
+    animate: { opacity: 1, x: 0 },
+    exit: { opacity: 0, x: 120 },
+    transition: { duration: 0.9, ease: 'easeInOut' },
+  },
+
+  'Zoom In / Zoom Out': {
+    initial: { opacity: 0, scale: 0.8 },
+    animate: { opacity: 1, scale: 1 },
+    exit: { opacity: 0, scale: 1.15 },
+    transition: { duration: 0.9, ease: 'easeInOut' },
+  },
+
+  'Zoom Out / Zoom In': {
+    initial: { opacity: 0, scale: 0.7 },
+    animate: { opacity: 1, scale: 1 },
+    exit: { opacity: 0, scale: 0.7 },
+    transition: { duration: 0.9, ease: 'easeInOut' },
+  },
+
+  /* NEW — Flip */
+  'Flip': {
+    initial: { opacity: 0, rotateY: 90 },
+    animate: { opacity: 1, rotateY: 0 },
+    exit: { opacity: 0, rotateY: -90 },
+    transition: { duration: 0.9, ease: 'easeInOut' },
+  },
+
+  /* NEW — Rotate In / Rotate Out */
+  'Rotate In / Rotate Out': {
+    initial: { opacity: 0, rotate: -180 },
+    animate: { opacity: 1, rotate: 0 },
+    exit: { opacity: 0, rotate: 180 },
+    transition: { duration: 0.9, ease: 'easeInOut' },
+  },
+};
+
+const transitionKeys = Object.keys(transitions);
 
 /* -------------------------------------- */
 /* POST ROW                                */
@@ -77,11 +130,7 @@ function PostRow({ post, reversed = false }) {
     >
       <img
         src={post.photo_url || '/fallback.png'}
-        style={{
-          width: '100%',
-          height: '100%',
-          objectFit: 'cover',
-        }}
+        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
       />
     </div>
   );
@@ -126,14 +175,7 @@ function PostRow({ post, reversed = false }) {
   );
 
   return (
-    <div
-      style={{
-        display: 'flex',
-        width: '100%',
-        height: '100%',
-        gap: 12,
-      }}
-    >
+    <div style={{ display: 'flex', width: '100%', height: '100%', gap: 12 }}>
       {reversed ? (
         <>
           {TextBlock}
@@ -150,24 +192,30 @@ function PostRow({ post, reversed = false }) {
 }
 
 /* -------------------------------------- */
-/* MAIN WALL                               */
+/* GRID 2x2 WALL                          */
 /* -------------------------------------- */
-export default function Grid2x2Wall({ event, posts }: Grid2x2WallProps) {
+export default function Grid2x2Wall({
+  event,
+  posts,
+  tickSubmissionDisplayed,
+  pauseFlag,
+}) {
+  const transitionType = event?.post_transition || 'Fade In / Fade Out';
+  const chosenTransition =
+    transitionType === 'Random'
+      ? transitions[
+          transitionKeys[Math.floor(Math.random() * transitionKeys.length)]
+        ]
+      : transitions[transitionType] || transitions['Fade In / Fade Out'];
 
-  /* REMOVED: useAdInjector */
-
-  const transitionSpeed = event?.transition_speed || 'Medium';
-  const slideUp = buildSlideUpTransition(transitionSpeed);
+  const speedValue = event?.transition_speed || 'Medium';
+  const displayDuration = speedMap[speedValue];
 
   /* BACKGROUND, TITLE, LOGO */
   const [bg, setBg] = useState('');
   const [brightness, setBrightness] = useState(100);
   const [title, setTitle] = useState('Fan Zone Wall');
-
   const [logo, setLogo] = useState('/faninteractlogo.png');
-  const [displayDuration, setDisplayDuration] = useState(
-    speedMap[transitionSpeed]
-  );
 
   useEffect(() => {
     setBg(
@@ -178,87 +226,62 @@ export default function Grid2x2Wall({ event, posts }: Grid2x2WallProps) {
 
     setBrightness(event?.background_brightness ?? 100);
     setTitle(event?.title || 'Fan Zone Wall');
-
     setLogo(
-      event?.host?.branding_logo_url &&
-      event.host.branding_logo_url.trim() !== ''
+      event?.host?.branding_logo_url?.trim()
         ? event.host.branding_logo_url
         : '/faninteractlogo.png'
     );
-
-    setDisplayDuration(speedMap[event?.transition_speed] || speedMap.Medium);
   }, [event]);
 
   /* -------------------------------------- */
-  /* QUAD ROTATION ENGINE                   */
+  /* QUAD ROTATION                           */
   /* -------------------------------------- */
-  const [gridPosts, setGridPosts] = useState<(any | null)[]>(
-    Array(4).fill(null)
-  );
+  const [gridPosts, setGridPosts] = useState<any[]>([]);
 
-  const pointer = useRef(0);
-  const slot = useRef(0);
-  const running = useRef(true);
-
-  const rotationOrder = [0, 1, 2, 3];
-
-  /* INITIAL FILL */
   useEffect(() => {
-    if (!posts?.length) return;
-
-    if (gridPosts.every((p) => p === null)) {
-      const initial = rotationOrder.map((i) => posts[i % posts.length]);
-      setGridPosts(initial);
-      pointer.current = 4 % posts.length;
-      slot.current = 0;
+    if (!posts?.length) {
+      setGridPosts([]);
+      return;
     }
+
+    const initial = [0, 1, 2, 3].map((i) => posts[i % posts.length]);
+    setGridPosts(initial);
   }, [posts]);
 
-  /* ROTATION LOOP */
   useEffect(() => {
     if (!posts?.length) return;
-    running.current = true;
 
-    const loop = async () => {
-      while (running.current) {
-        const pos = rotationOrder[slot.current % 4];
-        const nextPost = posts[pointer.current % posts.length];
+    let pointer = 4 % posts.length;
+    let slotIndex = 0;
+    const order = [0, 1, 2, 3];
 
-        // exit
-        setGridPosts((prev) => {
-          const updated = [...prev];
-          updated[pos] = null;
-          return updated;
-        });
+    const interval = setInterval(() => {
+      if (pauseFlag.current) return;
 
-        await new Promise((res) =>
-          setTimeout(res, animSpeedMap[transitionSpeed] * 1000 * 0.6)
-        );
+      const pos = order[slotIndex % 4];
+      const nextPost = posts[pointer % posts.length];
 
-        // enter
-        setGridPosts((prev) => {
-          const updated = [...prev];
-          updated[pos] = nextPost;
-          return updated;
-        });
+      setGridPosts((prev) => {
+        const base =
+          prev && prev.length === 4
+            ? [...prev]
+            : [0, 1, 2, 3].map((i) => posts[i % posts.length]);
 
-        pointer.current = (pointer.current + 1) % posts.length;
-        slot.current = (slot.current + 1) % 4;
+        base[pos] = nextPost;
+        return base;
+      });
 
-        /* REMOVED: tick(); */
+      pointer = (pointer + 1) % posts.length;
+      slotIndex = (slotIndex + 1) % 4;
 
-        await new Promise((res) => setTimeout(res, displayDuration));
-      }
-    };
+      tickSubmissionDisplayed();
+    }, displayDuration);
 
-    loop();
-    return () => {
-      running.current = false;
-    };
-  }, [posts, displayDuration, transitionSpeed]);
+    return () => clearInterval(interval);
+  }, [posts, displayDuration, pauseFlag, tickSubmissionDisplayed]);
 
   /* -------------------------------------- */
-  /* RENDER                                  */
+  /* RENDER                                 */
   /* -------------------------------------- */
   return (
     <div
@@ -274,7 +297,6 @@ export default function Grid2x2Wall({ event, posts }: Grid2x2WallProps) {
         position: 'relative',
       }}
     >
-
       {/* LOGO */}
       <div
         style={{
@@ -283,8 +305,7 @@ export default function Grid2x2Wall({ event, posts }: Grid2x2WallProps) {
           right: '1.5vw',
           width: 'clamp(180px,20vw,260px)',
           height: 'clamp(110px,12vw,180px)',
-          borderRadius: '12px',
-          background: 'transparent',
+          borderRadius: 12,
           display: 'flex',
           justifyContent: 'center',
           alignItems: 'center',
@@ -317,10 +338,6 @@ export default function Grid2x2Wall({ event, posts }: Grid2x2WallProps) {
             2px -2px 2px #000,
             -2px -2px 2px #000
           `,
-          filter: `
-            drop-shadow(0 0 25px rgba(255,255,255,0.6))
-            drop-shadow(0 0 40px rgba(255,255,255,0.3))
-          `,
         }}
       >
         {title}
@@ -332,24 +349,30 @@ export default function Grid2x2Wall({ event, posts }: Grid2x2WallProps) {
           display: 'grid',
           width: '80vw',
           height: '55vh',
-          gridTemplateColumns: `1fr 1fr`,
-          gridTemplateRows: `1fr 1fr`,
+          gridTemplateColumns: '1fr 1fr',
+          gridTemplateRows: '1fr 1fr',
           gap: '12px',
         }}
       >
-        {[0, 1, 2, 3].map((i) => (
-          <AnimatePresence key={i} mode="wait">
-            {gridPosts[i] && (
-              <motion.div
-                key={`${i}-${gridPosts[i]?.id}`}
-                {...slideUp}
-                style={{ width: '100%', height: '100%' }}
-              >
-                <PostRow post={gridPosts[i]} reversed={i === 2 || i === 3} />
-              </motion.div>
-            )}
-          </AnimatePresence>
-        ))}
+        {[0, 1, 2, 3].map((i) => {
+          const post = gridPosts[i];
+
+          return (
+            <div key={i} style={{ width: '100%', height: '100%' }}>
+              <AnimatePresence mode="wait">
+                {post && (
+                  <motion.div
+                    key={`${i}-${post.id}`}
+                    {...chosenTransition}
+                    style={{ width: '100%', height: '100%' }}
+                  >
+                    <PostRow post={post} reversed={i === 2 || i === 3} />
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          );
+        })}
       </div>
 
       {/* QR CODE */}
@@ -361,25 +384,15 @@ export default function Grid2x2Wall({ event, posts }: Grid2x2WallProps) {
           textAlign: 'center',
         }}
       >
-        <p
-          style={{
-            color: '#fff',
-            fontWeight: 800,
-            marginBottom: '0.6vh',
-          }}
-        >
+        <p style={{ color: '#fff', fontWeight: 800, marginBottom: '0.6vh' }}>
           Scan Me To Join
         </p>
 
         <div
           style={{
-            padding: '5px',
-            borderRadius: '16px',
+            padding: 5,
+            borderRadius: 16,
             background: 'rgba(255,255,255,0.12)',
-            boxShadow: `
-              0 0 25px rgba(255,255,255,0.6),
-              0 0 40px rgba(255,255,255,0.3)
-            `,
           }}
         >
           <QRCodeCanvas

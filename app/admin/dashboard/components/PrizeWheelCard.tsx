@@ -5,6 +5,20 @@ import { supabase } from '@/lib/supabaseClient';
 import { cn } from '@/lib/utils';
 
 /* ------------------------------------------------------------
+   GLOBAL WINDOW TYPES
+------------------------------------------------------------ */
+declare global {
+  interface Window {
+    _activePrizeWheel?: any;
+    _prizewheel?: {
+      _spin?: {
+        start: () => void;
+      };
+    };
+  }
+}
+
+/* ------------------------------------------------------------
    TYPES
 ------------------------------------------------------------ */
 
@@ -16,12 +30,6 @@ interface PrizeWheelCardProps {
   onOpenModeration: (wheel: any) => void;
   onPlay: (id: string) => Promise<void>;
   onStop: (id: string) => Promise<void>;
-}
-
-declare global {
-  interface Window {
-    _activePrizeWheel?: Window | null;
-  }
 }
 
 /* ------------------------------------------------------------
@@ -74,6 +82,7 @@ export default function PrizeWheelCard({
   const [toggleRemote, setToggleRemote] = useState<boolean>(
     wheel.remote_spin_enabled ?? false
   );
+
   const [selectedSpinner, setSelectedSpinner] = useState<string | null>(
     wheel.selected_remote_spinner ?? null
   );
@@ -98,7 +107,7 @@ export default function PrizeWheelCard({
   }
 
   /* ------------------------------------------------------------
-     Realtime: wheel_entries updates
+     Realtime: wheel_entries watcher
 ------------------------------------------------------------ */
   useEffect(() => {
     if (!wheel.id) return;
@@ -120,12 +129,12 @@ export default function PrizeWheelCard({
       .subscribe();
 
     return () => {
-      supabase.removeChannel(channel);
+      supabase.removeChannel(channel); // ✔ SYNC cleanup
     };
   }, [wheel.id]);
 
   /* ------------------------------------------------------------
-     Realtime: listen for HOST spin
+     Realtime: HOST SPIN listening
 ------------------------------------------------------------ */
   useEffect(() => {
     if (!wheel.id) return;
@@ -138,11 +147,13 @@ export default function PrizeWheelCard({
       })
       .subscribe();
 
-    return () => supabase.removeChannel(ch);
+    return () => {
+      supabase.removeChannel(ch); // ✔ FIXED
+    };
   }, [wheel.id]);
 
   /* ------------------------------------------------------------
-     Realtime: phone remote spin
+     Realtime: PHONE remote spin
 ------------------------------------------------------------ */
   useEffect(() => {
     if (!wheel.id) return;
@@ -154,11 +165,13 @@ export default function PrizeWheelCard({
       })
       .subscribe();
 
-    return () => supabase.removeChannel(ch);
+    return () => {
+      supabase.removeChannel(ch); // ✔ FIXED
+    };
   }, [wheel.id]);
 
   /* ------------------------------------------------------------
-     Remote Spin Toggle
+     Remote Toggle
 ------------------------------------------------------------ */
   async function handleRemoteToggle() {
     const newEnabled = !toggleRemote;
@@ -216,7 +229,7 @@ export default function PrizeWheelCard({
     );
 
     popup?.focus();
-    window._activePrizeWheel = popup || null;
+    window._activePrizeWheel = popup;
   }
 
   /* ------------------------------------------------------------
@@ -268,7 +281,7 @@ export default function PrizeWheelCard({
 
     try {
       const popup = window._activePrizeWheel;
-      popup?.window?._prizewheel?._spin?.start();
+      popup?._prizewheel?._spin?.start();
     } catch {}
 
     await broadcastSpin(wheel.id);

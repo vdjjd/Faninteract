@@ -18,8 +18,8 @@ export default function DashboardHeader({
   onCreateTriviaGame, // ⭐ NEW
 }: DashboardHeaderProps) {
   return (
-    <div className={cn('text-center mb-2')}>
-      <h1 className={cn('text-2xl font-bold mb-4')}>🎛 Host Dashboard</h1>
+    <div className={cn('text-center mb-0')}>
+      <h1 className={cn('text-2xl font-bold mb-1')}>🎛 Host Dashboard</h1>
 
       {/* ✅ Open Ads button below title */}
       <div className={cn('flex justify-center w-full mb-4')}>

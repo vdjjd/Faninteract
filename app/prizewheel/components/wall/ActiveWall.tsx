@@ -3,6 +3,8 @@
 import { useEffect, useRef } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import * as THREE from "three";
+
+// @ts-ignore — THREE has no types for CSS3DRenderer
 import { CSS3DRenderer, CSS3DObject } from "three/examples/jsm/renderers/CSS3DRenderer";
 
 /* ===========================================================
@@ -81,12 +83,9 @@ export default function ActivePrizeWheel3D({ wheel, entries }) {
   const brightA = wheel?.tile_brightness_a ?? 100;
   const brightB = wheel?.tile_brightness_b ?? 100;
 
-  /* ---------------------------------------------- */
-  /* HOST LOGO LOGIC — MATCHES FAN WALL EXACTLY     */
-  /* ---------------------------------------------- */
+  /* HOST LOGO */
   const logoUrl =
-    wheel?.host?.branding_logo_url &&
-    wheel.host.branding_logo_url.trim() !== ""
+    wheel?.host?.branding_logo_url?.trim() !== ""
       ? wheel.host.branding_logo_url
       : "/faninteractlogo.png";
 
@@ -103,6 +102,7 @@ export default function ActivePrizeWheel3D({ wheel, entries }) {
 
     wrapperRefs.current.forEach((wrap, i) => {
       const entry = selected[i % selected.length];
+
       const imgHolder = wrap.querySelector(".imgHolder") as HTMLElement | null;
       const nameHolder = wrap.querySelector(".nameHolder") as HTMLElement | null;
 
@@ -139,27 +139,32 @@ export default function ActivePrizeWheel3D({ wheel, entries }) {
 
     apply();
 
-    const interval = setInterval(async () => {
-      const { data } = await supabase
+    const interval = setInterval(() => {
+      supabase
         .from("prize_wheels")
         .select("*")
         .eq("id", wheel.id)
-        .single();
+        .single()
+        .then(({ data }) => {
+          if (!data) return;
 
-      if (!data) return;
+          bgRef.current =
+            data.background_type === "image"
+              ? `url(${data.background_value}) center/cover no-repeat`
+              : data.background_value;
 
-      bgRef.current =
-        data.background_type === "image"
-          ? `url(${data.background_value}) center/cover no-repeat`
-          : data.background_value;
+          brightnessRef.current =
+            typeof data.background_brightness === "number"
+              ? data.background_brightness
+              : brightnessRef.current;
 
-      if (typeof data.background_brightness === "number")
-        brightnessRef.current = data.background_brightness;
-
-      apply();
+          apply();
+        });
     }, 4000);
 
-    return () => clearInterval(interval);
+    return () => {
+      clearInterval(interval);
+    };
   }, [wheel?.id]);
 
   /* FULLSCREEN */
@@ -168,13 +173,11 @@ export default function ActivePrizeWheel3D({ wheel, entries }) {
       ? document.documentElement.requestFullscreen().catch(() => {})
       : document.exitFullscreen();
 
-  /* CONSTANTS */
   const TILE_SIZE = 820;
   const TILE_COUNT = 16;
   const RADIUS = 2550;
   const TILE_STEP = (2 * Math.PI) / TILE_COUNT;
 
-  /* SPIN STATE */
   const spinRef = useRef({
     spinning: false,
     startTime: 0,
@@ -216,7 +219,9 @@ export default function ActivePrizeWheel3D({ wheel, entries }) {
       })
       .subscribe();
 
-    return () => supabase.removeChannel(channel);
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [wheel?.id]);
 
   /* ===========================================================
@@ -261,13 +266,11 @@ export default function ActivePrizeWheel3D({ wheel, entries }) {
     window.addEventListener("resize", handleResize);
     document.addEventListener("fullscreenchange", handleResize);
 
-    /* Wheel group */
     const wheelGroup = new THREE.Group();
     currentWheelGroup.current = wheelGroup;
     wheelGroup.rotation.y = 0;
     scene.add(wheelGroup);
 
-    /* SPIN CONTROLLER */
     (window as any)._prizewheel = {
       _spin: {
         start: () => {
@@ -298,7 +301,6 @@ export default function ActivePrizeWheel3D({ wheel, entries }) {
       },
     };
 
-    /* Build Tiles */
     tileRefs.current = [];
     wrapperRefs.current = [];
 
@@ -320,7 +322,6 @@ export default function ActivePrizeWheel3D({ wheel, entries }) {
       wrapper.style.background = isA ? tileA : tileB;
       wrapper.style.filter = `brightness(${isA ? brightA : brightB}%)`;
 
-      /* IMG HOLDER */
       const imgHolder = document.createElement("div");
       imgHolder.className = "imgHolder";
       imgHolder.style.position = "absolute";
@@ -342,7 +343,6 @@ export default function ActivePrizeWheel3D({ wheel, entries }) {
 
       wrapper.appendChild(imgHolder);
 
-      /* NAME HOLDER */
       const nameHolder = document.createElement("div");
       nameHolder.className = "nameHolder";
       nameHolder.style.position = "absolute";
@@ -447,7 +447,7 @@ export default function ActivePrizeWheel3D({ wheel, entries }) {
 
   const bulbColor = wheel?.tile_color_a || "#ffffff";
 
-  function makeBulb(delay: number) {
+  function makeBulb(delay: number): React.CSSProperties {
     return {
       width: "40px",
       height: "40px",
@@ -458,7 +458,7 @@ export default function ActivePrizeWheel3D({ wheel, entries }) {
       opacity: 0.7,
       animation: "twinkle 1.8s ease-in-out infinite",
       animationDelay: `${delay}s`,
-      pointerEvents: "none",
+      pointerEvents: "none" as any,
     };
   }
 
@@ -473,7 +473,7 @@ export default function ActivePrizeWheel3D({ wheel, entries }) {
           display: "flex",
           flexDirection: "column",
           justifyContent: "space-between",
-          pointerEvents: "none",
+          pointerEvents: "none" as any,
           zIndex: 5,
         }}
       >
@@ -495,7 +495,7 @@ export default function ActivePrizeWheel3D({ wheel, entries }) {
           width: "70vw",
           display: "flex",
           justifyContent: "space-between",
-          pointerEvents: "none",
+          pointerEvents: "none" as any,
           zIndex: 5,
         }}
       >
@@ -536,12 +536,10 @@ export default function ActivePrizeWheel3D({ wheel, entries }) {
         `}
       </style>
 
-      {/* BULBS */}
       <BulbColumn side="left" />
       <BulbColumn side="right" />
       <BulbBottom />
 
-      {/* TITLE */}
       <h1
         style={{
           position: "absolute",
@@ -565,7 +563,6 @@ export default function ActivePrizeWheel3D({ wheel, entries }) {
         {wheel.title || "Prize Wheel"}
       </h1>
 
-      {/* FROSTED PANEL */}
       <div
         style={{
           position: "absolute",
@@ -586,7 +583,6 @@ export default function ActivePrizeWheel3D({ wheel, entries }) {
         <div ref={mountRef} style={{ width: "100%", height: "100%" }} />
       </div>
 
-      {/* HOST LOGO — Lower Left */}
       <div
         style={{
           position: "absolute",
@@ -594,7 +590,6 @@ export default function ActivePrizeWheel3D({ wheel, entries }) {
           left: "2.25vw",
           width: "clamp(140px, 14vw, 220px)",
           height: "clamp(80px, 8vw, 140px)",
-          border: "0px solid red",
           borderRadius: "12px",
           background: "rgba(0,0,0,0.0)",
           overflow: "hidden",
@@ -615,7 +610,6 @@ export default function ActivePrizeWheel3D({ wheel, entries }) {
         />
       </div>
 
-      {/* FULLSCREEN BUTTON */}
       <button
         onClick={toggleFullscreen}
         style={{
